@@ -54,6 +54,6 @@ lemma [simp]: "print_bclosure c = print_tclosure (unflatten_closure cd c)"
   by (induction c) simp_all
 
 lemma [simp]: "print_hclosure h x = print_bclosure (unheap_closure h x)"
-  by (cases "hlookup h x") (auto simp add: unheap_closure.simps)
+  by (cases "hlookup h x") simp_all
 
 end
