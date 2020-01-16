@@ -2,7 +2,10 @@ theory Compiler
   imports AlgorithmicTypechecking Printing StackConversion
 begin
 
-theorem tc_terminationn: "typechecks e \<Longrightarrow> flatten_code (compile (convert e) []) = cd \<Longrightarrow> 
+definition complete_compile :: "nexpr \<Rightarrow> byte_code list" where
+  "complete_compile e = flatten_code (compile (convert e) [])"
+
+theorem tc_terminationn: "typechecks e \<Longrightarrow> complete_compile e = cd \<Longrightarrow> 
   \<exists>v. valn v \<and> iter (\<leadsto>\<^sub>n) e v \<and> 
     (\<exists>h v\<^sub>h. iter (\<leadsto>\<^sub>h) (HS hempty [] [[]] [length cd] cd) (HS h [v\<^sub>h] [] [] cd) \<and> 
       print_hclosure h v\<^sub>h = print_nexpr v)"
@@ -22,7 +25,8 @@ proof -
     by (metis iter_completet)
   hence ET: "iter (\<leadsto>\<^sub>t) (TS [] [[]] (compile (convert e) [])) (TS [compile_closure c] [] [])" 
     by simp
-  assume C: "flatten_code (compile (convert e) []) = cd"
+  assume "complete_compile e = cd"
+  hence C: "flatten_code (compile (convert e) []) = cd" by (simp add: complete_compile_def)
   hence "unflatten_code cd (length cd) = compile (convert e) []" by auto
   hence UB: "unflatten_state (BS [] [[]] [length cd] cd) = TS [] [[]] (compile (convert e) [])" 
     by simp
