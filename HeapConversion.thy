@@ -4,30 +4,20 @@ begin
 
 primrec stack_below :: "ptr \<Rightarrow> ptr list \<Rightarrow> bool" where
   "stack_below x [] = True"
-| "stack_below x (v # vs) = (ptr_less x v \<and> stack_below x vs)"
+| "stack_below x (v # vs) = (v < x \<and> stack_below x vs)"
 
-lemma [simp]: "stack_below x ys \<Longrightarrow> y \<in> set ys \<Longrightarrow> ptrSize y < ptrSize x"
+lemma [simp]: "stack_below x ys \<Longrightarrow> y \<in> set ys \<Longrightarrow> y < x"
   by (induction ys) auto
 
-function unheap_closure :: "hclosure heap \<Rightarrow> ptr \<Rightarrow> bclosure" where
+fun unheap_closure :: "hclosure heap \<Rightarrow> ptr \<Rightarrow> bclosure" where
   "unheap_closure h x = (case hlookup h x of 
       HConst k \<Rightarrow> BConst k
     | HLam env pc \<Rightarrow> 
         BLam (if stack_below x env then map (unheap_closure h) env else undefined) pc)"
-  by pat_completeness auto
-termination by (relation "measure (ptrSize \<circ> snd)") simp_all
 
 primrec unheap :: "heap_state \<Rightarrow> byte_code_state" where
   "unheap (HS h vs envs pcs cd) = 
     BS (map (unheap_closure h) vs) (map (map (unheap_closure h)) envs) pcs cd"
-
-primrec stack_contains :: "hclosure heap \<Rightarrow> ptr list \<Rightarrow> bool" where
-  "stack_contains h [] = True"
-| "stack_contains h (v # vs) = (hcontains h v \<and> stack_contains h vs)"
-
-primrec env_contains :: "hclosure heap \<Rightarrow> ptr list list \<Rightarrow> bool" where
-  "env_contains h [] = True"
-| "env_contains h (v # vs) = (stack_contains h v \<and> env_contains h vs)"
 
 primrec bounded_closure :: "hclosure heap \<Rightarrow> ptr \<Rightarrow> hclosure \<Rightarrow> bool" where
   "bounded_closure h x (HConst k) = True"
@@ -37,17 +27,8 @@ primrec heap_structured :: "heap_state \<Rightarrow> bool" where
   "heap_structured (HS h vs envs pcs cd) = (heap_all (bounded_closure h) h \<and>
     stack_contains h vs \<and> env_contains h envs)"
 
-lemma [simp]: "halloc h a = (h', x) \<Longrightarrow> stack_contains h vs \<Longrightarrow> stack_contains h' vs"
-  by (induction vs) auto
-
-lemma [simp]: "halloc h a = (h', x) \<Longrightarrow> env_contains h vs \<Longrightarrow> env_contains h' vs"
-  by (induction vs) simp_all
-
 lemma [simp]: "halloc h a = (h', x) \<Longrightarrow> bounded_closure h y c \<Longrightarrow> bounded_closure h' y c"
   by (induction c) simp_all
-
-lemma [simp]: "lookup vs x = Some v \<Longrightarrow> stack_contains h vs \<Longrightarrow> hcontains h v"
-  by (induction vs x rule: lookup.induct) simp_all
 
 lemma [simp]: "heap_all (bounded_closure h) h \<Longrightarrow> halloc h c = (h', v) \<Longrightarrow> bounded_closure h v c \<Longrightarrow> 
     heap_all (bounded_closure h') h'"
@@ -63,9 +44,6 @@ lemma [simp]: "halloc h (HConst k) = (h', v) \<Longrightarrow> unheap_closure h'
 
 lemma [simp]: "halloc h c = (h', v) \<Longrightarrow> stack_contains h env \<Longrightarrow> stack_below v env"
   by (induction env) simp_all
-
-lemma [elim]: "stack_contains h env \<Longrightarrow> x \<in> set env \<Longrightarrow> hcontains h x"
-  by (induction env) auto
 
 lemma [simp]: "halloc h c = (h', v) \<Longrightarrow> hcontains h x \<Longrightarrow> heap_all (bounded_closure h) h \<Longrightarrow> 
   unheap_closure h' x = unheap_closure h x"
@@ -109,6 +87,9 @@ proof (induction \<Sigma>\<^sub>h \<Sigma>\<^sub>h' rule: evalh.induct)
   hence "bounded_closure h v2 (HLam env pc')" by (metis heap_lookup_all)
   with evh_apply show ?case by simp
 qed fastforce+
+
+lemma [simp]: "iter (\<leadsto>\<^sub>h) \<Sigma>\<^sub>h \<Sigma>\<^sub>h' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> heap_structured \<Sigma>\<^sub>h'"
+  by (induction \<Sigma>\<^sub>h \<Sigma>\<^sub>h' rule: iter.induct) simp_all
 
 theorem correcth [simp]: "\<Sigma>\<^sub>h \<leadsto>\<^sub>h \<Sigma>\<^sub>h' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> unheap \<Sigma>\<^sub>h \<leadsto>\<^sub>b unheap \<Sigma>\<^sub>h'"
   by (induction \<Sigma>\<^sub>h \<Sigma>\<^sub>h' rule: evalh.induct) simp_all

@@ -7,8 +7,8 @@ definition complete_compile :: "nexpr \<Rightarrow> byte_code list" where
 
 theorem tc_terminationn: "typechecks e \<Longrightarrow> complete_compile e = cd \<Longrightarrow> 
   \<exists>v. valn v \<and> iter (\<leadsto>\<^sub>n) e v \<and> 
-    (\<exists>h v\<^sub>h. iter (\<leadsto>\<^sub>h) (HS hempty [] [[]] [length cd] cd) (HS h [v\<^sub>h] [] [] cd) \<and> 
-      print_hclosure h v\<^sub>h = print_nexpr v)"
+    (\<exists>h v\<^sub>f. iter (\<leadsto>\<^sub>f) (FS hempty [] [[]] [length cd] cd) (FS h [v\<^sub>f] [] [] cd) \<and> 
+      print_hclosure (get_closure h v\<^sub>f) = print_nexpr v)"
 proof -
   assume "typechecks e"
   then obtain t where TN: "Map.empty \<turnstile>\<^sub>n e : t" by fastforce
@@ -39,15 +39,26 @@ proof -
   with VC have VB: "print_bclosure v\<^sub>b = print_nexpr v\<^sub>n" by simp
   from EB obtain \<Sigma>\<^sub>h' where EH: "iter (\<leadsto>\<^sub>h) (HS hempty [] [[]] [length cd] cd) \<Sigma>\<^sub>h' \<and> 
     BS [v\<^sub>b] [] [] cd = unheap \<Sigma>\<^sub>h'" by fastforce
-  then obtain h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = HS h [v\<^sub>h] [] [] cd \<and> v\<^sub>b = unheap_closure h v\<^sub>h" 
+  then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = HS h\<^sub>h [v\<^sub>h] [] [] cd \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 
     using unheap_backwards by blast
-  with VB have "print_hclosure h v\<^sub>h = print_nexpr v\<^sub>n" by simp
+  with VB have VH: "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr v\<^sub>n" by simp
+  have HS: "heap_structured (HS hempty [] [[]] [length cd] cd)" by simp
+  have FS: "flatten (HS hempty [] [[]] [length cd] cd) = FS hempty [] [[]] [length cd] cd" by simp
+  obtain h\<^sub>f mp where HC: "hsplay splay_closure h\<^sub>h = (h\<^sub>f, mp)" by fastforce
+  with SH have "flatten \<Sigma>\<^sub>h' = FS h\<^sub>f [mp v\<^sub>h] [] [] cd" by simp
+  with EH FS HS have EF: "iter (\<leadsto>\<^sub>f) (FS hempty [] [[]] [length cd] cd) (FS h\<^sub>f [mp v\<^sub>h] [] [] cd)"
+    by (metis completef_iter)
+  from EH have "heap_structured \<Sigma>\<^sub>h'" by fastforce
+  with SH have "hcontains h\<^sub>h v\<^sub>h" by simp
+  with HC have "get_closure h\<^sub>f (mp v\<^sub>h) = flatten_closure mp (hlookup h\<^sub>h v\<^sub>h)" 
+    by (metis get_closure_flatten)
+  with VH have VF: "print_hclosure (get_closure h\<^sub>f (mp v\<^sub>h)) = print_nexpr v\<^sub>n" 
+    by (simp del: get_closure.simps)
 
 
 
-
-  with EH SH have "iter (\<leadsto>\<^sub>h) (HS hempty [] [[]] [length cd] cd) (HS h [v\<^sub>h] [] [] cd) \<and> 
-    print_hclosure h v\<^sub>h = print_nexpr v\<^sub>n" by simp
+  from EF VF have "iter (\<leadsto>\<^sub>f) (FS hempty [] [[]] [length cd] cd) (FS h\<^sub>f [mp v\<^sub>h] [] [] cd) \<and> 
+    print_hclosure (get_closure h\<^sub>f (mp v\<^sub>h)) = print_nexpr v\<^sub>n" by simp
   with EN VN show ?thesis by fastforce
 qed
 

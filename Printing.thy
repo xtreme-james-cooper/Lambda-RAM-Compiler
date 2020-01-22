@@ -1,5 +1,6 @@
 theory Printing
-  imports NameRemoval ClosureConversion TreeCodeConversion CodeFlattening HeapConversion
+  imports NameRemoval ClosureConversion TreeCodeConversion CodeFlattening HeapConversion 
+    MemoryFlattening
 begin
 
 function string_of_nat :: "nat \<Rightarrow> string" where
@@ -33,10 +34,9 @@ primrec print_bclosure :: "bclosure \<Rightarrow> string" where
   "print_bclosure (BConst k) = string_of_nat k"
 | "print_bclosure (BLam cs pc) = ''<fun>''"
 
-fun print_hclosure :: "hclosure heap \<Rightarrow> ptr \<Rightarrow> string" where
-  "print_hclosure h x = (case hlookup h x of 
-      HConst k \<Rightarrow> string_of_nat k
-    | HLam cs pc \<Rightarrow> ''<fun>'')"
+fun print_hclosure :: "hclosure \<Rightarrow> string" where
+  "print_hclosure (HConst k) = string_of_nat k"
+| "print_hclosure (HLam cs pc) = ''<fun>''"
 
 lemma [simp]: "valn e \<Longrightarrow> print_dexpr (convert e) = print_nexpr e" 
   by (induction e) (simp_all add: convert_def)
@@ -53,7 +53,10 @@ lemma [simp]: "print_tclosure (compile_closure c) = print_closure c"
 lemma [simp]: "print_bclosure c = print_tclosure (unflatten_closure cd c)" 
   by (induction c) simp_all
 
-lemma [simp]: "print_hclosure h x = print_bclosure (unheap_closure h x)"
+lemma [simp]: "print_hclosure (hlookup h x) = print_bclosure (unheap_closure h x)"
   by (cases "hlookup h x") simp_all
+
+lemma [simp]: "print_hclosure (flatten_closure mp v) = print_hclosure v"
+  by (induction v) simp_all
 
 end
