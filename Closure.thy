@@ -9,11 +9,17 @@ datatype closure =
 datatype cframe = 
   CApp1 "closure list" dexpr
   | CApp2 closure
-  | CReturn
+  | CReturn "closure list"
 
 datatype closure_state = 
   CSE "cframe list" "closure list"  dexpr
   | CSC "cframe list" closure
+
+fun latest_environment :: "cframe list \<Rightarrow> closure list" where
+  "latest_environment [] = []"
+| "latest_environment (CApp1 cs e # s) = latest_environment s"
+| "latest_environment (CApp2 c # s) = latest_environment s"
+| "latest_environment (CReturn cs # s) = cs"
 
 inductive typecheck_closure :: "closure \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>c\<^sub>l" 50)
       and typecheck_closure_list :: "closure list \<Rightarrow> ty list \<Rightarrow> bool" (infix ":\<^sub>c\<^sub>l\<^sub>s" 50) where
@@ -30,17 +36,18 @@ inductive_cases [elim]: "c # cs :\<^sub>c\<^sub>l\<^sub>s ts"
 inductive typecheck_cstack :: "cframe list \<Rightarrow> ty \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>c _ \<rightarrow>" 50) where
   tcc_snil [simp]: "[] :\<^sub>c t \<rightarrow> t"
 | tcc_scons_app1 [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> ts \<turnstile>\<^sub>d e : t\<^sub>1 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> 
-    CApp1 cs e # s :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
+    latest_environment s = cs \<Longrightarrow> CApp1 cs e # s :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
 | tcc_scons_app2 [simp]: "c :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> CApp2 c # s :\<^sub>c t\<^sub>1 \<rightarrow> t"
-| tcc_scons_ret [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> CReturn # s :\<^sub>c t' \<rightarrow> t"
+| tcc_scons_ret [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> CReturn cs # s :\<^sub>c t' \<rightarrow> t"
 
 inductive_cases [elim]: "[] :\<^sub>c t' \<rightarrow> t"
 inductive_cases [elim]: "CApp1 cs e # s :\<^sub>c t' \<rightarrow> t"
 inductive_cases [elim]: "CApp2 c # s :\<^sub>c t' \<rightarrow> t"
-inductive_cases [elim]: "CReturn # s :\<^sub>c t' \<rightarrow> t"
+inductive_cases [elim]: "CReturn cs # s :\<^sub>c t' \<rightarrow> t"
 
 inductive typecheck_closure_state :: "closure_state \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>c" 50) where
-  tcc_state_ev [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> ts \<turnstile>\<^sub>d e : t' \<Longrightarrow> CSE s cs e :\<^sub>c t"
+  tcc_state_ev [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> latest_environment s = cs \<Longrightarrow> ts \<turnstile>\<^sub>d e : t' \<Longrightarrow> 
+    CSE s cs e :\<^sub>c t"
 | tcc_state_ret [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> c :\<^sub>c\<^sub>l t' \<Longrightarrow> CSC s c :\<^sub>c t"
 
 inductive_cases [elim]: "CSE s cs e :\<^sub>c t"
@@ -52,8 +59,8 @@ inductive evalc :: "closure_state \<Rightarrow> closure_state \<Rightarrow> bool
 | evc_lam [simp]: "CSE s cs (DLam t e) \<leadsto>\<^sub>c CSC s (CLam t cs e)"
 | evc_app [simp]: "CSE s cs (DApp e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>c CSE (CApp1 cs e\<^sub>2 # s) cs e\<^sub>1"
 | retc_app1 [simp]: "CSC (CApp1 cs e\<^sub>2 # s) c\<^sub>1 \<leadsto>\<^sub>c CSE (CApp2 c\<^sub>1 # s) cs e\<^sub>2"
-| retc_app2 [simp]: "CSC (CApp2 (CLam t cs e\<^sub>1) # s) c\<^sub>2 \<leadsto>\<^sub>c CSE (CReturn # s) (c\<^sub>2 # cs) e\<^sub>1"
-| retc_ret [simp]: "CSC (CReturn # s) c \<leadsto>\<^sub>c CSC s c"
+| retc_app2 [simp]: "CSC (CApp2 (CLam t cs e\<^sub>1) # s) c\<^sub>2 \<leadsto>\<^sub>c CSE (CReturn (c\<^sub>2 # cs) # s) (c\<^sub>2 # cs) e\<^sub>1"
+| retc_ret [simp]: "CSC (CReturn cs # s) c \<leadsto>\<^sub>c CSC s c"
 
 lemma canonical_basec [dest]: "c :\<^sub>c\<^sub>l Base \<Longrightarrow> \<exists>k. c = CConst k"
   by (induction c Base rule: typecheck_closure_typecheck_closure_list.inducts(1)) simp_all
@@ -99,11 +106,11 @@ next
   case (tcc_scons_app2 c\<^sub>1 t\<^sub>1 t\<^sub>2 s t)
   then obtain cs ts e where "c\<^sub>1 = CLam t\<^sub>1 cs e \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e : t\<^sub>2)" 
     by blast
-  moreover hence "CSC (CApp2 (CLam t\<^sub>1 cs e) # s) c \<leadsto>\<^sub>c CSE (CReturn # s) (c # cs) e" by simp
+  moreover hence "CSC (CApp2 (CLam t\<^sub>1 cs e) # s) c \<leadsto>\<^sub>c CSE (CReturn (c # cs) # s) (c # cs) e" by simp
   ultimately show ?case by fastforce
 next
-  case (tcc_scons_ret s t' t)
-  have "CSC (CReturn # s) c \<leadsto>\<^sub>c CSC s c" by simp
+  case (tcc_scons_ret cs ts s t' t)
+  have "CSC (CReturn cs # s) c \<leadsto>\<^sub>c CSC s c" by simp
   thus ?case by fastforce
 qed simp_all
 
@@ -119,12 +126,12 @@ proof (induction \<Sigma> \<Sigma>' rule: evalc.induct)
 next
   case (evc_app s cs e\<^sub>1 e\<^sub>2)
   then obtain t\<^sub>1 t\<^sub>2 ts where "(s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (ts \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1)" 
-   and X: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (ts \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2)" by blast
+   and X: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = cs \<and> (ts \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2)" by blast
   hence "CApp1 cs e\<^sub>2 # s :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"  by fastforce
   with X show ?case by fastforce
 next
   case (retc_app1 cs e\<^sub>2 s c\<^sub>1)
-  then obtain ts t\<^sub>1 t\<^sub>2 where X: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (ts \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1)" 
+  then obtain ts t\<^sub>1 t\<^sub>2 where X: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = cs \<and> (ts \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1)" 
    and "(s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (c\<^sub>1 :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2)" by blast
   hence "CApp2 c\<^sub>1 # s :\<^sub>c t\<^sub>1 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
@@ -132,8 +139,8 @@ next
   case (retc_app2 t\<^sub>1 cs e\<^sub>1 s c\<^sub>2)
   then obtain ts t\<^sub>2 where X: "s :\<^sub>c t\<^sub>2 \<rightarrow> t" and Y: "insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2" 
    and "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (c\<^sub>2 :\<^sub>c\<^sub>l t\<^sub>1)" by blast
-  hence Z: "(c\<^sub>2 # cs) :\<^sub>c\<^sub>l\<^sub>s insert_at 0 t\<^sub>1 ts" by (induction ts) simp_all
-  from X have "CReturn # s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
+  hence Z: "c\<^sub>2 # cs :\<^sub>c\<^sub>l\<^sub>s insert_at 0 t\<^sub>1 ts" by (induction ts) simp_all
+  with X have "CReturn (c\<^sub>2 # cs) # s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
   with Y Z show ?case by fastforce
 qed fastforce+
 
@@ -160,8 +167,8 @@ next
   case (retc_app2 t cs e\<^sub>1 s c\<^sub>2)
   thus ?case by (induction "CSC (CApp2 (CLam t cs e\<^sub>1) # s) c\<^sub>2" \<Sigma>'' rule: evalc.induct) simp_all 
 next
-  case (retc_ret s c)
-  thus ?case by (induction "CSC (CReturn # s) c" \<Sigma>'' rule: evalc.induct) simp_all 
+  case (retc_ret cs s c)
+  thus ?case by (induction "CSC (CReturn cs # s) c" \<Sigma>'' rule: evalc.induct) simp_all 
 qed
 
 end

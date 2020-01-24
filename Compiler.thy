@@ -17,11 +17,12 @@ proof -
   with TN obtain v\<^sub>n where EN: "iter (\<leadsto>\<^sub>n) e v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n" by fastforce
   with VD have VN: "valn v\<^sub>n" by (metis convert_val_back)
   with VD EN TD have ES: "iter (\<leadsto>\<^sub>s) (SS [] (convert e)) (SS [] (convert v\<^sub>n))" by simp
-  from TD have "CSE [] [] (convert e) :\<^sub>c t" using tcc_state_ev tcc_nil tcc_snil by blast
+  from TD have TC: "CSE [] [] (convert e) :\<^sub>c t" 
+    by (metis tcc_state_ev tcc_nil tcc_snil latest_environment.simps(1))
   with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (CSE [] [] (convert e)) (CSC [] c) \<and> 
     declosure c = convert v\<^sub>n" by fastforce
   with VN have VC: "print_closure c = print_nexpr v\<^sub>n" by simp
-  from EC have "iter (\<leadsto>\<^sub>t) (compile_state (CSE [] [] (convert e))) (compile_state (CSC [] c))" 
+  from TC EC have "iter (\<leadsto>\<^sub>t) (compile_state (CSE [] [] (convert e))) (compile_state (CSC [] c))" 
     by (metis iter_completet)
   hence ET: "iter (\<leadsto>\<^sub>t) (TS [] [[]] (compile (convert e) [])) (TS [compile_closure c] [] [])" 
     by simp

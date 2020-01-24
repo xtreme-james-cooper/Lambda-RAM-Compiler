@@ -10,7 +10,7 @@ fun declosure_stack :: "cframe list \<Rightarrow> frame list" where
   "declosure_stack [] = []"
 | "declosure_stack (CApp1 cs e # s) = FApp1 (multisubst (map declosure cs) e) # declosure_stack s"
 | "declosure_stack (CApp2 c # s) = FApp2 (declosure c) # declosure_stack s"
-| "declosure_stack (CReturn # s) = FReturn # declosure_stack s"
+| "declosure_stack (CReturn cs # s) = FReturn # declosure_stack s"
 
 primrec declosure_state :: "closure_state \<Rightarrow> stack_state" where
   "declosure_state (CSE s cs e) = SS (declosure_stack s) (multisubst (map declosure cs) e)"
@@ -127,7 +127,7 @@ next
     by (metis iter_step iter_refl)
   thus ?case by simp
 next
-  case (retc_ret s c)
+  case (retc_ret cs s c)
   have "SS (FReturn # declosure_stack s) (declosure c) \<leadsto>\<^sub>s SS (declosure_stack s) (declosure c)" 
     by simp
   hence "iter (\<leadsto>\<^sub>s) (SS (FReturn # declosure_stack s) (declosure c)) 
@@ -146,7 +146,7 @@ lemma [simp]: "FApp2 e # s = declosure_stack s\<^sub>c \<Longrightarrow>
     \<exists>c s\<^sub>c'. s\<^sub>c = CApp2 c # s\<^sub>c' \<and> e = declosure c \<and> s = declosure_stack s\<^sub>c'"
   by (induction s\<^sub>c rule: declosure_stack.induct) simp_all
 
-lemma [simp]: "FReturn # s = declosure_stack s\<^sub>c \<Longrightarrow> \<exists>s\<^sub>c'. s\<^sub>c = CReturn # s\<^sub>c'"
+lemma [simp]: "FReturn # s = declosure_stack s\<^sub>c \<Longrightarrow> \<exists>cs s\<^sub>c'. s\<^sub>c = CReturn cs # s\<^sub>c'"
   by (induction s\<^sub>c rule: declosure_stack.induct) simp_all
 
 lemma [simp]: "SS s e = declosure_state \<Sigma> \<Longrightarrow> 
@@ -276,25 +276,27 @@ next
     with evs_app3 obtain c' where C': "CSE (CApp2 c # s\<^sub>c') cs e' \<leadsto>\<^sub>c CSC (CApp2 c # s\<^sub>c') c' \<and> 
       multisubst (map declosure cs) e' = declosure c'" by fastforce
     with E have E2: "e\<^sub>2 = declosure c'" by simp
-    have "CSC (CApp2 (CLam t\<^sub>1 cs' e\<^sub>1') # s\<^sub>c') c' \<leadsto>\<^sub>c CSE (CReturn # s\<^sub>c') (c' # cs') e\<^sub>1'" by simp
-    with C C' have X: "iter (\<leadsto>\<^sub>c) (CSE (CApp2 c # s\<^sub>c') cs e') (CSE (CReturn # s\<^sub>c') (c' # cs') e\<^sub>1')" 
-      by (metis iter_step iter_refl)
+    have "CSC (CApp2 (CLam t\<^sub>1 cs' e\<^sub>1') # s\<^sub>c') c' \<leadsto>\<^sub>c CSE (CReturn (c' # cs') # s\<^sub>c') (c' # cs') e\<^sub>1'"
+      by simp
+    with C C' have X: "iter (\<leadsto>\<^sub>c) (CSE (CApp2 c # s\<^sub>c') cs e') 
+      (CSE (CReturn (c' # cs') # s\<^sub>c') (c' # cs') e\<^sub>1')" by (metis iter_step iter_refl)
     from evs_app3 E C' have "CSC (CApp2 c # s\<^sub>c') c' :\<^sub>c t" by (metis preservationc)
     then obtain t' where "((CApp2 c # s\<^sub>c') :\<^sub>c t' \<rightarrow> t) \<and> (c' :\<^sub>c\<^sub>l t')" by fastforce
     with E2 have "\<forall>ee. substd 0 ee e\<^sub>2 = e\<^sub>2" by auto
     with C S' E C' have "SS (FReturn # s) (substd 0 e\<^sub>2 e\<^sub>1) = 
-      declosure_state (CSE (CReturn # s\<^sub>c') (c' # cs') e\<^sub>1')" by simp
+      declosure_state (CSE (CReturn (c' # cs') # s\<^sub>c') (c' # cs') e\<^sub>1')" by simp
     with E X show ?thesis by blast
   next
     case False
     with S S' C obtain c\<^sub>2 where E: "\<Sigma>\<^sub>c = CSC (CApp2 (CLam t\<^sub>1 cs' e\<^sub>1') # s\<^sub>c') c\<^sub>2 \<and> e\<^sub>2 = declosure c\<^sub>2" 
       by fastforce
-    have X: "CSC (CApp2 (CLam t\<^sub>1 cs' e\<^sub>1') # s\<^sub>c') c\<^sub>2 \<leadsto>\<^sub>c CSE (CReturn # s\<^sub>c') (c\<^sub>2 # cs') e\<^sub>1'" by simp
-    with evs_app3 E have "CSE (CReturn # s\<^sub>c') (c\<^sub>2 # cs') e\<^sub>1' :\<^sub>c t" by (metis preservationc)
+    have X: "CSC (CApp2 (CLam t\<^sub>1 cs' e\<^sub>1') # s\<^sub>c') c\<^sub>2 \<leadsto>\<^sub>c CSE (CReturn (c\<^sub>2 # cs') # s\<^sub>c') (c\<^sub>2 # cs') e\<^sub>1'"
+      by simp
+    with evs_app3 E have "CSE (CReturn (c\<^sub>2 # cs') # s\<^sub>c') (c\<^sub>2 # cs') e\<^sub>1' :\<^sub>c t" by (metis preservationc)
     then obtain t' ts where "(s\<^sub>c' :\<^sub>c t' \<rightarrow> t) \<and> (c\<^sub>2 # cs' :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (ts \<turnstile>\<^sub>d e\<^sub>1' : t')" by fastforce
     with E have "\<forall>ee. substd 0 ee e\<^sub>2 = e\<^sub>2" by auto
     with S' C E have "SS (FReturn # s) (substd 0 e\<^sub>2 e\<^sub>1) = 
-      declosure_state (CSE (CReturn # s\<^sub>c') (c\<^sub>2 # cs') e\<^sub>1')" by simp
+      declosure_state (CSE (CReturn (c\<^sub>2 # cs') # s\<^sub>c') (c\<^sub>2 # cs') e\<^sub>1')" by simp
     with E X show ?thesis by (metis iter_step iter_refl)
   qed
 next
@@ -302,25 +304,26 @@ next
   then obtain s\<^sub>c where S: "FReturn # s = declosure_stack s\<^sub>c \<and> 
     ((\<exists>cs e'. \<Sigma>\<^sub>c = CSE s\<^sub>c cs e' \<and> e = multisubst (map declosure cs) e') \<or> 
       (\<exists>c. \<Sigma>\<^sub>c = CSC s\<^sub>c c \<and> e = declosure c))" by fastforce
-  then obtain s\<^sub>c' where S': "s\<^sub>c = CReturn # s\<^sub>c'" by fastforce
+  then obtain cs s\<^sub>c' where S': "s\<^sub>c = CReturn cs # s\<^sub>c'" by fastforce
   thus ?case
-  proof (cases "(\<exists>cs e'. \<Sigma>\<^sub>c = CSE (CReturn # s\<^sub>c') cs e' \<and> e = multisubst (map declosure cs) e')")
+  proof (cases "(\<exists>cs' e'. \<Sigma>\<^sub>c = CSE (CReturn cs # s\<^sub>c') cs' e' \<and> 
+      e = multisubst (map declosure cs') e')")
     case True
-    then obtain cs e' where C: "\<Sigma>\<^sub>c = CSE (CReturn # s\<^sub>c') cs e' \<and> 
-      e = multisubst (map declosure cs) e'" by fastforce
-    with evs_ret obtain c where C': "CSE (CReturn # s\<^sub>c') cs e' \<leadsto>\<^sub>c CSC (CReturn # s\<^sub>c') c \<and> 
-      multisubst (map declosure cs) e' = declosure c" by fastforce
-    moreover have "CSC (CReturn # s\<^sub>c') c \<leadsto>\<^sub>c CSC s\<^sub>c' c" by simp
-    ultimately have "iter (\<leadsto>\<^sub>c) (CSE (CReturn # s\<^sub>c') cs e') (CSC s\<^sub>c' c)" 
+    then obtain cs' e' where C: "\<Sigma>\<^sub>c = CSE (CReturn cs # s\<^sub>c') cs' e' \<and> 
+      e = multisubst (map declosure cs') e'" by fastforce
+    with evs_ret obtain c where C': "CSE (CReturn cs # s\<^sub>c') cs' e' \<leadsto>\<^sub>c CSC (CReturn cs # s\<^sub>c') c \<and> 
+      multisubst (map declosure cs') e' = declosure c" by fastforce
+    moreover have "CSC (CReturn cs # s\<^sub>c') c \<leadsto>\<^sub>c CSC s\<^sub>c' c" by simp
+    ultimately have "iter (\<leadsto>\<^sub>c) (CSE (CReturn cs # s\<^sub>c') cs' e') (CSC s\<^sub>c' c)" 
       by (metis iter_refl iter_step)
-    with S S' C C' have "iter (\<leadsto>\<^sub>c) (CSE (CReturn # s\<^sub>c') cs e') (CSC s\<^sub>c' c) \<and> 
+    with S S' C C' have "iter (\<leadsto>\<^sub>c) (CSE (CReturn cs # s\<^sub>c') cs' e') (CSC s\<^sub>c' c) \<and> 
       SS s e = declosure_state (CSC s\<^sub>c' c)" by simp
     with C show ?thesis by fastforce
   next
     case False
-    with S S' obtain c where C: "\<Sigma>\<^sub>c = CSC (CReturn # s\<^sub>c') c \<and> e = declosure c" by fastforce
-    have "CSC (CReturn # s\<^sub>c') c \<leadsto>\<^sub>c CSC s\<^sub>c' c" by simp
-    hence "iter (\<leadsto>\<^sub>c) (CSC (CReturn # s\<^sub>c') c) (CSC s\<^sub>c' c)" by (metis iter_refl iter_step)
+    with S S' obtain c where C: "\<Sigma>\<^sub>c = CSC (CReturn cs # s\<^sub>c') c \<and> e = declosure c" by fastforce
+    have "CSC (CReturn cs # s\<^sub>c') c \<leadsto>\<^sub>c CSC s\<^sub>c' c" by simp
+    hence "iter (\<leadsto>\<^sub>c) (CSC (CReturn cs # s\<^sub>c') c) (CSC s\<^sub>c' c)" by (metis iter_refl iter_step)
     with S S' C show ?thesis by fastforce
   qed
 qed
