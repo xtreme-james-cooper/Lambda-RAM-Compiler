@@ -8,7 +8,9 @@ datatype byte_code =
   | BPushLam nat
   | BEnter
   | BApply
+  | BReturn_Old
   | BReturn
+  | BJump
 
 datatype bclosure = 
   BConst nat
@@ -29,8 +31,13 @@ inductive evalb :: "byte_code_state \<Rightarrow> byte_code_state \<Rightarrow> 
 | evb_apply [simp]: "cd ! pc = BApply \<Longrightarrow> 
     BS (v # BLam env pc' # vs) envs (Suc pc # pcs) cd \<leadsto>\<^sub>b 
       BS vs ((v # env) # envs) (pc' # pc # pcs) cd"
-| evb_return [simp]: "cd ! pc = BReturn \<Longrightarrow> 
+| evb_return [simp]: "cd ! pc = BReturn_Old \<Longrightarrow> 
     BS vs envs (Suc pc # pcs) cd \<leadsto>\<^sub>b BS vs envs pcs cd"
+| evb_returnb [simp]: "cd ! pc = BReturn \<Longrightarrow> 
+    BS vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>b BS vs envs pcs cd"
+| evb_jump [simp]: "cd ! pc = BJump \<Longrightarrow> 
+    BS (v # BLam env' pc' # vs) (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>b 
+      BS vs ((v # env') # envs) (pc' # pcs) cd"
 
 theorem determinismb: "\<Sigma> \<leadsto>\<^sub>b \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>b \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: evalb.induct)
@@ -58,6 +65,16 @@ next
   case (evb_return cd pc vs envs pcs)
   from evb_return(2, 1) show ?case 
     by (induction "BS vs envs (Suc pc # pcs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
+next
+  case (evb_returnb cd pc vs env envs pcs)
+  from evb_returnb(2, 1) show ?case 
+    by (induction "BS vs (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
+next
+  case (evb_jump cd pc v env' pc' vs env envs pcs)
+  from evb_jump(2, 1) show ?case 
+    by (induction "BS (v # BLam env' pc' # vs) (env # envs) (Suc pc # pcs) cd" \<Sigma>'' 
+        rule: evalb.induct) 
+       simp_all 
 qed
 
 lemma [simp]: "\<Sigma> \<leadsto>\<^sub>b \<Sigma>' \<Longrightarrow> code \<Sigma> = code \<Sigma>'"

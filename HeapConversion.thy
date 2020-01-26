@@ -86,6 +86,11 @@ proof (induction \<Sigma>\<^sub>h \<Sigma>\<^sub>h' rule: evalh.induct)
   hence "hlookup h v2 = HLam env pc' \<and> heap_all (bounded_closure h) h \<and> hcontains h v2" by simp
   hence "bounded_closure h v2 (HLam env pc')" by (metis heap_lookup_all)
   with evh_apply show ?case by simp
+next
+  case (evh_jump cd pc h v2 env' pc' v1 vs env envs pcs)
+  hence "hlookup h v2 = HLam env' pc' \<and> heap_all (bounded_closure h) h \<and> hcontains h v2" by simp
+  hence "bounded_closure h v2 (HLam env' pc')" by (metis heap_lookup_all)
+  with evh_jump show ?case by simp
 qed fastforce+
 
 lemma [simp]: "iter (\<leadsto>\<^sub>h) \<Sigma>\<^sub>h \<Sigma>\<^sub>h' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> heap_structured \<Sigma>\<^sub>h'"
@@ -163,6 +168,29 @@ next
   then obtain h vs' envs' where "\<Sigma>\<^sub>h = HS h vs' envs' (Suc pc # pcs) cd \<and> 
     vs = map (unheap_closure h) vs' \<and> envs = map (map (unheap_closure h)) envs'" by fastforce
   moreover from evb_return have "HS h vs' envs' (Suc pc # pcs) cd \<leadsto>\<^sub>h HS h vs' envs' pcs cd" by simp
+  ultimately show ?case by fastforce
+next
+  case (evb_returnb cd pc vs env envs pcs)
+  then obtain h vs' envs'' where "\<Sigma>\<^sub>h = HS h vs' envs'' (Suc pc # pcs) cd \<and> 
+    vs = map (unheap_closure h) vs' \<and> env # envs = map (map (unheap_closure h)) envs''" by fastforce
+  moreover then obtain env' envs' where "envs'' = env' # envs' \<and> 
+    env = map (unheap_closure h) env' \<and> envs = map (map (unheap_closure h)) envs'" by fastforce
+  moreover from evb_returnb have "HS h vs' (env' # envs') (Suc pc # pcs) cd \<leadsto>\<^sub>h 
+    HS h vs' envs' pcs cd" by simp
+  ultimately show ?case by fastforce
+next
+  case (evb_jump cd pc v env' pc' vs env envs pcs)
+  then obtain h vs'' envs'' where S: "\<Sigma>\<^sub>h = HS h vs'' envs'' (Suc pc # pcs) cd \<and> 
+    v # BLam env' pc' # vs = map (unheap_closure h) vs'' \<and> 
+      env # envs = map (map (unheap_closure h)) envs''" by fastforce
+  moreover then obtain envh envs' where "envs'' = envh # envs' \<and> 
+    env = map (unheap_closure h) envh \<and> envs = map (map (unheap_closure h)) envs'" by fastforce
+  moreover from S obtain v1 v2 vs' where "vs'' = v1 # v2 # vs' \<and> v = unheap_closure h v1 \<and> 
+    BLam env' pc' = unheap_closure h v2 \<and> vs = map (unheap_closure h) vs'" by fastforce
+  moreover with evb_jump S obtain envh' where "hlookup h v2 = HLam envh' pc' \<and> 
+    env' = map (unheap_closure h) envh'" by fastforce
+  moreover with evb_jump have "HS h (v1 # v2 # vs') (envh # envs') (Suc pc # pcs) cd \<leadsto>\<^sub>h 
+    HS h vs' ((v1 # envh') # envs') (pc' # pcs) cd" by simp
   ultimately show ?case by fastforce
 qed
 

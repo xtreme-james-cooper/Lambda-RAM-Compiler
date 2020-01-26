@@ -47,6 +47,12 @@ lemma [dest]: "TEnter # cd = compile e cd' \<Longrightarrow>
 lemma [dest]: "TApply # cd = compile e cd' \<Longrightarrow> P"
   by (induction e) simp_all
 
+lemma [dest]: "TReturn # cd = compile e cd' \<Longrightarrow> P"
+  by (induction e) simp_all
+
+lemma [dest]: "TJump # cd = compile e cd' \<Longrightarrow> P"
+  by (induction e) simp_all
+
 lemma [dest]: "compile_closure c = TConst k \<Longrightarrow> c = CConst k"
   by (induction c) simp_all
 
@@ -173,6 +179,12 @@ next
   ultimately show ?case by fastforce
 qed (auto split: tree_code_state.splits)
 
+lemma compile_stack_to_return [simp]: "TS vs envs (TReturn # cd) = compile_stack s \<Longrightarrow> False"
+  by (induction s rule: compile_stack.induct) (auto split: tree_code_state.splits)
+ 
+lemma compile_stack_to_jump [simp]: "TS vs envs (TJump # cd) = compile_stack s \<Longrightarrow> False"
+  by (induction s rule: compile_stack.induct) (auto split: tree_code_state.splits)
+ 
 lemma compile_to_lookup [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> 
   TS vs (env # envs) (TLookup x # cd) = compile_state \<Sigma> \<Longrightarrow> 
     (\<exists>s cs. compile_stack s = TS vs envs cd \<and> env = map compile_closure (latest_environment s) \<and> 
@@ -241,6 +253,14 @@ proof (induction \<Sigma> t rule: typecheck_closure_state.induct)
     by (simp split: tree_code_state.splits)
   thus ?case by (metis compile_stack_to_apply)
 qed (auto split: tree_code_state.splits)
+
+lemma compile_to_return [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> TS vs envs (TReturn # cd) = compile_state \<Sigma> \<Longrightarrow> False"
+  by (induction \<Sigma> t rule: typecheck_closure_state.induct) 
+     (auto split: tree_code_state.splits, metis compile_stack_to_return)
+
+lemma compile_to_jump [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> TS vs envs (TJump # cd) = compile_state \<Sigma> \<Longrightarrow> False"
+  by (induction \<Sigma> t rule: typecheck_closure_state.induct) 
+     (auto split: tree_code_state.splits, metis compile_stack_to_jump)
 
 lemma [simp]: "all_returnc rs \<Longrightarrow> iter (\<leadsto>\<^sub>c) (CSC (rs @ s) c) (CSC s c)"
 proof (induction rs rule: all_returnc.induct)
@@ -381,7 +401,13 @@ next
   ultimately have "iter (\<leadsto>\<^sub>c) (CSC (rs @ CApp2 (CLam t cs e) # s) c) 
     (CSE (CReturn (c # cs) # s) (c # cs) e)" 
       by (metis iter_step iter_refl iter_append)
-  with S C show ?case by fastforce
+    with S C show ?case by fastforce
+next
+  case (evt_return vs env envs cd)
+  thus ?case by (metis compile_to_return)
+next
+  case (evt_jump v env' cd' vs env envs cd)
+  thus ?case by (metis compile_to_jump)
 qed
 
 theorem completet [simp]: "\<Sigma> \<leadsto>\<^sub>c \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>c t \<Longrightarrow> iter (\<leadsto>\<^sub>t) (compile_state \<Sigma>) (compile_state \<Sigma>')"

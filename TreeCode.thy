@@ -8,6 +8,8 @@ datatype tree_code =
   | TPushLam "tree_code list"
   | TApply
   | TEnter
+  | TReturn
+  | TJump
 
 datatype tclosure = 
   TConst nat
@@ -23,6 +25,9 @@ inductive evalt :: "tree_code_state \<Rightarrow> tree_code_state \<Rightarrow> 
 | evt_apply [simp]: "TS (v # TLam env cd' # vs) envs (TApply # cd) \<leadsto>\<^sub>t 
     TS vs ((v # env) # envs) (cd' @ cd)"
 | evt_enter [simp]: "TS vs (env # envs) (TEnter # cd) \<leadsto>\<^sub>t TS vs (env # env # envs) cd"
+| evt_return [simp]: "TS vs (env # envs) (TReturn # cd) \<leadsto>\<^sub>t TS vs envs cd"
+| evt_jump [simp]: "TS (v # TLam env' cd' # vs) (env # envs) (TJump # cd) \<leadsto>\<^sub>t 
+    TS vs ((v # env') # envs) (cd' @ cd)"
 
 theorem determinismt: "\<Sigma> \<leadsto>\<^sub>t \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>t \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: evalt.induct)
@@ -42,6 +47,14 @@ next
 next
   case (evt_enter vs env envs cd)
   thus ?case by (induction "TS vs (env # envs) (TEnter # cd)" \<Sigma>'' rule: evalt.induct) simp_all 
+next
+  case (evt_return vs env envs cd)
+  thus ?case by (induction "TS vs (env # envs) (TReturn # cd)" \<Sigma>'' rule: evalt.induct) simp_all 
+next
+  case (evt_jump v env' cd' vs env envs cd)
+  thus ?case 
+    by (induction "TS (v # TLam env' cd' # vs) (env # envs) (TJump # cd)" \<Sigma>'' rule: evalt.induct) 
+       simp_all 
 qed
 
 end

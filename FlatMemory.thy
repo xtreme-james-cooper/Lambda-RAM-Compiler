@@ -23,8 +23,13 @@ inductive evalf :: "flat_state \<Rightarrow> flat_state \<Rightarrow> bool" (inf
 | evf_apply [simp]: "cd ! pc = BApply \<Longrightarrow> get_closure h v2 = HLam env pc' \<Longrightarrow>
     FS h (v1 # v2 # vs) envs (Suc pc # pcs) cd \<leadsto>\<^sub>f
       FS h vs ((v1 # env) # envs) (pc' # pc # pcs) cd"
-| evf_return [simp]: "cd ! pc = BReturn \<Longrightarrow> 
+| evf_return [simp]: "cd ! pc = BReturn_Old \<Longrightarrow> 
     FS h vs envs (Suc pc # pcs) cd \<leadsto>\<^sub>f FS h vs envs pcs cd"
+| evf_returnb [simp]: "cd ! pc = BReturn \<Longrightarrow> 
+    FS h vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>f FS h vs envs pcs cd"
+| evf_jump [simp]: "cd ! pc = BJump \<Longrightarrow> get_closure h v2 = HLam env' pc' \<Longrightarrow>
+    FS h (v1 # v2 # vs) (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>f
+      FS h vs ((v1 # env') # envs) (pc' # pcs) cd"
 
 theorem determinismf: "\<Sigma> \<leadsto>\<^sub>f \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>f \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: evalf.induct)
@@ -52,6 +57,15 @@ next
   case (evf_return cd pc h vs envs pcs)
   from evf_return(2, 1) show ?case 
     by (induction "FS h vs envs (Suc pc # pcs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
+next
+  case (evf_returnb cd pc h vs env envs pcs)
+  from evf_returnb(2, 1) show ?case 
+    by (induction "FS h vs (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
+next
+  case (evf_jump cd pc h v2 env' pc' v1 vs env envs pcs)
+  from evf_jump(3, 1, 2) show ?case 
+    by (induction "FS h (v1 # v2 # vs) (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalf.induct) 
+       simp_all 
 qed
 
 lemma [simp]: "\<Sigma> \<leadsto>\<^sub>f \<Sigma>' \<Longrightarrow> code \<Sigma> = code \<Sigma>'"
