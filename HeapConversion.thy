@@ -120,16 +120,14 @@ proof (induction "unheap \<Sigma>\<^sub>h" \<Sigma>\<^sub>b' rule: evalb.induct)
   moreover with evb_lookup obtain v' where "lookup env' x = Some v' \<and> v = unheap_closure h v'" 
     by fastforce
   moreover with evb_lookup have "HS h vs' (env' # envs') (Suc pc # pcs) cd \<leadsto>\<^sub>h 
-    HS h (v' # vs') envs' (pc # pcs) cd" by simp
+    HS h (v' # vs') (env' # envs') (pc # pcs) cd" by simp
   ultimately show ?case by fastforce
 next
-  case (evb_pushcon cd pc k vs env envs pcs)
-  moreover then obtain h vs' envs'' where "\<Sigma>\<^sub>h = HS h vs' envs'' (Suc pc # pcs) cd \<and> 
-    vs = map (unheap_closure h) vs' \<and> env # envs = map (map (unheap_closure h)) envs''" by fastforce
-  moreover then obtain env' envs' where "envs'' = env' # envs' \<and> 
-    env = map (unheap_closure h) env' \<and> envs = map (map (unheap_closure h)) envs'" by fastforce
+  case (evb_pushcon cd pc k vs envs pcs)
+  moreover then obtain h vs' envs' where "\<Sigma>\<^sub>h = HS h vs' envs' (Suc pc # pcs) cd \<and> 
+    vs = map (unheap_closure h) vs' \<and> envs = map (map (unheap_closure h)) envs'" by fastforce
   moreover obtain h' v where "halloc h (HConst k) = (h', v)" by fastforce
-  moreover with evb_pushcon have "HS h vs' (env' # envs') (Suc pc # pcs) cd \<leadsto>\<^sub>h 
+  moreover with evb_pushcon have "HS h vs' envs' (Suc pc # pcs) cd \<leadsto>\<^sub>h 
     HS h' (v # vs') envs' (pc # pcs) cd" by simp
   ultimately show ?case by fastforce
 next
@@ -140,16 +138,7 @@ next
     env = map (unheap_closure h) env' \<and> envs = map (map (unheap_closure h)) envs'" by fastforce
   moreover obtain h' v where "halloc h (HLam env' pc') = (h', v)" by fastforce
   moreover with evb_pushlam have "HS h vs' (env' # envs') (Suc pc # pcs) cd \<leadsto>\<^sub>h 
-    HS h' (v # vs') envs' (pc # pcs) cd" by simp
-  ultimately show ?case by fastforce
-next
-  case (evb_enter cd pc vs env envs pcs)
-  then obtain h vs' envs'' where "\<Sigma>\<^sub>h = HS h vs' envs'' (Suc pc # pcs) cd \<and> 
-    vs = map (unheap_closure h) vs' \<and> env # envs = map (map (unheap_closure h)) envs''" by fastforce
-  moreover then obtain env' envs' where "envs'' = env' # envs' \<and> 
-    env = map (unheap_closure h) env' \<and> envs = map (map (unheap_closure h)) envs'" by fastforce
-  moreover from evb_enter have "HS h vs' (env' # envs') (Suc pc # pcs) cd \<leadsto>\<^sub>h 
-    HS h vs' (env' # env' # envs') (pc # pcs) cd" by simp
+    HS h' (v # vs') (env' # envs') (pc # pcs) cd" by simp
   ultimately show ?case by fastforce
 next
   case (evb_apply cd pc v env pc' vs envs pcs)
@@ -164,18 +153,12 @@ next
     HS h vs' ((v1 # env') # envs') (pc' # pc # pcs) cd" by simp
   ultimately show ?case by fastforce
 next
-  case (evb_return cd pc vs envs pcs)
-  then obtain h vs' envs' where "\<Sigma>\<^sub>h = HS h vs' envs' (Suc pc # pcs) cd \<and> 
-    vs = map (unheap_closure h) vs' \<and> envs = map (map (unheap_closure h)) envs'" by fastforce
-  moreover from evb_return have "HS h vs' envs' (Suc pc # pcs) cd \<leadsto>\<^sub>h HS h vs' envs' pcs cd" by simp
-  ultimately show ?case by fastforce
-next
-  case (evb_returnb cd pc vs env envs pcs)
+  case (evb_return cd pc vs env envs pcs)
   then obtain h vs' envs'' where "\<Sigma>\<^sub>h = HS h vs' envs'' (Suc pc # pcs) cd \<and> 
     vs = map (unheap_closure h) vs' \<and> env # envs = map (map (unheap_closure h)) envs''" by fastforce
   moreover then obtain env' envs' where "envs'' = env' # envs' \<and> 
     env = map (unheap_closure h) env' \<and> envs = map (map (unheap_closure h)) envs'" by fastforce
-  moreover from evb_returnb have "HS h vs' (env' # envs') (Suc pc # pcs) cd \<leadsto>\<^sub>h 
+  moreover from evb_return have "HS h vs' (env' # envs') (Suc pc # pcs) cd \<leadsto>\<^sub>h 
     HS h vs' envs' pcs cd" by simp
   ultimately show ?case by fastforce
 next

@@ -3,13 +3,12 @@ theory CodeFlattening
 begin
 
 fun flatten_code' :: "nat \<Rightarrow> tree_code list \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
-  "flatten_code' lib [] acc = BReturn_Old # acc"
+  "flatten_code' lib [] acc = acc"
 | "flatten_code' lib (TLookup x # cd) acc = flatten_code' lib cd (BLookup x # acc)"
 | "flatten_code' lib (TPushCon k # cd) acc = flatten_code' lib cd (BPushCon k # acc)"
 | "flatten_code' lib (TPushLam cd' # cd) acc = (
     let clo = flatten_code' lib cd' []
     in clo @ flatten_code' (lib + length clo) cd (BPushLam (lib + length clo) # acc))"
-| "flatten_code' lib (TEnter # cd) acc = flatten_code' lib cd (BEnter # acc)"
 | "flatten_code' lib (TApply # cd) acc = flatten_code' lib cd (BApply # acc)"
 | "flatten_code' lib (TReturn # cd) acc = flatten_code' lib cd (BReturn # acc)"
 | "flatten_code' lib (TJump # cd) acc = flatten_code' lib cd (BJump # acc)"
@@ -24,11 +23,9 @@ fun unflatten_code :: "byte_code list \<Rightarrow> nat \<Rightarrow> tree_code 
     | BPushCon k \<Rightarrow> TPushCon k # unflatten_code cd pc
     | BPushLam pc' \<Rightarrow> 
         if pc' \<le> pc then TPushLam (unflatten_code cd pc') # unflatten_code cd pc else undefined
-    | BEnter \<Rightarrow> TEnter # unflatten_code cd pc
     | BApply \<Rightarrow> TApply # unflatten_code cd pc
-    | BReturn_Old \<Rightarrow> []
     | BReturn \<Rightarrow> [TReturn]
-    | BJump \<Rightarrow> TJump # unflatten_code cd pc)"
+    | BJump \<Rightarrow> [TJump])"
 
 abbreviation ufcd :: "byte_code list \<Rightarrow> nat list \<Rightarrow> tree_code list" where
   "ufcd cd pcs \<equiv> concat (map (unflatten_code cd) pcs)"
@@ -49,7 +46,6 @@ primrec code_size :: "tree_code \<Rightarrow> nat"
   "code_size (TLookup x) = 1"
 | "code_size (TPushCon k) = 1"
 | "code_size (TPushLam cd) = Suc (code_list_size cd)"
-| "code_size TEnter = 1"
 | "code_size TApply = 1"
 | "code_size TReturn = 1"
 | "code_size TJump = 1"
@@ -180,21 +176,16 @@ next
   thus ?case by simp
 next
   case (5 lib cd acc)
-  hence "flatten_code' lib cd (BEnter # acc) ! (Suc n + code_list_size cd) = 
-    (BEnter # acc) ! Suc n" by blast
-  then show ?case by simp
-next
-  case (6 lib cd acc)
   hence "flatten_code' lib cd (BApply # acc) ! (Suc n + code_list_size cd) = 
     (BApply # acc) ! Suc n" by blast
   then show ?case by simp
 next
-  case (7 lib cd acc)
+  case (6 lib cd acc)
   hence "flatten_code' lib cd (BReturn # acc) ! (Suc n + code_list_size cd) = 
     (BReturn # acc) ! Suc n" by blast
   then show ?case by simp
 next
-  case (8 lib cd acc)
+  case (7 lib cd acc)
   hence "flatten_code' lib cd (BJump # acc) ! (Suc n + code_list_size cd) = 
     (BJump # acc) ! Suc n" by blast
   then show ?case by simp
@@ -237,16 +228,12 @@ proof (induction "length lib" cd acc arbitrary: lib rule: flatten_code'.induct)
     by (metis unflatten_front)
   with X show ?case by simp
 next
-  case (7 cd acc)
-  moreover have "(lib @ BReturn_Old # BReturn # acc) ! Suc (length lib) = BReturn"
-    by (metis add_Suc_right append_Nil2 append_assoc length_append nth_Cons_Suc nth_append_length 
-        nth_append_length_plus)
+  case (6 cd acc)
+  moreover have "(lib @ BReturn # acc) ! length lib = BReturn" by simp
   ultimately show ?case by simp
 next
-  case (8 cd acc)
-  moreover have "(lib @ BReturn_Old # BJump # acc) ! Suc (length lib) = BJump"
-    by (metis add_Suc_right append_Nil2 append_assoc length_append nth_Cons_Suc nth_append_length 
-        nth_append_length_plus)
+  case (7 cd acc)
+  moreover have "(lib @ BJump # acc) ! length lib = BJump" by simp
   ultimately show ?case by simp
 qed simp_all
 
@@ -286,7 +273,7 @@ next
   moreover have "iter (\<leadsto>\<^sub>t) (TS (ufcs cd vs) (ufcs cd env # map (ufcs cd) envs)
     (TPushLam (unflatten_code cd pc') # unflatten_code cd pc @ ufcd cd pcs))
       (TS (TLam (ufcs cd env) (unflatten_code cd pc') # ufcs cd vs) (map (ufcs cd) envs)
-        (unflatten_code cd pc @ ufcd cd pcs))" by (metis evt_pushlam iter_step iter_refl)
+        (unflatten_code cd pc @ ufcd cd pcs))" by (metisx evt_pushlam iter_step iter_refl)
   ultimately show ?case by simp
 next
   case (evb_enter cd pc vs env envs pcs)
@@ -379,7 +366,7 @@ proof (induction pcs)
       with X have "Suc pc # pcs = (Suc pc # rs) @ Suc pc' # pcs' \<and> poppable cdb (Suc pc # rs) \<and> 
         cdb ! pc' = BLookup x \<and> cdt = unflatten_code cdb pc' @ ufcd cdb pcs'" by simp
       thus ?thesis by blast
-    qed fastforce+
+    qed fastforcex+
   qed simp_all
 qed simp_all
 
@@ -404,7 +391,7 @@ proof (induction pcs)
       with X have "Suc pc # pcs = (Suc pc # rs) @ Suc pc' # pcs' \<and> poppable cdb (Suc pc # rs) \<and> 
         cdb ! pc' = BPushCon k \<and> cdt = unflatten_code cdb pc' @ ufcd cdb pcs'" by simp
       thus ?thesis by blast
-    qed fastforce+
+    qed fastforcex+
   qed simp_all
 qed simp_all
 
@@ -426,7 +413,7 @@ proof (induction pcs)
       moreover from Suc have "orderly cdb 0" by simp
       moreover from Suc have "Suc pc \<le> length cdb" by simp
       ultimately have X: "cdb ! pc = BReturn_Old \<and> ufcd cdb pcs = TPushLam cdt' # cdt" 
-        by (metis unfl_tpl)
+        by (metisx unfl_tpl)
       from Suc have "\<forall>pc\<in>set pcs. pc \<le> length cdb \<and> pc \<noteq> 0" by simp
       with Suc X obtain rs pca pcs' pc' where "pcs = rs @ Suc pca # pcs' \<and> poppable cdb rs \<and>
        cdb ! pca = BPushLam pc' \<and> cdt' = unflatten_code cdb pc' \<and> 
@@ -435,7 +422,7 @@ proof (induction pcs)
         cdb ! pca = BPushLam pc' \<and> cdt' = unflatten_code cdb pc' \<and> 
           cdt = unflatten_code cdb pca @ ufcd cdb pcs'" by simp
       thus ?thesis by blast
-    qed fastforce+
+    qed fastforcex+
   qed simp_all
 qed simp_all
 
@@ -460,7 +447,7 @@ proof (induction pcs)
       with X have "Suc pc # pcs = (Suc pc # rs) @ Suc pc' # pcs' \<and> poppable cdb (Suc pc # rs) \<and> 
         cdb ! pc' = BEnter \<and> cdt = unflatten_code cdb pc' @ ufcd cdb pcs'" by simp
       thus ?thesis by blast
-    qed fastforce+
+    qed fastforcex+
   qed simp_all
 qed simp_all
 
@@ -485,7 +472,7 @@ proof (induction pcs)
       with X have "Suc pc # pcs = (Suc pc # rs) @ Suc pc' # pcs' \<and> poppable cdb (Suc pc # rs) \<and> 
         cdb ! pc' = BApply \<and> cdt = unflatten_code cdb pc' @ ufcd cdb pcs'" by simp
       thus ?thesis by blast
-    qed fastforce+
+    qed fastforcex+
   qed simp_all
 qed simp_all
 
@@ -517,7 +504,7 @@ proof (induction "unflatten_state \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' rule: eval
     BS (vb # vsb) envsb' (pc # pcs') cdb" by simp
   with X have "iter (\<leadsto>\<^sub>b) (BS vsb (envb # envsb') (rs @ Suc pc # pcs') cdb) 
     (BS (vb # vsb) envsb' (pc # pcs') cdb)" by simp
-  with S E R V show ?case by fastforce
+  with S E R V show ?case by fastforcex
 next
   case (evt_pushcon vs env envs k cd)
   then obtain vsb envsb pcs cdb where S: "\<Sigma>\<^sub>b = BS vsb envsb pcs cdb \<and> vs = ufcs cdb vsb \<and> 
@@ -525,7 +512,7 @@ next
   then obtain envb envsb' where E: "envsb = envb # envsb' \<and> env = ufcs cdb envb \<and> 
     envs = map (ufcs cdb) envsb'" by fastforce
   from S evt_pushcon obtain rs pc pcs' where R: "pcs = rs @ Suc pc # pcs' \<and> poppable cdb rs \<and> 
-    cdb ! pc = BPushCon k \<and> cd = unflatten_code cdb pc @ ufcd cdb pcs'" by fastforce
+    cdb ! pc = BPushCon k \<and> cd = unflatten_code cdb pc @ ufcd cdb pcs'" by fastforcex
   hence "iter (\<leadsto>\<^sub>b) (BS vsb (envb # envsb') (rs @ Suc pc # pcs') cdb) 
     (BS vsb (envb # envsb') (Suc pc # pcs') cdb)" by simp
   moreover from R have "BS vsb (envb # envsb') (Suc pc # pcs') cdb \<leadsto>\<^sub>b 
@@ -536,12 +523,12 @@ next
 next
   case (evt_pushlam vs env envs cd' cd)
   then obtain vsb envsb pcs cdb where S: "\<Sigma>\<^sub>b = BS vsb envsb pcs cdb \<and> vs = ufcs cdb vsb \<and> 
-    env # envs = map (ufcs cdb) envsb \<and> TPushLam cd' # cd = ufcd cdb pcs" by fastforce
+    env # envs = map (ufcs cdb) envsb \<and> TPushLam cd' # cd = ufcd cdb pcs" by fastforcex
   then obtain envb envsb' where E: "envsb = envb # envsb' \<and> env = ufcs cdb envb \<and> 
     envs = map (ufcs cdb) envsb'" by fastforce
   from S evt_pushlam obtain rs pc pcs' pc' where R: "pcs = rs @ Suc pc # pcs' \<and> poppable cdb rs \<and> 
     cdb ! pc = BPushLam pc' \<and> cd' = unflatten_code cdb pc' \<and> 
-      cd = unflatten_code cdb pc @ ufcd cdb pcs'" using ufcd_pl by fastforce
+      cd = unflatten_code cdb pc @ ufcd cdb pcs'" using ufcd_pl by fastforcex
   hence "iter (\<leadsto>\<^sub>b) (BS vsb (envb # envsb') (rs @ Suc pc # pcs') cdb) 
     (BS vsb (envb # envsb') (Suc pc # pcs') cdb)" by simp
   moreover from R have "BS vsb (envb # envsb') (Suc pc # pcs') cdb \<leadsto>\<^sub>b 
@@ -552,7 +539,7 @@ next
 next
   case (evt_enter vs env envs cd)
   then obtain vsb envsb pcs cdb where S: "\<Sigma>\<^sub>b = BS vsb envsb pcs cdb \<and> vs = ufcs cdb vsb \<and> 
-    env # envs = map (ufcs cdb) envsb \<and> TEnter # cd = ufcd cdb pcs" by fastforce
+    env # envs = map (ufcs cdb) envsb \<and> TEnter # cd = ufcd cdb pcs" by fastforcex
   then obtain envb envsb' where E: "envsb = envb # envsb' \<and> env = ufcs cdb envb \<and> 
     envs = map (ufcs cdb) envsb'" by fastforce
   from S evt_enter obtain rs pc pcs' where R: "pcs = rs @ Suc pc # pcs' \<and> poppable cdb rs \<and> 
@@ -568,13 +555,13 @@ next
   case (evt_apply v env cd' vs envs cd)
   then obtain vsb envsb pcs cdb where S: "\<Sigma>\<^sub>b = BS vsb envsb pcs cdb \<and> 
     v # TLam env cd' # vs = ufcs cdb vsb \<and> envs = map (ufcs cdb) envsb \<and> 
-      TApply # cd = ufcd cdb pcs" by fastforce
+      TApply # cd = ufcd cdb pcs" by fastforcex
   then obtain vb vvb vsb' where V: "vsb = vb # vvb # vsb' \<and> v = unflatten_closure cdb vb \<and> 
     TLam env cd' = unflatten_closure cdb vvb \<and> vs = ufcs cdb vsb'" by fastforce
   then obtain envb pc' where L: "vvb = BLam envb pc' \<and> env = ufcs cdb envb \<and> 
     cd' = unflatten_code cdb pc'" by fastforce
   from S evt_apply obtain rs pc pcs' where R: "pcs = rs @ Suc pc # pcs' \<and> poppable cdb rs \<and> 
-    cdb ! pc = BApply \<and> cd = unflatten_code cdb pc @ ufcd cdb pcs'" by fastforce
+    cdb ! pc = BApply \<and> cd = unflatten_code cdb pc @ ufcd cdb pcs'" by fastforcex
   hence "iter (\<leadsto>\<^sub>b) (BS (vb # BLam envb pc' # vsb') envsb (rs @ Suc pc # pcs') cdb) 
     (BS (vb # BLam envb pc' # vsb') envsb (Suc pc # pcs') cdb)" by simp
   moreover from R have "BS (vb # BLam envb pc' # vsb') envsb (Suc pc # pcs') cdb \<leadsto>\<^sub>b 
@@ -617,11 +604,11 @@ lemma [simp]: "iter (\<leadsto>\<^sub>t) (unflatten_state \<Sigma>\<^sub>b) \<Si
   \<exists>\<Sigma>\<^sub>b'. iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'"
 proof (induction "unflatten_state \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' arbitrary: \<Sigma>\<^sub>b rule: iter.induct)
   case (iter_step \<Sigma>\<^sub>t' \<Sigma>\<^sub>t'')
-  moreover then obtain \<Sigma>\<^sub>b' where S: "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'" by fastforce
-  moreover with iter_step have "orderly_state \<Sigma>\<^sub>b'" by fastforce
-  ultimately obtain \<Sigma>\<^sub>b'' where "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b' \<Sigma>\<^sub>b'' \<and> unflatten_state \<Sigma>\<^sub>b'' = \<Sigma>\<^sub>t''" by fastforce
+  moreover then obtain \<Sigma>\<^sub>b' where S: "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'" by fastforcex
+  moreover with iter_step have "orderly_state \<Sigma>\<^sub>b'" by fastforcex
+  ultimately obtain \<Sigma>\<^sub>b'' where "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b' \<Sigma>\<^sub>b'' \<and> unflatten_state \<Sigma>\<^sub>b'' = \<Sigma>\<^sub>t''" by fastforcex
   with S show ?case by (metis iter_append)
-qed force+
+qed forcex+
 
 lemma no_code_poppable: "orderly cd 0 \<Longrightarrow> (\<forall>pc \<in> set rs. pc \<le> length cd \<and> pc \<noteq> 0) \<Longrightarrow> 
   ufcd cd rs = [] \<Longrightarrow> poppable cd rs"
@@ -630,7 +617,7 @@ proof (induction rs)
   thus ?case
   proof (induction r)
     case (Suc r')
-    from Suc(3, 4, 5) have "cd ! r' = BReturn_Old" by (cases "cd ! r'") auto
+    from Suc(3, 4, 5) have "cd ! r' = BReturn_Old" by (cases "cd ! r'") autox
     with Cons show ?case by simp
   qed simp_all
 qed simp_all
@@ -644,7 +631,7 @@ proof -
   moreover then obtain v where "vs = [v] \<and> c = unflatten_closure cd v" by blast
   moreover from S have "envs = []" by blast
   moreover assume "orderly_state \<Sigma>"
-  moreover with S have "orderly cd 0 \<and> (\<forall>pc \<in> set pcs. pc \<le> length cd \<and> pc \<noteq> 0)" by simp
+  moreover with S have "orderly cd 0 \<and> (\<forall>pc \<in> set pcs. pc \<le> length cd \<and> pc \<noteq> 0)" by simpx
   ultimately show ?thesis by (metis no_code_poppable)
 qed
 
@@ -654,13 +641,13 @@ proof -
   assume "iter (\<leadsto>\<^sub>t) (unflatten_state \<Sigma>\<^sub>b) (TS [c] [] [])"
   moreover assume O: "orderly_state \<Sigma>\<^sub>b"
   ultimately obtain \<Sigma>\<^sub>b' where E: "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = TS [c] [] []" 
-    by fastforce
-  moreover with O have "orderly_state \<Sigma>\<^sub>b'" by fastforce
+    by fastforcex
+  moreover with O have "orderly_state \<Sigma>\<^sub>b'" by fastforcex
   moreover with E obtain v cd rs where V: "\<Sigma>\<^sub>b' = BS [v] [] rs cd \<and> c = unflatten_closure cd v \<and> 
     poppable cd rs" by (metis unfl_terminal)
   moreover hence "iter (\<leadsto>\<^sub>b) (BS [v] [] rs cd) (BS [v] [] [] cd)" 
     by (metis ev_poppable append.right_neutral)
-  moreover from E V have "code \<Sigma>\<^sub>b = cd" by fastforce
+  moreover from E V have "code \<Sigma>\<^sub>b = cd" by fastforcex
   ultimately show ?thesis by (metis iter_append)
 qed
 

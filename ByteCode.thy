@@ -6,9 +6,7 @@ datatype byte_code =
   BLookup nat
   | BPushCon nat
   | BPushLam nat
-  | BEnter
   | BApply
-  | BReturn_Old
   | BReturn
   | BJump
 
@@ -21,19 +19,15 @@ datatype byte_code_state =
 
 inductive evalb :: "byte_code_state \<Rightarrow> byte_code_state \<Rightarrow> bool" (infix "\<leadsto>\<^sub>b" 50) where
   evb_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> lookup env x = Some v \<Longrightarrow> 
-    BS vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>b BS (v # vs) envs (pc # pcs) cd"
+    BS vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>b BS (v # vs) (env # envs) (pc # pcs) cd"
 | evb_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> 
-    BS vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>b BS (BConst k # vs) envs (pc # pcs) cd"
+    BS vs envs (Suc pc # pcs) cd \<leadsto>\<^sub>b BS (BConst k # vs) envs (pc # pcs) cd"
 | evb_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> 
-    BS vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>b BS (BLam env pc' # vs) envs (pc # pcs) cd"
-| evb_enter [simp]: "cd ! pc = BEnter \<Longrightarrow> 
-    BS vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>b BS vs (env # env # envs) (pc # pcs) cd"
+    BS vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>b BS (BLam env pc' # vs) (env # envs) (pc # pcs) cd"
 | evb_apply [simp]: "cd ! pc = BApply \<Longrightarrow> 
     BS (v # BLam env pc' # vs) envs (Suc pc # pcs) cd \<leadsto>\<^sub>b 
       BS vs ((v # env) # envs) (pc' # pc # pcs) cd"
-| evb_return [simp]: "cd ! pc = BReturn_Old \<Longrightarrow> 
-    BS vs envs (Suc pc # pcs) cd \<leadsto>\<^sub>b BS vs envs pcs cd"
-| evb_returnb [simp]: "cd ! pc = BReturn \<Longrightarrow> 
+| evb_return [simp]: "cd ! pc = BReturn \<Longrightarrow> 
     BS vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>b BS vs envs pcs cd"
 | evb_jump [simp]: "cd ! pc = BJump \<Longrightarrow> 
     BS (v # BLam env' pc' # vs) (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>b 
@@ -45,16 +39,12 @@ proof (induction \<Sigma> \<Sigma>' rule: evalb.induct)
   from evb_lookup(3, 1, 2) show ?case 
     by (induction "BS vs (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
 next
-  case (evb_pushcon cd pc k vs env envs pcs)
+  case (evb_pushcon cd pc k vs envs pcs)
   from evb_pushcon(2, 1) show ?case 
-    by (induction "BS vs (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
+    by (induction "BS vs envs (Suc pc # pcs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
 next
   case (evb_pushlam cd pc pc' vs env envs pcs)
   from evb_pushlam(2, 1) show ?case 
-    by (induction "BS vs (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
-next
-  case (evb_enter cd pc vs env envs pcs)
-  from evb_enter(2, 1) show ?case 
     by (induction "BS vs (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
 next
   case (evb_apply cd pc v env pc' vs envs pcs)
@@ -62,12 +52,8 @@ next
     by (induction "BS (v # BLam env pc' # vs) envs (Suc pc # pcs) cd" \<Sigma>'' rule: evalb.induct) 
        simp_all 
 next
-  case (evb_return cd pc vs envs pcs)
+  case (evb_return cd pc vs env envs pcs)
   from evb_return(2, 1) show ?case 
-    by (induction "BS vs envs (Suc pc # pcs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
-next
-  case (evb_returnb cd pc vs env envs pcs)
-  from evb_returnb(2, 1) show ?case 
     by (induction "BS vs (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
 next
   case (evb_jump cd pc v env' pc' vs env envs pcs)

@@ -31,15 +31,15 @@ proof -
   hence "unflatten_code cd (length cd) = compile (convert e) []" by auto
   hence UB: "unflatten_state (BS [] [[]] [length cd] cd) = TS [] [[]] (compile (convert e) [])" 
     by simp
-  from C have "orderly_state (BS [] [[]] [length cd] cd)" by auto
+  from C have "orderly_state (BS [] [[]] [length cd] cd)" by autox
   with ET UB obtain v\<^sub>b where EB: 
     "iter (\<leadsto>\<^sub>b) (BS [] [[]] [length cd] cd) (BS [v\<^sub>b] [] [] cd) \<and> 
       compile_closure c = unflatten_closure cd v\<^sub>b" 
     by (metis evalb_end byte_code_state.sel(4))
-  hence "print_bclosure v\<^sub>b = print_tclosure (compile_closure c)" by simp
+  hence "print_bclosure v\<^sub>b = print_tclosure (compile_closure c)" by simpx
   with VC have VB: "print_bclosure v\<^sub>b = print_nexpr v\<^sub>n" by simp
   from EB obtain \<Sigma>\<^sub>h' where EH: "iter (\<leadsto>\<^sub>h) (HS hempty [] [[]] [length cd] cd) \<Sigma>\<^sub>h' \<and> 
-    BS [v\<^sub>b] [] [] cd = unheap \<Sigma>\<^sub>h'" by fastforce
+    BS [v\<^sub>b] [] [] cd = unheap \<Sigma>\<^sub>h'" by fastforcex
   then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = HS h\<^sub>h [v\<^sub>h] [] [] cd \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 
     using unheap_backwards by blast
   with VB have VH: "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr v\<^sub>n" by simp
@@ -49,7 +49,7 @@ proof -
   with SH have "flatten \<Sigma>\<^sub>h' = FS h\<^sub>f [mp v\<^sub>h] [] [] cd" by simp
   with EH FS HS have EF: "iter (\<leadsto>\<^sub>f) (FS hempty [] [[]] [length cd] cd) (FS h\<^sub>f [mp v\<^sub>h] [] [] cd)"
     by (metis completef_iter)
-  from EH have "heap_structured \<Sigma>\<^sub>h'" by fastforce
+  from EH have "heap_structured \<Sigma>\<^sub>h'" by fastforcex
   with SH have "hcontains h\<^sub>h v\<^sub>h" by simp
   with HC have "get_closure h\<^sub>f (mp v\<^sub>h) = flatten_closure mp (hlookup h\<^sub>h v\<^sub>h)" 
     by (metis get_closure_flatten)

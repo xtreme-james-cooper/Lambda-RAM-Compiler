@@ -15,11 +15,11 @@ datatype closure_state =
   CSE "cframe list" "closure list"  dexpr
   | CSC "cframe list" closure
 
-fun latest_environment :: "cframe list \<Rightarrow> closure list" where
-  "latest_environment [] = []"
+fun latest_environment :: "cframe list \<rightharpoonup> closure list" where
+  "latest_environment [] = None"
 | "latest_environment (CApp1 cs e # s) = latest_environment s"
 | "latest_environment (CApp2 c # s) = latest_environment s"
-| "latest_environment (CReturn cs # s) = cs"
+| "latest_environment (CReturn cs # s) = Some cs"
 
 inductive typecheck_closure :: "closure \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>c\<^sub>l" 50)
       and typecheck_closure_list :: "closure list \<Rightarrow> ty list \<Rightarrow> bool" (infix ":\<^sub>c\<^sub>l\<^sub>s" 50) where
@@ -36,7 +36,7 @@ inductive_cases [elim]: "c # cs :\<^sub>c\<^sub>l\<^sub>s ts"
 inductive typecheck_cstack :: "cframe list \<Rightarrow> ty \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>c _ \<rightarrow>" 50) where
   tcc_snil [simp]: "[] :\<^sub>c t \<rightarrow> t"
 | tcc_scons_app1 [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> ts \<turnstile>\<^sub>d e : t\<^sub>1 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> 
-    latest_environment s = cs \<Longrightarrow> CApp1 cs e # s :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
+    latest_environment s = Some cs \<Longrightarrow> CApp1 cs e # s :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
 | tcc_scons_app2 [simp]: "c :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> CApp2 c # s :\<^sub>c t\<^sub>1 \<rightarrow> t"
 | tcc_scons_ret [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> CReturn cs # s :\<^sub>c t' \<rightarrow> t"
 
@@ -46,8 +46,8 @@ inductive_cases [elim]: "CApp2 c # s :\<^sub>c t' \<rightarrow> t"
 inductive_cases [elim]: "CReturn cs # s :\<^sub>c t' \<rightarrow> t"
 
 inductive typecheck_closure_state :: "closure_state \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>c" 50) where
-  tcc_state_ev [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> latest_environment s = cs \<Longrightarrow> ts \<turnstile>\<^sub>d e : t' \<Longrightarrow> 
-    CSE s cs e :\<^sub>c t"
+  tcc_state_ev [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> latest_environment s = Some cs \<Longrightarrow> 
+    ts \<turnstile>\<^sub>d e : t' \<Longrightarrow> CSE s cs e :\<^sub>c t"
 | tcc_state_ret [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> c :\<^sub>c\<^sub>l t' \<Longrightarrow> CSC s c :\<^sub>c t"
 
 inductive_cases [elim]: "CSE s cs e :\<^sub>c t"
@@ -126,12 +126,12 @@ proof (induction \<Sigma> \<Sigma>' rule: evalc.induct)
 next
   case (evc_app s cs e\<^sub>1 e\<^sub>2)
   then obtain t\<^sub>1 t\<^sub>2 ts where "(s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (ts \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1)" 
-   and X: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = cs \<and> (ts \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2)" by blast
+   and X: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = Some cs \<and> (ts \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2)" by blast
   hence "CApp1 cs e\<^sub>2 # s :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"  by fastforce
   with X show ?case by fastforce
 next
   case (retc_app1 cs e\<^sub>2 s c\<^sub>1)
-  then obtain ts t\<^sub>1 t\<^sub>2 where X: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = cs \<and> (ts \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1)" 
+  then obtain ts t\<^sub>1 t\<^sub>2 where X: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = Some cs \<and> (ts \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1)" 
    and "(s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (c\<^sub>1 :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2)" by blast
   hence "CApp2 c\<^sub>1 # s :\<^sub>c t\<^sub>1 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
