@@ -2,15 +2,18 @@ theory TreeCodeConversion
   imports TreeCode Closure
 begin
 
-primrec compile :: "dexpr \<Rightarrow> tree_code list \<Rightarrow> tree_code list" where
-  "compile (DVar x) cd = TLookup x # cd"
-| "compile (DConst k) cd = TPushCon k # cd"
-| "compile (DLam t e) cd = TPushLam (compile e [TReturn]) # cd"
-| "compile (DApp e\<^sub>1 e\<^sub>2) cd = compile e\<^sub>1 (compile e\<^sub>2 (TApply # cd))"
+primrec compile' :: "dexpr \<Rightarrow> tree_code list \<Rightarrow> tree_code list" where
+  "compile' (DVar x) cd = TLookup x # cd"
+| "compile' (DConst k) cd = TPushCon k # cd"
+| "compile' (DLam t e) cd = TPushLam (compile' e [TReturn]) # cd"
+| "compile' (DApp e\<^sub>1 e\<^sub>2) cd = compile' e\<^sub>1 (compile' e\<^sub>2 (TApply # cd))"
+
+abbreviation compile :: "dexpr \<Rightarrow> tree_code list" where
+  "compile e \<equiv> compile' e [TReturn]"
 
 primrec compile_closure :: "closure \<Rightarrow> tclosure" where
   "compile_closure (CConst k) = TConst k"
-| "compile_closure (CLam t cs e) = TLam (map compile_closure cs) (compile e [TReturn])"
+| "compile_closure (CLam t cs e) = TLam (map compile_closure cs) (compile e)"
 
 fun vals_from_stack :: "cframe list \<Rightarrow> tclosure list" where
   "vals_from_stack [] = []"
@@ -26,13 +29,13 @@ fun envs_from_stack :: "cframe list \<Rightarrow> tclosure list list" where
 
 fun code_from_stack :: "cframe list \<Rightarrow> tree_code list" where
   "code_from_stack [] = []"
-| "code_from_stack (CApp1 cs e # s) = compile e (TApply # code_from_stack s)"
+| "code_from_stack (CApp1 cs e # s) = compile' e (TApply # code_from_stack s)"
 | "code_from_stack (CApp2 c # s) = TApply # code_from_stack s"
 | "code_from_stack (CReturn cs # s) = TReturn # code_from_stack s"
 
 primrec compile_state :: "closure_state \<Rightarrow> tree_code_state" where
   "compile_state (CSE s cs e) = 
-    TS (vals_from_stack s) (envs_from_stack s) (compile e (code_from_stack s))"
+    TS (vals_from_stack s) (envs_from_stack s) (compile' e (code_from_stack s))"
 | "compile_state (CSC s c) = 
     TS (compile_closure c # vals_from_stack s) (envs_from_stack s) (code_from_stack s)"
 
@@ -44,12 +47,12 @@ primrec unzip :: "dexpr \<Rightarrow> dexpr \<times> dexpr list" where
 
 primrec zipcompile :: "dexpr list \<Rightarrow> tree_code list \<Rightarrow> tree_code list" where 
   "zipcompile [] acc = acc"
-| "zipcompile (e # es) acc = zipcompile es (compile e (TApply # acc))"
+| "zipcompile (e # es) acc = zipcompile es (compile' e (TApply # acc))"
 
-lemma [simp]: "compile e cd @ cd' = compile e (cd @ cd')"
+lemma [simp]: "compile' e cd @ cd' = compile' e (cd @ cd')"
   by (induction e arbitrary: cd) simp_all
 
-lemma [simp]: "unzip e = (e', es) \<Longrightarrow> compile e' (zipcompile es acc) = compile e acc"
+lemma [simp]: "unzip e = (e', es) \<Longrightarrow> compile' e' (zipcompile es acc) = compile' e acc"
   by (induction e arbitrary: e' es acc) (auto split: prod.splits)
 
 lemma [simp]: "vals_from_stack (map (CApp1 cs) (rev es) @ s) = vals_from_stack s"
@@ -61,33 +64,33 @@ lemma [simp]: "envs_from_stack (map (CApp1 cs) (rev es) @ s) = envs_from_stack s
 lemma [simp]: "code_from_stack (map (CApp1 cs) (rev es) @ s) = zipcompile es (code_from_stack s)"
   by (induction es arbitrary: s) simp_all
 
-lemma [dest]: "compile e cd' = TLookup x # cd \<Longrightarrow> 
+lemma [dest]: "compile' e cd' = TLookup x # cd \<Longrightarrow> 
     (\<And>es. unzip e = (DVar x, es) \<Longrightarrow> cd = zipcompile es cd' \<Longrightarrow> P) \<Longrightarrow> P"
   by (induction e arbitrary: cd') fastforce+
 
-lemma [dest]: "compile e cd' = TPushCon k # cd \<Longrightarrow> 
+lemma [dest]: "compile' e cd' = TPushCon k # cd \<Longrightarrow> 
     (\<And>es. unzip e = (DConst k, es) \<Longrightarrow> cd = zipcompile es cd' \<Longrightarrow> P) \<Longrightarrow> P"
   by (induction e arbitrary: cd') fastforce+
 
-lemma compile_to_pushlam' [dest]: "compile e cd' = TPushLam cd'' # cd \<Longrightarrow> 
-  (\<And>es t e'. unzip e = (DLam t e', es) \<Longrightarrow> cd'' = compile e' [TReturn] \<Longrightarrow> 
+lemma compile_to_pushlam' [dest]: "compile' e cd' = TPushLam cd'' # cd \<Longrightarrow> 
+  (\<And>es t e'. unzip e = (DLam t e', es) \<Longrightarrow> cd'' = compile e' \<Longrightarrow> 
     cd = zipcompile es cd' \<Longrightarrow> P) \<Longrightarrow> P"
   by (induction e arbitrary: cd') fastforce+
 
-lemma [dest]: "compile e cd' = TApply # cd \<Longrightarrow> P"
+lemma [dest]: "compile' e cd' = TApply # cd \<Longrightarrow> P"
   by (induction e arbitrary: cd') simp_all
 
-lemma [dest]: "compile e cd' = TReturn # cd \<Longrightarrow> P"
+lemma [dest]: "compile' e cd' = TReturn # cd \<Longrightarrow> P"
   by (induction e arbitrary: cd') simp_all
 
-lemma [dest]: "compile e cd' = TJump # cd \<Longrightarrow> P"
+lemma [dest]: "compile' e cd' = TJump # cd \<Longrightarrow> P"
   by (induction e arbitrary: cd') simp_all
 
 lemma [dest]: "compile_closure c = TConst k \<Longrightarrow> c = CConst k"
   by (induction c) simp_all
 
 lemma compile_lam_closure [dest]: "compile_closure c = TLam env cd \<Longrightarrow> (\<And>t cs e. 
-    c = CLam t cs e \<Longrightarrow> env = map compile_closure cs \<Longrightarrow> cd = compile e [TReturn] \<Longrightarrow> P) \<Longrightarrow> P"
+    c = CLam t cs e \<Longrightarrow> env = map compile_closure cs \<Longrightarrow> cd = compile e \<Longrightarrow> P) \<Longrightarrow> P"
   by (induction c) simp_all
 
 lemma tc_latest_environment [simp]: "s @ CApp1 cs e # s' :\<^sub>c t \<rightarrow> t' \<Longrightarrow> 
@@ -111,11 +114,11 @@ lemma compile_stack_to_pushcon [dest]: "code_from_stack s = TPushCon k # cd \<Lo
 
 lemma compile_stack_to_pushlam [dest]: "code_from_stack s = TPushLam cd' # cd \<Longrightarrow> 
   \<exists>cs e es s' t e'. s = CApp1 cs e # s' \<and> unzip e = (DLam t e', es) \<and>
-    cd = zipcompile es (TApply # code_from_stack s') \<and> cd' = compile e' [TReturn]"
+    cd = zipcompile es (TApply # code_from_stack s') \<and> cd' = compile e'"
 proof (induction s rule: code_from_stack.induct)
   case (2 cs e s)
-  hence "compile e (TApply # code_from_stack s) = TPushLam cd' # cd" by auto
-  moreover then obtain es t e' where "unzip e = (DLam t e', es) \<and> cd' = compile e' [TReturn] \<and> 
+  hence "compile' e (TApply # code_from_stack s) = TPushLam cd' # cd" by auto
+  moreover then obtain es t e' where "unzip e = (DLam t e', es) \<and> cd' = compile e' \<and> 
     cd = zipcompile es (TApply # code_from_stack s)" by blast
   ultimately show ?case by simp
 qed simp_all
@@ -149,21 +152,21 @@ lemma compile_to_pushcon [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> compile
 
 lemma compile_to_pushlam [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> compile_state \<Sigma> = TS vs envs (TPushLam cd' # cd) \<Longrightarrow> 
   (\<exists>s cs e es tt e'. \<Sigma> = CSE s cs e \<and> unzip e = (DLam tt e', es) \<and> 
-    cd = zipcompile es (code_from_stack s) \<and> cd' = compile e' [TReturn] \<and> vs = vals_from_stack s \<and> 
+    cd = zipcompile es (code_from_stack s) \<and> cd' = compile e' \<and> vs = vals_from_stack s \<and> 
       envs = envs_from_stack s) \<or> (\<exists>s c cs e es tt e'. \<Sigma> = CSC (CApp1 cs e # s) c \<and> 
         unzip e = (DLam tt e', es) \<and> cd = zipcompile es (TApply # code_from_stack s) \<and> 
-          cd' = compile e' [TReturn] \<and> vs = compile_closure c # vals_from_stack s \<and> 
+          cd' = compile e' \<and> vs = compile_closure c # vals_from_stack s \<and> 
             envs = envs_from_stack s)"
 proof (induction \<Sigma> t rule: typecheck_closure_state.induct)
   case (tcc_state_ev s t' t cs ts e)
-  hence "compile e (code_from_stack s) = TPushLam cd' # cd" by simp
-  then obtain es tt e' where "unzip e = (DLam tt e', es) \<and> cd' = compile e' [TReturn] \<and> 
+  hence "compile' e (code_from_stack s) = TPushLam cd' # cd" by simp
+  then obtain es tt e' where "unzip e = (DLam tt e', es) \<and> cd' = compile e'  \<and> 
     cd = zipcompile es (code_from_stack s)" by (metis compile_to_pushlam')
   with tcc_state_ev show ?case by fastforce
 next
   case (tcc_state_ret s t' t c)
   moreover then obtain cs e es s' tt e' where "s = CApp1 cs e # s' \<and> unzip e = (DLam tt e', es) \<and>
-    cd = zipcompile es (TApply # code_from_stack s') \<and> cd' = compile e' [TReturn]" 
+    cd = zipcompile es (TApply # code_from_stack s') \<and> cd' = compile e'" 
       using compile_stack_to_pushlam by auto
   ultimately show ?case by fastforce
 qed
@@ -266,7 +269,7 @@ next
     case (CSE s cs e)
     moreover hence "compile_state (CSE s cs e) = TS vs (env # envs) (TPushLam cd' # cd)" by simp
     ultimately obtain es tt e' where E: "unzip e = (DLam tt e', es) \<and> 
-      cd = zipcompile es (code_from_stack s) \<and> cd' = compile e' [TReturn] \<and> 
+      cd = zipcompile es (code_from_stack s) \<and> cd' = compile e' \<and> 
         vs = vals_from_stack s \<and> env # envs = envs_from_stack s" using compile_to_pushlam by blast
     hence "iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSE (map (CApp1 cs) (rev es) @ s) cs (DLam tt e'))" by simp
     moreover have "CSE (map (CApp1 cs) (rev es) @ s) cs (DLam tt e') \<leadsto>\<^sub>c 
@@ -279,7 +282,7 @@ next
     case (CSC s c)
     moreover hence "compile_state (CSC s c) = TS vs (env # envs) (TPushLam cd' # cd)" by simp
     ultimately obtain s' cs e es tt e' where S: "s = CApp1 cs e # s' \<and> unzip e = (DLam tt e', es) \<and> 
-      cd = zipcompile es (TApply # code_from_stack s') \<and> cd' = compile e' [TReturn] \<and> 
+      cd = zipcompile es (TApply # code_from_stack s') \<and> cd' = compile e' \<and> 
         vs = compile_closure c # vals_from_stack s' \<and> env # envs = envs_from_stack s'" 
       using compile_to_pushlam by blast
     hence "iter (\<leadsto>\<^sub>c) (CSE (CApp2 c # s') cs e) 
@@ -307,8 +310,8 @@ next
     ultimately obtain s' c' where S: "s = CApp2 c' # s' \<and> cd = code_from_stack s' \<and> 
       envs = envs_from_stack s' \<and> v = compile_closure c \<and> TLam env cd' = compile_closure c' \<and> 
         vs = vals_from_stack s'" using compile_to_apply by blast
-    then obtain t cs e where C: "c' = CLam t cs e \<and> env = map compile_closure cs \<and> 
-      cd' = compile e [TReturn]" by (metis compile_lam_closure)
+    then obtain t cs e where C: "c' = CLam t cs e \<and> env = map compile_closure cs \<and> cd' = compile e" 
+      by (metis compile_lam_closure)
     have "CSC (CApp2 (CLam t cs e) # s') c \<leadsto>\<^sub>c CSE (CReturn (c # cs) # s') (c # cs) e" by simp
     hence "iter (\<leadsto>\<^sub>c) (CSC (CApp2 (CLam t cs e) # s') c) (CSE (CReturn (c # cs) # s') (c # cs) e)" 
       by (metis iter_step iter_refl)
@@ -367,20 +370,19 @@ next
     (ts \<turnstile>\<^sub>d DLam tt e : t')" by fastforce
   then obtain envs where "envs_from_stack s = map compile_closure cs # envs" 
     by (metis lookup_latest)
-  hence "TS (vals_from_stack s) (envs_from_stack s) 
-    (TPushLam (compile e [TReturn]) # code_from_stack s) \<leadsto>\<^sub>t 
-      TS (TLam (map compile_closure cs) (compile e [TReturn]) # vals_from_stack s) 
-        (envs_from_stack s) (code_from_stack s)" by simp
-  hence "iter (\<leadsto>\<^sub>t) (TS (vals_from_stack s) (envs_from_stack s) (TPushLam (compile e [TReturn]) # 
-    code_from_stack s)) (TS (TLam (map compile_closure cs) (compile e [TReturn]) #
+  hence "TS (vals_from_stack s) (envs_from_stack s) (TPushLam (compile e) # code_from_stack s) \<leadsto>\<^sub>t 
+    TS (TLam (map compile_closure cs) (compile e) # vals_from_stack s) (envs_from_stack s) 
+      (code_from_stack s)" by simp
+  hence "iter (\<leadsto>\<^sub>t) (TS (vals_from_stack s) (envs_from_stack s) (TPushLam (compile e) # 
+    code_from_stack s)) (TS (TLam (map compile_closure cs) (compile e) #
       vals_from_stack s) (envs_from_stack s) (code_from_stack s))" by (metis iter_step iter_refl)
   thus ?case by simp
 next
   case (retc_app2 t cs e\<^sub>1 s c\<^sub>2)
   have "iter (\<leadsto>\<^sub>t) (TS (compile_closure c\<^sub>2 # TLam (map compile_closure cs) 
-    (compile e\<^sub>1 [TReturn]) # vals_from_stack s) (envs_from_stack s) (TApply # code_from_stack s))
+    (compile e\<^sub>1) # vals_from_stack s) (envs_from_stack s) (TApply # code_from_stack s))
       (TS (vals_from_stack s) ((compile_closure c\<^sub>2 # map compile_closure cs) # envs_from_stack s) 
-      (compile e\<^sub>1 [TReturn] @ code_from_stack s))" by (metis evt_apply iter_step iter_refl)
+      (compile e\<^sub>1 @ code_from_stack s))" by (metis evt_apply iter_step iter_refl)
   thus ?case by simp
 next
   case (retc_ret cs s c)

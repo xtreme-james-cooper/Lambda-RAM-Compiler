@@ -34,7 +34,7 @@ primrec print_bclosure :: "bclosure \<Rightarrow> string" where
   "print_bclosure (BConst k) = string_of_nat k"
 | "print_bclosure (BLam cs pc) = ''<fun>''"
 
-fun print_hclosure :: "hclosure \<Rightarrow> string" where
+primrec print_hclosure :: "hclosure \<Rightarrow> string" where
   "print_hclosure (HConst k) = string_of_nat k"
 | "print_hclosure (HLam cs pc) = ''<fun>''"
 

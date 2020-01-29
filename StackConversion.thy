@@ -277,16 +277,16 @@ proof (induction "unwind \<Sigma>" e' arbitrary: \<Sigma> rule: iter.induct)
   then show ?case by fastforce
 qed force+
 
-lemma [simp]: "iter (\<leadsto>\<^sub>d) e v \<Longrightarrow> [] \<turnstile>\<^sub>d e : t \<Longrightarrow> vald v \<Longrightarrow> iter (\<leadsto>\<^sub>s) (SS [] e) (SS [] v)"
+lemma [simp]: "iter (\<leadsto>\<^sub>d) e v \<Longrightarrow> [] \<turnstile>\<^sub>d e : t \<Longrightarrow> vald v \<Longrightarrow> iter (\<leadsto>\<^sub>s) (SS [FReturn] e) (SS [] v)"
 proof -
   assume "[] \<turnstile>\<^sub>d e : t"
-  hence "SS [] e :\<^sub>s t" by (metis tcs_nil tcs_state)
+  hence "SS [FReturn] e :\<^sub>s t" by (metis tcs_nil tcs_cons_ret tcs_state)
   moreover assume "iter (\<leadsto>\<^sub>d) e v"
-  ultimately obtain \<Sigma>' where S: "iter (\<leadsto>\<^sub>s) (SS [] e) \<Sigma>' \<and> v = unwind \<Sigma>'" by fastforce
+  ultimately obtain \<Sigma>' where S: "iter (\<leadsto>\<^sub>s) (SS [FReturn] e) \<Sigma>' \<and> v = unwind \<Sigma>'" by fastforce
   moreover assume V: "vald v"
   ultimately obtain sr where "\<Sigma>' = SS (sr @ []) v \<and> all_returns sr" by fastforce
   moreover with V have "iter (\<leadsto>\<^sub>s) \<Sigma>' (SS [] v)" by (metis eval_returns)
-  with S show "iter (\<leadsto>\<^sub>s) (SS [] e) (SS [] v)" by (metis iter_append)
+  with S show "iter (\<leadsto>\<^sub>s) (SS [FReturn] e) (SS [] v)" by (metis iter_append)
 qed
 
 end

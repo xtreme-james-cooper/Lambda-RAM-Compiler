@@ -49,7 +49,7 @@ primrec code_size :: "tree_code \<Rightarrow> nat"
 | "code_size TApply = 1"
 | "code_size TReturn = 1"
 | "code_size TJump = 1"
-| "code_list_size [] = 1"
+| "code_list_size [] = 0"
 | "code_list_size (c # cd) = code_size c + code_list_size cd"
 
 fun ordered :: "byte_code \<Rightarrow> nat \<Rightarrow> bool" where
@@ -67,17 +67,23 @@ primrec orderly :: "byte_code list \<Rightarrow> nat \<Rightarrow> bool" where
   "orderly [] n = True"
 | "orderly (op # cd) n = (ordered op n \<and> orderly cd (Suc n))"
 
+primrec return_terminated\<^sub>b :: "byte_code list \<Rightarrow> bool" where
+  "return_terminated\<^sub>b [] = False"
+| "return_terminated\<^sub>b (op # cd) = (op = BReturn \<or> op = BJump)"
+
 primrec orderly_state :: "byte_code_state \<Rightarrow> bool" where
-  "orderly_state (BS vs envs pcs cd) = (orderly cd 0 \<and> cd ! 0 = BReturn_Old \<and> 
+  "orderly_state (BS vs envs pcs cd) = (orderly cd 0 \<and> return_terminated\<^sub>b cd \<and> 
     (\<forall>pc \<in> set pcs. 0 < pc \<and> pc \<le> length cd) \<and> (ordered_closures vs (length cd)) \<and> 
       (\<forall>env \<in> set envs. ordered_closures env (length cd)))"
 
-fun return_terminated :: "tree_code list \<Rightarrow> bool" where
-  "return_terminated [] = True"
-| "return_terminated (TReturn # cd) = (cd = [])"
-| "return_terminated (TJump # cd) = (cd = [])"
-| "return_terminated (TPushLam cd' # cd) = (return_terminated cd' \<and> return_terminated cd)"
-| "return_terminated (op # cd) = return_terminated cd"
+fun return_terminated\<^sub>t :: "tree_code list \<Rightarrow> bool" where
+  "return_terminated\<^sub>t [] = False"
+| "return_terminated\<^sub>t (TReturn # cd) = (cd = [])"
+| "return_terminated\<^sub>t (TJump # cd) = (cd = [])"
+| "return_terminated\<^sub>t (TPushLam cd' # cd) = (return_terminated\<^sub>t cd' \<and> return_terminated\<^sub>t cd)"
+| "return_terminated\<^sub>t (op # cd) = return_terminated\<^sub>t cd"
+
+(*
 
 lemma flatten_length [simp]: "length (flatten_code' lib cd acc) = code_list_size cd + length acc"
   by (induction lib cd acc rule: flatten_code'.induct) simp_all
@@ -252,8 +258,12 @@ lemma orderly_lam [simp]: "Suc pc \<le> length cd \<Longrightarrow> cd ! pc = BP
 lemma [simp]: "Suc pc \<le> length cd \<Longrightarrow> cd ! pc = BPushLam pc' \<Longrightarrow> orderly cd 0 \<Longrightarrow> pc' \<le> pc"
   using orderly_lam by fastforce
 
+*)
+
 theorem correctb [simp]: "\<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow> 
   iter (\<leadsto>\<^sub>t) (unflatten_state \<Sigma>\<^sub>b) (unflatten_state \<Sigma>\<^sub>b')"
+  by simp
+(*
 proof (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: evalb.induct)
   case (evb_lookup cd pc x env v vs envs pcs)
   hence "TS (ufcs cd vs) (ufcs cd env # map (ufcs cd) envs) 
@@ -486,8 +496,12 @@ proof (induction rs)
   ultimately show ?case by simp
 qed simp_all
 
+*)
+
 theorem completeb [simp]: "unflatten_state \<Sigma>\<^sub>b \<leadsto>\<^sub>t \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>b'. iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'"
+  by simp
+(*
 proof (induction "unflatten_state \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' rule: evalt.induct)
   case (evt_lookup env x v vs envs cd)
   then obtain vsb envsb pcs cdb where S: "\<Sigma>\<^sub>b = BS vsb envsb pcs cdb \<and> vs = ufcs cdb vsb \<and> 
@@ -579,18 +593,17 @@ next
   thus ?case by simp
 qed
 
+*)
+
 lemma [simp]: "\<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow> orderly_state \<Sigma>\<^sub>b'"
 proof (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: evalb.induct)
   case (evb_lookup cd pc x env v vs envs pcs)
   thus ?case by (cases pc) simp_all
 next
-  case (evb_pushcon cd pc k vs env envs pcs)
+  case (evb_pushcon cd pc k vs envs pcs)
   thus ?case by (cases pc) simp_all
 next
   case (evb_pushlam cd pc pc' vs env envs pcs)
-  thus ?case by (cases pc) simp_all
-next
-  case (evb_enter cd pc vs env envs pcs)
   thus ?case by (cases pc) simp_all
 next
   case (evb_apply cd pc v env pc' vs envs pcs)
@@ -610,20 +623,8 @@ proof (induction "unflatten_state \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' arbitrary:
   with S show ?case by (metis iter_append)
 qed forcex+
 
-lemma no_code_poppable: "orderly cd 0 \<Longrightarrow> (\<forall>pc \<in> set rs. pc \<le> length cd \<and> pc \<noteq> 0) \<Longrightarrow> 
-  ufcd cd rs = [] \<Longrightarrow> poppable cd rs"
-proof (induction rs)
-  case (Cons r rs)
-  thus ?case
-  proof (induction r)
-    case (Suc r')
-    from Suc(3, 4, 5) have "cd ! r' = BReturn_Old" by (cases "cd ! r'") autox
-    with Cons show ?case by simp
-  qed simp_all
-qed simp_all
-
 lemma unfl_terminal [simp]: "unflatten_state \<Sigma> = TS [c] [] [] \<Longrightarrow> orderly_state \<Sigma> \<Longrightarrow>
-  \<exists>v cd rs. \<Sigma> = BS [v] [] rs cd \<and> c = unflatten_closure cd v \<and> poppable cd rs"
+  \<exists>v cd. \<Sigma> = BS [v] [] [] cd \<and> c = unflatten_closure cd v "
 proof -
   assume "unflatten_state \<Sigma> = TS [c] [] []"
   then obtain vs envs pcs cd where S: "\<Sigma> = BS vs envs pcs cd \<and> [c] = ufcs cd vs \<and> 
@@ -643,12 +644,10 @@ proof -
   ultimately obtain \<Sigma>\<^sub>b' where E: "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = TS [c] [] []" 
     by fastforcex
   moreover with O have "orderly_state \<Sigma>\<^sub>b'" by fastforcex
-  moreover with E obtain v cd rs where V: "\<Sigma>\<^sub>b' = BS [v] [] rs cd \<and> c = unflatten_closure cd v \<and> 
-    poppable cd rs" by (metis unfl_terminal)
-  moreover hence "iter (\<leadsto>\<^sub>b) (BS [v] [] rs cd) (BS [v] [] [] cd)" 
-    by (metis ev_poppable append.right_neutral)
-  moreover from E V have "code \<Sigma>\<^sub>b = cd" by fastforcex
-  ultimately show ?thesis by (metis iter_append)
+  moreover with E obtain v cd where "\<Sigma>\<^sub>b' = BS [v] [] [] cd \<and> c = unflatten_closure cd v" 
+    by (metis unfl_terminal)
+  moreover with E have "code \<Sigma>\<^sub>b = cd" by fastforcex
+  ultimately show ?thesis by blast
 qed
 
 end
