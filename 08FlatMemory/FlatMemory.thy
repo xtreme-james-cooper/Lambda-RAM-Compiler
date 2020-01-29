@@ -1,5 +1,5 @@
 theory FlatMemory
-  imports HeapMemory
+  imports "../07HeapMemory/HeapMemory"
 begin
 
 datatype flat_state = 

@@ -1,5 +1,5 @@
 theory NameRemoval
-  imports Named Debruijn AssocList
+  imports "../01Source/Named" Debruijn "../00Utils/AssocList"
 begin
 
 fun convert' :: "var list \<Rightarrow> nexpr \<Rightarrow> dexpr" where

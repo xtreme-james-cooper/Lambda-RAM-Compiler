@@ -1,5 +1,5 @@
 theory Named
-  imports Type Variable Utils
+  imports Type Variable "../00Utils/Utils"
 begin
 
 datatype nexpr = 

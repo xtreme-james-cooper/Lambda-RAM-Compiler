@@ -1,5 +1,5 @@
 theory CodeFlattening
-  imports ByteCode TreeCode
+  imports ByteCode "../05TreeCode/TreeCode"
 begin
 
 fun flatten_code' :: "nat \<Rightarrow> tree_code list \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where

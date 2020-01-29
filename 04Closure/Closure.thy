@@ -1,5 +1,5 @@
 theory Closure
-  imports Debruijn 
+  imports "../02Debruijn/Debruijn"
 begin
 
 datatype closure = 

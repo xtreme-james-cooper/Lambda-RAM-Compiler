@@ -1,5 +1,5 @@
 theory Compiler
-  imports AlgorithmicTypechecking Printing StackConversion
+  imports "01Source/AlgorithmicTypechecking" Printing "03Stack/StackConversion"
 begin
 
 definition complete_compile :: "nexpr \<Rightarrow> byte_code list" where

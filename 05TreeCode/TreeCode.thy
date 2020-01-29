@@ -1,5 +1,5 @@
 theory TreeCode
-  imports Environment
+  imports "../00Utils/Environment"
 begin
 
 datatype tree_code = 

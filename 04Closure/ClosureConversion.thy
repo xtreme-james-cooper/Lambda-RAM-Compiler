@@ -1,5 +1,5 @@
 theory ClosureConversion
-  imports Closure Stack Termination
+  imports Closure "../03Stack/Stack" "../02Debruijn/Termination"
 begin
 
 primrec declosure :: "closure \<Rightarrow> dexpr" where

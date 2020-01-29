@@ -1,5 +1,5 @@
 theory TreeCodeConversion
-  imports TreeCode Closure
+  imports TreeCode "../04Closure/Closure"
 begin
 
 primrec compile' :: "dexpr \<Rightarrow> tree_code list \<Rightarrow> tree_code list" where
@@ -293,7 +293,7 @@ next
     ultimately have X: "iter (\<leadsto>\<^sub>c) (CSC (CApp1 cs e # s') c) 
       (CSC (map (CApp1 cs) (rev es) @ CApp2 c # s') (CLam tt cs e'))" 
         by (metis iter_step iter_step_after)
-      from S have "env = map compile_closure cs" by simp
+    from S have "env = map compile_closure cs" by simp
     with S X show ?case by fastforce
   qed
 next

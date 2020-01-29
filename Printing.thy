@@ -1,6 +1,6 @@
 theory Printing
-  imports NameRemoval ClosureConversion TreeCodeConversion CodeFlattening HeapConversion 
-    MemoryFlattening
+  imports "02Debruijn/NameRemoval" "04Closure/ClosureConversion" "05TreeCode/TreeCodeConversion"
+    "06FlatCode/CodeFlattening" "07HeapMemory/HeapConversion" "08FlatMemory/MemoryFlattening"
 begin
 
 function string_of_nat :: "nat \<Rightarrow> string" where

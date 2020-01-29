@@ -1,5 +1,5 @@
 theory Heap
-  imports Environment
+  imports "../00Utils/Environment"
 begin
 
 type_synonym ptr = nat

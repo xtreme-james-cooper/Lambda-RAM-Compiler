@@ -1,5 +1,5 @@
 theory ByteCode
-  imports Environment Iteration
+  imports "../00Utils/Environment" "../00Utils/Iteration"
 begin
 
 datatype byte_code = 
