@@ -1,6 +1,7 @@
 theory Printing
   imports "02Debruijn/NameRemoval" "04Closure/ClosureConversion" "05TreeCode/TreeCodeConversion"
-    "06FlatCode/CodeFlattening" "07HeapMemory/HeapConversion" "08FlatMemory/MemoryFlattening"
+    "05TreeCode/TailCallOptimization" "06FlatCode/CodeFlattening" "07HeapMemory/HeapConversion" 
+    "08FlatMemory/MemoryFlattening"
 begin
 
 function string_of_nat :: "nat \<Rightarrow> string" where
@@ -46,6 +47,9 @@ proof (induction c)
   case (CLam t cs e)
   thus ?case by (induction cs arbitrary: e) simp_all
 qed simp_all
+
+lemma [simp]: "print_tclosure (tco_val c) = print_tclosure c"
+  by (induction c) simp_all
 
 lemma [simp]: "print_tclosure (compile_closure c) = print_closure c" 
   by (induction c) (simp_all del: print_eqiv_declosure)

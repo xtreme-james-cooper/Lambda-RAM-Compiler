@@ -8,8 +8,8 @@ primrec compile' :: "dexpr \<Rightarrow> tree_code list \<Rightarrow> tree_code 
 | "compile' (DLam t e) cd = TPushLam (compile' e [TReturn]) # cd"
 | "compile' (DApp e\<^sub>1 e\<^sub>2) cd = compile' e\<^sub>1 (compile' e\<^sub>2 (TApply # cd))"
 
-abbreviation compile :: "dexpr \<Rightarrow> tree_code list" where
-  "compile e \<equiv> compile' e [TReturn]"
+definition compile :: "dexpr \<Rightarrow> tree_code list" where
+  "compile e = compile' e [TReturn]"
 
 primrec compile_closure :: "closure \<Rightarrow> tclosure" where
   "compile_closure (CConst k) = TConst k"
@@ -75,7 +75,7 @@ lemma [dest]: "compile' e cd' = TPushCon k # cd \<Longrightarrow>
 lemma compile_to_pushlam' [dest]: "compile' e cd' = TPushLam cd'' # cd \<Longrightarrow> 
   (\<And>es t e'. unzip e = (DLam t e', es) \<Longrightarrow> cd'' = compile e' \<Longrightarrow> 
     cd = zipcompile es cd' \<Longrightarrow> P) \<Longrightarrow> P"
-  by (induction e arbitrary: cd') fastforce+
+  using compile_def by (induction e arbitrary: cd') fastforce+
 
 lemma [dest]: "compile' e cd' = TApply # cd \<Longrightarrow> P"
   by (induction e arbitrary: cd') simp_all
@@ -315,7 +315,7 @@ next
     have "CSC (CApp2 (CLam t cs e) # s') c \<leadsto>\<^sub>c CSE (CReturn (c # cs) # s') (c # cs) e" by simp
     hence "iter (\<leadsto>\<^sub>c) (CSC (CApp2 (CLam t cs e) # s') c) (CSE (CReturn (c # cs) # s') (c # cs) e)" 
       by (metis iter_step iter_refl)
-    with S C show ?case by fastforce
+    with S C show ?case using compile_def by fastforce
   qed
 next
   case (evt_return vs env envs cd)
@@ -376,14 +376,14 @@ next
   hence "iter (\<leadsto>\<^sub>t) (TS (vals_from_stack s) (envs_from_stack s) (TPushLam (compile e) # 
     code_from_stack s)) (TS (TLam (map compile_closure cs) (compile e) #
       vals_from_stack s) (envs_from_stack s) (code_from_stack s))" by (metis iter_step iter_refl)
-  thus ?case by simp
+  thus ?case by (simp add: compile_def)
 next
   case (retc_app2 t cs e\<^sub>1 s c\<^sub>2)
   have "iter (\<leadsto>\<^sub>t) (TS (compile_closure c\<^sub>2 # TLam (map compile_closure cs) 
     (compile e\<^sub>1) # vals_from_stack s) (envs_from_stack s) (TApply # code_from_stack s))
       (TS (vals_from_stack s) ((compile_closure c\<^sub>2 # map compile_closure cs) # envs_from_stack s) 
       (compile e\<^sub>1 @ code_from_stack s))" by (metis evt_apply iter_step iter_refl)
-  thus ?case by simp
+  thus ?case by (simp add: compile_def)
 next
   case (retc_ret cs s c)
   have "TS (compile_closure c # vals_from_stack s) (map compile_closure cs # envs_from_stack s) 
