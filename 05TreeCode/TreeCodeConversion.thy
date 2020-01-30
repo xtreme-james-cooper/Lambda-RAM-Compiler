@@ -195,40 +195,51 @@ proof (induction e arbitrary: s es)
   ultimately show ?case by (metis iter_step)
 qed simp_all 
 
+lemma [simp]: "env # envs = envs_from_stack s \<Longrightarrow> latest_environment s = Some cs \<Longrightarrow> 
+    env = map compile_closure cs"
+  by (induction s rule: latest_environment.induct) simp_all
+
 theorem correctt [simp]: "compile_state \<Sigma>\<^sub>c \<leadsto>\<^sub>t \<Sigma>\<^sub>t' \<Longrightarrow> \<Sigma>\<^sub>c :\<^sub>c t \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>c'. iter (\<leadsto>\<^sub>c) \<Sigma>\<^sub>c \<Sigma>\<^sub>c' \<and> \<Sigma>\<^sub>t' = compile_state \<Sigma>\<^sub>c'"
 proof (induction "compile_state \<Sigma>\<^sub>c" \<Sigma>\<^sub>t' rule: evalt.induct)
   case (evt_lookup env x v vs envs cd)
-  hence "(\<exists>s cs e es. \<Sigma>\<^sub>c = CSE s cs e \<and> unzip e = (DVar x, es) \<and> 
+  moreover hence "(\<exists>s cs e es. \<Sigma>\<^sub>c = CSE s cs e \<and> unzip e = (DVar x, es) \<and> 
     cd = zipcompile es (code_from_stack s) \<and> vs = vals_from_stack s \<and> 
       env # envs = envs_from_stack s) \<or> (\<exists>s c cs e es. \<Sigma>\<^sub>c = CSC (CApp1 cs e # s) c \<and> 
         unzip e = (DVar x, es) \<and> env # envs = envs_from_stack s \<and> 
           cd = zipcompile es (TApply # code_from_stack s) \<and> 
             vs = compile_closure c # vals_from_stack s)" using compile_to_lookup by simp
-  thus ?case
+  ultimately show ?case
   proof (induction \<Sigma>\<^sub>c)
     case (CSE s cs e)
     then obtain es where E: "unzip e = (DVar x, es) \<and> cd = zipcompile es (code_from_stack s) \<and>
       vs = vals_from_stack s \<and> env # envs = envs_from_stack s" by auto 
-    hence "iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSE (map (CApp1 cs) (rev es) @ s) cs (DVar x))" by simp
-
-
-    have "iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSC (map (CApp1 cs) (rev es) @ s) yyy) \<and> v = compile_closure yyy" by simp
-    with E show ?case by fastforce
+    hence X: "iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSE (map (CApp1 cs) (rev es) @ s) cs (DVar x))" by simp
+    from CSE obtain t' ts where "(s :\<^sub>c t' \<rightarrow> t) \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and>
+      latest_environment s = Some cs \<and> (ts \<turnstile>\<^sub>d e : t')" by fastforce
+    with E have "env = map compile_closure cs" by fastforce
+    with CSE obtain c where C: "lookup cs x = Some c \<and> compile_closure c = v" by fastforce
+    with X have "iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSC (map (CApp1 cs) (rev es) @ s) c)" by simp
+    with E C show ?case by fastforce
   next
     case (CSC s c)
     then obtain s' cs e es where S: "s = CApp1 cs e # s' \<and> 
       unzip e = (DVar x, es) \<and> env # envs = envs_from_stack s' \<and> 
         cd = zipcompile es (TApply # code_from_stack s') \<and> 
           vs = compile_closure c # vals_from_stack s'" by auto
-
-
-    have "CSC (CApp1 cs e # s') c \<leadsto>\<^sub>c CSE (CApp2 c # s') cs e" by simp
-
-
-    have "iter (\<leadsto>\<^sub>c) (CSC (CApp1 cs e # s') c) (CSC xxx yyy) \<and> 
-      TS (v # vs) (env # envs) cd = compile_state (CSC xxx yyy)" by simp
-    with S show ?case by fastforce
+    hence "iter (\<leadsto>\<^sub>c) (CSE (CApp2 c # s') cs e) 
+      (CSE (map (CApp1 cs) (rev es) @ CApp2 c # s') cs (DVar x))" by simp
+    moreover have "CSC (CApp1 cs e # s') c \<leadsto>\<^sub>c CSE (CApp2 c # s') cs e" by simp
+    ultimately have X: "iter (\<leadsto>\<^sub>c) (CSC (CApp1 cs e # s') c) 
+      (CSE (map (CApp1 cs) (rev es) @ CApp2 c # s') cs (DVar x))" by (metis iter_step)
+    from CSC obtain t' where "(s :\<^sub>c t' \<rightarrow> t) \<and> (c :\<^sub>c\<^sub>l t')" by fastforce
+    with S obtain ts t\<^sub>1 t\<^sub>2 where "t' = Arrow t\<^sub>1 t\<^sub>2 \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (ts \<turnstile>\<^sub>d e : t\<^sub>1) \<and> (s' :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> 
+      latest_environment s' = Some cs" by fastforce
+    with S have "env = map compile_closure cs" by fastforce
+    with CSC obtain c' where C: "lookup cs x = Some c' \<and> compile_closure c' = v" by fastforce
+    with X have "iter (\<leadsto>\<^sub>c) (CSC (CApp1 cs e # s') c) 
+      (CSC (map (CApp1 cs) (rev es) @ CApp2 c # s') c')" by simp
+    with S C show ?case by fastforce
   qed
 next
   case (evt_pushcon vs envs k cd)
@@ -274,10 +285,9 @@ next
     hence "iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSE (map (CApp1 cs) (rev es) @ s) cs (DLam tt e'))" by simp
     moreover have "CSE (map (CApp1 cs) (rev es) @ s) cs (DLam tt e') \<leadsto>\<^sub>c 
       CSC (map (CApp1 cs) (rev es) @ s) (CLam tt cs e')" by simp
-    ultimately have X: "iter (\<leadsto>\<^sub>c) (CSE s cs e) 
-      (CSC (map (CApp1 cs) (rev es) @ s) (CLam tt cs e'))" by (metis iter_step_after)
-    from E have "env = map compile_closure cs" by simp
-    with E X show ?case by fastforce
+    ultimately have "iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSC (map (CApp1 cs) (rev es) @ s) (CLam tt cs e'))"
+      by (metis iter_step_after)
+    with CSE E show ?case by fastforce
   next
     case (CSC s c)
     moreover hence "compile_state (CSC s c) = TS vs (env # envs) (TPushLam cd' # cd)" by simp
@@ -290,11 +300,10 @@ next
     moreover have "CSC (CApp1 cs e # s') c \<leadsto>\<^sub>c CSE (CApp2 c # s') cs e" by simp
     moreover have "CSE (map (CApp1 cs) (rev es) @ CApp2 c # s') cs (DLam tt e') \<leadsto>\<^sub>c 
       CSC (map (CApp1 cs) (rev es) @ CApp2 c # s') (CLam tt cs e')" by simp
-    ultimately have X: "iter (\<leadsto>\<^sub>c) (CSC (CApp1 cs e # s') c) 
+    ultimately have "iter (\<leadsto>\<^sub>c) (CSC (CApp1 cs e # s') c) 
       (CSC (map (CApp1 cs) (rev es) @ CApp2 c # s') (CLam tt cs e'))" 
         by (metis iter_step iter_step_after)
-    from S have "env = map compile_closure cs" by simp
-    with S X show ?case by fastforce
+    with CSC S show ?case by fastforce
   qed
 next
   case (evt_apply v env cd' vs envs cd)

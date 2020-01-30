@@ -31,20 +31,36 @@ lemma [simp]: "env_contains h envs \<Longrightarrow> hsplay splay_closure h = (h
     map (map (mp(x := y))) envs = map (map mp) envs"
   by (induction envs) (simp_all del: map_eq_conv, fastforce)
 
+lemma [simp]: "halloc_list h\<^sub>1 (splay_closure mp v) = (h\<^sub>2, y) \<Longrightarrow> 
+    get_closure h\<^sub>2 y = flatten_closure mp v"
+  by (induction v) (simp split: prod.splits)
+
 lemma [simp]: "hsplay' splay_closure h hp = (h', mp) \<Longrightarrow> x < hp \<Longrightarrow> 
     get_closure h' (mp x) = flatten_closure mp (h x)"
 proof (induction hp arbitrary: h' mp)
   case (Suc hp)
-  obtain hh' mp' where H: "hsplay' splay_closure h hp = (hh', mp')" by fastforce
-
-  from Suc H have "x < hp \<Longrightarrow> get_closure hh' (mp' x) = flatten_closure mp' (h x)" by simp
-  from Suc H have "(case halloc_list hh' (splay_closure mp' (h hp)) of (h'', x) \<Rightarrow> (h'', mp'(hp := x))) =
-    (h', mp)" by simp
-  from Suc have "x < Suc hp" by simp
-
-
-  have "get_closure h' (mp x) = flatten_closure mp (h x)" by simp
-  thus ?case by simp
+  then show ?case
+  proof (cases "x = hp")
+    case True
+    obtain h\<^sub>2 mp' where H: "hsplay' splay_closure h hp = (h\<^sub>2, mp')" by fastforce
+    obtain h\<^sub>3 y where Y: "halloc_list h\<^sub>2 (splay_closure mp' (h hp)) = (h\<^sub>3, y)" by fastforce 
+    with True have "get_closure h\<^sub>3 y = flatten_closure (mp'(hp := y)) (h x)" by simp
+    with True have "get_closure h\<^sub>3 ((mp'(hp := y)) x) = flatten_closure (mp'(hp := y)) (h x)"
+      by simp
+    with Suc H Y show ?thesis by simp
+  next
+    case False
+    obtain h\<^sub>2 mp' where H: "hsplay' splay_closure h hp = (h\<^sub>2, mp')" by fastforce
+    obtain h\<^sub>3 y where Y: "halloc_list h\<^sub>2 (splay_closure mp' (h hp)) = (h\<^sub>3, y)" by fastforce 
+  
+  
+    from Suc False H have "get_closure h\<^sub>2 (mp' x) = flatten_closure mp' (h x)" by simp
+    from Suc False have "x < hp" by simp
+  
+  
+    from False have "get_closure h\<^sub>3 ((mp'(hp := y)) x) = flatten_closure (mp'(hp := y)) (h x)" by simp
+    with Suc H Y show ?thesis by simp
+  qed
 qed simp_all
 
 lemma get_closure_flatten [simp]: "hsplay splay_closure h = (h', mp) \<Longrightarrow> hcontains h x \<Longrightarrow>

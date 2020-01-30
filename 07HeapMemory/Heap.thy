@@ -24,7 +24,10 @@ primrec heap_all :: "(ptr \<Rightarrow> 'a \<Rightarrow> bool) \<Rightarrow> 'a 
 primrec hmap :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a heap \<Rightarrow> 'b heap" where
   "hmap f (H h hp) = H (f \<circ> h) hp"
 
-lemma [simp]: "halloc h a = (h', x) \<Longrightarrow> hlookup h' y = (if x = y then a else hlookup h y) "
+lemma [simp]: "halloc h a = (h', x) \<Longrightarrow> hlookup h' y = (if x = y then a else hlookup h y)"
+  by (induction h) (auto split: if_splits)
+
+lemma [simp]: "halloc h a = (h', x) \<Longrightarrow> hcontains h y \<Longrightarrow> hlookup h' y = hlookup h y"
   by (induction h) (auto split: if_splits)
 
 lemma [simp]: "hcontains h x \<Longrightarrow> halloc h a = (h', y) \<Longrightarrow> hcontains h' x"
@@ -76,6 +79,12 @@ primrec hsplay' :: "((ptr \<Rightarrow> ptr) \<Rightarrow> 'a \<Rightarrow> 'b l
 
 fun hsplay :: "((ptr \<Rightarrow> ptr) \<Rightarrow> 'a \<Rightarrow> 'b list) \<Rightarrow> 'a heap \<Rightarrow> 'b heap \<times> (ptr \<Rightarrow> ptr)" where
   "hsplay f (H h hp) = hsplay' f h hp"
+
+lemma [simp]: "halloc_list h vs = (h\<^sub>2, x) \<Longrightarrow> hcontains h y \<Longrightarrow> hlookup h\<^sub>2 y = hlookup h y"
+  by (induction vs arbitrary: h x) (auto split: prod.splits)
+
+lemma [simp]: "halloc_list h\<^sub>1 (v # vs) = (h\<^sub>2, x) \<Longrightarrow> hlookup h\<^sub>2 x = v"
+  by (induction h\<^sub>1) (simp split: prod.splits)
 
 lemma [simp]: "hsplay f hempty = (hempty, \<lambda>x. undefined)"
   by (simp add: hempty_def)
