@@ -51,7 +51,7 @@ qed simp_all
 lemma [simp]: "print_tclosure (tco_val c) = print_tclosure c"
   by (induction c) simp_all
 
-lemma [simp]: "print_tclosure (compile_closure c) = print_closure c" 
+lemma [simp]: "print_tclosure (encode_closure c) = print_closure c" 
   by (induction c) (simp_all del: print_eqiv_declosure)
 
 lemma [simp]: "print_bclosure c = print_tclosure (unflatten_closure cd c)" 

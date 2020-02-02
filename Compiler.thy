@@ -2,10 +2,10 @@ theory Compiler
   imports "01Source/AlgorithmicTypechecking" Printing "03Stack/StackConversion" 
 begin
 
-definition complete_compile :: "nexpr \<Rightarrow> byte_code list" where
-  "complete_compile = flatten_code \<circ> tco \<circ> compile \<circ> convert"
+definition compile :: "nexpr \<Rightarrow> byte_code list" where
+  "compile = flatten_code \<circ> tco \<circ> encode \<circ> convert"
 
-theorem tc_terminationn: "typechecks e \<Longrightarrow> complete_compile e = cd \<Longrightarrow> 
+theorem tc_terminationn: "typechecks e \<Longrightarrow> encode e = cd \<Longrightarrow> 
   \<exists>v. valn v \<and> iter (\<leadsto>\<^sub>n) e v \<and> 
     (\<exists>h v\<^sub>f. iter (\<leadsto>\<^sub>f) (FS hempty [] [[]] [length cd] cd) (FS h [v\<^sub>f] [] [] cd) \<and> 
       print_hclosure (get_closure h v\<^sub>f) = print_nexpr v)"
@@ -22,25 +22,25 @@ proof -
   with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (CSE [CReturn []] [] (convert e)) (CSC [] c) \<and> 
     declosure c = convert v\<^sub>n" by fastforce
   with VN have VC: "print_closure c = print_nexpr v\<^sub>n" by simp
-  from TC EC have "iter (\<leadsto>\<^sub>t) (compile_state (CSE [CReturn []] [] (convert e))) 
-    (compile_state (CSC [] c))" by (metis iter_completet)
-  hence "iter (\<leadsto>\<^sub>t) (TS [] [[]] (compile (convert e))) (TS [compile_closure c] [] [])" 
-    by (simp add: compile_def)
-  hence "iter (\<leadsto>\<^sub>t) (tco_state (TS [] [[]] (compile (convert e)))) 
-    (tco_state (TS [compile_closure c] [] []))" by (metis iter_tco_eval )
-  hence ET: "iter (\<leadsto>\<^sub>t) (TS [] [[]] (tco (compile (convert e)))) 
-    (TS [tco_val (compile_closure c)] [] [])" by simp
-  assume "complete_compile e = cd"
-  hence C: "flatten_code (tco (compile (convert e))) = cd" by (simp add: complete_compile_def)
-  hence "unflatten_code cd (length cd) = tco (compile (convert e))" by auto
-  hence UB: "unflatten_state (BS [] [[]] [length cd] cd) = TS [] [[]] (tco (compile (convert e)))" 
+  from TC EC have "iter (\<leadsto>\<^sub>t) (encode_state (CSE [CReturn []] [] (convert e))) 
+    (encode_state (CSC [] c))" by (metis iter_completet)
+  hence "iter (\<leadsto>\<^sub>t) (TS [] [[]] (encode (convert e))) (TS [encode_closure c] [] [])" 
+    by (simp add: encode_def)
+  hence "iter (\<leadsto>\<^sub>t) (tco_state (TS [] [[]] (encode (convert e)))) 
+    (tco_state (TS [encode_closure c] [] []))" by (metis iter_tco_eval )
+  hence ET: "iter (\<leadsto>\<^sub>t) (TS [] [[]] (tco (encode (convert e)))) 
+    (TS [tco_val (encode_closure c)] [] [])" by simp
+  assume "complete_encode e = cd"
+  hence C: "flatten_code (tco (encode (convert e))) = cd" by (simp add: complete_encode_def)
+  hence "unflatten_code cd (length cd) = tco (encode (convert e))" by auto
+  hence UB: "unflatten_state (BS [] [[]] [length cd] cd) = TS [] [[]] (tco (encode (convert e)))" 
     by simp
   from C have "orderly_state (BS [] [[]] [length cd] cd)" by auto
   with ET UB obtain v\<^sub>b where EB: 
     "iter (\<leadsto>\<^sub>b) (BS [] [[]] [length cd] cd) (BS [v\<^sub>b] [] [] cd) \<and> 
-      tco_val (compile_closure c) = unflatten_closure cd v\<^sub>b" 
+      tco_val (encode_closure c) = unflatten_closure cd v\<^sub>b" 
     by (metis evalb_end byte_code_state.sel(4))
-  hence "print_bclosure v\<^sub>b = print_tclosure (tco_val (compile_closure c))" by simp
+  hence "print_bclosure v\<^sub>b = print_tclosure (tco_val (encode_closure c))" by simp
   with VC have VB: "print_bclosure v\<^sub>b = print_nexpr v\<^sub>n" by simp
   from EB obtain \<Sigma>\<^sub>h' where EH: "iter (\<leadsto>\<^sub>h) (HS hempty [] [[]] [length cd] cd) \<Sigma>\<^sub>h' \<and> 
     BS [v\<^sub>b] [] [] cd = unheap \<Sigma>\<^sub>h'" by fastforce

@@ -181,4 +181,7 @@ lemma [simp]: "0 precedes a in as"
 lemma [simp]: "lookup as x = Some a \<Longrightarrow> a \<in> set as"
   by (induction as x rule: lookup.induct) simp_all
 
+lemma [elim]: "list_all p as \<Longrightarrow> lookup as x = Some a \<Longrightarrow> p a"
+  by (induction as x rule: lookup.induct) simp_all
+
 end
