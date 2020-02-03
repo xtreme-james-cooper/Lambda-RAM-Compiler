@@ -1,9 +1,9 @@
 theory FlatMemory
-  imports "../07HeapMemory/HeapMemory"
+  imports "../08HeapMemory/HeapMemory"
 begin
 
 datatype flat_state = 
-  FS "nat heap" "ptr list" "ptr list list" "nat list" (code: "byte_code list")
+  FS "nat heap" "ptr list" "nat list list" (code: "byte_code list")
 
 fun get_closure :: "nat heap \<Rightarrow> nat \<Rightarrow> hclosure" where
   "get_closure h p = (case hlookup h p of
@@ -12,47 +12,46 @@ fun get_closure :: "nat heap \<Rightarrow> nat \<Rightarrow> hclosure" where
 
 inductive evalf :: "flat_state \<Rightarrow> flat_state \<Rightarrow> bool" (infix "\<leadsto>\<^sub>f" 50) where
   evf_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> lookup env x = Some v \<Longrightarrow> 
-    FS h vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>f FS h (v # vs) (env # envs) (pc # pcs) cd"
+    FS h vs ((Suc pc # env) # sfs) cd \<leadsto>\<^sub>f FS h (v # vs) ((pc # env) # sfs) cd"
 | evf_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> halloc_list h [0, k] = (h', v) \<Longrightarrow>
-    FS h vs envs (Suc pc # pcs) cd \<leadsto>\<^sub>f FS h' (v # vs) envs (pc # pcs) cd"
+    FS h vs ((Suc pc # env) # sfs) cd \<leadsto>\<^sub>f FS h' (v # vs) ((pc # env) # sfs) cd"
 | evf_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> 
     halloc_list h (Suc (length env) # pc' # env) = (h', v) \<Longrightarrow>
-      FS h vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>f FS h' (v # vs) (env # envs) (pc # pcs) cd"
-| evf_apply [simp]: "cd ! pc = BApply \<Longrightarrow> get_closure h v2 = HLam env pc' \<Longrightarrow>
-    FS h (v1 # v2 # vs) envs (Suc pc # pcs) cd \<leadsto>\<^sub>f
-      FS h vs ((v1 # env) # envs) (pc' # pc # pcs) cd"
+      FS h vs ((Suc pc # env) # sfs) cd \<leadsto>\<^sub>f FS h' (v # vs) ((pc # env) # sfs) cd"
+| evf_apply [simp]: "cd ! pc = BApply \<Longrightarrow> get_closure h v2 = HLam env' pc' \<Longrightarrow>
+    FS h (v1 # v2 # vs) ((Suc pc # env) # sfs) cd \<leadsto>\<^sub>f
+      FS h vs ((pc' # v1 # env') # (pc # env) # sfs) cd"
 | evf_return [simp]: "cd ! pc = BReturn \<Longrightarrow> 
-    FS h vs (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>f FS h vs envs pcs cd"
+    FS h vs ((Suc pc # env) # sfs) cd \<leadsto>\<^sub>f FS h vs sfs cd"
 | evf_jump [simp]: "cd ! pc = BJump \<Longrightarrow> get_closure h v2 = HLam env' pc' \<Longrightarrow>
-    FS h (v1 # v2 # vs) (env # envs) (Suc pc # pcs) cd \<leadsto>\<^sub>f
-      FS h vs ((v1 # env') # envs) (pc' # pcs) cd"
+    FS h (v1 # v2 # vs) ((Suc pc # env) # sfs) cd \<leadsto>\<^sub>f FS h vs ((pc' # v1 # env') # sfs) cd"
 
 theorem determinismf: "\<Sigma> \<leadsto>\<^sub>f \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>f \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: evalf.induct)
-  case (evf_lookup cd pc x env v h vs envs pcs)
+  case (evf_lookup cd pc x env v h vs sfs)
   from evf_lookup(3, 1, 2) show ?case 
-    by (induction "FS h vs (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
+    by (induction "FS h vs ((Suc pc # env) # sfs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
 next
-  case (evf_pushcon cd pc k h h' v vs envs pcs)
+  case (evf_pushcon cd pc k h h' v vs env sfs)
   from evf_pushcon(3, 1, 2) show ?case 
-    by (induction "FS h vs envs (Suc pc # pcs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
+    by (induction "FS h vs ((Suc pc # env) # sfs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
 next
-  case (evf_pushlam cd pc pc' h env h' v vs envs pcs)
+  case (evf_pushlam cd pc pc' h env h' v vs sfs)
   from evf_pushlam(3, 1, 2) show ?case 
-    by (induction "FS h vs (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
+    by (induction "FS h vs ((Suc pc # env) # sfs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
 next
-  case (evf_apply cd pc h v2 env pc' v1 vs envs pcs)
+  case (evf_apply cd pc h v2 env' pc' v1 vs env sfs)
   from evf_apply(3, 1, 2) show ?case 
-    by (induction "FS h (v1 # v2 # vs) envs (Suc pc # pcs) cd" \<Sigma>'' rule: evalf.induct) 
+    by (induction "FS h (v1 # v2 # vs) ((Suc pc # env) # sfs) cd" \<Sigma>'' rule: evalf.induct) 
        simp_all 
 next
-  case (evf_return cd pc h vs env envs pcs)
+  case (evf_return cd pc h vs env sfs)
   from evf_return(2, 1) show ?case 
-    by (induction "FS h vs (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
+    by (induction "FS h vs ((Suc pc # env) # sfs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
 next
-  case (evf_jump cd pc h v2 env' pc' v1 vs env envs pcs)
+  case (evf_jump cd pc h v2 env' pc' v1 vs env sfs)
   from evf_jump(3, 1, 2) show ?case 
-    by (induction "FS h (v1 # v2 # vs) (env # envs) (Suc pc # pcs) cd" \<Sigma>'' rule: evalf.induct) 
+    by (induction "FS h (v1 # v2 # vs) ((Suc pc # env) # sfs) cd" \<Sigma>'' rule: evalf.induct) 
        simp_all 
 qed
 

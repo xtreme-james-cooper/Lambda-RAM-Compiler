@@ -5,9 +5,9 @@ begin
 definition compile :: "nexpr \<Rightarrow> byte_code list" where
   "compile = flatten_code \<circ> tco \<circ> encode \<circ> convert"
 
-theorem tc_terminationn: "typechecks e \<Longrightarrow> encode e = cd \<Longrightarrow> 
+theorem tc_terminationn: "typechecks e \<Longrightarrow> compile e = cd \<Longrightarrow> 
   \<exists>v. valn v \<and> iter (\<leadsto>\<^sub>n) e v \<and> 
-    (\<exists>h v\<^sub>f. iter (\<leadsto>\<^sub>f) (FS hempty [] [[]] [length cd] cd) (FS h [v\<^sub>f] [] [] cd) \<and> 
+    (\<exists>h v\<^sub>f. iter (\<leadsto>\<^sub>f) (FS hempty [] [[length cd]] cd) (FS h [v\<^sub>f] [] cd) \<and> 
       print_hclosure (get_closure h v\<^sub>f) = print_nexpr v)"
 proof -
   assume "typechecks e"
@@ -24,14 +24,14 @@ proof -
   with VN have VC: "print_closure c = print_nexpr v\<^sub>n" by simp
   from TC EC have "iter (\<leadsto>\<^sub>t) (encode_state (CSE [CReturn []] [] (convert e))) 
     (encode_state (CSC [] c))" by (metis iter_completet)
-  hence "iter (\<leadsto>\<^sub>t) (TS [] [[]] (encode (convert e))) (TS [encode_closure c] [] [])" 
+  hence "iter (\<leadsto>\<^sub>t) (TS [] [([], encode (convert e))]) (TS [encode_closure c] [])" 
     by (simp add: encode_def)
   hence "iter (\<leadsto>\<^sub>t) (tco_state (TS [] [[]] (encode (convert e)))) 
     (tco_state (TS [encode_closure c] [] []))" by (metis iter_tco_eval )
   hence ET: "iter (\<leadsto>\<^sub>t) (TS [] [[]] (tco (encode (convert e)))) 
     (TS [tco_val (encode_closure c)] [] [])" by simp
-  assume "complete_encode e = cd"
-  hence C: "flatten_code (tco (encode (convert e))) = cd" by (simp add: complete_encode_def)
+  assume "compile e = cd"
+  hence C: "flatten_code (tco (encode (convert e))) = cd" by (simp add: compile_def)
   hence "unflatten_code cd (length cd) = tco (encode (convert e))" by auto
   hence UB: "unflatten_state (BS [] [[]] [length cd] cd) = TS [] [[]] (tco (encode (convert e)))" 
     by simp

@@ -1,54 +1,60 @@
 theory CodeFlattening
-  imports ByteCode "../05TreeCode/TreeCode"
+  imports ByteCode "../06TailCall/TailCall"
 begin
 
-fun flatten_code' :: "nat \<Rightarrow> tree_code list \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
-  "flatten_code' lib [] acc = acc"
-| "flatten_code' lib (TLookup x # cd) acc = flatten_code' lib cd (BLookup x # acc)"
-| "flatten_code' lib (TPushCon k # cd) acc = flatten_code' lib cd (BPushCon k # acc)"
-| "flatten_code' lib (TPushLam cd' # cd) acc = (
-    let clo = flatten_code' lib cd' []
-    in clo @ flatten_code' (lib + length clo) cd (BPushLam (lib + length clo) # acc))"
-| "flatten_code' lib (TApply # cd) acc = flatten_code' lib cd (BApply # acc)"
-| "flatten_code' lib (TReturn # cd) acc = flatten_code' lib cd (BReturn # acc)"
-| "flatten_code' lib (TJump # cd) acc = flatten_code' lib cd (BJump # acc)"
+fun flatten_code' :: "nat \<Rightarrow> tco_code list \<Rightarrow> tco_return \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
+  "flatten_code' lib [] TCOReturn acc = BReturn # acc"
+| "flatten_code' lib [] TCOJump acc = BJump # acc"
+| "flatten_code' lib (TCOLookup x # cd) r acc = flatten_code' lib cd r (BLookup x # acc)"
+| "flatten_code' lib (TCOPushCon k # cd) r acc = flatten_code' lib cd r (BPushCon k # acc)"
+| "flatten_code' lib (TCOPushLam cd' r' # cd) r acc = (
+    let clo = flatten_code' lib cd' r' []
+    in clo @ flatten_code' (lib + length clo) cd r (BPushLam (lib + length clo) # acc))"
+| "flatten_code' lib (TCOApply # cd) r acc = flatten_code' lib cd r (BApply # acc)"
 
-definition flatten_code :: "tree_code list \<Rightarrow> byte_code list" where
-  "flatten_code cd = flatten_code' 0 cd []"
+definition flatten_code :: "tco_code list \<Rightarrow> byte_code list" where
+  "flatten_code cd = flatten_code' 0 cd TCOReturn []"
 
-fun unflatten_code :: "byte_code list \<Rightarrow> nat \<Rightarrow> tree_code list" where
+fun unflatten_return :: "byte_code list \<Rightarrow> nat \<Rightarrow> tco_return" where
+  "unflatten_return cd 0 = undefined"
+| "unflatten_return cd (Suc pc) = (case cd ! pc of
+       BReturn \<Rightarrow> TCOReturn
+    | BJump \<Rightarrow> TCOJump
+    | op \<Rightarrow> unflatten_return cd pc)"
+
+fun unflatten_code :: "byte_code list \<Rightarrow> nat \<Rightarrow> tco_code list" where
   "unflatten_code cd 0 = undefined"
 | "unflatten_code cd (Suc pc) = (case cd ! pc of
-      BLookup x \<Rightarrow> TLookup x # unflatten_code cd pc
-    | BPushCon k \<Rightarrow> TPushCon k # unflatten_code cd pc
-    | BPushLam pc' \<Rightarrow> 
-        if pc' \<le> pc then TPushLam (unflatten_code cd pc') # unflatten_code cd pc else undefined
-    | BApply \<Rightarrow> TApply # unflatten_code cd pc
-    | BReturn \<Rightarrow> [TReturn]
-    | BJump \<Rightarrow> [TJump])"
+      BLookup x \<Rightarrow> TCOLookup x # unflatten_code cd pc
+    | BPushCon k \<Rightarrow>  TCOPushCon k # unflatten_code cd pc
+    | BPushLam pc' \<Rightarrow> (
+        if pc' \<le> pc 
+        then TCOPushLam (unflatten_code cd pc') (unflatten_return cd pc') # unflatten_code cd pc 
+        else undefined) 
+    | BApply \<Rightarrow> TCOApply # unflatten_code cd pc
+    | BReturn \<Rightarrow> []
+    | BJump \<Rightarrow> [])"
 
-abbreviation ufcd :: "byte_code list \<Rightarrow> nat list \<Rightarrow> tree_code list" where
-  "ufcd cd pcs \<equiv> concat (map (unflatten_code cd) pcs)"
-
-primrec unflatten_closure :: "byte_code list \<Rightarrow> bclosure \<Rightarrow> tclosure" where
-  "unflatten_closure cd (BConst k) = TConst k"
+primrec unflatten_closure :: "byte_code list \<Rightarrow> bclosure \<Rightarrow> tco_closure" where
+  "unflatten_closure cd (BConst k) = TCOConst k"
 | "unflatten_closure cd (BLam vs pc) = 
-    TLam (map (unflatten_closure cd) vs) (unflatten_code cd pc)"
+    TCOLam (map (unflatten_closure cd) vs) (unflatten_code cd pc) (unflatten_return cd pc)"
 
-abbreviation ufcs :: "byte_code list \<Rightarrow> bclosure list \<Rightarrow> tclosure list" where
+abbreviation ufcs :: "byte_code list \<Rightarrow> bclosure list \<Rightarrow> tco_closure list" where
   "ufcs cd vs \<equiv> map (unflatten_closure cd) vs"
 
-primrec unflatten_state :: "byte_code_state \<Rightarrow> tree_code_state" where
-  "unflatten_state (BS vs envs pcs cd) = TS (ufcs cd vs) (map (ufcs cd) envs) (ufcd cd pcs)"
+abbreviation ufsfs :: "byte_code list \<Rightarrow> (bclosure list \<times> nat) list \<Rightarrow> tco_stack_frame list" where
+  "ufsfs cd pcs \<equiv> map (\<lambda>(vs, pc). (ufcs cd vs, unflatten_code cd pc, unflatten_return cd pc)) pcs"
 
-primrec code_size :: "tree_code \<Rightarrow> nat"
-    and code_list_size :: "tree_code list \<Rightarrow> nat" where
-  "code_size (TLookup x) = 1"
-| "code_size (TPushCon k) = 1"
-| "code_size (TPushLam cd) = Suc (code_list_size cd)"
-| "code_size TApply = 1"
-| "code_size TReturn = 1"
-| "code_size TJump = 1"
+primrec unflatten_state :: "byte_code_state \<Rightarrow> tco_code_state" where
+  "unflatten_state (BS vs sfs cd) = TCOS (ufcs cd vs) (ufsfs cd sfs)"
+
+primrec code_size :: "tco_code \<Rightarrow> nat"
+    and code_list_size :: "tco_code list \<Rightarrow> nat" where
+  "code_size (TCOLookup x) = 1"
+| "code_size (TCOPushCon k) = 1"
+| "code_size (TCOPushLam cd r) = Suc (Suc (code_list_size cd))"
+| "code_size TCOApply = 1"
 | "code_list_size [] = 0"
 | "code_list_size (c # cd) = code_size c + code_list_size cd"
 
@@ -67,21 +73,14 @@ primrec orderly :: "byte_code list \<Rightarrow> nat \<Rightarrow> bool" where
   "orderly [] n = True"
 | "orderly (op # cd) n = (ordered op n \<and> orderly cd (Suc n))"
 
-primrec return_terminated\<^sub>b :: "byte_code list \<Rightarrow> bool" where
-  "return_terminated\<^sub>b [] = False"
-| "return_terminated\<^sub>b (op # cd) = (op = BReturn \<or> op = BJump)"
+primrec return_terminated :: "byte_code list \<Rightarrow> bool" where
+  "return_terminated [] = False"
+| "return_terminated (op # cd) = (op = BReturn \<or> op = BJump)"
 
 primrec orderly_state :: "byte_code_state \<Rightarrow> bool" where
-  "orderly_state (BS vs envs pcs cd) = (orderly cd 0 \<and> return_terminated\<^sub>b cd \<and> 
-    (\<forall>pc \<in> set pcs. 0 < pc \<and> pc \<le> length cd) \<and> (ordered_closures vs (length cd)) \<and> 
-      (\<forall>env \<in> set envs. ordered_closures env (length cd)))"
-
-fun return_terminated\<^sub>t :: "tree_code list \<Rightarrow> bool" where
-  "return_terminated\<^sub>t [] = False"
-| "return_terminated\<^sub>t (TReturn # cd) = (cd = [])"
-| "return_terminated\<^sub>t (TJump # cd) = (cd = [])"
-| "return_terminated\<^sub>t (TPushLam cd' # cd) = (return_terminated\<^sub>t cd' \<and> return_terminated\<^sub>t cd)"
-| "return_terminated\<^sub>t (op # cd) = return_terminated\<^sub>t cd"
+  "orderly_state (BS vs sfs cd) = (orderly cd 0 \<and> return_terminated cd \<and> 
+    (\<forall>(env, pc) \<in> set sfs. 0 < pc \<and> pc \<le> length cd \<and> ordered_closures env (length cd)) \<and> 
+      (ordered_closures vs (length cd)))"
 
 (*
 
@@ -261,7 +260,7 @@ lemma [simp]: "Suc pc \<le> length cd \<Longrightarrow> cd ! pc = BPushLam pc' \
 *)
 
 theorem correctb [simp]: "\<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow> 
-  iter (\<leadsto>\<^sub>t) (unflatten_state \<Sigma>\<^sub>b) (unflatten_state \<Sigma>\<^sub>b')"
+  iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state \<Sigma>\<^sub>b) (unflatten_state \<Sigma>\<^sub>b')"
   by simp
 (*
 proof (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: evalb.induct)
@@ -498,7 +497,7 @@ qed simp_all
 
 *)
 
-theorem completeb [simp]: "unflatten_state \<Sigma>\<^sub>b \<leadsto>\<^sub>t \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow>
+theorem completeb [simp]: "unflatten_state \<Sigma>\<^sub>b \<leadsto>\<^sub>t\<^sub>c\<^sub>o \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>b'. iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'"
   by simp
 (*
@@ -597,23 +596,23 @@ qed
 
 lemma [simp]: "\<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow> orderly_state \<Sigma>\<^sub>b'"
 proof (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: evalb.induct)
-  case (evb_lookup cd pc x env v vs envs pcs)
+  case (evb_lookup cd pc x env v vs sfs)
   thus ?case by (cases pc) simp_all
 next
-  case (evb_pushcon cd pc k vs envs pcs)
+  case (evb_pushcon cd pc k vs env sfs)
   thus ?case by (cases pc) simp_all
 next
-  case (evb_pushlam cd pc pc' vs env envs pcs)
+  case (evb_pushlam cd pc pc' vs env sfs)
   thus ?case by (cases pc) simp_all
 next
-  case (evb_apply cd pc v env pc' vs envs pcs)
+  case (evb_apply cd pc v env' pc' vs env sfs)
   thus ?case by (cases pc) simp_all
 qed simp_all
 
 lemma [simp]: "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow> orderly_state \<Sigma>\<^sub>b'"
   by (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: iter.induct) simp_all
 
-lemma [simp]: "iter (\<leadsto>\<^sub>t) (unflatten_state \<Sigma>\<^sub>b) \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow>
+lemma [simp]: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state \<Sigma>\<^sub>b) \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>b'. iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'"
 proof (induction "unflatten_state \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' arbitrary: \<Sigma>\<^sub>b rule: iter.induct)
   case (iter_step \<Sigma>\<^sub>t' \<Sigma>\<^sub>t'')
@@ -636,17 +635,17 @@ proof -
   ultimately show ?thesis by (metis no_code_poppable)
 qed
 
-lemma evalb_end [simp]: "iter (\<leadsto>\<^sub>t) (unflatten_state \<Sigma>\<^sub>b) (TS [c] [] []) \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow>
-  \<exists>v. iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b (BS [v] [] [] (code \<Sigma>\<^sub>b)) \<and> c = unflatten_closure (code \<Sigma>\<^sub>b) v"
+lemma evalb_end [simp]: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state \<Sigma>\<^sub>b) (TS [c] []) \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow>
+  \<exists>v. iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b (BS [v] [] (code \<Sigma>\<^sub>b)) \<and> c = unflatten_closure (code \<Sigma>\<^sub>b) v"
 proof -
-  assume "iter (\<leadsto>\<^sub>t) (unflatten_state \<Sigma>\<^sub>b) (TS [c] [] [])"
+  assume "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state \<Sigma>\<^sub>b) (TS [c] [])"
   moreover assume O: "orderly_state \<Sigma>\<^sub>b"
-  ultimately obtain \<Sigma>\<^sub>b' where E: "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = TS [c] [] []" 
-    by fastforcex
-  moreover with O have "orderly_state \<Sigma>\<^sub>b'" by fastforcex
-  moreover with E obtain v cd where "\<Sigma>\<^sub>b' = BS [v] [] [] cd \<and> c = unflatten_closure cd v" 
+  ultimately obtain \<Sigma>\<^sub>b' where E: "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = TS [c] []" 
+    by fastforce
+  moreover with O have "orderly_state \<Sigma>\<^sub>b'" by fastforce
+  moreover with E obtain v cd where "\<Sigma>\<^sub>b' = BS [v] [] cd \<and> c = unflatten_closure cd v" 
     by (metis unfl_terminal)
-  moreover with E have "code \<Sigma>\<^sub>b = cd" by fastforcex
+  moreover with E have "code \<Sigma>\<^sub>b = cd" by fastforce
   ultimately show ?thesis by blast
 qed
 
