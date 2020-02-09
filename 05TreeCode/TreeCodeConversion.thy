@@ -21,24 +21,21 @@ fun vals_from_stack :: "cframe list \<Rightarrow> tclosure list" where
 | "vals_from_stack (CApp2 c # s) = encode_closure c # vals_from_stack s"
 | "vals_from_stack (CReturn cs # s) = vals_from_stack s"
 
-fun map_onto_code :: "(tree_code list \<Rightarrow> tree_code list) \<Rightarrow> tree_stack_frame list \<Rightarrow> 
-    tree_stack_frame list" where
-  "map_onto_code f [] = undefined"
-| "map_onto_code f ((env, cd) # sfs) = ((env, f cd) # sfs)"
-
 fun stack_from_stack :: "cframe list \<Rightarrow> tree_stack_frame list" where
   "stack_from_stack [] = []"
 | "stack_from_stack (CApp1 cs e # s) = (case stack_from_stack s of
-      [] \<Rightarrow> undefined
+      [] \<Rightarrow> []
     | ((env, cd) # sfs) \<Rightarrow> (env, encode' e (TApply # cd)) # sfs)"
 | "stack_from_stack (CApp2 c # s) = (case stack_from_stack s of
-      [] \<Rightarrow> undefined
+      [] \<Rightarrow> []
     | ((env, cd) # sfs) \<Rightarrow> (env, TApply # cd) # sfs)"
 | "stack_from_stack (CReturn cs # s) = (map encode_closure cs, []) # stack_from_stack s"
 
 primrec encode_state :: "closure_state \<Rightarrow> tree_code_state" where
   "encode_state (CSE s cs e) = 
-    TS (vals_from_stack s) (map_onto_code (encode' e) (stack_from_stack s))"
+    TS (vals_from_stack s) (case stack_from_stack s of 
+        [] \<Rightarrow> []
+      | ((env, cd) # sfs) \<Rightarrow> ((env, encode' e cd) # sfs))"
 | "encode_state (CSC s c) = 
     TS (encode_closure c # vals_from_stack s) (stack_from_stack s)"
 
@@ -100,23 +97,15 @@ qed fastforce+
 lemma [dest]: "encode' e cd = [] \<Longrightarrow> P"
   by (induction e arbitrary: cd) simp_all
 
-lemma [dest]: "stack_from_stack s = [] \<Longrightarrow> P"
-  by (induction s rule: stack_from_stack.induct) (simp_all split: prod.splits list.splits)
-
-lemma [simp]: "\<exists>env cd sfs. stack_from_stack s = (env, cd) # sfs"
-  by (induction s rule: stack_from_stack.induct) auto
-
 lemma encode_stack_to_lookup [dest]: "stack_from_stack s = (env, TLookup x # cd) # sfs \<Longrightarrow> 
   \<exists>cs e es s' cd'. s = CApp1 cs e # s' \<and> stack_from_stack s' = (env, cd') # sfs \<and> 
     unzip e = (DVar x, es) \<and> cd = zip_encode es (TApply # cd')"
 proof (induction s rule: stack_from_stack.induct)
   case (2 cs e s)
-  obtain env' cd' sfs' where "stack_from_stack s = (env', cd') # sfs'" by fastforce
-  moreover with 2 have "env' = env \<and> encode' e (TApply # cd') = TLookup x # cd \<and> sfs' = sfs" 
-    by simp
-  moreover then obtain es where "unzip e = (DVar x, es) \<and> cd = zip_encode es (TApply # cd')"
-    by blast
-  ultimately show ?case by fastforce
+  then obtain cd' where "stack_from_stack s = (env, cd') # sfs \<and> 
+    encode' e (TApply # cd') = TLookup x # cd" 
+      by (cases "stack_from_stack s") (auto split: prod.splits)
+  thus ?case by auto
 qed (auto split: list.splits)
 
 lemma encode_stack_to_pushcon [dest]: "stack_from_stack s = (env, TPushCon k # cd) # sfs \<Longrightarrow> 
@@ -124,12 +113,10 @@ lemma encode_stack_to_pushcon [dest]: "stack_from_stack s = (env, TPushCon k # c
     unzip e = (DConst k, es) \<and> cd = zip_encode es (TApply # cd')"
 proof (induction s rule: stack_from_stack.induct)
   case (2 cs e s)
-  obtain env' cd' sfs' where "stack_from_stack s = (env', cd') # sfs'" by fastforce
-  moreover with 2 have "env' = env \<and> encode' e (TApply # cd') = TPushCon k # cd \<and> sfs' = sfs" 
-    by simp
-  moreover then obtain es where "unzip e = (DConst k, es) \<and> cd = zip_encode es (TApply # cd')"
-    by blast
-  ultimately show ?case by fastforce
+  then obtain cd' where "stack_from_stack s = (env, cd') # sfs \<and> 
+    encode' e (TApply # cd') = TPushCon k # cd" 
+      by (cases "stack_from_stack s") (auto split: prod.splits)
+  thus ?case by auto
 qed (auto split: list.splits)
 
 lemma encode_stack_to_pushlam [dest]: "stack_from_stack s = (env, TPushLam cd' # cd) # sfs \<Longrightarrow> 
@@ -137,9 +124,9 @@ lemma encode_stack_to_pushlam [dest]: "stack_from_stack s = (env, TPushLam cd' #
     unzip e = (DLam t e', es) \<and> cd = zip_encode es (TApply # cd'') \<and> cd' = encode e'"
 proof (induction s rule: stack_from_stack.induct)
   case (2 cs e s)
-  obtain env' cd'' sfs' where "stack_from_stack s = (env', cd'') # sfs'" by fastforce
-  moreover with 2 have "env' = env \<and> encode' e (TApply # cd'') = TPushLam cd' # cd \<and> sfs' = sfs" 
-    by simp
+  then obtain cd'' where "stack_from_stack s = (env, cd'') # sfs \<and> 
+    encode' e (TApply # cd'') = TPushLam cd' # cd" 
+      by (cases "stack_from_stack s") (auto split: prod.splits)
   moreover then obtain t e' es where "unzip e = (DLam t e', es) \<and> cd' = encode e' \<and> 
     cd = zip_encode es (TApply # cd'')" by (metis encode_to_pushlam')
   ultimately show ?case by fastforce
@@ -154,57 +141,58 @@ lemma encode_stack_to_return [dest]: "stack_from_stack s = (env, []) # sfs \<Lon
     sfs = stack_from_stack s')"
   by (induction s rule: stack_from_stack.induct) (auto split: list.splits)
 
-(*
-
-lemma encode_to_lookup [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> encode_state \<Sigma> = TS vs envs (TLookup x # cd) \<Longrightarrow> 
-  (\<exists>s cs e es. \<Sigma> = CSE s cs e \<and> unzip e = (DVar x, es) \<and> cd = zip_encode es (code_from_stack s) \<and>
-    vs = vals_from_stack s \<and> envs = envs_from_stack s) \<or> (\<exists>s c cs e es. 
-      \<Sigma> = CSC (CApp1 cs e # s) c \<and> unzip e = (DVar x, es) \<and> envs = envs_from_stack s \<and>
-        cd = zip_encode es (TApply # code_from_stack s) \<and> 
+lemma encode_to_lookup [simp]: "encode_state \<Sigma> = TS vs ((env, TLookup x # cd) # sfs) \<Longrightarrow> 
+  (\<exists>s cs e es cd'. \<Sigma> = CSE s cs e \<and> unzip e = (DVar x, es) \<and> cd = zip_encode es cd' \<and>
+    stack_from_stack s = ((env, cd') # sfs) \<and> vs = vals_from_stack s) \<or> 
+      (\<exists>s c cs e es cd'. \<Sigma> = CSC (CApp1 cs e # s) c \<and> unzip e = (DVar x, es) \<and>
+        cd = zip_encode es (TApply # cd') \<and> stack_from_stack s = ((env, cd') # sfs) \<and>
           vs = encode_closure c # vals_from_stack s)"
-  by (induction \<Sigma> t rule: typecheck_closure_state.induct) auto
+proof (induction \<Sigma>)
+  case (CSE s cs e)
+  moreover then obtain cd' where "stack_from_stack s = (env, cd') # sfs \<and> 
+    encode' e cd' = TLookup x # cd" by (auto split: list.splits)
+  ultimately show ?case by auto
+qed auto
 
-lemma encode_to_pushcon [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> encode_state \<Sigma> = TS vs envs (TPushCon k # cd) \<Longrightarrow> 
-  (\<exists>s cs e es. \<Sigma> = CSE s cs e \<and> unzip e = (DConst k, es) \<and> cd = zip_encode es (code_from_stack s) \<and>
-    vs = vals_from_stack s \<and> envs = envs_from_stack s) \<or> (\<exists>s c cs e es. 
-      \<Sigma> = CSC (CApp1 cs e # s) c \<and> unzip e = (DConst k, es) \<and> envs = envs_from_stack s \<and>
-        cd = zip_encode es (TApply # code_from_stack s) \<and> 
+lemma encode_to_pushcon [simp]: "encode_state \<Sigma> = TS vs ((env, TPushCon k # cd) # sfs) \<Longrightarrow> 
+  (\<exists>s cs e es cd'. \<Sigma> = CSE s cs e \<and> unzip e = (DConst k, es) \<and> cd = zip_encode es cd' \<and>
+    stack_from_stack s = ((env, cd') # sfs) \<and> vs = vals_from_stack s) \<or> 
+      (\<exists>s c cs e es cd'. \<Sigma> = CSC (CApp1 cs e # s) c \<and> unzip e = (DConst k, es) \<and> 
+        cd = zip_encode es (TApply # cd') \<and> stack_from_stack s = ((env, cd') # sfs) \<and>
           vs = encode_closure c # vals_from_stack s)"
-  by (induction \<Sigma> t rule: typecheck_closure_state.induct) auto
+proof (induction \<Sigma>)
+  case (CSE s cs e)
+  moreover then obtain cd' where "stack_from_stack s = (env, cd') # sfs \<and> 
+    encode' e cd' = TPushCon k # cd" by (auto split: list.splits)
+  ultimately show ?case by auto
+qed auto
 
-lemma encode_to_pushlam [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> encode_state \<Sigma> = TS vs envs (TPushLam cd' # cd) \<Longrightarrow> 
-  (\<exists>s cs e es tt e'. \<Sigma> = CSE s cs e \<and> unzip e = (DLam tt e', es) \<and> 
-    cd = zip_encode es (code_from_stack s) \<and> cd' = encode e' \<and> vs = vals_from_stack s \<and> 
-      envs = envs_from_stack s) \<or> (\<exists>s c cs e es tt e'. \<Sigma> = CSC (CApp1 cs e # s) c \<and> 
-        unzip e = (DLam tt e', es) \<and> cd = zip_encode es (TApply # code_from_stack s) \<and> 
-          cd' = encode e' \<and> vs = encode_closure c # vals_from_stack s \<and> 
-            envs = envs_from_stack s)"
-proof (induction \<Sigma> t rule: typecheck_closure_state.induct)
-  case (tcc_state_ev s t' t cs ts e)
-  hence "encode' e (code_from_stack s) = TPushLam cd' # cd" by simp
-  then obtain es tt e' where "unzip e = (DLam tt e', es) \<and> cd' = encode e'  \<and> 
-    cd = zip_encode es (code_from_stack s)" by (metis encode_to_pushlam')
-  with tcc_state_ev show ?case by fastforce
-next
-  case (tcc_state_ret s t' t c)
-  moreover then obtain cs e es s' tt e' where "s = CApp1 cs e # s' \<and> unzip e = (DLam tt e', es) \<and>
-    cd = zip_encode es (TApply # code_from_stack s') \<and> cd' = encode e'" 
-      using encode_stack_to_pushlam by auto
-  ultimately show ?case by fastforce
-qed
+lemma encode_to_pushlam [simp]: "encode_state \<Sigma> = TS vs ((env, TPushLam cd' # cd) # sfs) \<Longrightarrow> 
+  (\<exists>s cs e es tt e' cd''. \<Sigma> = CSE s cs e \<and> unzip e = (DLam tt e', es) \<and> 
+    cd = zip_encode es cd'' \<and> cd' = encode e' \<and> vs = vals_from_stack s \<and> 
+      stack_from_stack s = ((env, cd'') # sfs)) \<or> (\<exists>s c cs e es tt e' cd''. 
+        \<Sigma> = CSC (CApp1 cs e # s) c \<and> unzip e = (DLam tt e', es) \<and> 
+          cd = zip_encode es (TApply # cd'') \<and> cd' = encode e' \<and> 
+            vs = encode_closure c # vals_from_stack s \<and> stack_from_stack s = ((env, cd'') # sfs))"
+proof (induction \<Sigma>)
+  case (CSE s cs e)
+  moreover then obtain cd'' where "stack_from_stack s = (env, cd'') # sfs \<and> 
+    encode' e cd'' = TPushLam cd' # cd" by (auto split: list.splits)
+  moreover then obtain es tt e' where "unzip e = (DLam tt e', es) \<and> cd' = encode e' \<and> 
+    cd = zip_encode es cd''" by (metis encode_to_pushlam')
+  ultimately show ?case by auto
+qed auto
 
-lemma encode_to_apply [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> encode_state \<Sigma> = TS vs envs (TApply # cd) \<Longrightarrow> 
-  \<exists>s c c'. \<Sigma> = CSC (CApp2 c' # s) c \<and> cd = code_from_stack s \<and> envs = envs_from_stack s \<and> 
+lemma encode_to_apply [simp]: "encode_state \<Sigma> = TS vs ((env, TApply # cd) # sfs) \<Longrightarrow> 
+  \<exists>s c c'. \<Sigma> = CSC (CApp2 c' # s) c \<and> stack_from_stack s = ((env, cd) # sfs) \<and> 
     vs = encode_closure c # encode_closure c' # vals_from_stack s"
-  by (induction \<Sigma> t rule: typecheck_closure_state.induct) auto
+  by (induction \<Sigma>) (auto split: list.splits)
 
-lemma encode_to_return [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> encode_state \<Sigma> = TS vs envs (TReturn # cd) \<Longrightarrow> 
-  \<exists>cs s c. \<Sigma> = CSC (CReturn cs # s) c \<and> cd = code_from_stack s \<and> 
-    envs = map encode_closure cs # envs_from_stack s \<and> vs = encode_closure c # vals_from_stack s"
-  by (induction \<Sigma> t rule: typecheck_closure_state.induct) auto
-
-lemma encode_to_jump [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> encode_state \<Sigma> = TS vs envs (TJump # cd) \<Longrightarrow> False"
-  by (induction \<Sigma> t rule: typecheck_closure_state.induct) (auto split: tree_code_state.splits)
+lemma encode_to_return [simp]: "encode_state \<Sigma> = TS vs ((env, []) # sfs) \<Longrightarrow> 
+  (\<exists>c. \<Sigma> = CSC [] c \<and> env = [] \<and> sfs = [] \<and> vs = [encode_closure c]) \<or> 
+    (\<exists>cs s c. \<Sigma> = CSC (CReturn cs # s) c \<and> sfs = stack_from_stack s \<and>
+      env = map encode_closure cs \<and> vs = encode_closure c # vals_from_stack s)"
+  by (induction \<Sigma>) (auto split: list.splits)
 
 lemma [simp]: "unzip e = (e', es) \<Longrightarrow> 
   iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSE (map (CApp1 cs) (rev es) @ s) cs e')"
@@ -217,25 +205,25 @@ proof (induction e arbitrary: s es)
   ultimately show ?case by (metis iter_step)
 qed simp_all 
 
-lemma [simp]: "env # envs = envs_from_stack s \<Longrightarrow> latest_environment s = Some cs \<Longrightarrow> 
+lemma [simp]: "stack_from_stack s = (env, cd) # sfs \<Longrightarrow> latest_environment s = Some cs \<Longrightarrow> 
     env = map encode_closure cs"
-  by (induction s rule: latest_environment.induct) simp_all
+  by (induction s arbitrary: cd rule: latest_environment.induct) 
+     (simp_all split: list.splits prod.splits)
 
 theorem correctt [simp]: "encode_state \<Sigma>\<^sub>c \<leadsto>\<^sub>t \<Sigma>\<^sub>t' \<Longrightarrow> \<Sigma>\<^sub>c :\<^sub>c t \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>c'. iter (\<leadsto>\<^sub>c) \<Sigma>\<^sub>c \<Sigma>\<^sub>c' \<and> \<Sigma>\<^sub>t' = encode_state \<Sigma>\<^sub>c'"
 proof (induction "encode_state \<Sigma>\<^sub>c" \<Sigma>\<^sub>t' rule: evalt.induct)
-  case (evt_lookup env x v vs envs cd)
-  moreover hence "(\<exists>s cs e es. \<Sigma>\<^sub>c = CSE s cs e \<and> unzip e = (DVar x, es) \<and> 
-    cd = zip_encode es (code_from_stack s) \<and> vs = vals_from_stack s \<and> 
-      env # envs = envs_from_stack s) \<or> (\<exists>s c cs e es. \<Sigma>\<^sub>c = CSC (CApp1 cs e # s) c \<and> 
-        unzip e = (DVar x, es) \<and> env # envs = envs_from_stack s \<and> 
-          cd = zip_encode es (TApply # code_from_stack s) \<and> 
-            vs = encode_closure c # vals_from_stack s)" using encode_to_lookup by simp
+  case (evt_lookup env x v vs cd sfs)
+  moreover hence "(\<exists>s cs e es cd'. \<Sigma>\<^sub>c = CSE s cs e \<and> unzip e = (DVar x, es) \<and> 
+    cd = zip_encode es cd' \<and> stack_from_stack s = ((env, cd') # sfs) \<and> vs = vals_from_stack s) \<or> 
+      (\<exists>s c cs e es cd'. \<Sigma>\<^sub>c = CSC (CApp1 cs e # s) c \<and> unzip e = (DVar x, es) \<and>
+        cd = zip_encode es (TApply # cd') \<and> stack_from_stack s = ((env, cd') # sfs) \<and>
+          vs = encode_closure c # vals_from_stack s)" using encode_to_lookup by simp
   ultimately show ?case
   proof (induction \<Sigma>\<^sub>c)
     case (CSE s cs e)
-    then obtain es where E: "unzip e = (DVar x, es) \<and> cd = zip_encode es (code_from_stack s) \<and>
-      vs = vals_from_stack s \<and> env # envs = envs_from_stack s" by auto 
+    then obtain es cd' where E: "unzip e = (DVar x, es) \<and> cd = zip_encode es cd' \<and>
+      stack_from_stack s = ((env, cd') # sfs) \<and> vs = vals_from_stack s" by auto 
     hence X: "iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSE (map (CApp1 cs) (rev es) @ s) cs (DVar x))" by simp
     from CSE obtain t' ts where "(s :\<^sub>c t' \<rightarrow> t) \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and>
       latest_environment s = Some cs \<and> (ts \<turnstile>\<^sub>d e : t')" by fastforce
@@ -245,9 +233,8 @@ proof (induction "encode_state \<Sigma>\<^sub>c" \<Sigma>\<^sub>t' rule: evalt.i
     with E C show ?case by fastforce
   next
     case (CSC s c)
-    then obtain s' cs e es where S: "s = CApp1 cs e # s' \<and> 
-      unzip e = (DVar x, es) \<and> env # envs = envs_from_stack s' \<and> 
-        cd = zip_encode es (TApply # code_from_stack s') \<and> 
+    then obtain s' cs e es cd' where S: "s = CApp1 cs e # s' \<and> unzip e = (DVar x, es) \<and>
+        cd = zip_encode es (TApply # cd') \<and> stack_from_stack s' = ((env, cd') # sfs) \<and>
           vs = encode_closure c # vals_from_stack s'" by auto
     hence "iter (\<leadsto>\<^sub>c) (CSE (CApp2 c # s') cs e) 
       (CSE (map (CApp1 cs) (rev es) @ CApp2 c # s') cs (DVar x))" by simp
@@ -264,17 +251,17 @@ proof (induction "encode_state \<Sigma>\<^sub>c" \<Sigma>\<^sub>t' rule: evalt.i
     with S C show ?case by fastforce
   qed
 next
-  case (evt_pushcon vs envs k cd)
-  hence "(\<exists>s cs e es. \<Sigma>\<^sub>c = CSE s cs e \<and> unzip e = (DConst k, es) \<and> 
-    cd = zip_encode es (code_from_stack s) \<and> vs = vals_from_stack s \<and> envs = envs_from_stack s) \<or> 
-      (\<exists>s c cs e es. \<Sigma>\<^sub>c = CSC (CApp1 cs e # s) c \<and> unzip e = (DConst k, es) \<and> 
-        envs = envs_from_stack s \<and> cd = zip_encode es (TApply # code_from_stack s) \<and> 
+  case (evt_pushcon vs env k cd sfs)
+  hence "(\<exists>s cs e es cd'. \<Sigma>\<^sub>c = CSE s cs e \<and> unzip e = (DConst k, es) \<and> cd = zip_encode es cd' \<and>
+    stack_from_stack s = ((env, cd') # sfs) \<and> vs = vals_from_stack s) \<or> 
+      (\<exists>s c cs e es cd'. \<Sigma>\<^sub>c = CSC (CApp1 cs e # s) c \<and> unzip e = (DConst k, es) \<and> 
+        cd = zip_encode es (TApply # cd') \<and> stack_from_stack s = ((env, cd') # sfs) \<and>
           vs = encode_closure c # vals_from_stack s)" using encode_to_pushcon by simp
   thus ?case
   proof (induction \<Sigma>\<^sub>c)
     case (CSE s cs e)
-    then obtain es where E: "unzip e = (DConst k, es) \<and> cd = zip_encode es (code_from_stack s) \<and> 
-      vs = vals_from_stack s \<and> envs = envs_from_stack s" by auto
+    then obtain es cd' where E: "unzip e = (DConst k, es) \<and> cd = zip_encode es cd' \<and> 
+      stack_from_stack s = ((env, cd') # sfs) \<and> vs = vals_from_stack s" by auto
     hence "iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSE (map (CApp1 cs) (rev es) @ s) cs (DConst k))" by simp
     moreover have "CSE (map (CApp1 cs) (rev es) @ s) cs (DConst k) \<leadsto>\<^sub>c 
       CSC (map (CApp1 cs) (rev es) @ s) (CConst k)" by simp
@@ -282,8 +269,8 @@ next
     with E show ?case by fastforce
   next
     case (CSC s c)
-    then obtain s' cs e es where S: "s = CApp1 cs e # s' \<and> unzip e = (DConst k, es) \<and> 
-        envs = envs_from_stack s' \<and> cd = zip_encode es (TApply # code_from_stack s') \<and> 
+    then obtain s' cs e es cd' where S: "s = CApp1 cs e # s' \<and> unzip e = (DConst k, es) \<and> 
+        cd = zip_encode es (TApply # cd') \<and> stack_from_stack s' = ((env, cd') # sfs) \<and>
           vs = encode_closure c # vals_from_stack s'" by auto
     hence "iter (\<leadsto>\<^sub>c) (CSE (CApp2 c # s') cs e) 
       (CSE (map (CApp1 cs) (rev es) @ CApp2 c # s') cs (DConst k))" by simp
@@ -296,14 +283,14 @@ next
     with S show ?case by fastforce
   qed
 next
-  case (evt_pushlam vs env envs cd' cd)
+  case (evt_pushlam vs env cd' cd sfs)
   thus ?case
   proof (induction \<Sigma>\<^sub>c)
     case (CSE s cs e)
-    moreover hence "encode_state (CSE s cs e) = TS vs (env # envs) (TPushLam cd' # cd)" by simp
-    ultimately obtain es tt e' where E: "unzip e = (DLam tt e', es) \<and> 
-      cd = zip_encode es (code_from_stack s) \<and> cd' = encode e' \<and> 
-        vs = vals_from_stack s \<and> env # envs = envs_from_stack s" using encode_to_pushlam by blast
+    hence "encode_state (CSE s cs e) = TS vs ((env, TPushLam cd' # cd) # sfs)" by simp
+    then obtain es tt e' cd'' where E: "unzip e = (DLam tt e', es) \<and> 
+      cd = zip_encode es cd'' \<and> cd' = encode e' \<and> vs = vals_from_stack s \<and> 
+        stack_from_stack s = ((env, cd'') # sfs)" using encode_to_pushlam by blast
     hence "iter (\<leadsto>\<^sub>c) (CSE s cs e) (CSE (map (CApp1 cs) (rev es) @ s) cs (DLam tt e'))" by simp
     moreover have "CSE (map (CApp1 cs) (rev es) @ s) cs (DLam tt e') \<leadsto>\<^sub>c 
       CSC (map (CApp1 cs) (rev es) @ s) (CLam tt cs e')" by simp
@@ -312,10 +299,10 @@ next
     with CSE E show ?case by fastforce
   next
     case (CSC s c)
-    moreover hence "encode_state (CSC s c) = TS vs (env # envs) (TPushLam cd' # cd)" by simp
-    ultimately obtain s' cs e es tt e' where S: "s = CApp1 cs e # s' \<and> unzip e = (DLam tt e', es) \<and> 
-      cd = zip_encode es (TApply # code_from_stack s') \<and> cd' = encode e' \<and> 
-        vs = encode_closure c # vals_from_stack s' \<and> env # envs = envs_from_stack s'" 
+    hence "encode_state (CSC s c) = TS vs ((env, TPushLam cd' # cd) # sfs)" by simp
+    then obtain s' cs e es tt e' cd'' where S: "s = CApp1 cs e # s' \<and> 
+      unzip e = (DLam tt e', es) \<and> cd = zip_encode es (TApply # cd'') \<and> cd' = encode e' \<and> 
+        vs = encode_closure c # vals_from_stack s' \<and> stack_from_stack s' = ((env, cd'') # sfs)" 
       using encode_to_pushlam by blast
     hence "iter (\<leadsto>\<^sub>c) (CSE (CApp2 c # s') cs e) 
       (CSE (map (CApp1 cs) (rev es) @ CApp2 c # s') cs (DLam tt e'))" by simp
@@ -328,105 +315,122 @@ next
     with CSC S show ?case by fastforce
   qed
 next
-  case (evt_apply v env cd' vs envs cd)
-  thus ?case
-  proof (induction \<Sigma>\<^sub>c)
-    case (CSE s cs e)
-    moreover hence "encode_state (CSE s cs e) = TS (v # TLam env cd' # vs) envs (TApply # cd)"
-      by simp
-    ultimately show ?case using encode_to_apply by blast
-  next
-    case (CSC s c)
-    moreover hence "encode_state (CSC s c) = TS (v # TLam env cd' # vs) envs (TApply # cd)" by simp
-    ultimately obtain s' c' where S: "s = CApp2 c' # s' \<and> cd = code_from_stack s' \<and> 
-      envs = envs_from_stack s' \<and> v = encode_closure c \<and> TLam env cd' = encode_closure c' \<and> 
-        vs = vals_from_stack s'" using encode_to_apply by blast
-    then obtain t cs e where C: "c' = CLam t cs e \<and> env = map encode_closure cs \<and> cd' = encode e" 
-      by (metis encode_lam_closure)
-    have "CSC (CApp2 (CLam t cs e) # s') c \<leadsto>\<^sub>c CSE (CReturn (c # cs) # s') (c # cs) e" by simp
-    hence "iter (\<leadsto>\<^sub>c) (CSC (CApp2 (CLam t cs e) # s') c) (CSE (CReturn (c # cs) # s') (c # cs) e)" 
-      by (metis iter_step iter_refl)
-    with S C show ?case using encode_def by fastforce
-  qed
+  case (evt_apply v env' cd' vs env cd sfs)
+  hence "encode_state \<Sigma>\<^sub>c = TS (v # TLam env' cd' # vs) ((env, TApply # cd) # sfs)" by simp
+  then obtain s c c' where "\<Sigma>\<^sub>c = CSC (CApp2 c' # s) c \<and> 
+    stack_from_stack s = ((env, cd) # sfs) \<and> v = encode_closure c \<and> 
+      TLam env' cd' = encode_closure c' \<and> vs = vals_from_stack s" using encode_to_apply by blast
+  moreover then obtain t cs e where "c' = CLam t cs e \<and> env' = map encode_closure cs \<and> 
+    cd' = encode e" by (metis encode_lam_closure)
+  moreover have "CSC (CApp2 (CLam t cs e) # s) c \<leadsto>\<^sub>c CSE (CReturn (c # cs) # s) (c # cs) e" by simp
+  moreover hence "iter (\<leadsto>\<^sub>c) (CSC (CApp2 (CLam t cs e) # s) c) 
+    (CSE (CReturn (c # cs) # s) (c # cs) e)" by (metis iter_one)
+  ultimately show ?case using encode_def by fastforce
 next
-  case (evt_return vs env envs cd)
+  case (evt_return vs env sfs)
+  hence R: "(\<exists>c. \<Sigma>\<^sub>c = CSC [] c \<and> env = [] \<and> sfs = [] \<and> vs = [encode_closure c]) \<or> 
+    (\<exists>cs s c. \<Sigma>\<^sub>c = CSC (CReturn cs # s) c \<and> sfs = stack_from_stack s \<and>
+      env = map encode_closure cs \<and> vs = encode_closure c # vals_from_stack s)" by simp
   thus ?case
-  proof (induction \<Sigma>\<^sub>c)
-    case (CSE s cs e)
-    moreover hence "encode_state (CSE s cs e) = TS vs (env # envs) (TReturn # cd)" by simp
-    ultimately show ?case using encode_to_return by blast
+  proof (cases "\<exists>c. \<Sigma>\<^sub>c = CSC [] c \<and> env = [] \<and> sfs = [] \<and> vs = [encode_closure c]")
+    case True
+    then obtain c where "\<Sigma>\<^sub>c = CSC [] c \<and> env = [] \<and> sfs = [] \<and> vs = [encode_closure c]" 
+      by fastforce
+    moreover have "iter (\<leadsto>\<^sub>c) (CSC [] c) (CSC [] c)" by simp
+    ultimately show ?thesis by fastforce
   next
-    case (CSC s c)
-    moreover hence "encode_state (CSC s c) = TS vs (env # envs) (TReturn # cd)" by simp
-    ultimately obtain cs s' where S: "s = CReturn cs # s' \<and> cd = code_from_stack s' \<and> 
-      env = map encode_closure cs \<and> envs = envs_from_stack s' \<and> 
-        vs = encode_closure c # vals_from_stack s'" using encode_to_return by blast
-    have "CSC (CReturn cs # s') c \<leadsto>\<^sub>c CSC s' c" by simp
-    hence "iter (\<leadsto>\<^sub>c) (CSC (CReturn cs # s') c) (CSC s' c)" by (metis iter_step iter_refl)
-    with S show ?case by fastforce
+    case False
+    with R obtain cs s c where S: "\<Sigma>\<^sub>c = CSC (CReturn cs # s) c \<and> sfs = stack_from_stack s \<and>
+      env = map encode_closure cs \<and> vs = encode_closure c # vals_from_stack s" by fastforce
+    have "CSC (CReturn cs # s) c \<leadsto>\<^sub>c CSC s c" by simp
+    hence "iter (\<leadsto>\<^sub>c) (CSC (CReturn cs # s) c) (CSC s c)" by (metis iter_one)
+    with S show ?thesis by fastforce
   qed
 qed
-
-*)
 
 lemma lookup_latest [simp]: "latest_environment s = Some cs \<Longrightarrow> 
     \<exists>cd sfs. stack_from_stack s = (map encode_closure cs, cd) # sfs"
   by (induction s rule: stack_from_stack.induct) (auto split: list.splits)
 
-theorem completet [simp]: "\<Sigma> \<leadsto>\<^sub>c \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>c t \<Longrightarrow> iter (\<leadsto>\<^sub>t) (encode_state \<Sigma>) (encode_state \<Sigma>')" (*
+theorem completet [simp]: "\<Sigma> \<leadsto>\<^sub>c \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>c t \<Longrightarrow> iter (\<leadsto>\<^sub>t) (encode_state \<Sigma>) (encode_state \<Sigma>')"
 proof (induction \<Sigma> \<Sigma>' rule: evalc.induct)
   case (evc_var cs x c s)
   then obtain t' ts where "(s :\<^sub>c t' \<rightarrow> t) \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = Some cs \<and> 
     lookup ts x = Some t'" by fastforce
-  then obtain envs where "envs_from_stack s = map encode_closure cs # envs" 
+  then obtain cd sfs where S: "stack_from_stack s = (map encode_closure cs, cd) # sfs" 
     by (metis lookup_latest)
-  with evc_var have "TS (vals_from_stack s) (envs_from_stack s) (TLookup x # code_from_stack s) \<leadsto>\<^sub>t 
-    TS (encode_closure c # vals_from_stack s) (envs_from_stack s) (code_from_stack s)" by simp
-  hence "iter (\<leadsto>\<^sub>t) (TS (vals_from_stack s) (envs_from_stack s) (TLookup x # code_from_stack s)) 
-    (TS (encode_closure c # vals_from_stack s) (envs_from_stack s) (code_from_stack s))" 
-      by (metis iter_step iter_refl)
-  thus ?case by simp
+  with evc_var have "TS (vals_from_stack s) ((map encode_closure cs, TLookup x # cd) # sfs) \<leadsto>\<^sub>t 
+    TS (encode_closure c # vals_from_stack s) ((map encode_closure cs, cd) # sfs)" by simp
+  hence "iter (\<leadsto>\<^sub>t) (TS (vals_from_stack s) ((map encode_closure cs, TLookup x # cd) # sfs))
+    (TS (encode_closure c # vals_from_stack s) ((map encode_closure cs, cd) # sfs))" 
+      by (metis iter_one)
+    with S show ?case by simp
 next
   case (evc_con s cs k)
-  have "TS (vals_from_stack s) (envs_from_stack s) (TPushCon k # code_from_stack s) \<leadsto>\<^sub>t 
-    TS (TConst k # vals_from_stack s) (envs_from_stack s) (code_from_stack s)" by simp
-  hence "iter (\<leadsto>\<^sub>t) (TS (vals_from_stack s) (envs_from_stack s) (TPushCon k # code_from_stack s)) 
-    (TS (TConst k # vals_from_stack s) (envs_from_stack s) (code_from_stack s))"
-      by (metis iter_step iter_refl)
-  thus ?case by simp
+  then obtain ts where "(s :\<^sub>c Base \<rightarrow> t) \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = Some cs" 
+    by fastforce
+  then obtain cd sfs where S: "stack_from_stack s = (map encode_closure cs, cd) # sfs" 
+    by (metis lookup_latest)
+  have "TS (vals_from_stack s) ((map encode_closure cs, TPushCon k # cd) # sfs) \<leadsto>\<^sub>t 
+    TS (TConst k # vals_from_stack s) ((map encode_closure cs, cd) # sfs)" by simp
+  hence "iter (\<leadsto>\<^sub>t) (TS (vals_from_stack s) ((map encode_closure cs, TPushCon k # cd) # sfs)) 
+    (TS (TConst k # vals_from_stack s) ((map encode_closure cs, cd) # sfs))" by (metis iter_one)
+  with S show ?case by simp
 next
   case (evc_lam s cs tt e)
   then obtain t' ts where "(s :\<^sub>c t' \<rightarrow> t) \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = Some cs \<and>
     (ts \<turnstile>\<^sub>d DLam tt e : t')" by fastforce
-  then obtain envs where "envs_from_stack s = map encode_closure cs # envs" 
+  then obtain cd sfs where S: "stack_from_stack s = (map encode_closure cs, cd) # sfs" 
     by (metis lookup_latest)
-  hence "TS (vals_from_stack s) (envs_from_stack s) (TPushLam (encode e) # code_from_stack s) \<leadsto>\<^sub>t 
-    TS (TLam (map encode_closure cs) (encode e) # vals_from_stack s) (envs_from_stack s) 
-      (code_from_stack s)" by simp
-  hence "iter (\<leadsto>\<^sub>t) (TS (vals_from_stack s) (envs_from_stack s) (TPushLam (encode e) # 
-    code_from_stack s)) (TS (TLam (map encode_closure cs) (encode e) #
-      vals_from_stack s) (envs_from_stack s) (code_from_stack s))" by (metis iter_step iter_refl)
-  thus ?case by (simp add: encode_def)
+  hence "TS (vals_from_stack s) ((map encode_closure cs, TPushLam (encode e) # cd) # sfs) \<leadsto>\<^sub>t 
+    TS (TLam (map encode_closure cs) (encode e) # vals_from_stack s) 
+      ((map encode_closure cs, cd) # sfs)" by simp
+  hence "iter (\<leadsto>\<^sub>t) (TS (vals_from_stack s) 
+    ((map encode_closure cs, TPushLam (encode e) # cd) # sfs)) 
+      (TS (TLam (map encode_closure cs) (encode e) # vals_from_stack s)
+        ((map encode_closure cs, cd) # sfs))" by (metis iter_one)
+  with S show ?case by (simp add: encode_def)
 next
-  case (retc_app2 t cs e\<^sub>1 s c\<^sub>2)
-  have "iter (\<leadsto>\<^sub>t) (TS (encode_closure c\<^sub>2 # TLam (map encode_closure cs) 
-    (encode e\<^sub>1) # vals_from_stack s) (envs_from_stack s) (TApply # code_from_stack s))
-      (TS (vals_from_stack s) ((encode_closure c\<^sub>2 # map encode_closure cs) # envs_from_stack s) 
-      (encode e\<^sub>1 @ code_from_stack s))" by (metis evt_apply iter_step iter_refl)
-  thus ?case by (simp add: encode_def)
+  case (evc_app s cs e\<^sub>1 e\<^sub>2)
+  then obtain t' ts where "(s :\<^sub>c t' \<rightarrow> t) \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = Some cs \<and>
+    (ts \<turnstile>\<^sub>d DApp e\<^sub>1 e\<^sub>2 : t')" by fastforce
+  then obtain cd sfs where S: "stack_from_stack s = (map encode_closure cs, cd) # sfs" 
+    by (metis lookup_latest)
+  then show ?case by simp
+next
+  case (retc_app1 cs e\<^sub>2 s c\<^sub>1)
+  then obtain ts t\<^sub>1 t\<^sub>2 where "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (ts \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<and> (s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and>
+    latest_environment s = Some cs \<and> (c\<^sub>1 :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2)" by blast
+  then obtain cd sfs where "stack_from_stack s = (map encode_closure cs, cd) # sfs" 
+    by (metis lookup_latest)
+  thus ?case by simp
+next
+  case (retc_app2 t\<^sub>1 cs e\<^sub>1 s c\<^sub>2)
+  then obtain ts t\<^sub>2 cs' where "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2) \<and> (s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> 
+    latest_environment s = Some cs' \<and> (c\<^sub>2 :\<^sub>c\<^sub>l t\<^sub>1)" by blast
+  then obtain cd sfs where S: "stack_from_stack s = (map encode_closure cs', cd) # sfs" 
+    by (metis lookup_latest)
+  hence "TS (encode_closure c\<^sub>2 # TLam (map encode_closure cs) (encode' e\<^sub>1 []) # vals_from_stack s) 
+    ((map encode_closure cs', TApply # cd) # sfs) \<leadsto>\<^sub>t
+      TS (vals_from_stack s) ((encode_closure c\<^sub>2 # map encode_closure cs, encode' e\<^sub>1 []) # 
+        stack_from_stack s)" by (metis evt_apply)
+  hence "iter (\<leadsto>\<^sub>t)
+    (TS (encode_closure c\<^sub>2 # TLam (map encode_closure cs) (encode' e\<^sub>1 []) # vals_from_stack s)
+      ((map encode_closure cs', TApply # cd) # sfs))
+        (TS (vals_from_stack s) ((encode_closure c\<^sub>2 # map encode_closure cs, encode' e\<^sub>1 []) # 
+          stack_from_stack s))"
+    by (metis iter_one)
+  with S show ?case by (simp add: encode_def)
 next
   case (retc_ret cs s c)
-  have "TS (encode_closure c # vals_from_stack s) (map encode_closure cs # envs_from_stack s) 
-    (TReturn # code_from_stack s) \<leadsto>\<^sub>t TS (encode_closure c # vals_from_stack s) (envs_from_stack s) 
-      (code_from_stack s)" by simp
-  hence "iter (\<leadsto>\<^sub>t) (TS (encode_closure c # vals_from_stack s) 
-    (map encode_closure cs # envs_from_stack s) (TReturn # code_from_stack s)) 
-      (TS (encode_closure c # vals_from_stack s) (envs_from_stack s) (code_from_stack s))" 
-        by (metis iter_step iter_refl)
+  have "TS (encode_closure c # vals_from_stack s) 
+    ((map encode_closure cs, []) # stack_from_stack s) \<leadsto>\<^sub>t
+      TS (encode_closure c # vals_from_stack s) (stack_from_stack s)" by simp
+  hence "iter (\<leadsto>\<^sub>t) 
+    (TS (encode_closure c # vals_from_stack s) ((map encode_closure cs, []) # stack_from_stack s))
+      (TS (encode_closure c # vals_from_stack s) (stack_from_stack s))" by (metis iter_one)
   thus ?case by simp
-qed simp_all
-*)
-  by simp
+qed
 
 lemma iter_completet [simp]: "iter (\<leadsto>\<^sub>c) \<Sigma> \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>c t \<Longrightarrow>
   iter (\<leadsto>\<^sub>t) (encode_state \<Sigma>) (encode_state \<Sigma>')"

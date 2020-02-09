@@ -31,6 +31,10 @@ primrec print_tclosure :: "tclosure \<Rightarrow> string" where
   "print_tclosure (TConst k) = string_of_nat k"
 | "print_tclosure (TLam cs cd) = ''<fun>''"
 
+primrec print_tco_closure :: "tco_closure \<Rightarrow> string" where
+  "print_tco_closure (TCOConst k) = string_of_nat k"
+| "print_tco_closure (TCOLam cs cd r) = ''<fun>''"
+
 primrec print_bclosure :: "bclosure \<Rightarrow> string" where
   "print_bclosure (BConst k) = string_of_nat k"
 | "print_bclosure (BLam cs pc) = ''<fun>''"
@@ -48,13 +52,13 @@ proof (induction c)
   thus ?case by (induction cs arbitrary: e) simp_all
 qed simp_all
 
-lemma [simp]: "print_tclosure (tco_val c) = print_tclosure c"
+lemma [simp]: "print_tco_closure (tco_val c) = print_tclosure c"
   by (induction c) simp_all
 
 lemma [simp]: "print_tclosure (encode_closure c) = print_closure c" 
   by (induction c) (simp_all del: print_eqiv_declosure)
 
-lemma [simp]: "print_bclosure c = print_tclosure (unflatten_closure cd c)" 
+lemma [simp]: "print_bclosure c = print_tco_closure (unflatten_closure cd c)" 
   by (induction c) simp_all
 
 lemma [simp]: "print_hclosure (hlookup h x) = print_bclosure (unheap_closure h x)"

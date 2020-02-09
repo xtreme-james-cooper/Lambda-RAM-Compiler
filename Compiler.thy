@@ -26,32 +26,32 @@ proof -
     (encode_state (CSC [] c))" by (metis iter_completet)
   hence "iter (\<leadsto>\<^sub>t) (TS [] [([], encode (convert e))]) (TS [encode_closure c] [])" 
     by (simp add: encode_def)
-  hence "iter (\<leadsto>\<^sub>t) (tco_state (TS [] [[]] (encode (convert e)))) 
-    (tco_state (TS [encode_closure c] [] []))" by (metis iter_tco_eval )
-  hence ET: "iter (\<leadsto>\<^sub>t) (TS [] [[]] (tco (encode (convert e)))) 
-    (TS [tco_val (encode_closure c)] [] [])" by simp
+  hence "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS [] [([], encode (convert e))])) 
+    (tco_state (TS [encode_closure c] []))" by (metis iter_tco_eval)
+  hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco (encode (convert e)), TCOReturn)]) 
+    (TCOS [tco_val (encode_closure c)] [])" by simp
   assume "compile e = cd"
   hence C: "flatten_code (tco (encode (convert e))) = cd" by (simp add: compile_def)
   hence "unflatten_code cd (length cd) = tco (encode (convert e))" by auto
-  hence UB: "unflatten_state (BS [] [[]] [length cd] cd) = TS [] [[]] (tco (encode (convert e)))" 
-    by simp
-  from C have "orderly_state (BS [] [[]] [length cd] cd)" by auto
+  hence UB: "unflatten_state (BS [] [([], length cd)] cd) = 
+    TCOS [] [([], tco (encode (convert e)), TCOReturn)]" by simp
+  from C have "orderly_state (BS [] [([], length cd)] cd)" by auto
   with ET UB obtain v\<^sub>b where EB: 
-    "iter (\<leadsto>\<^sub>b) (BS [] [[]] [length cd] cd) (BS [v\<^sub>b] [] [] cd) \<and> 
+    "iter (\<leadsto>\<^sub>b) (BS [] [([], length cd)] cd) (BS [v\<^sub>b] [] cd) \<and> 
       tco_val (encode_closure c) = unflatten_closure cd v\<^sub>b" 
-    by (metis evalb_end byte_code_state.sel(4))
-  hence "print_bclosure v\<^sub>b = print_tclosure (tco_val (encode_closure c))" by simp
+    by (metis evalb_end byte_code_state.sel(3))
+  hence "print_bclosure v\<^sub>b = print_tco_closure (tco_val (encode_closure c))" by simp
   with VC have VB: "print_bclosure v\<^sub>b = print_nexpr v\<^sub>n" by simp
-  from EB obtain \<Sigma>\<^sub>h' where EH: "iter (\<leadsto>\<^sub>h) (HS hempty [] [[]] [length cd] cd) \<Sigma>\<^sub>h' \<and> 
-    BS [v\<^sub>b] [] [] cd = unheap \<Sigma>\<^sub>h'" by fastforce
-  then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = HS h\<^sub>h [v\<^sub>h] [] [] cd \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 
+  from EB obtain \<Sigma>\<^sub>h' where EH: "iter (\<leadsto>\<^sub>h) (HS hempty [] [([], length cd)] cd) \<Sigma>\<^sub>h' \<and> 
+    BS [v\<^sub>b] [] cd = unheap \<Sigma>\<^sub>h'" by fastforce
+  then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = HS h\<^sub>h [v\<^sub>h] [] cd \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 
     using unheap_backwards by blast
   with VB have VH: "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr v\<^sub>n" by simp
-  have HS: "heap_structured (HS hempty [] [[]] [length cd] cd)" by simp
-  have FS: "flatten (HS hempty [] [[]] [length cd] cd) = FS hempty [] [[]] [length cd] cd" by simp
+  have HS: "heap_structured (HS hempty [] [([], length cd)] cd)" by simp
+  have FS: "flatten (HS hempty [] [([], length cd)] cd) = FS hempty [] [[length cd]] cd" by simp
   obtain h\<^sub>f mp where HC: "hsplay splay_closure h\<^sub>h = (h\<^sub>f, mp)" by fastforce
-  with SH have "flatten \<Sigma>\<^sub>h' = FS h\<^sub>f [mp v\<^sub>h] [] [] cd" by simp
-  with EH FS HS have EF: "iter (\<leadsto>\<^sub>f) (FS hempty [] [[]] [length cd] cd) (FS h\<^sub>f [mp v\<^sub>h] [] [] cd)"
+  with SH have "flatten \<Sigma>\<^sub>h' = FS h\<^sub>f [mp v\<^sub>h] [] cd" by simp
+  with EH FS HS have EF: "iter (\<leadsto>\<^sub>f) (FS hempty [] [[length cd]] cd) (FS h\<^sub>f [mp v\<^sub>h] [] cd)"
     by (metis completef_iter)
   from EH have "heap_structured \<Sigma>\<^sub>h'" by fastforce
   with SH have "hcontains h\<^sub>h v\<^sub>h" by simp
@@ -62,7 +62,7 @@ proof -
 
 
 
-  from EF VF have "iter (\<leadsto>\<^sub>f) (FS hempty [] [[]] [length cd] cd) (FS h\<^sub>f [mp v\<^sub>h] [] [] cd) \<and> 
+  from EF VF have "iter (\<leadsto>\<^sub>f) (FS hempty [] [[length cd]] cd) (FS h\<^sub>f [mp v\<^sub>h] [] cd) \<and> 
     print_hclosure (get_closure h\<^sub>f (mp v\<^sub>h)) = print_nexpr v\<^sub>n" by simp
   with EN VN show ?thesis by fastforce
 qed

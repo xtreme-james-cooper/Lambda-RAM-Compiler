@@ -28,14 +28,154 @@ fun tco_stack_frame :: "tree_stack_frame \<Rightarrow> tco_stack_frame" where
 fun not_dead_frame :: "tco_stack_frame \<Rightarrow> bool" where
   "not_dead_frame (vs, cd, r) = (cd \<noteq> [] \<or> r \<noteq> TCOReturn)"
 
+primrec dead_frame :: "tree_stack_frame \<Rightarrow> bool" where
+  "dead_frame (vs, cd) = (cd = [])"
+
 abbreviation tco_stack :: "tree_stack_frame list \<Rightarrow> tco_stack_frame list" where
   "tco_stack sfs \<equiv> filter not_dead_frame (map tco_stack_frame sfs)"
 
 primrec tco_state :: "tree_code_state \<Rightarrow> tco_code_state" where
   "tco_state (TS vs sfs) = TCOS (map tco_val vs) (tco_stack sfs)"
 
-theorem completetco [simp]: "tco_state \<Sigma> \<leadsto>\<^sub>t\<^sub>c\<^sub>o \<Sigma>' \<Longrightarrow> \<exists>\<Sigma>''. \<Sigma> \<leadsto>\<^sub>t \<Sigma>'' \<and> \<Sigma>' = tco_state \<Sigma>''"
-  by simp
+lemma [dest]: "(env, cd, r) # sfs = tco_stack sfs' \<Longrightarrow> \<exists>dsfs env' cd' sfs''. 
+  sfs' = dsfs @ (env', cd') # sfs'' \<and> env = map tco_val env' \<and> cd = tco cd' \<and> r = tco_r cd' \<and> 
+    list_all dead_frame dsfs \<and> sfs = tco_stack sfs''"
+proof (induction sfs')
+  case (Cons sf sfs')
+  thus ?case
+  proof (induction sf)
+    case (Pair env' cd')
+    thus ?case
+    proof (induction cd' rule: tco.induct)
+
+      case 1
+      then obtain dsfs env'' cd' sfs'' where X: "sfs' = dsfs @ (env'', cd') # sfs'' \<and> 
+        env = map tco_val env'' \<and> cd = tco cd' \<and> r = tco_r cd' \<and> list_all dead_frame dsfs \<and> 
+          sfs = tco_stack sfs''" by auto
+      hence "\<exists>dsfsx. (env', []) # dsfs @ (env'', cd') # sfs'' = dsfsx @ (env'', cd') # sfs'' \<and> 
+          list_all dead_frame dsfsx \<and> sfs = tco_stack sfs''" by simp
+      hence "\<exists>dsfsx sfs'''. 
+        (env', []) # dsfs @ (env'', cd') # sfs'' = dsfsx @ (env'', cd') # sfs''' \<and> 
+          list_all dead_frame dsfsx \<and> sfs = tco_stack sfs'''" by fastforce
+      with X show ?case by fastforce
+    next
+      case (2 x cd')
+      hence "env = map tco_val env' \<and> cd = TCOLookup x # tco cd' \<and> r = tco_r cd' \<and> 
+        sfs = tco_stack sfs'" by simp
+      thus ?case by fastforce
+    next
+      case (3 k cd')
+      hence "env = map tco_val env' \<and> cd = TCOPushCon k # tco cd' \<and> r = tco_r cd' \<and> 
+        sfs = tco_stack sfs'" by simp
+      thus ?case by fastforce
+    next
+      case (4 cd\<^sub>l cd')
+      hence "env = map tco_val env' \<and> cd = TCOPushLam (tco cd\<^sub>l) (tco_r cd\<^sub>l) # tco cd' \<and> 
+        r = tco_r cd' \<and> sfs = tco_stack sfs'" by simp
+      thus ?case by fastforce
+    next
+      case (5 cd')
+      thus ?case
+      proof (cases cd')
+        case Nil
+        moreover with 5 have "env = map tco_val env' \<and> cd = [] \<and> r = TCOJump \<and> 
+          sfs = tco_stack sfs'" by simp
+        ultimately show ?thesis by fastforce
+      next
+        case (Cons op cd'')
+        moreover with 5 have "env = map tco_val env' \<and> cd = TCOApply # tco (op # cd'') \<and> 
+          r = tco_r (op # cd'') \<and> sfs = tco_stack sfs'" by simp
+        ultimately show ?thesis by fastforce
+      qed
+    qed
+  qed
+qed simp_all
+
+lemma [dest]: "TCOS vs ((env, cd, r) # sfs) = tco_state \<Sigma> \<Longrightarrow> \<exists>dsfs vs' env' cd' sfs'. 
+  \<Sigma> = TS vs' (dsfs @ (env', cd') # sfs') \<and> vs = map tco_val vs' \<and> env = map tco_val env' \<and> 
+    cd = tco cd' \<and> r = tco_r cd' \<and> list_all dead_frame dsfs \<and> sfs = tco_stack sfs'"
+  by (induction \<Sigma>) auto
+
+lemma [dest]: "TCOLookup x # cd = tco cd' \<Longrightarrow> \<exists>cd''. cd' = TLookup x # cd'' \<and> cd = tco cd''"
+  by (induction cd' rule: tco.induct) (simp_all split: list.splits)
+
+lemma [simp]: "list_all dead_frame dsfs \<Longrightarrow> iter (\<leadsto>\<^sub>t) (TS vs (dsfs @ sfs)) (TS vs sfs)"
+proof (induction dsfs)
+  case (Cons sf dsfs)
+  then obtain vs' where "sf = (vs', [])" by (cases sf) simp_all
+  hence "TS vs ((sf # dsfs) @ sfs) \<leadsto>\<^sub>t TS vs (dsfs @ sfs)" by simp
+  with Cons show ?case by simp
+qed simp_all
+
+lemma [simp]: "\<exists>\<Sigma>\<^sub>t \<Sigma>. iter (\<leadsto>\<^sub>t) (TS vs ((env, cd) # sfs)) \<Sigma>\<^sub>t \<and> 
+  iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS (map tco_val vs) ((map tco_val env, tco cd, tco_r cd) # tco_stack sfs)) \<Sigma> \<and> 
+    \<Sigma> = tco_state \<Sigma>\<^sub>t" 
+proof (induction cd rule: tco.induct)
+  case 1
+  have "TS vs ((env, []) # sfs) \<leadsto>\<^sub>t TS vs sfs" by simp
+  hence X: "iter (\<leadsto>\<^sub>t) (TS vs ((env, []) # sfs)) (TS vs sfs)" by (metis iter_one)
+  have "TCOS (map tco_val vs) ((map tco_val env, tco [], tco_r []) # tco_stack sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+    TCOS (map tco_val vs) (tco_stack sfs)" by simp
+  hence Y: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) 
+    (TCOS (map tco_val vs) ((map tco_val env, tco [], tco_r []) # tco_stack sfs)) 
+      (TCOS (map tco_val vs) (tco_stack sfs))" by (metis iter_one)
+  have "TCOS (map tco_val vs) (tco_stack sfs) = tco_state (TS vs sfs)" by simp
+  with X Y show ?case by blast
+next
+  case (2 x cd)
+
+
+  have X: "iter (\<leadsto>\<^sub>t) (TS vs ((env, TLookup x # cd) # sfs)) \<Sigma>\<^sub>t" by simp
+  have Y: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS (map tco_val vs) 
+    ((map tco_val env, tco (TLookup x # cd), tco_r (TLookup x # cd)) # tco_stack sfs)) \<Sigma>" by simp
+  have "\<Sigma> = tco_state \<Sigma>\<^sub>t" by simp
+  with X Y show ?case by blast
+next
+  case (3 k cd)
+  then show ?case by simpx
+next
+  case (4 cd' cd)
+  then show ?case by simpx
+next
+  case (5 cd)
+  then show ?case by simpx
+qed 
+
+theorem completetco [simp]: "tco_state \<Sigma>\<^sub>t \<leadsto>\<^sub>t\<^sub>c\<^sub>o \<Sigma>' \<Longrightarrow> \<exists>\<Sigma>\<^sub>t' \<Sigma>''. iter (\<leadsto>\<^sub>t) \<Sigma>\<^sub>t \<Sigma>\<^sub>t' \<and> 
+  iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) \<Sigma>' \<Sigma>'' \<and> \<Sigma>'' = tco_state \<Sigma>\<^sub>t'"
+proof (induction "tco_state \<Sigma>\<^sub>t" \<Sigma>' rule: evaltco.induct)
+  case (evtco_lookup env x v vs cd r sfs)
+  then obtain dsfs vs' env' cd' sfs' where S: "\<Sigma>\<^sub>t = TS vs' (dsfs @ (env', cd') # sfs') \<and> 
+    vs = map tco_val vs' \<and> env = map tco_val env' \<and> TCOLookup x # cd = tco cd' \<and> r = tco_r cd' \<and> 
+      list_all dead_frame dsfs \<and> sfs = tco_stack sfs'" by blast
+  then obtain cd'' where C: "cd' = TLookup x # cd'' \<and> cd = tco cd''" by blast
+  from evtco_lookup S obtain v' where V: "lookup env' x = Some v' \<and> v = tco_val v'" by auto
+  hence "TS vs' ((env', TLookup x # cd'') # sfs') \<leadsto>\<^sub>t TS (v' # vs') ((env', cd'') # sfs')" by simp
+  moreover from S have "iter (\<leadsto>\<^sub>t) (TS vs' (dsfs @ (env', TLookup x # cd'') # sfs')) 
+    (TS vs' ((env', TLookup x # cd'') # sfs'))" by simp
+  ultimately have X: "iter (\<leadsto>\<^sub>t) (TS vs' (dsfs @ (env', TLookup x # cd'') # sfs')) 
+    (TS (v' # vs') ((env', cd'') # sfs'))" by simp 
+
+
+  have "iter (\<leadsto>\<^sub>t) (TS vs' (dsfs @ (env', TLookup x # cd'') # sfs')) \<Sigma>\<^sub>t' \<and> 
+    iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS (v # vs) ((env, cd, r) # sfs)) \<Sigma>'' \<and> \<Sigma>'' = tco_state \<Sigma>\<^sub>t'" by simp
+  with S C show ?case by blast
+next
+case (evtco_pushcon vs env k cd r sfs)
+  then show ?case by simp
+next
+case (evtco_pushlam vs env cd' r' cd r sfs)
+  then show ?case by simp
+next
+  case (evtco_apply v env cd' r' vs cd r sfs)
+  then show ?case by simp
+next
+  case (evtco_return vs env sfs)
+  then show ?case by simp
+next
+  case (evtco_jump v env' cd' r' vs env sfs)
+  then show ?case by simp
+qed
 
 lemma [simp]: "tco (op # cd) = [] \<Longrightarrow> tco_r (op # cd) = TCOJump"
   by (induction op) (simp_all split: list.splits)
@@ -120,7 +260,7 @@ next
           by simp
       ultimately have "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS (v # TLam env [] # vs) ((env, [TApply]) # sfs)))
         (tco_state (TS vs ((v # env, []) # (env, []) # sfs)))" using iter_step by fast
-      with CD Nil show ?thesis by simp
+      with CD Nil show ?thesis by simpx
     next
       case (Cons op' cd')
       have "tco_state (TS (v # TLam env (op' # cd') # vs) ((env, [TApply]) # sfs)) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
@@ -145,7 +285,7 @@ next
         ((env, TApply # op # cd) # sfs)))
           (tco_state (TS vs ((v # env, []) # (env, op # cd) # sfs)))" 
         using iter_step by fast
-      with Cons Nil show ?thesis by simp
+      with Cons Nil show ?thesis by simpx
     next
       case (Cons op' cd')
       from evt_lookup have "tco_state (TS (v # TLam env (op' # cd') # vs) 

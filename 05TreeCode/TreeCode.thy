@@ -22,8 +22,8 @@ inductive evalt :: "tree_code_state \<Rightarrow> tree_code_state \<Rightarrow> 
 | evt_pushcon [simp]: "TS vs ((env, TPushCon k # cd) # sfs) \<leadsto>\<^sub>t TS (TConst k # vs) ((env, cd) # sfs)"
 | evt_pushlam [simp]: "TS vs ((env, TPushLam cd' # cd) # sfs) \<leadsto>\<^sub>t 
     TS (TLam env cd' # vs) ((env, cd) # sfs)"
-| evt_apply [simp]: "TS (v # TLam env cd' # vs) ((env, TApply # cd) # sfs) \<leadsto>\<^sub>t 
-    TS vs ((v # env, cd') # (env, cd) # sfs)"
+| evt_apply [simp]: "TS (v # TLam env' cd' # vs) ((env, TApply # cd) # sfs) \<leadsto>\<^sub>t 
+    TS vs ((v # env', cd') # (env, cd) # sfs)"
 | evt_return [simp]: "TS vs ((env, []) # sfs) \<leadsto>\<^sub>t TS vs sfs"
 
 theorem determinismt: "\<Sigma> \<leadsto>\<^sub>t \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>t \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
@@ -40,9 +40,9 @@ next
   thus ?case 
     by (induction "TS vs ((env, TPushLam cd' # cd) # sfs)" \<Sigma>'' rule: evalt.induct) simp_all 
 next
-  case (evt_apply v env cd' vs cd sfs)
+  case (evt_apply v env' cd' vs env cd sfs)
   thus ?case 
-    by (induction "TS (v # TLam env cd' # vs) ((env, TApply # cd) # sfs)" \<Sigma>'' 
+    by (induction "TS (v # TLam env' cd' # vs) ((env, TApply # cd) # sfs)" \<Sigma>'' 
         rule: evalt.induct) 
        simp_all 
 next

@@ -37,7 +37,8 @@ inductive typecheck_cstack :: "cframe list \<Rightarrow> ty \<Rightarrow> ty \<R
   tcc_snil [simp]: "[] :\<^sub>c t \<rightarrow> t"
 | tcc_scons_app1 [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> ts \<turnstile>\<^sub>d e : t\<^sub>1 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> 
     latest_environment s = Some cs \<Longrightarrow> CApp1 cs e # s :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
-| tcc_scons_app2 [simp]: "c :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> CApp2 c # s :\<^sub>c t\<^sub>1 \<rightarrow> t"
+| tcc_scons_app2 [simp]: "c :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> latest_environment s = Some cs \<Longrightarrow> 
+    CApp2 c # s :\<^sub>c t\<^sub>1 \<rightarrow> t"
 | tcc_scons_ret [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> CReturn cs # s :\<^sub>c t' \<rightarrow> t"
 
 inductive_cases [elim]: "[] :\<^sub>c t' \<rightarrow> t"
