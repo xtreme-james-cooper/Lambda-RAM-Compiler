@@ -362,6 +362,14 @@ lemma [dest]: "TCOApply # cdt = unflatten_code cdb (Suc pc) \<Longrightarrow> or
     pc < length cdb \<Longrightarrow> cdb ! pc = BApply \<and> cdt = unflatten_code cdb pc"
   by (cases "cdb ! pc") simp_all
 
+lemma [dest]: "[] = unflatten_code cdb (Suc pc) \<Longrightarrow> TCOReturn = unflatten_return cdb (Suc pc) \<Longrightarrow> 
+    orderly cdb 0 \<Longrightarrow> pc < length cdb \<Longrightarrow> cdb ! pc = BReturn"
+  by (cases "cdb ! pc") simp_all
+
+lemma [dest]: "[] = unflatten_code cdb (Suc pc) \<Longrightarrow> TCOJump = unflatten_return cdb (Suc pc) \<Longrightarrow> 
+    orderly cdb 0 \<Longrightarrow> pc < length cdb \<Longrightarrow> cdb ! pc = BJump"
+  by (cases "cdb ! pc") simp_all
+
 lemma uf_to_lookup [dest]: "(envt, TCOLookup x # cdt, r) # sfst = ufsfs cdb sfsb \<Longrightarrow> 
   orderly cdb 0 \<Longrightarrow> orderly_stack sfsb (length cdb) \<Longrightarrow> \<exists>envb pc sfsb'. 
     sfsb = (envb, Suc pc) # sfsb' \<and> envt = ufcs cdb envb \<and> cdb ! pc = BLookup x \<and> 
@@ -373,10 +381,10 @@ proof (induction sfsb "length cdb" rule: orderly_stack.induct)
   with 3 show ?case by simp
 qed simp_all
 
-lemma [dest]: "(envt, TCOPushCon k # cdt, r) # sfst = ufsfs cdb sfsb \<Longrightarrow> orderly cdb 0 \<Longrightarrow> 
-  orderly_stack sfsb (length cdb) \<Longrightarrow> \<exists>envb pc sfsb'. sfsb = (envb, Suc pc) # sfsb' \<and> 
-    envt = ufcs cdb envb \<and> cdb ! pc = BPushCon k \<and> cdt = unflatten_code cdb pc \<and> 
-      r = unflatten_return cdb pc \<and> sfst = ufsfs cdb sfsb'"
+lemma uf_to_pushcon [dest]: "(envt, TCOPushCon k # cdt, r) # sfst = ufsfs cdb sfsb \<Longrightarrow> 
+  orderly cdb 0 \<Longrightarrow> orderly_stack sfsb (length cdb) \<Longrightarrow> 
+    \<exists>envb pc sfsb'. sfsb = (envb, Suc pc) # sfsb' \<and> envt = ufcs cdb envb \<and> cdb ! pc = BPushCon k \<and> 
+      cdt = unflatten_code cdb pc \<and> r = unflatten_return cdb pc \<and> sfst = ufsfs cdb sfsb'"
 proof (induction sfsb "length cdb" rule: orderly_stack.induct)
   case (3 envb pc sfsb')
   hence "TCOPushCon k # cdt = unflatten_code cdb (Suc pc) \<and> orderly cdb 0 \<and> pc < length cdb" by simp
@@ -384,7 +392,7 @@ proof (induction sfsb "length cdb" rule: orderly_stack.induct)
   with 3 show ?case by simp
 qed simp_all
 
-lemma [dest]: "(envt, TCOPushLam cdt' r' # cdt, r) # sfst = ufsfs cdb sfsb \<Longrightarrow> 
+lemma uf_to_pushlam [dest]: "(envt, TCOPushLam cdt' r' # cdt, r) # sfst = ufsfs cdb sfsb \<Longrightarrow> 
   orderly cdb 0 \<Longrightarrow> orderly_stack sfsb (length cdb) \<Longrightarrow> \<exists>envb pc sfsb' pc'. 
     sfsb = (envb, Suc pc) # sfsb' \<and> envt = ufcs cdb envb \<and> cdb ! pc = BPushLam pc' \<and> 
       cdt = unflatten_code cdb pc \<and> r = unflatten_return cdb pc \<and> cdt' = unflatten_code cdb pc' \<and> 
@@ -398,7 +406,7 @@ proof (induction sfsb "length cdb" rule: orderly_stack.induct)
   with 3 show ?case by simp
 qed simp_all
 
-lemma [dest]: "(envt, TCOApply # cdt, r) # sfst = ufsfs cdb sfsb \<Longrightarrow> orderly cdb 0 \<Longrightarrow> 
+lemma uf_to_apply [dest]: "(envt, TCOApply # cdt, r) # sfst = ufsfs cdb sfsb \<Longrightarrow> orderly cdb 0 \<Longrightarrow> 
   orderly_stack sfsb (length cdb) \<Longrightarrow> \<exists>envb pc sfsb'. sfsb = (envb, Suc pc) # sfsb' \<and> 
     envt = ufcs cdb envb \<and> cdb ! pc = BApply \<and> cdt = unflatten_code cdb pc \<and> 
       r = unflatten_return cdb pc \<and> sfst = ufsfs cdb sfsb'"
@@ -406,6 +414,28 @@ proof (induction sfsb "length cdb" rule: orderly_stack.induct)
   case (3 envb pc sfsb')
   hence "TCOApply # cdt = unflatten_code cdb (Suc pc) \<and> orderly cdb 0 \<and> pc < length cdb" by simp
   hence "cdb ! pc = BApply \<and> cdt = unflatten_code cdb pc" by blast
+  with 3 show ?case by simp
+qed simp_all
+
+lemma uf_to_return [dest]: "(envt, [], TCOReturn) # sfst = ufsfs cdb sfsb \<Longrightarrow> orderly cdb 0 \<Longrightarrow> 
+  orderly_stack sfsb (length cdb) \<Longrightarrow> \<exists>envb pc sfsb'. sfsb = (envb, Suc pc) # sfsb' \<and> 
+    envt = ufcs cdb envb \<and> cdb ! pc = BReturn \<and> sfst = ufsfs cdb sfsb'"
+proof (induction sfsb "length cdb" rule: orderly_stack.induct)
+  case (3 envb pc sfsb')
+  hence "[] = unflatten_code cdb (Suc pc) \<and> TCOReturn = unflatten_return cdb (Suc pc) \<and> 
+    orderly cdb 0 \<and> pc < length cdb" by simp
+  hence "cdb ! pc = BReturn" by blast
+  with 3 show ?case by simp
+qed simp_all
+
+lemma uf_to_jump [dest]: "(envt, [], TCOJump) # sfst = ufsfs cdb sfsb \<Longrightarrow> orderly cdb 0 \<Longrightarrow> 
+  orderly_stack sfsb (length cdb) \<Longrightarrow> \<exists>envb pc sfsb'. sfsb = (envb, Suc pc) # sfsb' \<and> 
+    envt = ufcs cdb envb \<and> cdb ! pc = BJump \<and> sfst = ufsfs cdb sfsb'"
+proof (induction sfsb "length cdb" rule: orderly_stack.induct)
+  case (3 envb pc sfsb')
+  hence "[] = unflatten_code cdb (Suc pc) \<and> TCOJump = unflatten_return cdb (Suc pc) \<and> 
+    orderly cdb 0 \<and> pc < length cdb" by simp
+  hence "cdb ! pc = BJump" by blast
   with 3 show ?case by simp
 qed simp_all
 
@@ -428,19 +458,74 @@ proof (induction "unflatten_state \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' rule: eval
   with B S V show ?case by fastforce
 next
   case (evtco_pushcon vs env k cd r sfs)
-  then show ?case by simp
+  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> vs = ufcs cdb vsb \<and> 
+    (env, TCOPushCon k # cd, r) # sfs = ufsfs cdb sfsb" by fastforce
+  with evtco_pushcon have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
+    env = ufcs cdb envb \<and> cdb ! pc = BPushCon k \<and> cd = unflatten_code cdb pc \<and> 
+      r = unflatten_return cdb pc \<and> sfs = ufsfs cdb sfsb'" by (metis uf_to_pushcon)
+  with S have "BS vsb ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b BS (BConst k # vsb) ((envb, pc) # sfsb') cdb"
+    by simp
+  hence "iter (\<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb') cdb) 
+    (BS (BConst k # vsb) ((envb, pc) # sfsb') cdb)" by simp
+  with B S show ?case by fastforce
 next
   case (evtco_pushlam vs env cd' r' cd r sfs)
-  then show ?case by simp
+  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> vs = ufcs cdb vsb \<and> 
+    (env, TCOPushLam cd' r' # cd, r) # sfs = ufsfs cdb sfsb" by fastforce
+  with evtco_pushlam have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  with B obtain envb pc sfsb' pc' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
+    env = ufcs cdb envb \<and> cdb ! pc = BPushLam pc' \<and> cd = unflatten_code cdb pc \<and> 
+      r = unflatten_return cdb pc \<and> sfs = ufsfs cdb sfsb' \<and> cd' = unflatten_code cdb pc' \<and> 
+        r' = unflatten_return cdb pc'" by (metis uf_to_pushlam)
+  with S have "BS vsb ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b 
+    BS (BLam envb pc' # vsb) ((envb, pc) # sfsb') cdb" by simp
+  hence "iter (\<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb') cdb) 
+    (BS (BLam envb pc' # vsb) ((envb, pc) # sfsb') cdb)" by simp
+  with B S show ?case by fastforce
 next
   case (evtco_apply v env' cd' r' vs env cd r sfs)
-  then show ?case by simp
+  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> 
+    v # TCOLam env' cd' r' # vs = ufcs cdb vsb \<and> (env, TCOApply # cd, r) # sfs = ufsfs cdb sfsb" 
+      by fastforce
+  with evtco_apply have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
+    env = ufcs cdb envb \<and> cdb ! pc = BApply \<and> cd = unflatten_code cdb pc \<and> 
+      r = unflatten_return cdb pc \<and> sfs = ufsfs cdb sfsb'" by (metis uf_to_apply)
+  from B obtain vb envb' pc' vsb' where V: "vsb = vb # BLam envb' pc' # vsb' \<and> 
+    v = unflatten_closure cdb vb \<and> env' = ufcs cdb envb' \<and> cd' = unflatten_code cdb pc' \<and>
+      r' = unflatten_return cdb pc' \<and> vs = ufcs cdb vsb'" by fastforce
+  from S have "BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b
+    BS vsb' ((vb # envb', pc') # (envb, pc) # sfsb') cdb" by simp
+  hence "iter (\<leadsto>\<^sub>b) (BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb') cdb) 
+    (BS vsb' ((vb # envb', pc') # (envb, pc) # sfsb') cdb)" by simp
+  with B S V show ?case by auto                                              
 next
   case (evtco_return vs env sfs)
-  then show ?case by simp
+  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> vs = ufcs cdb vsb \<and> 
+    (env, [], TCOReturn) # sfs = ufsfs cdb sfsb" by fastforce
+  with evtco_return have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
+    env = ufcs cdb envb \<and> cdb ! pc = BReturn \<and> sfs = ufsfs cdb sfsb'" by (metis uf_to_return)
+  with S have "BS vsb ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b BS vsb sfsb' cdb" by simp
+  hence "iter (\<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb') cdb) (BS vsb sfsb' cdb)" by simp
+  with B S show ?case by fastforce
 next
   case (evtco_jump v env' cd' r' vs env sfs)
-  then show ?case by simp
+  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> 
+    v # TCOLam env' cd' r' # vs = ufcs cdb vsb \<and> (env, [], TCOJump) # sfs = ufsfs cdb sfsb" 
+      by fastforce
+  with evtco_jump have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
+    env = ufcs cdb envb \<and> cdb ! pc = BJump \<and> sfs = ufsfs cdb sfsb'" by (metis uf_to_jump)
+  from B obtain vb envb' pc' vsb' where V: "vsb = vb # BLam envb' pc' # vsb' \<and> 
+    v = unflatten_closure cdb vb \<and> env' = ufcs cdb envb' \<and> cd' = unflatten_code cdb pc' \<and>
+      r' = unflatten_return cdb pc' \<and> vs = ufcs cdb vsb'" by fastforce
+  from S have "BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b
+    BS vsb' ((vb # envb', pc') # sfsb') cdb" by simp
+  hence "iter (\<leadsto>\<^sub>b) (BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb') cdb) 
+    (BS vsb' ((vb # envb', pc') # sfsb') cdb)" by simp
+  with B S V show ?case by auto                                              
 qed
 
 lemma [simp]: "\<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow> orderly_state \<Sigma>\<^sub>b'"
@@ -452,7 +537,11 @@ next
   thus ?case by (cases pc, cases cd) simp_all
 next
   case (evb_pushlam cd pc pc' vs env sfs)
-  thus ?case by simp
+  thus ?case 
+  proof (cases pc)
+    case 0
+    with evb_pushlam show ?thesis by (cases cd) simp_all
+  qed simp_all
 next
   case (evb_apply cd pc v env' pc' vs env sfs)
   thus ?case by (cases pc', simp, cases pc, cases cd) simp_all
