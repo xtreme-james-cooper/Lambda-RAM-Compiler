@@ -5,6 +5,12 @@ begin
 definition compile :: "nexpr \<Rightarrow> byte_code list" where
   "compile = flatten_code \<circ> tco \<circ> encode \<circ> convert"
 
+lemma [simp]: "tco_cd (encode' e acc) \<noteq> []"
+  by (induction e arbitrary: acc) simp_all
+
+lemma [simp]: "tco_cd (encode e) \<noteq> []"
+  by (simp add: encode_def)
+
 theorem tc_terminationn: "typechecks e \<Longrightarrow> compile e = cd \<Longrightarrow> 
   \<exists>v. valn v \<and> iter (\<leadsto>\<^sub>n) e v \<and> 
     (\<exists>h v\<^sub>f. iter (\<leadsto>\<^sub>f) (FS hempty [] [[length cd]] cd) (FS h [v\<^sub>f] [] cd) \<and> 
@@ -28,13 +34,13 @@ proof -
     by (simp add: encode_def)
   hence "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS [] [([], encode (convert e))])) 
     (tco_state (TS [encode_closure c] []))" by (metis iter_tco_eval)
-  hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco (encode (convert e)), TCOReturn)]) 
+  hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (convert e)), tco_r (encode (convert e)))]) 
     (TCOS [tco_val (encode_closure c)] [])" by simp
   assume "compile e = cd"
   hence C: "flatten_code (tco (encode (convert e))) = cd" by (simp add: compile_def)
-  hence "unflatten_code cd (length cd) = tco (encode (convert e))" by auto
   hence UB: "unflatten_state (BS [] [([], length cd)] cd) = 
-    TCOS [] [([], tco (encode (convert e)), TCOReturn)]" by simp
+    TCOS [] [([], tco_cd (encode (convert e)), tco_r (encode (convert e)))]" 
+      by (auto simp add: tco_def simp del: flatten_code.simps)
   from C have "orderly_state (BS [] [([], length cd)] cd)" by auto
   with ET UB obtain v\<^sub>b where EB: 
     "iter (\<leadsto>\<^sub>b) (BS [] [([], length cd)] cd) (BS [v\<^sub>b] [] cd) \<and> 
@@ -45,7 +51,7 @@ proof -
   from EB obtain \<Sigma>\<^sub>h' where EH: "iter (\<leadsto>\<^sub>h) (HS hempty [] [([], length cd)] cd) \<Sigma>\<^sub>h' \<and> 
     BS [v\<^sub>b] [] cd = unheap \<Sigma>\<^sub>h'" by fastforce
   then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = HS h\<^sub>h [v\<^sub>h] [] cd \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 
-    using unheap_backwards by blast
+    using unheap_empty by blast
   with VB have VH: "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr v\<^sub>n" by simp
   have HS: "heap_structured (HS hempty [] [([], length cd)] cd)" by simp
   have FS: "flatten (HS hempty [] [([], length cd)] cd) = FS hempty [] [[length cd]] cd" by simp

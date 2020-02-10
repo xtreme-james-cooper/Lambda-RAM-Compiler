@@ -27,8 +27,8 @@ inductive evaltco :: "tco_code_state \<Rightarrow> tco_code_state \<Rightarrow> 
     TCOS (TCOConst k # vs) ((env, cd, r) # sfs)"
 | evtco_pushlam [simp]: "TCOS vs ((env, TCOPushLam cd' r' # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
     TCOS (TCOLam env cd' r' # vs) ((env, cd, r) # sfs)"
-| evtco_apply [simp]: "TCOS (v # TCOLam env cd' r' # vs) ((env, TCOApply # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
-    TCOS vs ((v # env, cd', r') # (env, cd, r) # sfs)"
+| evtco_apply [simp]: "TCOS (v # TCOLam env' cd' r' # vs) ((env, TCOApply # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
+    TCOS vs ((v # env', cd', r') # (env, cd, r) # sfs)"
 | evtco_return [simp]: "TCOS vs ((env, [], TCOReturn) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o TCOS vs sfs"
 | evtco_jump [simp]: "TCOS (v # TCOLam env' cd' r' # vs) ((env, [], TCOJump) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
     TCOS vs ((v # env', cd', r') # sfs)"
@@ -48,9 +48,9 @@ next
     by (induction "TCOS vs ((env, TCOPushLam cd' r' # cd, r) # sfs)" \<Sigma>'' rule: evaltco.induct) 
        simp_all 
 next
-  case (evtco_apply v env cd' r' vs cd r sfs)
+  case (evtco_apply v env' cd' r' vs env cd r sfs)
   thus ?case 
-    by (induction "TCOS (v # TCOLam env cd' r' # vs) ((env, TCOApply # cd, r) # sfs)" \<Sigma>'' 
+    by (induction "TCOS (v # TCOLam env' cd' r' # vs) ((env, TCOApply # cd, r) # sfs)" \<Sigma>'' 
         rule: evaltco.induct) 
        simp_all 
 next

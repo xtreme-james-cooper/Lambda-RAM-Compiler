@@ -103,9 +103,16 @@ lemma [simp]: "iter (\<leadsto>\<^sub>h) \<Sigma>\<^sub>h \<Sigma>\<^sub>h' \<Lo
 theorem correcth [simp]: "\<Sigma>\<^sub>h \<leadsto>\<^sub>h \<Sigma>\<^sub>h' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> unheap \<Sigma>\<^sub>h \<leadsto>\<^sub>b unheap \<Sigma>\<^sub>h'"
   by (induction \<Sigma>\<^sub>h \<Sigma>\<^sub>h' rule: evalh.induct) simp_all
 
-lemma unheap_backwards [simp]: "BS vs ((env, pc) # sfs) cd = unheap \<Sigma>\<^sub>h \<Longrightarrow> \<exists>h vs' env' sfs'. 
+lemma [simp]: "BS vs ((env, pc) # sfs) cd = unheap \<Sigma>\<^sub>h \<Longrightarrow> \<exists>h vs' env' sfs'. 
   \<Sigma>\<^sub>h = HS h vs' ((env', pc) # sfs') cd \<and> vs = map (unheap_closure h) vs' \<and> 
     env = map (unheap_closure h) env' \<and> sfs = unheap_stack h sfs'"
+proof (induction \<Sigma>\<^sub>h)
+  case (HS h vs' sfs' cd')
+  thus ?case by (induction h sfs' rule: unheap_stack.induct) (simp_all del: unheap_closure.simps)
+qed 
+
+lemma unheap_empty [simp]: "BS vs [] cd = unheap \<Sigma>\<^sub>h \<Longrightarrow> \<exists>h vs'. 
+  \<Sigma>\<^sub>h = HS h vs' [] cd \<and> vs = map (unheap_closure h) vs'"
 proof (induction \<Sigma>\<^sub>h)
   case (HS h vs' sfs' cd')
   thus ?case by (induction h sfs' rule: unheap_stack.induct) (simp_all del: unheap_closure.simps)
