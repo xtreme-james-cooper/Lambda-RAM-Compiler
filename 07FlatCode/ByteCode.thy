@@ -7,8 +7,8 @@ datatype byte_code =
   | BPushCon nat
   | BPushLam nat nat
   | BApply
-  | BReturn
-  | BJump
+  | BReturn nat
+  | BJump nat
 
 datatype bclosure = 
   BConst nat
@@ -27,8 +27,9 @@ inductive evalb :: "byte_code_state \<Rightarrow> byte_code_state \<Rightarrow> 
 | evb_apply [simp]: "cd ! pc = BApply \<Longrightarrow> 
     BS (v # BLam env' pc' # vs) ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>b 
       BS vs ((v # env', pc') # (env, pc) # sfs) cd"
-| evb_return [simp]: "cd ! pc = BReturn \<Longrightarrow> BS vs ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>b BS vs sfs cd"
-| evb_jump [simp]: "cd ! pc = BJump \<Longrightarrow> 
+| evb_return [simp]: "cd ! pc = BReturn (length env) \<Longrightarrow> 
+    BS vs ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>b BS vs sfs cd"
+| evb_jump [simp]: "cd ! pc = BJump (length env) \<Longrightarrow> 
     BS (v # BLam env' pc' # vs) ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>b 
       BS vs ((v # env', pc') # sfs) cd"
 
@@ -51,11 +52,11 @@ next
     by (induction "BS (v # BLam env' pc' # vs) ((env, Suc pc) # sfs) cd" \<Sigma>'' rule: evalb.induct) 
        simp_all 
 next
-  case (evb_return cd pc vs env sfs)
+  case (evb_return cd pc env vs sfs)
   from evb_return(2, 1) show ?case 
     by (induction "BS vs ((env, Suc pc) # sfs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
 next
-  case (evb_jump cd pc v env' pc' vs env sfs)
+  case (evb_jump cd pc env v env' pc' vs sfs)
   from evb_jump(2, 1) show ?case 
     by (induction "BS (v # BLam env' pc' # vs) ((env, Suc pc) # sfs) cd" \<Sigma>'' rule: evalb.induct) 
        simp_all 

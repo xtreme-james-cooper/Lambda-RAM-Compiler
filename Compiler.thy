@@ -34,12 +34,12 @@ proof -
     by (simp add: encode_def)
   hence "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS [] [([], encode (convert e))])) 
     (tco_state (TS [encode_closure c] []))" by (metis iter_tco_eval)
-  hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (convert e)), tco_r (encode (convert e)))]) 
+  hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (convert e)), tco_r 0 (encode (convert e)))]) 
     (TCOS [tco_val (encode_closure c)] [])" by simp
   assume "compile e = cd"
   hence C: "flatten_code (tco (encode (convert e))) = cd" by (simp add: compile_def)
   hence UB: "unflatten_state (BS [] [([], length cd)] cd) = 
-    TCOS [] [([], tco_cd (encode (convert e)), tco_r (encode (convert e)))]" 
+    TCOS [] [([], tco_cd (encode (convert e)), tco_r 0 (encode (convert e)))]" 
       by (auto simp add: tco_def simp del: flatten_code.simps)
   from C have "orderly_state (BS [] [([], length cd)] cd)" by auto
   with ET UB obtain v\<^sub>b where EB: 

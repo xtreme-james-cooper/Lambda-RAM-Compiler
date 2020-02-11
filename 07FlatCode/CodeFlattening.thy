@@ -3,8 +3,8 @@ theory CodeFlattening
 begin
 
 fun flatten_code' :: "nat \<Rightarrow> tco_code list \<Rightarrow> tco_return \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
-  "flatten_code' lib [] TCOReturn acc = BReturn # acc"
-| "flatten_code' lib [] TCOJump acc = BJump # acc"
+  "flatten_code' lib [] (TCOReturn d) acc = BReturn d # acc"
+| "flatten_code' lib [] (TCOJump d) acc = BJump d # acc"
 | "flatten_code' lib (TCOLookup x # cd) r acc = flatten_code' lib cd r (BLookup x # acc)"
 | "flatten_code' lib (TCOPushCon k # cd) r acc = flatten_code' lib cd r (BPushCon k # acc)"
 | "flatten_code' lib (TCOPushLam cd' r' d # cd) r acc = (
@@ -18,8 +18,8 @@ primrec flatten_code :: "tco_code list \<times> tco_return \<Rightarrow> byte_co
 fun unflatten_return :: "byte_code list \<Rightarrow> nat \<Rightarrow> tco_return" where
   "unflatten_return cd 0 = undefined"
 | "unflatten_return cd (Suc pc) = (case cd ! pc of
-      BReturn \<Rightarrow> TCOReturn
-    | BJump \<Rightarrow> TCOJump
+      BReturn d \<Rightarrow> TCOReturn d
+    | BJump d \<Rightarrow> TCOJump d
     | op \<Rightarrow> unflatten_return cd pc)"
 
 fun unflatten_code :: "byte_code list \<Rightarrow> nat \<Rightarrow> tco_code list" where
@@ -32,8 +32,8 @@ fun unflatten_code :: "byte_code list \<Rightarrow> nat \<Rightarrow> tco_code l
         then TCOPushLam (unflatten_code cd pc') (unflatten_return cd pc') d # unflatten_code cd pc 
         else undefined) 
     | BApply \<Rightarrow> TCOApply # unflatten_code cd pc
-    | BReturn \<Rightarrow> []
-    | BJump \<Rightarrow> [])"
+    | BReturn d \<Rightarrow> []
+    | BJump d \<Rightarrow> [])"
 
 primrec unflatten_closure :: "byte_code list \<Rightarrow> bclosure \<Rightarrow> tco_closure" where
   "unflatten_closure cd (BConst k) = TCOConst k"
@@ -78,7 +78,7 @@ primrec orderly :: "byte_code list \<Rightarrow> nat \<Rightarrow> bool" where
 
 primrec return_terminated :: "byte_code list \<Rightarrow> bool" where
   "return_terminated [] = False"
-| "return_terminated (op # cd) = (op = BReturn \<or> op = BJump)"
+| "return_terminated (op # cd) = (\<exists>d. op = BReturn d \<or> op = BJump d)"
 
 fun orderly_stack :: "(bclosure list \<times> nat) list \<Rightarrow> nat \<Rightarrow> bool" where
   "orderly_stack [] cd = True"
@@ -316,14 +316,18 @@ next
             ufsfs cd sfs)" by simp
   thus ?case by simp
 next
-  case (evb_return cd pc vs env sfs)
-  hence "TCOS (ufcs cd vs) 
-    ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
-      TCOS (ufcs cd vs) (ufsfs cd sfs)" by simp
-  thus ?case by simp
+  case (evb_return cd pc env vs sfs)
+  moreover have "TCOS (ufcs cd vs) ((ufcs cd env, [], TCOReturn (length env)) # ufsfs cd sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+    TCOS (ufcs cd vs) (ufsfs cd sfs)" by (metis evtco_return length_map)
+  ultimately show ?case by simp
 next
-  case (evb_jump cd pc v env' pc' vs env sfs)
-  hence "TCOS (unflatten_closure cd v # 
+  case (evb_jump cd pc env v env' pc' vs sfs)
+  have "TCOS (unflatten_closure cd v # TCOLam (ufcs cd env') (unflatten_code cd pc') 
+    (unflatten_return cd pc') # ufcs cd vs) ((ufcs cd env, [], 
+      TCOJump (length env)) # ufsfs cd sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o TCOS (ufcs cd vs)
+        ((unflatten_closure cd v # ufcs cd env', unflatten_code cd pc', unflatten_return cd pc') # 
+          ufsfs cd sfs)" by (metis evtco_jump length_map)
+  with evb_jump have "TCOS (unflatten_closure cd v # 
     TCOLam (ufcs cd env') (unflatten_code cd pc') (unflatten_return cd pc') # ufcs cd vs)
       ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
         TCOS (ufcs cd vs) ((unflatten_closure cd v # ufcs cd env', unflatten_code cd pc', 
@@ -363,12 +367,12 @@ lemma [dest]: "TCOApply # cdt = unflatten_code cdb (Suc pc) \<Longrightarrow> or
     pc < length cdb \<Longrightarrow> cdb ! pc = BApply \<and> cdt = unflatten_code cdb pc"
   by (cases "cdb ! pc") simp_all
 
-lemma [dest]: "[] = unflatten_code cdb (Suc pc) \<Longrightarrow> TCOReturn = unflatten_return cdb (Suc pc) \<Longrightarrow> 
-    orderly cdb 0 \<Longrightarrow> pc < length cdb \<Longrightarrow> cdb ! pc = BReturn"
+lemma [dest]: "[] = unflatten_code cdb (Suc pc) \<Longrightarrow> TCOReturn d = unflatten_return cdb (Suc pc) \<Longrightarrow> 
+    orderly cdb 0 \<Longrightarrow> pc < length cdb \<Longrightarrow> cdb ! pc = BReturn d"
   by (cases "cdb ! pc") simp_all
 
-lemma [dest]: "[] = unflatten_code cdb (Suc pc) \<Longrightarrow> TCOJump = unflatten_return cdb (Suc pc) \<Longrightarrow> 
-    orderly cdb 0 \<Longrightarrow> pc < length cdb \<Longrightarrow> cdb ! pc = BJump"
+lemma [dest]: "[] = unflatten_code cdb (Suc pc) \<Longrightarrow> TCOJump d = unflatten_return cdb (Suc pc) \<Longrightarrow> 
+    orderly cdb 0 \<Longrightarrow> pc < length cdb \<Longrightarrow> cdb ! pc = BJump d"
   by (cases "cdb ! pc") simp_all
 
 lemma uf_to_lookup [dest]: "(envt, TCOLookup x # cdt, r) # sfst = ufsfs cdb sfsb \<Longrightarrow> 
@@ -418,25 +422,25 @@ proof (induction sfsb "length cdb" rule: orderly_stack.induct)
   with 3 show ?case by simp
 qed simp_all
 
-lemma uf_to_return [dest]: "(envt, [], TCOReturn) # sfst = ufsfs cdb sfsb \<Longrightarrow> orderly cdb 0 \<Longrightarrow> 
+lemma uf_to_return [dest]: "(envt, [], TCOReturn d) # sfst = ufsfs cdb sfsb \<Longrightarrow> orderly cdb 0 \<Longrightarrow> 
   orderly_stack sfsb (length cdb) \<Longrightarrow> \<exists>envb pc sfsb'. sfsb = (envb, Suc pc) # sfsb' \<and> 
-    envt = ufcs cdb envb \<and> cdb ! pc = BReturn \<and> sfst = ufsfs cdb sfsb'"
+    envt = ufcs cdb envb \<and> cdb ! pc = BReturn d \<and> sfst = ufsfs cdb sfsb'"
 proof (induction sfsb "length cdb" rule: orderly_stack.induct)
   case (3 envb pc sfsb')
-  hence "[] = unflatten_code cdb (Suc pc) \<and> TCOReturn = unflatten_return cdb (Suc pc) \<and> 
+  hence "[] = unflatten_code cdb (Suc pc) \<and> TCOReturn d = unflatten_return cdb (Suc pc) \<and> 
     orderly cdb 0 \<and> pc < length cdb" by simp
-  hence "cdb ! pc = BReturn" by blast
+  hence "cdb ! pc = BReturn d" by blast
   with 3 show ?case by simp
 qed simp_all
 
-lemma uf_to_jump [dest]: "(envt, [], TCOJump) # sfst = ufsfs cdb sfsb \<Longrightarrow> orderly cdb 0 \<Longrightarrow> 
+lemma uf_to_jump [dest]: "(envt, [], TCOJump d) # sfst = ufsfs cdb sfsb \<Longrightarrow> orderly cdb 0 \<Longrightarrow> 
   orderly_stack sfsb (length cdb) \<Longrightarrow> \<exists>envb pc sfsb'. sfsb = (envb, Suc pc) # sfsb' \<and> 
-    envt = ufcs cdb envb \<and> cdb ! pc = BJump \<and> sfst = ufsfs cdb sfsb'"
+    envt = ufcs cdb envb \<and> cdb ! pc = BJump d \<and> sfst = ufsfs cdb sfsb'"
 proof (induction sfsb "length cdb" rule: orderly_stack.induct)
   case (3 envb pc sfsb')
-  hence "[] = unflatten_code cdb (Suc pc) \<and> TCOJump = unflatten_return cdb (Suc pc) \<and> 
+  hence "[] = unflatten_code cdb (Suc pc) \<and> TCOJump d = unflatten_return cdb (Suc pc) \<and> 
     orderly cdb 0 \<and> pc < length cdb" by simp
-  hence "cdb ! pc = BJump" by blast
+  hence "cdb ! pc = BJump d" by blast
   with 3 show ?case by simp
 qed simp_all
 
@@ -504,21 +508,23 @@ next
 next
   case (evtco_return vs env sfs)
   then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> vs = ufcs cdb vsb \<and> 
-    (env, [], TCOReturn) # sfs = ufsfs cdb sfsb" by fastforce
+    (env, [], TCOReturn (length env)) # sfs = ufsfs cdb sfsb" by fastforce
   with evtco_return have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
   with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
-    env = ufcs cdb envb \<and> cdb ! pc = BReturn \<and> sfs = ufsfs cdb sfsb'" by (metis uf_to_return)
+    env = ufcs cdb envb \<and> cdb ! pc = BReturn (length env) \<and> sfs = ufsfs cdb sfsb'" 
+      by (metis uf_to_return)
   with S have "BS vsb ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b BS vsb sfsb' cdb" by simp
   hence "iter (\<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb') cdb) (BS vsb sfsb' cdb)" by simp
   with B S show ?case by fastforce
 next
   case (evtco_jump v env' cd' r' vs env sfs)
   then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> 
-    v # TCOLam env' cd' r' # vs = ufcs cdb vsb \<and> (env, [], TCOJump) # sfs = ufsfs cdb sfsb" 
-      by fastforce
+    v # TCOLam env' cd' r' # vs = ufcs cdb vsb \<and> 
+      (env, [], TCOJump (length env)) # sfs = ufsfs cdb sfsb" by fastforce
   with evtco_jump have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
   with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
-    env = ufcs cdb envb \<and> cdb ! pc = BJump \<and> sfs = ufsfs cdb sfsb'" by (metis uf_to_jump)
+    env = ufcs cdb envb \<and> cdb ! pc = BJump (length env) \<and> sfs = ufsfs cdb sfsb'" 
+      by (metis uf_to_jump)
   from B obtain vb envb' pc' vsb' where V: "vsb = vb # BLam envb' pc' # vsb' \<and> 
     v = unflatten_closure cdb vb \<and> env' = ufcs cdb envb' \<and> cd' = unflatten_code cdb pc' \<and>
       r' = unflatten_return cdb pc' \<and> vs = ufcs cdb vsb'" by fastforce
@@ -547,7 +553,7 @@ next
   case (evb_apply cd pc v env' pc' vs env sfs)
   thus ?case by (cases pc', simp, cases pc, cases cd) simp_all
 next
-  case (evb_jump cd pc v env' pc' vs env sfs)
+  case (evb_jump cd pc env v env' pc' vs sfs)
   thus ?case by (cases pc') simp_all
 qed simp_all
 

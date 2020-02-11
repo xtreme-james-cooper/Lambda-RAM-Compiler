@@ -91,7 +91,7 @@ proof (induction \<Sigma>\<^sub>h \<Sigma>\<^sub>h' rule: evalh.induct)
   hence "bounded_closure h v2 (HLam env pc')" by (metis heap_lookup_all)
   with evh_apply show ?case by simp
 next
-  case (evh_jump cd pc h v2 env' pc' v1 vs env sfs)
+  case (evh_jump cd pc env h v2 env' pc' v1 vs sfs)
   hence "hlookup h v2 = HLam env' pc' \<and> heap_all (bounded_closure h) h \<and> hcontains h v2" by simp
   hence "bounded_closure h v2 (HLam env' pc')" by (metis heap_lookup_all)
   with evh_jump show ?case by simp
@@ -166,14 +166,14 @@ next
     HS h vs' ((v1 # envh', pc') # (envh, pc) # sfs') cd" by simp
   ultimately show ?case by fastforce
 next
-  case (evb_return cd pc vs env sfs)
+  case (evb_return cd pc env vs sfs)
   then obtain h vs' env' sfs' where "\<Sigma>\<^sub>h = HS h vs' ((env', Suc pc) # sfs') cd \<and> 
     vs = map (unheap_closure h) vs' \<and> env = map (unheap_closure h) env' \<and> sfs = unheap_stack h sfs'" 
       by fastforce
-  moreover from evb_return have "HS h vs' ((env', Suc pc) # sfs') cd \<leadsto>\<^sub>h HS h vs' sfs' cd" by simp
+  moreover with evb_return have "HS h vs' ((env', Suc pc) # sfs') cd \<leadsto>\<^sub>h HS h vs' sfs' cd" by simp
   ultimately show ?case by fastforce
 next
-  case (evb_jump cd pc v env' pc' vs env sfs)
+  case (evb_jump cd pc env v env' pc' vs sfs)
   then obtain h vs'' envh sfs' where S: "\<Sigma>\<^sub>h = HS h vs'' ((envh, Suc pc) # sfs') cd \<and> 
     v # BLam env' pc' # vs = map (unheap_closure h) vs'' \<and> env = map (unheap_closure h) envh \<and> 
       sfs = unheap_stack h sfs'" by fastforce
@@ -181,7 +181,7 @@ next
     BLam env' pc' = unheap_closure h v2 \<and> vs = map (unheap_closure h) vs'" by fastforce
   moreover with evb_jump S obtain envh' where "hlookup h v2 = HLam envh' pc' \<and> 
     env' = map (unheap_closure h) envh'" by fastforce
-  moreover with evb_jump have "HS h (v1 # v2 # vs') ((envh, Suc pc) # sfs') cd \<leadsto>\<^sub>h 
+  moreover with evb_jump S have "HS h (v1 # v2 # vs') ((envh, Suc pc) # sfs') cd \<leadsto>\<^sub>h 
     HS h vs' ((v1 # envh', pc') # sfs') cd" by simp
   ultimately show ?case by fastforce
 qed

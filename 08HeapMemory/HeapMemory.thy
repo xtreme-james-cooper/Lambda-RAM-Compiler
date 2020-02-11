@@ -19,9 +19,9 @@ inductive evalh :: "heap_state \<Rightarrow> heap_state \<Rightarrow> bool" (inf
 | evh_apply [simp]: "cd ! pc = BApply \<Longrightarrow> hlookup h v2 = HLam env' pc' \<Longrightarrow>
     HS h (v1 # v2 # vs) ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>h
       HS h vs ((v1 # env', pc') # (env, pc) # sfs) cd"
-| evh_return [simp]: "cd ! pc = BReturn \<Longrightarrow> 
+| evh_return [simp]: "cd ! pc = BReturn (length env) \<Longrightarrow> 
     HS h vs ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>h HS h vs sfs cd"
-| evh_jump [simp]: "cd ! pc = BJump \<Longrightarrow> hlookup h v2 = HLam env' pc' \<Longrightarrow>
+| evh_jump [simp]: "cd ! pc = BJump (length env) \<Longrightarrow> hlookup h v2 = HLam env' pc' \<Longrightarrow>
     HS h (v1 # v2 # vs) ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>h 
       HS h vs ((v1 # env', pc') # sfs) cd"
 
@@ -44,11 +44,11 @@ next
     by (induction "HS h (v1 # v2 # vs) ((env, Suc pc) # sfs) cd" \<Sigma>'' rule: evalh.induct) 
        simp_all 
 next
-  case (evh_return cd pc h vs env sfs)
+  case (evh_return cd pc env h vs sfs)
   from evh_return(2, 1) show ?case 
     by (induction "HS h vs ((env, Suc pc) # sfs) cd" \<Sigma>'' rule: evalh.induct) simp_all 
 next
-  case (evh_jump cd pc h v2 env' pc' v1 vs env sfs)
+  case (evh_jump cd pc env h v2 env' pc' v1 vs sfs)
   from evh_jump(3, 1, 2) show ?case 
     by (induction "HS h (v1 # v2 # vs) ((env, Suc pc) # sfs) cd" \<Sigma>'' rule: evalh.induct) 
        simp_all 
