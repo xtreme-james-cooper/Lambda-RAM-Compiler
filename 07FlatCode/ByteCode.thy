@@ -5,7 +5,7 @@ begin
 datatype byte_code = 
   BLookup nat
   | BPushCon nat
-  | BPushLam nat
+  | BPushLam nat nat
   | BApply
   | BReturn
   | BJump
@@ -22,7 +22,7 @@ inductive evalb :: "byte_code_state \<Rightarrow> byte_code_state \<Rightarrow> 
     BS vs ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>b BS (v # vs) ((env, pc) # sfs) cd"
 | evb_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> 
     BS vs ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>b BS (BConst k # vs) ((env, pc) # sfs) cd"
-| evb_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> 
+| evb_pushlam [simp]: "cd ! pc = BPushLam pc' (length env) \<Longrightarrow> 
     BS vs ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>b BS (BLam env pc' # vs) ((env, pc) # sfs) cd"
 | evb_apply [simp]: "cd ! pc = BApply \<Longrightarrow> 
     BS (v # BLam env' pc' # vs) ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>b 
@@ -42,7 +42,7 @@ next
   from evb_pushcon(2, 1) show ?case 
     by (induction "BS vs ((env, Suc pc) # sfs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
 next
-  case (evb_pushlam cd pc pc' vs env sfs)
+  case (evb_pushlam cd pc pc' env vs sfs)
   from evb_pushlam(2, 1) show ?case 
     by (induction "BS vs ((env, Suc pc) # sfs) cd" \<Sigma>'' rule: evalb.induct) simp_all 
 next

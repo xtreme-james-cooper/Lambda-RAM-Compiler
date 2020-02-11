@@ -5,7 +5,7 @@ begin
 definition compile :: "nexpr \<Rightarrow> byte_code list" where
   "compile = flatten_code \<circ> tco \<circ> encode \<circ> convert"
 
-lemma [simp]: "tco_cd (encode' e acc) \<noteq> []"
+lemma [simp]: "tco_cd (encode' e d acc) \<noteq> []"
   by (induction e arbitrary: acc) simp_all
 
 lemma [simp]: "tco_cd (encode e) \<noteq> []"

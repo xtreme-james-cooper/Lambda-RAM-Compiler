@@ -9,7 +9,7 @@ datatype tco_return =
 datatype tco_code = 
   TCOLookup nat
   | TCOPushCon nat
-  | TCOPushLam "tco_code list" tco_return
+  | TCOPushLam "tco_code list" tco_return nat
   | TCOApply
 
 datatype tco_closure = 
@@ -25,7 +25,7 @@ inductive evaltco :: "tco_code_state \<Rightarrow> tco_code_state \<Rightarrow> 
     TCOS vs ((env, TCOLookup x # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o TCOS (v # vs) ((env, cd, r) # sfs)"
 | evtco_pushcon [simp]: "TCOS vs ((env, TCOPushCon k # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
     TCOS (TCOConst k # vs) ((env, cd, r) # sfs)"
-| evtco_pushlam [simp]: "TCOS vs ((env, TCOPushLam cd' r' # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
+| evtco_pushlam [simp]: "TCOS vs ((env, TCOPushLam cd' r' (length env) # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
     TCOS (TCOLam env cd' r' # vs) ((env, cd, r) # sfs)"
 | evtco_apply [simp]: "TCOS (v # TCOLam env' cd' r' # vs) ((env, TCOApply # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
     TCOS vs ((v # env', cd', r') # (env, cd, r) # sfs)"
@@ -45,7 +45,8 @@ next
 next
   case (evtco_pushlam vs env cd' r' cd r sfs)
   thus ?case 
-    by (induction "TCOS vs ((env, TCOPushLam cd' r' # cd, r) # sfs)" \<Sigma>'' rule: evaltco.induct) 
+    by (induction "TCOS vs ((env, TCOPushLam cd' r' (length env) # cd, r) # sfs)" \<Sigma>'' 
+        rule: evaltco.induct) 
        simp_all 
 next
   case (evtco_apply v env' cd' r' vs env cd r sfs)

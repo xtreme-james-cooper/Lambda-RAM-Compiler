@@ -13,7 +13,7 @@ fun tco_cd :: "tree_code list \<Rightarrow> tco_code list" where
   "tco_cd [] = []"
 | "tco_cd (TLookup x # cd) = TCOLookup x # tco_cd cd"
 | "tco_cd (TPushCon k # cd) = TCOPushCon k # tco_cd cd"
-| "tco_cd (TPushLam cd' # cd) = TCOPushLam (tco_cd cd') (tco_r cd') # tco_cd cd"
+| "tco_cd (TPushLam cd' d # cd) = TCOPushLam (tco_cd cd') (tco_r cd') d # tco_cd cd"
 | "tco_cd (TApply # cd) = (case cd of 
       [] \<Rightarrow> []
     | _ \<Rightarrow> TCOApply # tco_cd cd)"
@@ -71,8 +71,8 @@ proof (induction sfs')
         sfs = tco_stack sfs'" by simp
       thus ?case by fastforce
     next
-      case (4 cd\<^sub>l cd')
-      hence "env = map tco_val env' \<and> cd = TCOPushLam (tco_cd cd\<^sub>l) (tco_r cd\<^sub>l) # tco_cd cd' \<and> 
+      case (4 cd\<^sub>l d cd')
+      hence "env = map tco_val env' \<and> cd = TCOPushLam (tco_cd cd\<^sub>l) (tco_r cd\<^sub>l) d # tco_cd cd' \<and> 
         r = tco_r cd' \<and> sfs = tco_stack sfs'" by simp
       thus ?case by fastforce
     next
@@ -220,7 +220,7 @@ next
     with Nil show ?thesis by simp
   next
     case (Cons op cd)
-    moreover from evt_lookup have "tco_state (TS vs ((env, TPushCon k # op # cd) # sfs)) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+    moreover have "tco_state (TS vs ((env, TPushCon k # op # cd) # sfs)) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
       tco_state (TS (TConst k # vs) ((env, op # cd) # sfs))" by simp
     ultimately show ?thesis by (metis iter_one)
   qed
@@ -229,20 +229,32 @@ next
   thus ?case 
   proof (cases cd)
     case Nil
-    have "tco_state (TS vs ((env, [TPushLam cd']) # sfs)) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+    have "TCOS (map tco_val vs)
+      ((map tco_val env, [TCOPushLam (tco_cd cd') (tco_r cd') (length env)], TCOReturn) # 
+        tco_stack sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o  
+          TCOS (TCOLam (map tco_val env) (tco_cd cd') (tco_r cd') # map tco_val vs)
+            ((map tco_val env, [], TCOReturn) # tco_stack sfs)" by (metis evtco_pushlam length_map)
+    hence "tco_state (TS vs ((env, [TPushLam cd' (length env)]) # sfs)) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
       TCOS (TCOLam (map tco_val env) (tco_cd cd') (tco_r cd') # map tco_val vs) 
         ((map tco_val env, [], TCOReturn) # tco_stack sfs)" by simp
     moreover have "TCOS (TCOLam (map tco_val env) (tco_cd cd') (tco_r cd') # map tco_val vs) 
       ((map tco_val env, [], TCOReturn) # tco_stack sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
         tco_state (TS (TLam env cd' # vs) ((env, []) # sfs))" by simp
-    ultimately have "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS vs ((env, [TPushLam cd']) # sfs)))
+    ultimately have "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS vs ((env, [TPushLam cd' (length env)]) # sfs)))
       (tco_state (TS (TLam env cd' # vs) ((env, []) # sfs)))" by (metis iter_refl iter_step)
     with Nil show ?thesis by simp
   next
     case (Cons op cd)
-    moreover from evt_lookup have "tco_state (TS vs ((env, TPushLam cd' # op # cd) # sfs)) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
-      tco_state (TS (TLam env cd' # vs) ((env, op # cd) # sfs))" by simp
-    ultimately show ?thesis by (metis iter_one)
+    have "TCOS (map tco_val vs) ((map tco_val env, 
+      TCOPushLam (tco_cd cd') (tco_r cd') (length env) # tco_cd (op # cd), tco_r (op # cd)) #
+        tco_stack sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+          TCOS (TCOLam (map tco_val env) (tco_cd cd') (tco_r cd') # map tco_val vs)
+            ((map tco_val env, tco_cd (op # cd), tco_r (op # cd)) # tco_stack sfs)" 
+      by (metis evtco_pushlam length_map)
+    hence 
+      "tco_state (TS vs ((env, TPushLam cd' (length env) # op # cd) # sfs)) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+        tco_state (TS (TLam env cd' # vs) ((env, op # cd) # sfs))" by simp
+    with Cons show ?thesis by (metis iter_one)
   qed
 next
   case (evt_apply v env' cd' vs env cd sfs)
@@ -290,7 +302,7 @@ next
       with Cons Nil show ?thesis by simp
     next
       case (Cons op' cd')
-      from evt_lookup have "tco_state (TS (v # TLam env' (op' # cd') # vs) 
+      have "tco_state (TS (v # TLam env' (op' # cd') # vs) 
         ((env, TApply # op # cd) # sfs)) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
           tco_state (TS vs ((v # env', (op' # cd')) # (env, op # cd) # sfs))" by simp
       with CD Cons show ?thesis by (metis iter_one)

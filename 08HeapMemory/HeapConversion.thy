@@ -145,12 +145,12 @@ next
     HS h' (v # vs') ((env', pc) # sfs') cd" by simp
   ultimately show ?case by fastforce
 next
-  case (evb_pushlam cd pc pc' vs env sfs)
-  moreover then obtain h vs' env' sfs' where "\<Sigma>\<^sub>h = HS h vs' ((env', Suc pc) # sfs') cd \<and> 
+  case (evb_pushlam cd pc pc' env vs sfs)
+  moreover then obtain h vs' env' sfs' where S: "\<Sigma>\<^sub>h = HS h vs' ((env', Suc pc) # sfs') cd \<and> 
     vs = map (unheap_closure h) vs' \<and> env = map (unheap_closure h) env' \<and> sfs = unheap_stack h sfs'" 
       by fastforce
   moreover obtain h' v where "halloc h (HLam env' pc') = (h', v)" by fastforce
-  moreover with evb_pushlam have "HS h vs' ((env', Suc pc) # sfs') cd \<leadsto>\<^sub>h 
+  moreover with evb_pushlam S have "HS h vs' ((env', Suc pc) # sfs') cd \<leadsto>\<^sub>h 
     HS h' (v # vs') ((env', pc) # sfs') cd" by simp
   ultimately show ?case by fastforce
 next

@@ -15,7 +15,7 @@ inductive evalf :: "flat_state \<Rightarrow> flat_state \<Rightarrow> bool" (inf
     FS h vs ((Suc pc # env) # sfs) cd \<leadsto>\<^sub>f FS h (v # vs) ((pc # env) # sfs) cd"
 | evf_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> halloc_list h [0, k] = (h', v) \<Longrightarrow>
     FS h vs ((Suc pc # env) # sfs) cd \<leadsto>\<^sub>f FS h' (v # vs) ((pc # env) # sfs) cd"
-| evf_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> 
+| evf_pushlam [simp]: "cd ! pc = BPushLam pc' (length env) \<Longrightarrow> 
     halloc_list h (Suc (length env) # pc' # env) = (h', v) \<Longrightarrow>
       FS h vs ((Suc pc # env) # sfs) cd \<leadsto>\<^sub>f FS h' (v # vs) ((pc # env) # sfs) cd"
 | evf_apply [simp]: "cd ! pc = BApply \<Longrightarrow> get_closure h v2 = HLam env' pc' \<Longrightarrow>
@@ -36,7 +36,7 @@ next
   from evf_pushcon(3, 1, 2) show ?case 
     by (induction "FS h vs ((Suc pc # env) # sfs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
 next
-  case (evf_pushlam cd pc pc' h env h' v vs sfs)
+  case (evf_pushlam cd pc pc' env h h' v vs sfs)
   from evf_pushlam(3, 1, 2) show ?case 
     by (induction "FS h vs ((Suc pc # env) # sfs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
 next

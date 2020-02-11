@@ -14,7 +14,7 @@ inductive evalh :: "heap_state \<Rightarrow> heap_state \<Rightarrow> bool" (inf
     HS h vs ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>h HS h (v # vs) ((env, pc) # sfs) cd"
 | evh_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> halloc h (HConst k) = (h', v) \<Longrightarrow>
     HS h vs ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>h HS h' (v # vs) ((env, pc) # sfs) cd"
-| evh_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> halloc h (HLam env pc') = (h', v) \<Longrightarrow>
+| evh_pushlam [simp]: "cd ! pc = BPushLam pc' (length env) \<Longrightarrow> halloc h (HLam env pc') = (h', v) \<Longrightarrow>
     HS h vs ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>h HS h' (v # vs) ((env, pc) # sfs) cd"
 | evh_apply [simp]: "cd ! pc = BApply \<Longrightarrow> hlookup h v2 = HLam env' pc' \<Longrightarrow>
     HS h (v1 # v2 # vs) ((env, Suc pc) # sfs) cd \<leadsto>\<^sub>h
@@ -35,7 +35,7 @@ next
   from evh_pushcon(3, 1, 2) show ?case 
     by (induction "HS h vs ((env, Suc pc) # sfs) cd" \<Sigma>'' rule: evalh.induct) simp_all 
 next
-  case (evh_pushlam cd pc pc' h env h' v vs sfs)
+  case (evh_pushlam cd pc pc' env h h' v vs sfs)
   from evh_pushlam(3, 1, 2) show ?case 
     by (induction "HS h vs ((env, Suc pc) # sfs) cd" \<Sigma>'' rule: evalh.induct) simp_all 
 next
