@@ -40,6 +40,12 @@ abbreviation tco_stack :: "tree_stack_frame list \<Rightarrow> tco_stack_frame l
 primrec tco_state :: "tree_code_state \<Rightarrow> tco_code_state" where
   "tco_state (TS vs sfs) = TCOS (map tco_val vs) (tco_stack sfs)"
 
+lemma tco_r_append [simp]: "cd' \<noteq> [] \<Longrightarrow> tco_r d (cd @ cd') = tco_r d cd'"
+proof (induction d cd rule: tco_r.induct)
+  case (2 d cd)
+  thus ?case by (cases cd) (auto split: list.splits)
+qed (auto split: list.splits)
+
 lemma [dest]: "(env, cd, r) # sfs = tco_stack sfs' \<Longrightarrow> \<exists>dsfs env' cd' sfs''. 
   sfs' = dsfs @ (env', cd') # sfs'' \<and> env = map tco_val env' \<and> cd = tco_cd cd' \<and> 
     r = tco_r (length env) cd' \<and> list_all dead_frame dsfs \<and> sfs = tco_stack sfs''"

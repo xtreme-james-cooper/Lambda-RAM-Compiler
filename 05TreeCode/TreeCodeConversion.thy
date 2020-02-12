@@ -49,6 +49,9 @@ primrec zip_encode :: "dexpr list \<Rightarrow> nat \<Rightarrow> tree_code list
   "zip_encode [] d acc = acc"
 | "zip_encode (e # es) d acc = zip_encode es d (encode' e d (TApply # acc))"
 
+lemma [simp]: "encode' e d cd \<noteq> []"
+  by (induction e arbitrary: d cd) simp_all
+
 lemma [simp]: "encode' e d cd @ cd' = encode' e d (cd @ cd')"
   by (induction e arbitrary: d cd) simp_all
 

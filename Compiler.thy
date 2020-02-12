@@ -5,6 +5,62 @@ begin
 definition compile :: "nexpr \<Rightarrow> byte_code list" where
   "compile = flatten_code \<circ> tco \<circ> encode \<circ> convert"
 
+primrec one_pass_r' :: "nat \<Rightarrow> nexpr \<Rightarrow> tco_return" where
+  "one_pass_r' d (NVar x) = TCOReturn d"
+| "one_pass_r' d (NConst k) = TCOReturn d"
+| "one_pass_r' d (NLam x t e) = TCOReturn d"
+| "one_pass_r' d (NApp e\<^sub>1 e\<^sub>2) = TCOJump d"
+
+primrec one_pass_cd' :: "var list \<Rightarrow> nat \<Rightarrow> tco_code list \<Rightarrow> bool \<Rightarrow> nexpr \<Rightarrow> tco_code list" where
+  "one_pass_cd' \<Phi> d cd b (NVar x) = TCOLookup (the (idx_of \<Phi> x)) # cd"
+| "one_pass_cd' \<Phi> d cd b (NConst k) = TCOPushCon k # cd"
+| "one_pass_cd' \<Phi> d cd b (NLam x t e) = 
+    TCOPushLam (one_pass_cd' (insert_at 0 x \<Phi>) (Suc d) [] True e) (one_pass_r' (Suc d) e) d # cd"
+| "one_pass_cd' \<Phi> d cd b (NApp e\<^sub>1 e\<^sub>2) = 
+    one_pass_cd' \<Phi> d (one_pass_cd' \<Phi> d (if b then cd else TCOApply # cd) False e\<^sub>2) False e\<^sub>1"
+
+definition one_pass :: "nexpr \<Rightarrow> tco_code list \<times> tco_return" where
+  "one_pass e = (one_pass_cd' [] 0 [] True e, one_pass_r' 0 e)"
+
+lemma [simp]: "one_pass_r' d e = tco_r d (encode' (convert' \<Phi> e) d' [])"
+proof (induction e arbitrary: \<Phi> d)
+  case (NApp e1 e2)
+  have "tco_r d ((encode' (convert' \<Phi> e1) d' [] @ encode' (convert' \<Phi> e2) d' []) @ [TApply]) = 
+    tco_r d [TApply]" using tco_r_append by blast
+  thus ?case by simp
+qed simp_all
+
+lemma one_pass_cd_correct [simp]: "cd' = tco_cd cd \<Longrightarrow> 
+  one_pass_cd' \<Phi> d cd' (cd = []) e = tco_cd (encode' (convert' \<Phi> e) d cd)"
+proof (induction e arbitrary: \<Phi> d cd cd')
+  case (NLam x t e)
+  moreover have "[] = tco_cd []" by simp
+  ultimately have "one_pass_cd' (insert_at 0 x \<Phi>) (Suc d) [] True e =
+    tco_cd (encode' (convert' (insert_at 0 x \<Phi>) e) (Suc d) [])" by (metis (full_types))
+  with NLam show ?case by simp
+next
+  case (NApp e1 e2)
+  hence "(if cd = [] then cd' else TCOApply # cd') = tco_cd (TApply # cd)" 
+    by (simp split: list.splits)
+  with NApp have "one_pass_cd' \<Phi> d (if cd = [] then cd' else TCOApply # cd') 
+    (TApply # cd = []) e2 = 
+      tco_cd (encode' (convert' \<Phi> e2) d (TApply # cd))" by blast
+  moreover from NApp have "one_pass_cd' \<Phi> d (tco_cd (encode' (convert' \<Phi> e2) d (TApply # cd))) 
+    (encode' (convert' \<Phi> e2) d (TApply # cd) = []) e1 = 
+      tco_cd (encode' (convert' \<Phi> e1) d (encode' (convert' \<Phi> e2) d (TApply # cd)))" by blast
+  ultimately show ?case by simp
+qed simp_all
+
+lemma [simp]: "one_pass = tco \<circ> encode \<circ> convert"
+proof (rule, unfold one_pass_def tco_def encode_def convert_def)
+  fix e
+  have "[] = tco_cd []" by simp
+  hence "one_pass_cd' [] 0 [] ([] = []) e = tco_cd (encode' (convert' [] e) 0 [])" 
+    by (metis (full_types) one_pass_cd_correct)
+  thus "(one_pass_cd' [] 0 [] True e, one_pass_r' 0 e) =
+    ((\<lambda>cd. (tco_cd cd, tco_r 0 cd)) \<circ> (\<lambda>e. encode' e 0 []) \<circ> convert' []) e" by simp
+qed
+
 lemma [simp]: "tco_cd (encode' e d acc) \<noteq> []"
   by (induction e arbitrary: acc) simp_all
 
