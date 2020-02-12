@@ -1,5 +1,5 @@
 theory NameRemoval
-  imports "../01Source/Named" Debruijn "../00Utils/AssocList"
+  imports "../01Source/Named" BigStep "../00Utils/AssocList"
 begin
 
 fun convert' :: "var list \<Rightarrow> nexpr \<Rightarrow> dexpr" where
@@ -96,18 +96,16 @@ next
   with 3 Z H show ?case by (simp add: Let_def)
 qed simp_all
 
-theorem correctnd: "e \<leadsto>\<^sub>n e' \<Longrightarrow> free_vars e = {} \<Longrightarrow> convert e \<leadsto>\<^sub>d convert e'"
-proof (induction e e' rule: evaln.induct)
-  case (evn_app3 e\<^sub>2 x t e\<^sub>1)
-  hence "DApp (DLam t (convert' [x] e\<^sub>1)) (convert' [] e\<^sub>2) \<leadsto>\<^sub>d 
-    substd 0 (convert' [] e\<^sub>2) (convert' (insert_at 0 x []) e\<^sub>1)" by simp
-  moreover have "0 \<le> length []" by simp
-  moreover have "x \<notin> set []" by simp
-  moreover from evn_app3 have "free_vars e\<^sub>1 \<subseteq> insert x (set [])" by simp
-  moreover from evn_app3 have "free_vars e\<^sub>2 \<subseteq> set []" by simp
-  ultimately have "DApp (DLam t (convert' [x] e\<^sub>1)) (convert' [] e\<^sub>2) \<leadsto>\<^sub>d convert' [] (substn x e\<^sub>2 e\<^sub>1)" 
-    by (metis convert_subst)
-  then show ?case by (simp add: convert_def)
+theorem correctnd [simp]: "e \<Down> v \<Longrightarrow> free_vars e = {} \<Longrightarrow> convert e \<Down>\<^sub>d convert v"
+proof (induction e v rule: evaln.induct)
+  case (evn_app e\<^sub>1 x t e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
+  hence "e\<^sub>1 \<Down> NLam x t e\<^sub>1'" by simp
+  moreover from evn_app have "free_vars e\<^sub>1 = {}" by simp
+  ultimately have "free_vars (NLam x t e\<^sub>1') = {}" by (metis free_vars_eval)
+  hence X: "free_vars e\<^sub>1' \<subseteq> insert x (set [])" by simp
+  moreover from evn_app have Y: "free_vars v\<^sub>2 \<subseteq> set []" by simp
+  ultimately have "free_vars (substn x v\<^sub>2 e\<^sub>1') \<subseteq> set []" by (metis free_vars_subst)
+  with evn_app X Y show ?case by (simp add: convert_def)
 qed (simp_all add: convert_def)
 
 lemma [simp]: "vald (convert' \<Phi> e) \<Longrightarrow> valn e"
@@ -124,40 +122,48 @@ lemma [dest]: "DLam t e\<^sub>d = convert e\<^sub>n \<Longrightarrow>
     \<exists>x e\<^sub>n'. e\<^sub>n = NLam x t e\<^sub>n' \<and> e\<^sub>d = convert' [x] e\<^sub>n'"
   by (cases e\<^sub>n) (simp_all add: convert_def)
 
-theorem completend [simp]: "convert e\<^sub>n \<leadsto>\<^sub>d e\<^sub>d' \<Longrightarrow> free_vars e\<^sub>n = {} \<Longrightarrow> 
-  \<exists>e\<^sub>n'. e\<^sub>n \<leadsto>\<^sub>n e\<^sub>n' \<and> e\<^sub>d' = convert e\<^sub>n'"
-proof (induction "convert e\<^sub>n" e\<^sub>d' arbitrary: e\<^sub>n rule: evald.induct)
-  case (evd_app1 e\<^sub>d\<^sub>1 e\<^sub>d\<^sub>1' e\<^sub>d\<^sub>2)
-  then obtain e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 where N: "e\<^sub>n = NApp e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<and> e\<^sub>d\<^sub>1 = convert e\<^sub>n\<^sub>1 \<and> e\<^sub>d\<^sub>2 = convert e\<^sub>n\<^sub>2" by fastforce
-  moreover with evd_app1 obtain e\<^sub>n\<^sub>1' where "e\<^sub>n\<^sub>1 \<leadsto>\<^sub>n e\<^sub>n\<^sub>1' \<and> e\<^sub>d\<^sub>1' = convert e\<^sub>n\<^sub>1'" by fastforce
-  ultimately have "NApp e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<leadsto>\<^sub>n NApp e\<^sub>n\<^sub>1' e\<^sub>n\<^sub>2 \<and> DApp e\<^sub>d\<^sub>1' e\<^sub>d\<^sub>2 = convert (NApp e\<^sub>n\<^sub>1' e\<^sub>n\<^sub>2)" 
-    by (simp add: convert_def)
-  with N show ?case by fastforce
+theorem completend [simp]: "convert e\<^sub>n \<Down>\<^sub>d v\<^sub>d \<Longrightarrow> free_vars e\<^sub>n = {} \<Longrightarrow> 
+  \<exists>v\<^sub>n. e\<^sub>n \<Down> v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n"
+proof (induction "convert e\<^sub>n" v\<^sub>d arbitrary: e\<^sub>n rule: big_evald.induct)
+  case (bevd_const k)
+  hence "e\<^sub>n \<Down> NConst k \<and> DConst k = convert (NConst k)" by (cases e\<^sub>n) (simp_all add: convert_def)
+  thus ?case by fastforce
 next
-  case (evd_app2 e\<^sub>d\<^sub>1 e\<^sub>d\<^sub>2 e\<^sub>d\<^sub>2')
-  moreover then obtain e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 where N: "e\<^sub>n = NApp e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<and> e\<^sub>d\<^sub>1 = convert e\<^sub>n\<^sub>1 \<and> e\<^sub>d\<^sub>2 = convert e\<^sub>n\<^sub>2" 
-    by fastforce
-  moreover with evd_app2 obtain e\<^sub>n\<^sub>2' where "e\<^sub>n\<^sub>2 \<leadsto>\<^sub>n e\<^sub>n\<^sub>2' \<and> e\<^sub>d\<^sub>2' = convert e\<^sub>n\<^sub>2'" by fastforce
-  ultimately have "NApp e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<leadsto>\<^sub>n NApp e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2' \<and> DApp e\<^sub>d\<^sub>1 e\<^sub>d\<^sub>2' = convert (NApp e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2')" 
-    by (simp add: convert_def)
-  with N show ?case by fastforce
+  case (bevd_lam t e)
+  then obtain x e' where "e\<^sub>n = NLam x t e' \<and> e = convert' [x] e'" 
+    by (cases e\<^sub>n) (simp_all add: convert_def)
+  hence "e\<^sub>n \<Down> NLam x t e' \<and> DLam t e = convert (NLam x t e')" by (simp add: convert_def)
+  thus ?case by fastforce
 next
-  case (evd_app3 e\<^sub>d\<^sub>2 t e\<^sub>d\<^sub>1)
-  moreover then obtain x e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 where N: "e\<^sub>n = NApp (NLam x t e\<^sub>n\<^sub>1) e\<^sub>n\<^sub>2 \<and> e\<^sub>d\<^sub>1 = convert' [x] e\<^sub>n\<^sub>1 \<and> 
-    e\<^sub>d\<^sub>2 = convert e\<^sub>n\<^sub>2" by fastforce
-  ultimately have "NApp (NLam x t e\<^sub>n\<^sub>1) e\<^sub>n\<^sub>2 \<leadsto>\<^sub>n substn x e\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1 \<and> 
-    substd 0 (convert e\<^sub>n\<^sub>2) (convert' [x] e\<^sub>n\<^sub>1) = convert (substn x e\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1)" by (simp add: convert_def)
-  with N show ?case by fastforce
+  case (bevd_app e\<^sub>1 t e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
+  then obtain e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 where E: "e\<^sub>n = NApp e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<and> e\<^sub>1 = convert e\<^sub>n\<^sub>1 \<and> e\<^sub>2 = convert e\<^sub>n\<^sub>2" 
+    by (cases e\<^sub>n) (simp_all add: convert_def)
+  with bevd_app obtain v\<^sub>n\<^sub>1 where V1: "e\<^sub>n\<^sub>1 \<Down> v\<^sub>n\<^sub>1 \<and> DLam t e\<^sub>1' = convert v\<^sub>n\<^sub>1" by fastforce
+  then obtain x e\<^sub>n\<^sub>1' where X: "v\<^sub>n\<^sub>1 = NLam x t e\<^sub>n\<^sub>1' \<and> e\<^sub>1' = convert' [x] e\<^sub>n\<^sub>1'"
+    by (cases v\<^sub>n\<^sub>1) (simp_all add: convert_def)
+  from bevd_app E obtain v\<^sub>n\<^sub>2 where V2: "e\<^sub>n\<^sub>2 \<Down> v\<^sub>n\<^sub>2 \<and> v\<^sub>2 = convert v\<^sub>n\<^sub>2" by fastforce
+  from bevd_app E have "free_vars e\<^sub>n\<^sub>1 = {}" by simp
+  with V1 X have "free_vars (NLam x t e\<^sub>n\<^sub>1') = {}" by (metis free_vars_eval)
+  hence Y: "free_vars e\<^sub>n\<^sub>1' \<subseteq> {x}" by simp
+  from bevd_app E have "free_vars e\<^sub>n\<^sub>2 = {}" by simp
+  with V2 have Z: "free_vars v\<^sub>n\<^sub>2 = {}" by auto
+  with Y have "free_vars (substn x v\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1') = {}" by (metis free_vars_subst subset_empty)
+  with bevd_app X V2 Y Z have "\<exists>v\<^sub>n. substn x v\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1' \<Down> v\<^sub>n \<and> v = convert v\<^sub>n" 
+    by (simp add: convert_def)
+  then obtain v\<^sub>n where "substn x v\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1' \<Down> v\<^sub>n \<and> v = convert v\<^sub>n" by fastforce
+  with V1 X V2 have "NApp e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<Down> v\<^sub>n \<and> v = convert v\<^sub>n" by fastforce
+  with E show ?case by fastforce
 qed
 
-lemma [simp]: "iter (\<leadsto>\<^sub>d) (convert e\<^sub>n) e\<^sub>d' \<Longrightarrow> free_vars e\<^sub>n = {} \<Longrightarrow> 
-  \<exists>e\<^sub>n'. iter (\<leadsto>\<^sub>n) e\<^sub>n e\<^sub>n' \<and> e\<^sub>d' = convert e\<^sub>n'"
-proof (induction "convert e\<^sub>n" e\<^sub>d' arbitrary: e\<^sub>n rule: iter.induct)
-  case (iter_step e\<^sub>d' e\<^sub>d'')
-  then obtain e\<^sub>n' where "e\<^sub>n \<leadsto>\<^sub>n e\<^sub>n' \<and> e\<^sub>d' = convert e\<^sub>n'" by fastforce
-  moreover with iter_step obtain e\<^sub>n'' where "iter (\<leadsto>\<^sub>n) e\<^sub>n' e\<^sub>n'' \<and> e\<^sub>d'' = convert e\<^sub>n''" by fastforce
-  ultimately have "iter (\<leadsto>\<^sub>n) e\<^sub>n e\<^sub>n'' \<and> e\<^sub>d'' = convert e\<^sub>n''" by fastforce
-  thus ?case by fastforce
-qed force+
+(* Now we can finish the deferred progress lemma from 01Source/Named *)
+
+theorem progressn [simp]: "Map.empty \<turnstile>\<^sub>n e : t \<Longrightarrow> \<exists>v. e \<Down> v"
+proof -
+  assume X: "Map.empty \<turnstile>\<^sub>n e : t"
+  hence "[] \<turnstile>\<^sub>d convert e : t" by simp
+  then obtain v\<^sub>d where "vald v\<^sub>d \<and> convert e \<Down>\<^sub>d v\<^sub>d" by fastforce
+  with X obtain v\<^sub>n where "e \<Down> v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n" by fastforce
+  thus ?thesis by fastforce
+qed
 
 end

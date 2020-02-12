@@ -12,17 +12,19 @@ lemma [simp]: "tco_cd (encode e) \<noteq> []"
   by (simp add: encode_def)
 
 theorem tc_terminationn: "typechecks e \<Longrightarrow> compile e = cd \<Longrightarrow> 
-  \<exists>v. valn v \<and> iter (\<leadsto>\<^sub>n) e v \<and> 
+  \<exists>v. valn v \<and> e \<Down> v \<and> 
     (\<exists>h v\<^sub>f. iter (\<leadsto>\<^sub>f) (FS hempty [] [[length cd]] cd) (FS h [v\<^sub>f] [] cd) \<and> 
       print_hclosure (get_closure h v\<^sub>f) = print_nexpr v)"
 proof -
   assume "typechecks e"
   then obtain t where TN: "Map.empty \<turnstile>\<^sub>n e : t" by fastforce
-  hence TD: "[] \<turnstile>\<^sub>d convert e : t" by simp
-  then obtain v\<^sub>d where VD: "vald v\<^sub>d \<and> iter (\<leadsto>\<^sub>d) (convert e) v\<^sub>d" by fastforce
-  with TN obtain v\<^sub>n where EN: "iter (\<leadsto>\<^sub>n) e v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n" by fastforce
-  with VD have VN: "valn v\<^sub>n" by (metis convert_val_back)
-  with VD EN TD have ES: "iter (\<leadsto>\<^sub>s) (SS [FReturn] (convert e)) (SS [] (convert v\<^sub>n))" by simp
+  then obtain v\<^sub>n where EN: "e \<Down> v\<^sub>n" by fastforce
+  hence VN: "valn v\<^sub>n" by simp
+  from TN have TD: "[] \<turnstile>\<^sub>d convert e : t" by simp
+  from EN TN have ED: "convert e \<Down>\<^sub>d convert v\<^sub>n" by simp
+  hence VD: "vald (convert v\<^sub>n)" by simp
+  from ED have "iter (\<leadsto>\<^sub>d) (convert e) (convert v\<^sub>n)" by (metis BigStep.correctb)
+  with ED EN TD have ES: "iter (\<leadsto>\<^sub>s) (SS [FReturn] (convert e)) (SS [] (convert v\<^sub>n))" by simp
   from TD have TC: "CSE [CReturn []] [] (convert e) :\<^sub>c t" 
     by (metis tcc_state_ev tcc_nil tcc_snil tcc_scons_ret latest_environment.simps(4))
   with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (CSE [CReturn []] [] (convert e)) (CSC [] c) \<and> 
