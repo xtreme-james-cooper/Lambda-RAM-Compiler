@@ -46,6 +46,9 @@ proof (induction d cd rule: tco_r.induct)
   thus ?case by (cases cd) (auto split: list.splits)
 qed (auto split: list.splits)
 
+lemma [simp]: "cd \<noteq> [] \<Longrightarrow> cd' \<noteq> [] \<Longrightarrow> tco_cd (cd @ cd') \<noteq> []"
+  by (induction cd rule: tco_cd.induct) (simp_all split: list.splits)
+
 lemma [dest]: "(env, cd, r) # sfs = tco_stack sfs' \<Longrightarrow> \<exists>dsfs env' cd' sfs''. 
   sfs' = dsfs @ (env', cd') # sfs'' \<and> env = map tco_val env' \<and> cd = tco_cd cd' \<and> 
     r = tco_r (length env) cd' \<and> list_all dead_frame dsfs \<and> sfs = tco_stack sfs''"

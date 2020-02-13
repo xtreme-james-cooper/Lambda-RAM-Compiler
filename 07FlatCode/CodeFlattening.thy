@@ -2,18 +2,18 @@ theory CodeFlattening
   imports ByteCode "../06TailCall/TailCall"
 begin
 
-fun flatten_code' :: "nat \<Rightarrow> tco_code list \<Rightarrow> tco_return \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
-  "flatten_code' lib [] (TCOReturn d) acc = BReturn d # acc"
-| "flatten_code' lib [] (TCOJump d) acc = BJump d # acc"
-| "flatten_code' lib (TCOLookup x # cd) r acc = flatten_code' lib cd r (BLookup x # acc)"
-| "flatten_code' lib (TCOPushCon k # cd) r acc = flatten_code' lib cd r (BPushCon k # acc)"
-| "flatten_code' lib (TCOPushLam cd' r' d # cd) r acc = (
-    let clo = flatten_code' lib cd' r' []
-    in clo @ flatten_code' (lib + length clo) cd r (BPushLam (lib + length clo) d # acc))"
-| "flatten_code' lib (TCOApply # cd) r acc = flatten_code' lib cd r (BApply # acc)"
+fun flatten_code' :: "nat \<Rightarrow> tco_code list \<Rightarrow> tco_return \<Rightarrow> byte_code list" where
+  "flatten_code' lib [] (TCOReturn d) = [BReturn d]"
+| "flatten_code' lib [] (TCOJump d) = [BJump d]"
+| "flatten_code' lib (TCOLookup x # cd) r = flatten_code' lib cd r @ [BLookup x]"
+| "flatten_code' lib (TCOPushCon k # cd) r = flatten_code' lib cd r @ [BPushCon k]"
+| "flatten_code' lib (TCOPushLam cd' r' d # cd) r = (
+    let clo = flatten_code' lib cd' r'
+    in clo @ flatten_code' (lib + length clo) cd r @ [BPushLam (lib + length clo) d])"
+| "flatten_code' lib (TCOApply # cd) r = flatten_code' lib cd r @ [BApply]"
 
 primrec flatten_code :: "tco_code list \<times> tco_return \<Rightarrow> byte_code list" where
-  "flatten_code (cd, r) = flatten_code' 0 cd r []"
+  "flatten_code (cd, r) = flatten_code' 0 cd r"
 
 fun unflatten_return :: "byte_code list \<Rightarrow> nat \<Rightarrow> tco_return" where
   "unflatten_return cd 0 = undefined"
@@ -90,8 +90,8 @@ primrec orderly_state :: "byte_code_state \<Rightarrow> bool" where
   "orderly_state (BS vs sfs cd) = (orderly cd 0 \<and> return_terminated cd \<and> 
     orderly_stack sfs (length cd) \<and> ordered_closures vs (length cd))"
 
-lemma flatten_length [simp]: "length (flatten_code' lib cd r acc) = code_list_size cd + length acc"
-  by (induction lib cd r acc rule: flatten_code'.induct) simp_all
+lemma flatten_length [simp]: "length (flatten_code' lib cd r) = code_list_size cd"
+  by (induction lib cd r rule: flatten_code'.induct) simp_all
 
 lemma [simp]: "length (flatten_code (cd, r)) = code_list_size cd"
   by (simp add: flatten_code_def)
@@ -102,8 +102,8 @@ lemma [simp]: "Suc 0 \<le> code_list_size cd"
 lemma [simp]: "0 < code_list_size cd"
   by (induction cd) simp_all
 
-lemma [simp]: "flatten_code' lib cd r acc \<noteq> []"
-  by (induction lib cd r acc rule: flatten_code'.induct) simp_all
+lemma [simp]: "flatten_code' lib cd r \<noteq> []"
+  by (induction lib cd r rule: flatten_code'.induct) simp_all
 
 lemma [simp]: "flatten_code (cd, r) \<noteq> []"
   by (simp add: flatten_code_def)
@@ -111,8 +111,8 @@ lemma [simp]: "flatten_code (cd, r) \<noteq> []"
 lemma [simp]: "cd \<noteq> [] \<Longrightarrow> return_terminated (cd @ cd') = return_terminated cd"
   by (induction cd) simp_all
 
-lemma [simp]: "return_terminated (flatten_code' lib cd r acc)"
-  by (induction lib cd r acc rule: flatten_code'.induct) simp_all
+lemma [simp]: "return_terminated (flatten_code' lib cd r)"
+  by (induction lib cd r rule: flatten_code'.induct) simp_all
 
 lemma [simp]: "return_terminated (flatten_code cdr)"
   by (cases cdr) (simp add: flatten_code_def)
@@ -133,9 +133,8 @@ lemma [simp]: "\<forall>x < length cd. ordered (cd ! x) (x + n) \<Longrightarrow
 lemma [simp]: "orderly (cd @ cd') n = (orderly cd n \<and> orderly cd' (length cd + n))"
   by (induction cd arbitrary: n) simp_all
 
-lemma [simp]: "\<forall>x < length acc. ordered (acc ! x) (x + n) \<Longrightarrow> lib \<le> n \<Longrightarrow> 
-    orderly (flatten_code' lib cd r acc) n"
-  by (induction lib cd r acc arbitrary: n rule: flatten_code'.induct) simp_all
+lemma [simp]: "lib \<le> n \<Longrightarrow> orderly (flatten_code' lib cd r) n"
+  by (induction lib cd r arbitrary: n rule: flatten_code'.induct) simp_all
 
 lemma [simp]: "orderly (flatten_code cdr) 0"
   by (cases cdr) (simp add: flatten_code_def)
@@ -157,48 +156,13 @@ lemma [simp]: "cd ! x = BPushLam pc d \<Longrightarrow> orderly cd 0 \<Longright
     0 < pc \<and> pc \<le> length cd"
   using pushlam_ordered by fastforce
 
-lemma index_into_append [simp]: 
-  "(flatten_code' lib cd r [] @ cd') ! (code_list_size cd + n) = cd' ! n"
-    by (metis add.right_neutral flatten_length list.size(3) nth_append_length_plus)
+lemma index_into_append [simp]: "(flatten_code' lib cd r @ cd') ! (code_list_size cd + n) = cd' ! n"
+  by (metis flatten_length nth_append_length_plus)
 
-lemma index_into_flatten [simp]: "flatten_code' lib cd r acc ! (n + code_list_size cd) = acc ! n"
-proof (induction lib cd r acc arbitrary: n rule: flatten_code'.induct)
-  case (3 lib x cd r acc)
-  hence "flatten_code' lib cd r (BLookup x # acc) ! (Suc n + code_list_size cd) = 
-    (BLookup x # acc) ! Suc n" by blast
-  thus ?case by simp
-next
-  case (4 lib k cd r acc)
-  hence "flatten_code' lib cd r (BPushCon k # acc) ! (Suc n + code_list_size cd) = 
-    (BPushCon k # acc) ! Suc n" by blast
-  thus ?case by simp
-next
-  case (5 lib cd' r' d cd r acc)
-  let ?cd' = "flatten_code' lib cd' r' []"
-  from 5 have "flatten_code' (lib + length ?cd') cd r (BPushLam (lib + length ?cd') d # acc) ! 
-    (Suc n + code_list_size cd) = (BPushLam (lib + length ?cd') d # acc) ! Suc n" by blast
-  hence "flatten_code' (lib + code_list_size cd') cd r 
-    (BPushLam (lib + code_list_size cd') d # acc) ! Suc (n + code_list_size cd) = acc ! n" by simp
-  hence "(?cd' @ flatten_code' (lib + code_list_size cd') cd r 
-    (BPushLam (lib + code_list_size cd') d # acc)) !
-      (code_list_size cd' + Suc (n + code_list_size cd)) = acc ! n" by (metis index_into_append)
-  moreover have "code_list_size cd' + Suc (n + code_list_size cd) = 
-    Suc (n + (code_list_size cd' + code_list_size cd))" by simp
-  ultimately have "(?cd' @ flatten_code' (lib + code_list_size cd') cd r 
-    (BPushLam (lib + code_list_size cd') d # acc)) !
-      Suc (n + (code_list_size cd' + code_list_size cd)) = acc ! n" by metis
-  thus ?case by simp
-next
-  case (6 lib cd r acc)
-  hence "flatten_code' lib cd r (BApply # acc) ! (Suc n + code_list_size cd) = 
-    (BApply # acc) ! Suc n" by blast
-  thus ?case by simp
-qed simp_all
-
-lemma [simp]: "flatten_code' lib cd r (op # acc) ! code_list_size cd = op"
+lemma [simp]: "(flatten_code' lib cd r @ op # acc) ! code_list_size cd = op"
 proof -
-  have "flatten_code' lib cd r (op # acc) ! (0 + code_list_size cd) = (op # acc) ! 0" 
-    by (metis index_into_flatten)
+  have "(flatten_code' lib cd r @ op # acc) ! (code_list_size cd + 0) = (op # acc) ! 0" 
+    by (metis index_into_append)
   thus ?thesis by simp
 qed
 
@@ -220,16 +184,16 @@ proof (induction cd pc rule: unflatten_code.induct)
   with 2 show ?case by (cases "cd ! pc") simp_all
 qed simp_all
 
-lemma unflatten_flatten_r [simp]: "unflatten_return (lib @ flatten_code' (length lib) cd r acc) 
+lemma unflatten_flatten_r [simp]: "unflatten_return (lib @ flatten_code' (length lib) cd r @ acc) 
   (length lib + code_list_size cd) = r"
-proof (induction "length lib" cd r acc arbitrary: lib rule: flatten_code'.induct)
-  case (5 cd' r' d cd r acc)
+proof (induction "length lib" cd r arbitrary: lib acc rule: flatten_code'.induct)
+  case (5 cd' r' d cd r)
   let ?pc = "length lib + code_list_size cd'"
-  let ?code' = "lib @ flatten_code' (length lib) cd' r' []"
-  let ?code = "?code' @ flatten_code' ?pc cd r (BPushLam ?pc d # acc)"
-  have "length lib + length (flatten_code' (length lib) cd' r' []) = length ?code'" by simp
-  with 5 have "unflatten_return (?code' @ flatten_code' (length ?code') cd r 
-    (BPushLam (length lib + length (flatten_code' (length lib) cd' r' [])) d # acc))
+  let ?code' = "lib @ flatten_code' (length lib) cd' r'"
+  let ?code = "?code' @ flatten_code' ?pc cd r @ BPushLam ?pc d # acc"
+  have "length lib + length (flatten_code' (length lib) cd' r') = length ?code'" by simp
+  with 5 have "unflatten_return (?code' @ flatten_code' (length ?code') cd r @
+    BPushLam (length lib + length (flatten_code' (length lib) cd' r')) d # acc)
      (length ?code' + code_list_size cd) = r" by blast
   hence "unflatten_return ?code (length lib + code_list_size cd' + code_list_size cd) = r" by simp
   hence "unflatten_return ?code (length lib + (code_list_size cd' + code_list_size cd)) = r" 
@@ -237,22 +201,22 @@ proof (induction "length lib" cd r acc arbitrary: lib rule: flatten_code'.induct
   thus ?case by simp
 qed simp_all
 
-lemma unflatten_flatten [simp]: "unflatten_code (lib @ flatten_code' (length lib) cd r acc) 
+lemma unflatten_flatten [simp]: "unflatten_code (lib @ flatten_code' (length lib) cd r @ acc) 
   (length lib + code_list_size cd) = cd"
-proof (induction "length lib" cd r acc arbitrary: lib rule: flatten_code'.induct)
-  case (5 cd' r' d cd r acc)
+proof (induction "length lib" cd r arbitrary: lib acc rule: flatten_code'.induct)
+  case (5 cd' r' d cd r)
   let ?pc = "length lib + code_list_size cd'"
-  let ?code' = "lib @ flatten_code' (length lib) cd' r' []"
-  let ?code = "?code' @ flatten_code' ?pc cd r (BPushLam ?pc d # acc)"
-  have "length lib + length (flatten_code' (length lib) cd' r' []) = length ?code'" by simp
-  with 5 have "unflatten_code (?code' @ flatten_code' (length ?code') cd r
-    (BPushLam (length lib + length (flatten_code' (length lib) cd' r' [])) d # acc))
+  let ?code' = "lib @ flatten_code' (length lib) cd' r' @ []"
+  let ?code = "?code' @ flatten_code' ?pc cd r @ BPushLam ?pc d # acc"
+  have "length lib + length (flatten_code' (length lib) cd' r') = length ?code'" by simp
+  with 5 have "unflatten_code (?code' @ flatten_code' (length ?code') cd r @
+    BPushLam (length lib + length (flatten_code' (length lib) cd' r')) d # acc)
       (length ?code' + code_list_size cd) = cd" by blast
   hence "unflatten_code ?code (length lib + code_list_size cd' + code_list_size cd) = cd" by simp
   hence X: "unflatten_code ?code (length lib + (code_list_size cd' + code_list_size cd)) = cd" 
     by (metis add.assoc)
   have P: "?pc \<le> length ?code'" by simp
-  moreover from 5 have "unflatten_code ?code' (length lib + code_list_size cd') = cd'" by simp
+  moreover from 5 have "unflatten_code ?code' (length lib + code_list_size cd') = cd'" by blast
   ultimately have Z: "unflatten_code ?code ?pc =  cd'" by (metis unflatten_front)
   from P have "unflatten_return ?code ?pc = unflatten_return ?code' ?pc" 
     by (metis unflatten_r_front)
@@ -261,14 +225,14 @@ qed simp_all
 
 lemma [simp]: "unflatten_return (flatten_code (cd, r)) (code_list_size cd) = r"
 proof -
-  have "unflatten_return ([] @ flatten_code' (length []) cd r []) (length [] + code_list_size cd) = 
+  have "unflatten_return ([] @ flatten_code' (length []) cd r @ []) (length [] + code_list_size cd) = 
     r" by (metis unflatten_flatten_r list.size(3))
   thus ?thesis by simp
 qed
 
 lemma [simp]: "unflatten_code (flatten_code (cd, r)) (code_list_size cd) = cd"
 proof -
-  have "unflatten_code ([] @ flatten_code' (length []) cd r []) 
+  have "unflatten_code ([] @ flatten_code' (length []) cd r @ []) 
     (length [] + code_list_size cd) = cd" by (metis unflatten_flatten list.size(3))
   thus ?thesis by simp
 qed
