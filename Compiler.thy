@@ -2,114 +2,220 @@ theory Compiler
   imports "01Source/AlgorithmicTypechecking" Printing "03Stack/StackConversion" 
 begin
 
-primrec get_return :: "nat \<Rightarrow> nexpr \<Rightarrow> tco_return" where
-  "get_return d (NVar x) = TCOReturn d"
-| "get_return d (NConst k) = TCOReturn d"
-| "get_return d (NLam x t e) = TCOReturn d"
-| "get_return d (NApp e\<^sub>1 e\<^sub>2) = TCOJump d"
+primrec get_return :: "nat \<Rightarrow> nexpr \<Rightarrow> byte_code" where
+  "get_return d (NVar x) = BReturn d"
+| "get_return d (NConst k) = BReturn d"
+| "get_return d (NLam x t e) = BReturn d"
+| "get_return d (NApp e\<^sub>1 e\<^sub>2) = BJump d"
 
-primrec flatten_return :: "tco_return \<Rightarrow> byte_code" where 
-  "flatten_return (TCOReturn d) = BReturn d"
-| "flatten_return (TCOJump d) = BJump d"
+primrec compile' :: "var list \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> byte_code list \<Rightarrow> bool \<Rightarrow> nat \<Rightarrow> byte_code list \<Rightarrow> 
+    nexpr \<Rightarrow> byte_code list \<times> nat \<times> byte_code list \<times> nat" where
+  "compile' var_idxs depth sz acc tail_pos ofst lib (NVar x) = 
+    (lib, ofst, BLookup (the (idx_of var_idxs x)) # acc, Suc sz)"
+| "compile' var_idxs depth sz acc tail_pos ofst lib (NConst k) = 
+    (lib, ofst, BPushCon k # acc, Suc sz)"
+| "compile' var_idxs depth sz acc tail_pos ofst lib (NLam x t e) = (
+    let (lib', ofst', cd', sz') = compile' (x # var_idxs) (Suc depth) 0 [] True ofst lib e
+    in (lib' @ get_return (Suc depth) e # cd', 
+        Suc (ofst' + sz'),
+        BPushLam (Suc (ofst' + sz')) depth # acc,
+        Suc sz))"
+| "compile' var_idxs depth sz acc tail_pos ofst lib (NApp e\<^sub>1 e\<^sub>2) = (
+    let (lib1, ofst1, cd1, sz1) = compile' var_idxs depth sz acc False ofst lib e\<^sub>1
+    in let (lib2, ofst2, cd2, sz2) = compile' var_idxs depth sz1 cd1 False ofst1 lib1 e\<^sub>2
+    in if tail_pos then (lib2, ofst2, cd2, sz2) else (lib2, ofst2, BApply # cd2, Suc sz2))"
 
-function xflatten_code' :: "nat \<Rightarrow> nat \<Rightarrow> byte_code list \<Rightarrow> tco_code list \<Rightarrow> 
-    byte_code list \<times> byte_code list \<times> nat" where
-  "xflatten_code' ofst sz acc [] = ([], acc, Suc (ofst + sz))"
-| "xflatten_code' ofst sz acc (TCOLookup x # cd) = 
-    xflatten_code' ofst (Suc sz) (BLookup x # acc) cd"
-| "xflatten_code' ofst sz acc (TCOPushCon k # cd) = 
-    xflatten_code' ofst (Suc sz) (BPushCon k # acc) cd"
-| "xflatten_code' ofst sz acc (TCOPushLam cd' r' d # cd) = (case xflatten_code' ofst 0 [] cd' of
-    (lib', cdb', sz') \<Rightarrow> (case xflatten_code' sz' (Suc sz) (BPushLam sz' d # acc) cd of
-      (lib, cdb, sz'') \<Rightarrow> (lib' @ flatten_return r' # cdb' @ lib, cdb, sz'')))"
-| "xflatten_code' ofst sz acc (TCOApply # cd) = xflatten_code' ofst (Suc sz) (BApply # acc) cd"
-  by pat_completeness auto
-termination
-  by (relation "measure (code_list_size \<circ> snd \<circ> snd \<circ> snd)") simp_all
+definition compile :: "nexpr \<Rightarrow> byte_code list \<times> nat" where
+  "compile e = (  
+    let (lib, ofst, cdb, sz) = compile' [] 0 0 [] True 0 [] e
+    in (lib @ get_return 0 e # cdb, Suc (ofst + sz)))"
 
-primrec compile' :: "var list \<Rightarrow> nat \<Rightarrow> tco_code list \<Rightarrow> bool \<Rightarrow> nexpr \<Rightarrow> tco_code list" where
-  "compile' var_idxs depth acc tail_pos (NVar x) = TCOLookup (the (idx_of var_idxs x)) # acc"
-| "compile' var_idxs depth acc tail_pos (NConst k) = TCOPushCon k # acc"
-| "compile' var_idxs depth acc tail_pos (NLam x t e) = 
-    TCOPushLam (compile' (x # var_idxs) (Suc depth) [] True e) 
-      (get_return (Suc depth) e) depth # acc"
-| "compile' var_idxs depth acc tail_pos (NApp e\<^sub>1 e\<^sub>2) = 
-    compile' var_idxs depth 
-      (compile' var_idxs depth (if tail_pos then acc else TCOApply # acc) False e\<^sub>2) False e\<^sub>1"
+abbreviation maybe_return :: "bool \<Rightarrow> nat" where
+  "maybe_return tail_pos \<equiv> (if tail_pos then 1 else 0)"
 
-primrec xflatten_code :: "tco_code list \<times> tco_return \<Rightarrow> byte_code list \<times> nat" where
-  "xflatten_code (cd, r) = (case xflatten_code' 0 0 [] cd of
-    (lib, cdb, sz) \<Rightarrow> (lib @ flatten_return r # cdb, sz))"
+primrec tco_code_size :: "bool \<Rightarrow> nexpr \<Rightarrow> nat" where
+  "tco_code_size tail_pos (NVar x) = 1 + maybe_return tail_pos"
+| "tco_code_size tail_pos (NConst k) = 1 + maybe_return tail_pos"
+| "tco_code_size tail_pos (NLam x t e) = 1 + tco_code_size True e + maybe_return tail_pos"
+| "tco_code_size tail_pos (NApp e\<^sub>1 e\<^sub>2) = 
+    1 + tco_code_size False e\<^sub>1 + tco_code_size False e\<^sub>2"
 
-definition compile :: "nexpr \<Rightarrow> tco_code list \<times> tco_return" where
-  "compile e = (compile' [] 0 [] True e, get_return 0 e)"
+lemma [simp]: "cd \<noteq> [] \<Longrightarrow> code_list_size (tco_cd_one op # cd) = 
+    code_size (tco_cd_one op) + code_list_size cd"
+  by (induction op) simp_all
 
-lemma [simp]: "[flatten_return r] = flatten_code' lib [] r"
-  by (induction r) simp_all
-
-lemma flatten'_correctness [simp]: "sz = length acc \<Longrightarrow> 
-  xflatten_code' ofst sz acc cd = (lib, cdb, sz') \<Longrightarrow> 
-    sz' = ofst + code_list_size cd + sz \<and> 
-      lib @ flatten_return r # cdb = flatten_code' ofst cd r @ acc"
-proof (induction ofst sz acc cd arbitrary: lib cdb sz' r rule: xflatten_code'.induct)
-  case (4 ofst sz acc cd' r' d cd)
-  moreover obtain lib' cdb' sz'' where "xflatten_code' ofst 0 [] cd' = (lib', cdb', sz'')" 
-    by (cases "xflatten_code' ofst 0 [] cd'")
-  moreover obtain lib2 cdb2 sz2 where 
-    "xflatten_code' sz'' (Suc sz) (BPushLam sz'' d # acc) cd = (lib2, cdb2, sz2)" 
-      by (cases "xflatten_code' sz'' (Suc sz) (BPushLam sz'' d # acc) cd")
-  ultimately show ?case by force
-qed (auto split: prod.splits)
-
-lemma [simp]: "xflatten_code cdr = (flatten_code cdr, length (flatten_code cdr))"
-proof (cases cdr)
-  case (Pair cd r)
-  moreover obtain lib cdb sz where S :"xflatten_code' 0 0 [] cd = (lib, cdb, sz)" 
-    by (cases "xflatten_code' 0 0 [] cd") simp_all
-  moreover have "0 = length []" by simp
-  moreover with S have "sz = 0 + code_list_size cd + length [] \<and> 
-    lib @ flatten_return r # cdb = flatten_code' 0 cd r @ []" by (metis flatten'_correctness)
-  ultimately show ?thesis by simp
-qed
-
-lemma [simp]: "get_return d e = tco_r d (encode' (convert' \<Phi> e) d')"
-proof (induction e arbitrary: \<Phi> d)
-  case (NApp e1 e2)
-  have "tco_r d ((encode' (convert' \<Phi> e1) d' @ encode' (convert' \<Phi> e2) d') @ [TApply]) = 
-    tco_r d [TApply]" using tco_r_append by blast
-  thus ?case by simp
+lemma [simp]: "cd' \<noteq> [] \<Longrightarrow> code_list_size (map tco_cd_one cd @ cd') = 
+  code_list_size (map tco_cd_one cd) + code_list_size cd' - 1"
+proof (induction cd)
+  case (Cons op cd)
+  thus ?case by (cases "code_list_size cd'") simp_all
 qed simp_all
 
-lemma compile_correct [simp]: "cd' = tco_cd cd \<Longrightarrow> 
-  compile' \<Phi> d cd' (cd = []) e = tco_cd (encode' (convert' \<Phi> e) d @ cd)"
-proof (induction e arbitrary: \<Phi> d cd cd')
+lemma tco_code_size_as_code_list_size [simp]: "tco_code_size True e =
+    code_list_size (tco_cd (encode' (convert' var_idxs e) depth))"
+  and [simp]: "tco_code_size False e =
+    code_list_size (map tco_cd_one (encode' (convert' var_idxs e) depth)) - 1"
+proof (induction e arbitrary: var_idxs depth)
+  case (NApp e1 e2) case 1
+  let ?cd1 = "map tco_cd_one (encode' (convert' var_idxs e1) depth)"
+  let ?cd2 = "map tco_cd_one (encode' (convert' var_idxs e2) depth)"
+  have "Suc ((code_list_size ?cd1 - 1) + (code_list_size ?cd2 - 1)) = 
+    code_list_size ?cd1 + code_list_size ?cd2 - 1" 
+      by (cases "code_list_size ?cd1") simp_all
+  with NApp show ?case by simp
+next 
+  case (NApp e1 e2) case 2
+  let ?cd1 = "map tco_cd_one (encode' (convert' var_idxs e1) depth)"
+  let ?cd2 = "map tco_cd_one (encode' (convert' var_idxs e2) depth)"
+  have "Suc ((code_list_size ?cd1 - 1) + (code_list_size ?cd2 - 1)) = 
+    code_list_size ?cd1 + code_list_size ?cd2 - 1" 
+      by (cases "code_list_size ?cd1") simp_all
+  with NApp show ?case by simp
+qed simp_all
+
+lemma compile_lengths [simp]: 
+  "compile' var_idxs depth (length acc) acc tail_pos (length lib) lib e = (lib', ofst, cd, sz) \<Longrightarrow> 
+    sz = length cd \<and> ofst = length lib'"
+proof (induction e arbitrary: var_idxs depth acc tail_pos lib lib' cd sz ofst)
   case (NLam x t e)
-  moreover have "[] = tco_cd []" by simp
-  ultimately have "compile' (x # \<Phi>) (Suc d) [] True e =
-    tco_cd (encode' (convert' (x # \<Phi>) e) (Suc d) @ [])" by (metis (full_types))
-  with NLam show ?case by (cases \<Phi>) simp_all
+  from NLam(2) obtain lib'' ofst'' cd' sz'' where 
+    "compile' (x # var_idxs) (Suc depth) 0 [] True (length lib) lib e = (lib'', ofst'', cd', sz'') \<and>
+      lib' = lib'' @ get_return (Suc depth) e # cd' \<and> 
+        cd = BPushLam (Suc (ofst'' + sz'')) depth # acc \<and> sz = Suc (length acc) \<and> 
+          ofst = Suc (ofst'' + sz'')"
+      by (cases "compile' (x # var_idxs) (Suc depth) 0 [] True (length lib) lib e") auto
+  moreover from NLam(1) have "compile' (x # var_idxs) (Suc depth) 0 [] True (length lib) lib e = 
+    (lib'', ofst'', cd', sz'') \<Longrightarrow> sz'' = length cd' \<and> ofst'' = length lib''" 
+      by (metis list.size(3))
+  ultimately show ?case by simp
 next
   case (NApp e1 e2)
-  hence "(if cd = [] then cd' else TCOApply # cd') = tco_cd (TApply # cd)" 
-    by (simp split: list.splits)
-  with NApp have "compile' \<Phi> d (if cd = [] then cd' else TCOApply # cd') 
-    (TApply # cd = []) e2 = 
-      tco_cd (encode' (convert' \<Phi> e2) d @ TApply # cd)" by blast
-  moreover from NApp have "compile' \<Phi> d (tco_cd (encode' (convert' \<Phi> e2) d @ TApply # cd)) 
-    ((encode' (convert' \<Phi> e2) d @ TApply # cd) = []) e1 = 
-      tco_cd (encode' (convert' \<Phi> e1) d @ encode' (convert' \<Phi> e2) d @ TApply # cd)" by blast
-  ultimately show ?case by simp
-qed simp_all
+  obtain lib1 ofst1 cd1 sz1 where C1: 
+    "compile' var_idxs depth (length acc) acc False (length lib) lib e1 = (lib1, ofst1, cd1, sz1)" 
+      by (cases "compile' var_idxs depth (length acc) acc False (length lib) lib e1") fastforce+
+  obtain lib2 ofst2 cd2 sz2 where C2: 
+    "compile' var_idxs depth sz1 cd1 False ofst1 lib1 e2 = (lib2, ofst2, cd2, sz2)"
+      by (cases "compile' var_idxs depth sz1 cd1 False ofst1 lib1 e2") fastforce+
+  with NApp C1 have "sz2 = length cd2 \<and> ofst2 = length lib2" by blast
+  with NApp(3) C1 C2 show ?case by (auto split: if_splits)
+qed auto
 
-lemma [simp]: "compile = tco \<circ> encode \<circ> convert"
-proof (rule, unfold compile_def tco_def encode_def convert_def)
-  fix e
-  have "[] = tco_cd []" by simp
-  hence "compile' [] 0 [] ([] = []) e = tco_cd (encode' (convert' [] e) 0 @ [])" 
-    by (metis (full_types) compile_correct)
-  thus "(compile' [] 0 [] True e, get_return 0 e) =
-    ((\<lambda>cd. (tco_cd cd, tco_r 0 cd)) \<circ> (\<lambda>e. encode' e 0) \<circ> convert' []) e" by simp
-qed
+lemma compile_code_size [simp]: 
+  "compile' var_idxs depth (length acc) acc tail_pos (length lib) lib e = (lib', ofst, cd, sz) \<Longrightarrow> 
+    ofst + sz + maybe_return tail_pos = length lib + length acc + tco_code_size tail_pos e"
+proof (induction e arbitrary: var_idxs depth acc tail_pos lib lib' cd sz ofst)
+  case (NLam x t e)
+  obtain lib'' ofst' cd' sz' where X:
+    "compile' (x # var_idxs) (Suc depth) 0 [] True (length lib) lib e = (lib'', ofst', cd', sz')" 
+      by (cases "compile' (x # var_idxs) (Suc depth) 0 [] True (length lib) lib e") blast
+  from NLam have "\<And>xacc. 
+    compile' (x # var_idxs) (Suc depth) (length xacc) xacc True (length lib) lib e = 
+      (lib'', ofst', cd', sz') \<Longrightarrow>
+        ofst' + sz' + maybe_return True = length lib + length xacc + tco_code_size True e" by blast
+  hence "compile' (x # var_idxs) (Suc depth) (length []) [] True (length lib) lib e = 
+    (lib'', ofst', cd', sz') \<Longrightarrow>
+      ofst' + sz' + maybe_return True = length lib + length [] + tco_code_size True e" 
+    by (metis list.size(3))
+  with X have "Suc (ofst' + sz') + Suc (length acc) = 
+    Suc (length lib + length acc + tco_code_size True e)" by simp
+  with NLam X show ?case by simp
+next
+  case (NApp e1 e2)
+  obtain lib1 ofst1 cd1 sz1 where X:
+    "compile' var_idxs depth (length acc) acc False (length lib) lib e1 = (lib1, ofst1, cd1, sz1)"
+      by (cases "compile' var_idxs depth (length acc) acc False (length lib) lib e1") blast+
+  obtain lib2 ofst2 cd2 sz2 where Y:
+    "compile' var_idxs depth sz1 cd1 False ofst1 lib1 e2 = (lib2, ofst2, cd2, sz2)"
+    by (cases "compile' var_idxs depth sz1 cd1 False ofst1 lib1 e2") blast+
+  from NApp X have Z: "ofst1 + sz1 + maybe_return False = 
+    length lib + length acc + tco_code_size False e1" by blast
+  from X have L: "sz1 = length cd1 \<and> ofst1 = length lib1" by simp
+  with NApp Y have W: "ofst2 + sz2 + maybe_return False = 
+    length lib1 + length cd1 + tco_code_size False e2" by blast
+  thus ?case
+  proof (cases tail_pos)
+    case True
+    with NApp X Y Z L W show ?thesis by simp
+  next
+    case False
+    moreover with NApp X Y have "(lib2, ofst2, BApply # cd2, Suc sz2) = (lib', ofst, cd, sz)" 
+      by simp
+    moreover from Z L W have "ofst2 + sz2 = 
+      length lib + length acc + tco_code_size False e1 + tco_code_size False e2" by simp
+    ultimately show ?thesis by fastforce
+  qed
+qed auto
+
+lemma compile_code [simp]: "compile' var_idxs depth (length acc) acc tail_pos (length lib) lib e =
+  (lib', ofst', cd, sz') \<Longrightarrow> lib' @ get_return depth e # cd = 
+    lib @ flatten_code' (length lib) (tco_cd (encode' (convert' var_idxs e) depth)) 
+      (tco_r depth (encode' (convert' var_idxs e) depth)) @ acc"
+proof (induction e arbitrary: var_idxs depth acc tail_pos lib lib' ofst' cd sz')
+  case (NLam x t e)
+  let ?cde = "encode' (convert' (x # var_idxs) e) (Suc depth)"
+  from NLam obtain lib'' ofst'' cd' sz'' where C:
+    "compile' (x # var_idxs) (Suc depth) 0 [] True (length lib) lib e = (lib'', ofst'', cd', sz'') \<and>
+      lib' = lib'' @ get_return (Suc depth) e # cd' \<and> 
+        cd = BPushLam (Suc (ofst'' + sz'')) depth # acc \<and> sz' = Suc (length acc) \<and> 
+          ofst' = Suc (ofst'' + sz'')"
+    by (cases "compile' (x # var_idxs) (Suc depth) 0 [] True (length lib) lib e") auto
+  with NLam(1) have L: "lib' =
+    lib @ flatten_code' (length lib) (tco_cd ?cde) (tco_r (Suc depth) ?cde) @ []" 
+      by (metis list.size(3))
+  from C have S: "sz'' = length cd' \<and> ofst'' = length lib''" by (metis compile_lengths list.size(3))
+  have "\<And>xacc. compile' (x # var_idxs) (Suc depth) (length xacc) xacc True (length lib) lib e = 
+    (lib'', ofst'', cd', sz'') \<Longrightarrow> 
+      ofst'' + sz'' + maybe_return True = length lib + length xacc + tco_code_size True e"
+        using compile_code_size by blast
+  hence "compile' (x # var_idxs) (Suc depth) (length []) [] True (length lib) lib e = 
+    (lib'', ofst'', cd', sz'') \<Longrightarrow> 
+      ofst'' + sz'' + maybe_return True = length lib + length [] + tco_code_size True e"
+        by (metis list.size(3))
+  with C S have X: "Suc (length lib'' + length cd') = length lib + tco_code_size True e" by simp
+  have "code_list_size (tco_cd ?cde) = tco_code_size True e" 
+    by (metis tco_code_size_as_code_list_size)
+  with C L S X show ?case by (cases var_idxs) simp_all
+next
+  case (NApp e1 e2)
+  obtain lib1 ofst1 cd1 sz1 where X:
+    "compile' var_idxs depth (length acc) acc False (length lib) lib e1 = (lib1, ofst1, cd1, sz1)"
+      by (cases "compile' var_idxs depth (length acc) acc False (length lib) lib e1") blast+
+  obtain lib2 ofst2 cd2 sz2 where Y:
+    "compile' var_idxs depth sz1 cd1 False ofst1 lib1 e2 = (lib2, ofst2, cd2, sz2)"
+    by (cases "compile' var_idxs depth sz1 cd1 False ofst1 lib1 e2") blast+
+
+
+  from NApp X have "lib1 @ get_return depth e1 # cd1 = 
+    lib @ flatten_code' (length lib) (tco_cd (encode' (convert' var_idxs e1) depth)) 
+      (tco_r depth (encode' (convert' var_idxs e1) depth)) @ acc" by simp
+
+
+  from X have "sz1 = length cd1 \<and> ofst1 = length lib1" by simp 
+  with NApp Y have "lib2 @ get_return depth e2 # cd2 = 
+    lib1 @ flatten_code' (length lib1) (tco_cd (encode' (convert' var_idxs e2) depth)) 
+      (tco_r depth (encode' (convert' var_idxs e2) depth)) @ cd1" by simp
+
+
+
+  show ?case
+  proof (cases tail_pos)
+    case True
+  
+  
+    have "lib2 @ BJump depth # cd2 =
+      lib @ flatten_code' (length lib) (map tco_cd_one (encode' (convert' var_idxs e1) depth) @
+        map tco_cd_one (encode' (convert' var_idxs e2) depth)) (TCOJump depth) @ acc" by simp
+    with NApp X Y True show ?thesis by simp
+  next
+    case False
+  
+  
+    have "lib2 @ BJump depth # BApply # cd2 =
+      lib @ flatten_code' (length lib) (map tco_cd_one (encode' (convert' var_idxs e1) depth) @
+        map tco_cd_one (encode' (convert' var_idxs e2) depth)) (TCOJump depth) @ acc" by simp
+    with NApp X Y False show ?thesis by simp
+  qed
+qed simp_all
 
 lemma [simp]: "tco_cd (encode' e d) \<noteq> []"
   by (induction e) simp_all
@@ -117,7 +223,36 @@ lemma [simp]: "tco_cd (encode' e d) \<noteq> []"
 lemma [simp]: "tco_cd (encode e) \<noteq> []"
   by (simp add: encode_def)
 
-theorem tc_terminationn: "typechecks e \<Longrightarrow> xflatten_code (compile e) = (cd, pc) \<Longrightarrow> 
+lemma compile_correct: "compile e = (cd, pc) \<Longrightarrow> 
+  cd = flatten_code (tco (encode (convert e))) \<and> pc = length cd"
+proof (unfold compile_def convert_def encode_def tco_def)
+  obtain lib ofst cdb sz where C: "compile' [] 0 0 [] True 0 [] e = (lib, ofst, cdb, sz)"
+    by (cases "compile' [] 0 0 [] True 0 [] e") blast+
+  moreover assume "(let (lib, ofst, cdb, sz) = compile' [] 0 0 [] True 0 [] e
+    in (lib @ get_return 0 e # cdb, Suc (ofst + sz))) = (cd, pc)"
+  ultimately have X: "cd = lib @ get_return 0 e # cdb \<and> pc = Suc (ofst + sz)" by simp
+  have "\<And>acc xlib. compile' [] 0 (length acc) acc True (length xlib) xlib e = 
+    (lib, ofst, cdb, sz) \<Longrightarrow> lib @ get_return 0 e # cdb = 
+      xlib @ flatten_code' (length xlib) (tco_cd (encode' (convert' [] e) 0)) 
+        (tco_r 0 (encode' (convert' [] e) 0)) @ acc" by (metis compile_code)
+  hence "compile' [] 0 (length []) [] True (length []) [] e = (lib, ofst, cdb, sz) \<Longrightarrow> 
+    lib @ get_return 0 e # cdb = [] @ flatten_code' (length []) (tco_cd (encode' (convert' [] e) 0)) 
+      (tco_r 0 (encode' (convert' [] e) 0)) @ []" by (metis list.size(3))
+  with C have Y: "lib @ get_return 0 e # cdb = flatten_code' 0 (tco_cd (encode' (convert' [] e) 0)) 
+    (tco_r 0 (encode' (convert' [] e) 0))" by simp
+  have "\<And>acc xlib. compile' [] 0 (length acc) acc True (length xlib) xlib e = 
+    (lib, ofst, cdb, sz) \<Longrightarrow> 
+      ofst + sz + maybe_return True = length xlib + length acc + tco_code_size True e" 
+        using compile_code_size by blast
+  hence "compile' [] 0 (length []) [] True (length []) [] e = (lib, ofst, cdb, sz) \<Longrightarrow> 
+    ofst + sz + maybe_return True = length [] + length [] + tco_code_size True e" 
+      by (metis list.size(3))
+  with C X Y show "cd = 
+    flatten_code (tco_cd (encode' (convert' [] e) 0), tco_r 0 (encode' (convert' [] e) 0)) \<and> 
+      pc = length cd" by simp
+qed
+
+theorem tc_terminationn: "typechecks e \<Longrightarrow> compile e = (cd, pc) \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> 
     (\<exists>h v\<^sub>f. iter (\<leadsto>\<^sub>f) (FS hempty [] [[pc]] cd) (FS h [v\<^sub>f] [] cd) \<and> 
       print_hclosure (get_closure h v\<^sub>f) = print_nexpr v)"
@@ -144,9 +279,9 @@ proof -
     (tco_state (TS [encode_closure c] []))" by (metis iter_tco_eval)
   hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (convert e)), tco_r 0 (encode (convert e)))]) 
     (TCOS [tco_val (encode_closure c)] [])" by simp
-  assume "xflatten_code (compile e) = (cd, pc)"
-  hence C: "flatten_code (tco (encode (convert e))) = cd \<and> 
-    pc = length (flatten_code (tco (encode (convert e))))" by auto
+  assume "compile e = (cd, pc)"
+  hence C: "cd = flatten_code (tco (encode (convert e))) \<and> pc = length cd" 
+    by (metis compile_correct)
   hence UB: "unflatten_state (BS [] [([], pc)] cd) = 
     TCOS [] [([], tco_cd (encode (convert e)), tco_r 0 (encode (convert e)))]" 
       by (auto simp add: tco_def simp del: flatten_code.simps)

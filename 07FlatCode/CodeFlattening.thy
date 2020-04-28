@@ -102,6 +102,9 @@ lemma [simp]: "Suc 0 \<le> code_list_size cd"
 lemma [simp]: "0 < code_list_size cd"
   by (induction cd) simp_all
 
+lemma [simp]: "code_list_size cd \<noteq> 0"
+  by (induction cd) simp_all
+
 lemma [simp]: "flatten_code' lib cd r \<noteq> []"
   by (induction lib cd r rule: flatten_code'.induct) simp_all
 

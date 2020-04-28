@@ -36,7 +36,22 @@ lemma [simp]: "env_contains h envs \<Longrightarrow> hsplay splay_closure h = (h
 
 lemma [simp]: "halloc_list h\<^sub>1 (splay_closure mp v) = (h\<^sub>2, y) \<Longrightarrow> 
     get_closure h\<^sub>2 y = flatten_closure mp v"
-  by (induction v) (simp split: prod.splits)
+proof (induction v)
+  case (HConst x)
+  then obtain h' p' where "halloc h\<^sub>1 0 = (h', y) \<and> halloc h' x = (h\<^sub>2, p')" 
+    by (simp split: prod.splits)
+
+
+
+  hence "(case hlookup h\<^sub>2 y of 0 \<Rightarrow> HConst (hlookup h\<^sub>2 (Suc y))
+     | Suc x \<Rightarrow> HLam (hlookup_list h\<^sub>2 (Suc (Suc y)) x) (hlookup h\<^sub>2 (Suc y))) =
+    HConst x" by simp
+  then show ?case by simp
+next
+  case (HLam x1a x2)
+  then show ?case by (simp split: prod.splits nat.splits)
+qed 
+qed (simp split: prod.splits)
 
 lemma [simp]: "hsplay' splay_closure h hp = (h', mp) \<Longrightarrow> x < hp \<Longrightarrow> 
     get_closure h' (mp x) = flatten_closure mp (h x)"

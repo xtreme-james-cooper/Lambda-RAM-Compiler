@@ -18,6 +18,12 @@ fun tco_cd :: "tree_code list \<Rightarrow> tco_code list" where
       [] \<Rightarrow> []
     | _ \<Rightarrow> TCOApply # tco_cd cd)"
 
+fun tco_cd_one :: "tree_code \<Rightarrow> tco_code" where
+  "tco_cd_one (TLookup x) = TCOLookup x"
+| "tco_cd_one (TPushCon k) = TCOPushCon k"
+| "tco_cd_one (TPushLam cd' d) = TCOPushLam (tco_cd cd') (tco_r (Suc d) cd') d"
+| "tco_cd_one TApply = TCOApply"
+
 definition tco :: "tree_code list \<Rightarrow> tco_code list \<times> tco_return" where
   "tco cd = (tco_cd cd, tco_r 0 cd)"
 
@@ -40,11 +46,17 @@ abbreviation tco_stack :: "tree_stack_frame list \<Rightarrow> tco_stack_frame l
 primrec tco_state :: "tree_code_state \<Rightarrow> tco_code_state" where
   "tco_state (TS vs sfs) = TCOS (map tco_val vs) (tco_stack sfs)"
 
+lemma [simp]: "cd \<noteq> [] \<Longrightarrow> tco_r d (op # cd) = tco_r d cd"
+  by (induction op) (simp_all split: list.splits)
+
 lemma tco_r_append [simp]: "cd' \<noteq> [] \<Longrightarrow> tco_r d (cd @ cd') = tco_r d cd'"
-proof (induction d cd rule: tco_r.induct)
-  case (2 d cd)
-  thus ?case by (cases cd) (auto split: list.splits)
-qed (auto split: list.splits)
+  by (induction cd) simp_all
+
+lemma [simp]: "cd \<noteq> [] \<Longrightarrow> tco_cd (op # cd) = tco_cd_one op # tco_cd cd"
+  by (induction op) (simp_all split: list.splits)
+
+lemma tco_cd_append [simp]: "cd' \<noteq> [] \<Longrightarrow> tco_cd (cd @ cd') = map tco_cd_one cd @ tco_cd cd'"
+  by (induction cd) simp_all
 
 lemma [simp]: "cd \<noteq> [] \<Longrightarrow> cd' \<noteq> [] \<Longrightarrow> tco_cd (cd @ cd') \<noteq> []"
   by (induction cd rule: tco_cd.induct) (simp_all split: list.splits)
