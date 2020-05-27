@@ -1,5 +1,5 @@
 theory TreeCodeConversion
-  imports TreeCode "../04Closure/Closure"
+  imports TreeCode "../05Closure/Closure"
 begin
 
 primrec encode' :: "dexpr \<Rightarrow> nat \<Rightarrow> tree_code list" where

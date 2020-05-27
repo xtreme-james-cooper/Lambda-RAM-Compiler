@@ -1,5 +1,5 @@
 theory MemoryFlattening
-  imports FlatMemory "../08HeapMemory/HeapConversion"
+  imports FlatMemory "../09HeapMemory/HeapConversion"
 begin
 
 primrec splay_closure :: "(ptr \<Rightarrow> ptr) \<Rightarrow> hclosure \<Rightarrow> nat list" where

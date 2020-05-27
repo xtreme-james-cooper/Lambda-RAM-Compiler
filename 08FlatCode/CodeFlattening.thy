@@ -1,5 +1,5 @@
 theory CodeFlattening
-  imports ByteCode "../06TailCall/TailCall"
+  imports ByteCode "../07TailCall/TailCall"
 begin
 
 fun flatten_code' :: "nat \<Rightarrow> tco_code list \<Rightarrow> tco_return \<Rightarrow> byte_code list" where

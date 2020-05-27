@@ -1,5 +1,5 @@
 theory Stack
-  imports "../02Debruijn/Debruijn"
+  imports "../03Debruijn/Debruijn"
 begin
 
 datatype frame = 

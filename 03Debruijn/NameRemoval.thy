@@ -1,5 +1,5 @@
 theory NameRemoval
-  imports "../01Source/Named" BigStep "../00Utils/AssocList"
+  imports "../02Source/Named" BigStep "../00Utils/AssocList"
 begin
 
 fun convert' :: "var list \<Rightarrow> nexpr \<Rightarrow> dexpr" where

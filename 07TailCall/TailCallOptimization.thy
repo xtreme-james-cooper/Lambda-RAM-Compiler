@@ -1,5 +1,5 @@
 theory TailCallOptimization
-  imports TailCall "../05TreeCode/TreeCode" "../00Utils/Iteration"
+  imports TailCall "../06TreeCode/TreeCode" "../00Utils/Iteration"
 begin
 
 fun tco_r :: "nat \<Rightarrow> tree_code list \<Rightarrow> tco_return" where
