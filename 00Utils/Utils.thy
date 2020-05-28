@@ -37,4 +37,44 @@ proof (induction ab arbitrary: s)
   qed
 qed simp_all
 
+primrec list_sum :: "nat list \<Rightarrow> nat" where
+  "list_sum [] = 0"
+| "list_sum (n # ns) = n + list_sum ns"
+
+lemma [simp]: "length as \<noteq> length bs \<Longrightarrow> map f as \<noteq> map f bs"
+proof (induction as arbitrary: bs)
+  case Nil
+  thus ?case by (induction bs) simp_all
+next
+  case (Cons a as)
+  thus ?case by (induction bs) simp_all
+qed
+
+lemma [simp]: "finite as \<Longrightarrow> x \<in> as \<Longrightarrow> 0 < card as"
+  by (induction "card as") simp_all
+
+lemma [simp]: "finite as \<Longrightarrow> a \<in> as \<Longrightarrow> Suc (card as - Suc 0) = card as"
+  by (induction as rule: finite_induct) simp_all
+
+lemma [simp]: "finite as \<Longrightarrow> finite bs \<Longrightarrow> card as < Suc (card (bs \<union> as))"
+proof -
+  assume "finite as" and "finite bs"
+  hence "card as \<le> card (bs \<union> as)" by (simp add: card_mono)
+  thus ?thesis by simp
+qed
+
+lemma [simp]: "finite as \<Longrightarrow> finite bs \<Longrightarrow> x \<in> as \<Longrightarrow> x \<notin> bs \<Longrightarrow> card bs < card (as \<union> bs)"
+proof (induction as arbitrary: bs rule: finite_induct)
+  case (insert a as)
+  thus ?case by (cases "x = a") (simp_all add: card_insert_if)
+qed simp_all
+
+lemma [simp]: "finite as \<Longrightarrow> finite bs \<Longrightarrow> x \<notin> as \<Longrightarrow> x \<in> bs \<Longrightarrow> card (bs - {x} \<union> as) < card (as \<union> bs)"
+proof -
+  assume "finite as" and "finite bs" and "x \<in> bs"
+  moreover hence "card (insert x (as \<union> bs)) = card (as \<union> bs)" by (simp add: card_insert_if)
+  moreover assume "x \<notin> as"
+  ultimately show ?thesis by (simp add: Un_Diff card.insert_remove sup_commute)
+qed
+
 end
