@@ -66,4 +66,71 @@ lemma [simp]: "ordered_subst s \<Longrightarrow> x \<notin> vars e \<Longrightar
     ordered_subst (extend_subst x e s)"
   by (auto simp add: ordered_subst_def split: if_splits)
 
+lemma [simp]: "s unifies\<^sub>l (ess\<^sub>1 @ ess\<^sub>2) = (s unifies\<^sub>l ess\<^sub>1 \<and> s unifies\<^sub>l ess\<^sub>2)"
+  by (induction s ess\<^sub>1 rule: list_unifier.induct) simp_all
+
+lemma [simp]: "length es\<^sub>1 = length es\<^sub>2 \<Longrightarrow> 
+  s unifies\<^sub>l zip es\<^sub>1 es\<^sub>2 = (map (subst s) es\<^sub>1 = map (subst s) es\<^sub>2)"
+proof (induction es\<^sub>1 arbitrary: es\<^sub>2)
+  case (Cons e\<^sub>1 es\<^sub>1)
+  thus ?case by (induction es\<^sub>2) simp_all
+qed simp_all
+
+lemma unify_subst_one: "s unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> s unifies Var x and e' \<Longrightarrow> 
+    s unifies subst [x \<mapsto> e'] e\<^sub>1 and subst [x \<mapsto> e'] e\<^sub>2"
+proof (induction e\<^sub>1 arbitrary: e\<^sub>2)
+  case (Var y)
+  thus ?case 
+  proof (induction e\<^sub>2)
+    case (Var z)
+    from Var have "subst s (Var y) = subst s (Var z)" by simp
+    from Var have "subst s (Var x) = subst s e'" by simp
+
+
+    have "subst s (subst [x \<mapsto> e'] (Var y)) = subst s (subst [x \<mapsto> e'] (Var z))" by simp
+    thus ?case by simp
+  next
+    case (Ctor x1a x2)
+    thus ?case by simp
+  qed
+next
+  case (Ctor e\<^sub>1 es\<^sub>1)
+  thus ?case by simp
+qed
+
+lemma [simp]: "x \<notin> vars e \<Longrightarrow> s unifies Var x and e \<Longrightarrow> s unifies\<^sub>l ess \<Longrightarrow> 
+  s unifies\<^sub>l list_subst x e ess"
+proof (induction x e ess rule: list_subst.induct)
+  case (2 x e' e\<^sub>1 e\<^sub>2 ess)
+  hence  "s unifies Var x and e'" by simp
+  moreover from 2 have "s unifies e\<^sub>1 and e\<^sub>2" by simp
+  ultimately have "s unifies subst [x \<mapsto> e'] e\<^sub>1 and subst [x \<mapsto> e'] e\<^sub>2" by (metis unify_subst_one)
+  with 2 show ?case by simp
+qed simp_all
+
+lemma [simp]: "s x = Some e' \<Longrightarrow> x \<in> vars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> size e' < size (subst s e)"
+  and [simp]: "s x = Some e' \<Longrightarrow> x \<in> varss es \<Longrightarrow> size e' < size_list (size \<circ> subst s) es"
+proof (induction e and es rule: vars_varss.induct)
+  case (4 e es)
+  then show ?case by force
+qed fastforce+
+
+lemma occurs_check [simp]: "x \<in> vars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> s x = Some (subst s e) \<Longrightarrow> False"
+proof (induction "s x")
+  case (Some e')
+  from Some(1, 2, 3) have "size e' < size (subst s e)" by simp
+  with Some show ?case by simp
+qed simp_all
+
+
+lemma [simp]: "x \<in> varss es \<Longrightarrow> s x \<noteq> Some (Ctor k (map (subst s) es))"
+proof (rule)
+  assume "x \<in> varss es"
+  hence X: "x \<in> vars (Ctor k es)" by simp
+  have Y: "Ctor k es \<noteq> Var x" by simp
+  assume "s x = Some (Ctor k (map (subst s) es))"
+  hence "s x = Some (subst s (Ctor k es))" by simp
+  with X Y show False by (metis occurs_check)
+qed
+
 end

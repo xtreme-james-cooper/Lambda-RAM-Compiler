@@ -94,30 +94,27 @@ qed
 
 lemma unify_none [simp]: "unify' ess s = None \<Longrightarrow> \<nexists>s'. s' unifies\<^sub>l ess"
 proof (induction ess s rule: unify'.induct)
-  case (2 k\<^sub>1 k\<^sub>2 es\<^sub>1 es\<^sub>2 ess s)
-  then show ?case by simp
-next
-  case (4 x es k ess s)
-  then show ?case by simp
-next
   case (5 x es k ess s)
-  then show ?case by simp
-next
-  case (6 x es k ess s)
-  then show ?case by simp
+  hence "x \<notin> varss es" by simp
+  hence "\<And>s'. s' unifies Ctor k es and Var x \<Longrightarrow> s' unifies\<^sub>l ess \<Longrightarrow> 
+    s' unifies\<^sub>l list_subst x (Ctor k es) ess" by simp
+  moreover from 5 have "\<nexists>s'. s' unifies\<^sub>l list_subst x (Ctor k es) ess" by simp
+  ultimately show ?case by auto
 next
   case (7 x es k ess s)
-  then show ?case by simp
+  hence "x \<notin> varss es" by simp
+  hence "\<And>s'. s' unifies Var x and Ctor k es \<Longrightarrow> s' unifies\<^sub>l ess \<Longrightarrow> 
+    s' unifies\<^sub>l list_subst x (Ctor k es) ess" by simp
+  moreover from 7 have "\<nexists>s'. s' unifies\<^sub>l list_subst x (Ctor k es) ess" by simp
+  ultimately show ?case by auto
 next
   case (9 x y ess s)
-  from 9 have "x \<noteq> y" by simp
-  from 9 have "\<And>s'. \<not> s' unifies\<^sub>l list_subst x (Var y) ess" by simp
-  from 9 have "unify' (list_subst x (Var y) ess) (extend_subst x (Var y) s) = None" by simp
-
-
-  have "\<And>s'. (\<not> s' unifies Var x and Var y) \<or> \<not> s' unifies\<^sub>l ess" by simp
-  then show ?case by simp
-qed simp_all
+  hence "x \<noteq> y" by simp
+  hence "\<And>s'. s' unifies Var x and Var y \<Longrightarrow> s' unifies\<^sub>l ess \<Longrightarrow> 
+    s' unifies\<^sub>l list_subst x (Var y) ess" by simp
+  moreover from 9 have "\<nexists>s'. s' unifies\<^sub>l list_subst x (Var y) ess" by simp
+  ultimately show ?case by auto
+qed (simp_all split: option.splits)
 
 lemma [simp]: "unify e\<^sub>1 e\<^sub>2 = None \<Longrightarrow> \<nexists>s. s unifies e\<^sub>1 and e\<^sub>2"
 proof (unfold unify_def)
@@ -125,38 +122,34 @@ proof (unfold unify_def)
   hence "\<nexists>s'. s' unifies\<^sub>l [(e\<^sub>1, e\<^sub>2)]" by (metis unify_none)
   thus "\<nexists>s. s unifies e\<^sub>1 and e\<^sub>2" by simp
 qed
-
-lemma unify_some [simp]: "ordered_subst s \<Longrightarrow> sdom s \<inter> list_vars ess = {} \<Longrightarrow> 
+ 
+lemma unify_some [simp]: "ordered_subst s \<Longrightarrow> list_vars ess \<inter> dom s = {} \<Longrightarrow> 
   unify' ess s = Some s' \<Longrightarrow> s' unifies\<^sub>l ess"
 proof (induction ess s rule: unify'.induct)
-  case (2 k\<^sub>1 k\<^sub>2 es\<^sub>1 es\<^sub>2 ess s)
-  then show ?case by simp
-next
   case (5 x es k ess s)
-  then show ?case by simp
+  from 5 have "x \<notin> varss es" by simp
+  from 5 have "ordered_subst s" by simp
+  from 5 have "x \<notin> dom s" by simp
+  from 5 have E: "varss es \<inter> dom s = {}" by auto
+  from 5 have F: "dom s \<inter> list_vars ess = {}" by auto
+  from 5 have "unify' (list_subst x (Ctor k es) ess) (extend_subst x (Ctor k es) s) = Some s'" by simp
+
+
+
+  from 5 E F have "dom (extend_subst x (Ctor k es) s) \<inter> list_vars (list_subst x (Ctor k es) ess) = 
+    {}" by auto
+  with 5 E have "s' unifies\<^sub>l list_subst x (Ctor k es) ess" by auto
+
+
+
+  have "s' x = Some (Ctor k (map (subst s') es)) \<and> s' unifies\<^sub>l ess" by simp
+  thus ?case by simp
 next
   case (7 x es k ess s)
-  then show ?case by simp
+  thus ?case by simp
 next
   case (9 x y ess s)
-  hence "unify' (list_subst x (Var y) ess) ((x, Var y) # s) = Some s'" by simp
-  then obtain s'' where S: "s' = s'' @ (x, Var y) # s" by fastforce
-
-  with 9 have O: "ordered_subst s'" by (metis unify_ordered)
-
-  from 9 have "sdom s \<inter> list_vars (list_subst x (Var y) ess) = {}" by auto
-  with 9 have "s' unifies\<^sub>l list_subst x (Var y) ess" by simp
-
-
-  from 9 have "x \<noteq> y" by simp
-  from 9 have "ordered_subst s" by simp
-  from 9 have "x \<notin> sdom s" by simp
-  from 9 have "y \<notin> sdom s" by simp
-  from 9 have "sdom s \<inter> list_vars ess = {}" by simp
-
-
-  have "s' unifies\<^sub>l ess" by simp
-  with S O show ?case by simp
+  thus ?case by simp
 qed simp_all
 
 lemma [simp]: "unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> s unifies e\<^sub>1 and e\<^sub>2"
