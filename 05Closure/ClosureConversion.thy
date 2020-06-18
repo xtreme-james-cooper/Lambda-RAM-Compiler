@@ -1,5 +1,5 @@
 theory ClosureConversion
-  imports Closure "../04Stack/Stack" "../03Debruijn/Termination"
+  imports Closure "../04Stack/Stack" "../03Debruijn/Multisubst"
 begin
 
 primrec declosure :: "closure \<Rightarrow> dexpr" where
@@ -30,14 +30,16 @@ proof (induction c t and cs ts rule: typecheck_closure_typecheck_closure_list.in
     (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst (insert_at 0 e\<^sub>2 (map declosure cs)) e = substd 0 e\<^sub>2 e')" 
       by fastforce
   thus ?case by simp
-next
-  case (tcc_cons c t cs ts)
-  moreover hence "stable t (multisubst [] (declosure c))" by (metis tc_stable subp_nil)
-  ultimately show ?case by simp
 qed simp_all
 
 lemma [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> declosure_stack s : t' \<rightarrow> t"
 proof (induction s t' t rule: typecheck_cstack.induct)
+  case (tcc_scons_app1 cs ts e t\<^sub>1 s t\<^sub>2 t)
+  hence "subst_pairs ts (map declosure cs)" by simp
+  moreover from tcc_scons_app1 have "ts \<turnstile>\<^sub>d e : t\<^sub>1" by simp
+  ultimately have "[] \<turnstile>\<^sub>d multisubst (map declosure cs) e : t\<^sub>1" by simp
+  with tcc_scons_app1 show ?case by simp
+next
   case (tcc_scons_app2 c t\<^sub>1 t\<^sub>2 s t)
   hence "[] \<turnstile>\<^sub>d declosure c : Arrow t\<^sub>1 t\<^sub>2" by simp
   moreover from tcc_scons_app2 have "declosure_stack s : t\<^sub>2 \<rightarrow> t" by simp
@@ -47,8 +49,10 @@ qed simp_all
 theorem typesafec [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> declosure_state \<Sigma> :\<^sub>s t"
 proof (induction \<Sigma> t rule: typecheck_closure_state.induct)
   case (tcc_state_ev s t' t cs ts e)
-  hence "declosure_stack s : t' \<rightarrow> t" by simp
-  moreover from tcc_state_ev have "[] \<turnstile>\<^sub>d multisubst (map declosure cs) e : t'" by simp
+  hence "subst_pairs ts (map declosure cs)" by simp
+  moreover from tcc_state_ev have "ts \<turnstile>\<^sub>d e : t'" by simp
+  ultimately have "[] \<turnstile>\<^sub>d multisubst (map declosure cs) e : t'" by simp
+  moreover from tcc_state_ev have "declosure_stack s : t' \<rightarrow> t" by simp
   ultimately show ?case by simp
 next
   case (tcc_state_ret s t' t c)

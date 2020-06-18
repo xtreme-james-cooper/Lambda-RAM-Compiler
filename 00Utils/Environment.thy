@@ -184,4 +184,14 @@ lemma [simp]: "lookup as x = Some a \<Longrightarrow> a \<in> set as"
 lemma [elim]: "list_all p as \<Longrightarrow> lookup as x = Some a \<Longrightarrow> p a"
   by (induction as x rule: lookup.induct) simp_all
 
+lemma [simp]: "list_all2 p as bs \<Longrightarrow> p a b \<Longrightarrow> x \<le> length as \<Longrightarrow> 
+  list_all2 p (insert_at x a as) (insert_at x b bs)"
+proof (induction x a as arbitrary: bs rule: insert_at.induct)
+  case (2 a' a as)
+  thus ?case by (induction bs) simp_all
+next
+  case (4 x a' a as)
+  thus ?case by (induction bs) simp_all
+qed simp_all
+
 end
