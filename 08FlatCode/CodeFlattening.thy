@@ -1,5 +1,5 @@
 theory CodeFlattening
-  imports ByteCode "../08TailCall/TailCall"
+  imports ByteCode "../07TailCall/TailCall"
 begin
 
 primrec flatten_return :: "tco_return \<Rightarrow> byte_code" where
