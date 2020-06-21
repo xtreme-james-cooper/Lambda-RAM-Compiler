@@ -2,9 +2,12 @@ theory CodeFlattening
   imports ByteCode "../07TailCall/TailCall"
 begin
 
+primrec flatten_return :: "tco_return \<Rightarrow> byte_code" where
+  "flatten_return (TCOReturn d) = BReturn d"
+| "flatten_return (TCOJump d) = BJump d"
+
 fun flatten_code' :: "nat \<Rightarrow> tco_code list \<Rightarrow> tco_return \<Rightarrow> byte_code list" where
-  "flatten_code' lib [] (TCOReturn d) = [BReturn d]"
-| "flatten_code' lib [] (TCOJump d) = [BJump d]"
+  "flatten_code' lib [] r = [flatten_return r]"
 | "flatten_code' lib (TCOLookup x # cd) r = flatten_code' lib cd r @ [BLookup x]"
 | "flatten_code' lib (TCOPushCon k # cd) r = flatten_code' lib cd r @ [BPushCon k]"
 | "flatten_code' lib (TCOPushLam cd' r' d # cd) r = (
@@ -114,6 +117,9 @@ lemma [simp]: "flatten_code (cd, r) \<noteq> []"
 lemma [simp]: "cd \<noteq> [] \<Longrightarrow> return_terminated (cd @ cd') = return_terminated cd"
   by (induction cd) simp_all
 
+lemma [simp]: "\<exists>d. flatten_return r = BReturn d \<or> flatten_return r = BJump d"
+  by (induction r) simp_all
+
 lemma [simp]: "return_terminated (flatten_code' lib cd r)"
   by (induction lib cd r rule: flatten_code'.induct) simp_all
 
@@ -135,6 +141,9 @@ lemma [simp]: "\<forall>x < length cd. ordered (cd ! x) (x + n) \<Longrightarrow
 
 lemma [simp]: "orderly (cd @ cd') n = (orderly cd n \<and> orderly cd' (length cd + n))"
   by (induction cd arbitrary: n) simp_all
+
+lemma [simp]: "ordered (flatten_return r) n"
+  by (induction r) simp_all
 
 lemma [simp]: "lib \<le> n \<Longrightarrow> orderly (flatten_code' lib cd r) n"
   by (induction lib cd r arbitrary: n rule: flatten_code'.induct) simp_all
@@ -190,12 +199,15 @@ qed simp_all
 lemma unflatten_flatten_r [simp]: "unflatten_return (lib @ flatten_code' (length lib) cd r @ acc) 
   (length lib + code_list_size cd) = r"
 proof (induction "length lib" cd r arbitrary: lib acc rule: flatten_code'.induct)
-  case (5 cd' r' d cd r)
+  case (1 r)
+  thus ?case by (cases r) simp_all
+next
+  case (4 cd' r' d cd r)
   let ?pc = "length lib + code_list_size cd'"
   let ?code' = "lib @ flatten_code' (length lib) cd' r'"
   let ?code = "?code' @ flatten_code' ?pc cd r @ BPushLam ?pc d # acc"
   have "length lib + length (flatten_code' (length lib) cd' r') = length ?code'" by simp
-  with 5 have "unflatten_return (?code' @ flatten_code' (length ?code') cd r @
+  with 4 have "unflatten_return (?code' @ flatten_code' (length ?code') cd r @
     BPushLam (length lib + length (flatten_code' (length lib) cd' r')) d # acc)
      (length ?code' + code_list_size cd) = r" by blast
   hence "unflatten_return ?code (length lib + code_list_size cd' + code_list_size cd) = r" by simp
@@ -207,19 +219,22 @@ qed simp_all
 lemma unflatten_flatten [simp]: "unflatten_code (lib @ flatten_code' (length lib) cd r @ acc) 
   (length lib + code_list_size cd) = cd"
 proof (induction "length lib" cd r arbitrary: lib acc rule: flatten_code'.induct)
-  case (5 cd' r' d cd r)
+  case (1 r)
+  thus ?case by (cases r) simp_all
+next
+  case (4 cd' r' d cd r)
   let ?pc = "length lib + code_list_size cd'"
   let ?code' = "lib @ flatten_code' (length lib) cd' r' @ []"
   let ?code = "?code' @ flatten_code' ?pc cd r @ BPushLam ?pc d # acc"
   have "length lib + length (flatten_code' (length lib) cd' r') = length ?code'" by simp
-  with 5 have "unflatten_code (?code' @ flatten_code' (length ?code') cd r @
+  with 4 have "unflatten_code (?code' @ flatten_code' (length ?code') cd r @
     BPushLam (length lib + length (flatten_code' (length lib) cd' r')) d # acc)
       (length ?code' + code_list_size cd) = cd" by blast
   hence "unflatten_code ?code (length lib + code_list_size cd' + code_list_size cd) = cd" by simp
   hence X: "unflatten_code ?code (length lib + (code_list_size cd' + code_list_size cd)) = cd" 
     by (metis add.assoc)
   have P: "?pc \<le> length ?code'" by simp
-  moreover from 5 have "unflatten_code ?code' (length lib + code_list_size cd') = cd'" by blast
+  moreover from 4 have "unflatten_code ?code' (length lib + code_list_size cd') = cd'" by blast
   ultimately have Z: "unflatten_code ?code ?pc =  cd'" by (metis unflatten_front)
   from P have "unflatten_return ?code ?pc = unflatten_return ?code' ?pc" 
     by (metis unflatten_r_front)

@@ -49,9 +49,8 @@ proof (induction v)
   then show ?case by simp
 next
   case (HLam x1a x2)
-  then show ?case by (simp split: prod.splits nat.splits)
-qed 
-qed (simp split: prod.splits)
+  then show ?case by simp
+qed
 
 lemma [simp]: "hsplay' splay_closure h hp = (h', mp) \<Longrightarrow> x < hp \<Longrightarrow> 
     get_closure h' (mp x) = flatten_closure mp (h x)"
@@ -62,6 +61,9 @@ proof (induction hp arbitrary: h' mp)
     case True
     obtain h\<^sub>2 mp' where H: "hsplay' splay_closure h hp = (h\<^sub>2, mp')" by fastforce
     obtain h\<^sub>3 y where Y: "halloc_list h\<^sub>2 (splay_closure mp' (h hp)) = (h\<^sub>3, y)" by fastforce 
+
+
+
     with True have "get_closure h\<^sub>3 y = flatten_closure (mp'(hp := y)) (h x)" by simp
     with True have "get_closure h\<^sub>3 ((mp'(hp := y)) x) = flatten_closure (mp'(hp := y)) (h x)"
       by simp
@@ -85,40 +87,7 @@ lemma get_closure_flatten [simp]: "hsplay splay_closure h = (h', mp) \<Longright
     get_closure h' (mp x) = flatten_closure mp (hlookup h x)"
   by (induction h) (simp_all del: get_closure.simps)
 
-theorem completef [simp]: "\<Sigma>\<^sub>h \<leadsto>\<^sub>h \<Sigma>\<^sub>h' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> flatten \<Sigma>\<^sub>h \<leadsto>\<^sub>f flatten \<Sigma>\<^sub>h'"
-(*
-proof (induction \<Sigma>\<^sub>h \<Sigma>\<^sub>h' rule: evalh.induct)
-  case (evh_pushcon cd pc k h h' v vs env sfs)
-  hence S: "stack_contains h vs \<and> env_contains h env" by simp
-  obtain h\<^sub>1 mp where H1: "hsplay splay_closure h = (h\<^sub>1, mp)" by fastforce
-  obtain h\<^sub>2 y where H2: "halloc_list h\<^sub>1 [0, k] = (h\<^sub>2, y)" by fastforce
-  with evh_pushcon H1 have H3: "hsplay splay_closure h' = (h\<^sub>2, mp(v := y))" by simp
-  from evh_pushcon H2 have "FS h\<^sub>1 (map mp vs) (map (map mp) envs) (Suc pc # pcs) cd \<leadsto>\<^sub>f 
-    FS h\<^sub>2 (y # map mp vs) (map (map mp) envs) (pc # pcs) cd" by simp
-  moreover from evh_pushcon S H1 have "map (mp(v := y)) vs = map mp vs" by fastforce
-  moreover from evh_pushcon S H1 have "map (map (mp(v := y))) envs = map (map mp) envs" by fastforce
-  ultimately have "FS h\<^sub>1 (map mp vs) (map (map mp) envs) (Suc pc # pcs) cd \<leadsto>\<^sub>f
-    FS h\<^sub>2 (y # map (mp(v := y)) vs) (map (map (mp(v := y))) envs) (pc # pcs) cd" by metis
-  with H1 H3 show ?case by simp
-next
-  case (evh_pushlam cd pc pc' h env h' v vs envs pcs)
-  hence S: "stack_contains h vs \<and> stack_contains h env \<and> env_contains h envs" by simp
-  obtain h\<^sub>1 mp where H1: "hsplay splay_closure h = (h\<^sub>1, mp)" by fastforce
-  obtain h\<^sub>2 y where H2: "halloc_list h\<^sub>1 (Suc (length (map mp env)) # pc' # map mp env) = (h\<^sub>2, y)" 
-    by fastforce
-  with evh_pushlam H1 have H3: "hsplay splay_closure h' = (h\<^sub>2, mp(v := y))" 
-    by (simp del: halloc_list.simps)
-  from evh_pushlam H2 have "FS h\<^sub>1 (map mp vs) (map mp env # map (map mp) envs) (Suc pc # pcs) cd \<leadsto>\<^sub>f 
-    FS h\<^sub>2 (y # map mp vs) (map mp env # map (map mp) envs) (pc # pcs) cd" by simp
-  moreover from evh_pushlam S H1 have "map (mp(v := y)) vs = map mp vs" by fastforce
-  moreover from evh_pushlam S H1 have "map (mp(v := y)) env = map mp env" by fastforce
-  moreover from evh_pushlam S H1 have "map (map (mp(v := y))) envs = map (map mp) envs" by fastforce
-  ultimately have "FS h\<^sub>1 (map mp vs) (map mp env # map (map mp) envs) (Suc pc # pcs) cd \<leadsto>\<^sub>f
-    FS h\<^sub>2 (y # map (mp(v := y)) vs) (map (mp(v := y)) env # map (map (mp(v := y))) envs) 
-      (pc # pcs) cd" by metis
-  with H1 H3 show ?case by simp
-qed (simp_all del: get_closure.simps split: prod.splits)
-*) 
+theorem completef [simp]: "\<Sigma>\<^sub>h \<leadsto>\<^sub>h \<Sigma>\<^sub>h' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> flatten \<Sigma>\<^sub>h \<leadsto>\<^sub>f flatten \<Sigma>\<^sub>h'" 
   by simp
 
 lemma completef_iter [simp]: "iter (\<leadsto>\<^sub>h) \<Sigma>\<^sub>h \<Sigma>\<^sub>h' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow>

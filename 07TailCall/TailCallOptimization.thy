@@ -138,7 +138,9 @@ proof (induction cd rule: tco_cd.induct)
   case 1
   have "TS vs ((env, []) # sfs) \<leadsto>\<^sub>t TS vs sfs" by simp
   hence X: "iter (\<leadsto>\<^sub>t) (TS vs ((env, []) # sfs)) (TS vs sfs)" by (metis iter_one)
-  have "TCOS (map tco_val vs) ((map tco_val env, tco_cd [], tco_r (length env) []) # tco_stack sfs) 
+  have "TCOS (map tco_val vs) ((map tco_val env, [], TCOReturn (length env)) # tco_stack sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+    TCOS (map tco_val vs) (tco_stack sfs)" by (metis evtco_return length_map)
+  hence "TCOS (map tco_val vs) ((map tco_val env, tco_cd [], tco_r (length env) []) # tco_stack sfs) 
     \<leadsto>\<^sub>t\<^sub>c\<^sub>o TCOS (map tco_val vs) (tco_stack sfs)" by simp
   hence Y: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) 
     (TCOS (map tco_val vs) ((map tco_val env, tco_cd [], tco_r (length env) []) # tco_stack sfs)) 
@@ -147,13 +149,18 @@ proof (induction cd rule: tco_cd.induct)
   with X Y show ?case by blast
 next
   case (2 x cd)
+  hence "\<exists>\<Sigma>\<^sub>t \<Sigma>.
+     iter (\<leadsto>\<^sub>t) (TS vs ((env, cd) # sfs)) \<Sigma>\<^sub>t \<and>
+     iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS (map tco_val vs) ((map tco_val env, tco_cd cd, tco_r (length env) cd) # tco_stack sfs)) \<Sigma> \<and>
+     \<Sigma> = tco_state \<Sigma>\<^sub>t" by blast
 
 
-  have X: "iter (\<leadsto>\<^sub>t) (TS vs ((env, TLookup x # cd) # sfs)) \<Sigma>\<^sub>t" by simp
-  have Y: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS (map tco_val vs) 
-    ((map tco_val env, tco_cd (TLookup x # cd), tco_r (TLookup x # cd)) # tco_stack sfs)) \<Sigma>" by simp
-  have "\<Sigma> = tco_state \<Sigma>\<^sub>t" by simp
-  with X Y show ?case by blast
+
+  have "iter (\<leadsto>\<^sub>t) (TS vs ((env, TLookup x # cd) # sfs)) x\<Sigma>\<^sub>t \<and>
+    iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS (map tco_val vs) 
+      ((map tco_val env, TCOLookup x # tco_cd cd, tco_r (length env) cd) # tco_stack sfs)) x\<Sigma> \<and>
+        x\<Sigma> = tco_state x\<Sigma>\<^sub>t" by simp
+  thus ?case by auto
 next
   case (3 k cd)
   then show ?case by simpx
@@ -179,6 +186,8 @@ proof (induction "tco_state \<Sigma>\<^sub>t" \<Sigma>' rule: evaltco.induct)
     (TS vs' ((env', TLookup x # cd'') # sfs'))" by simp
   ultimately have X: "iter (\<leadsto>\<^sub>t) (TS vs' (dsfs @ (env', TLookup x # cd'') # sfs')) 
     (TS (v' # vs') ((env', cd'') # sfs'))" by simp 
+
+
 
 
   have "iter (\<leadsto>\<^sub>t) (TS vs' (dsfs @ (env', TLookup x # cd'') # sfs')) \<Sigma>\<^sub>t' \<and> 
