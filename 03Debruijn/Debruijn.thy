@@ -64,6 +64,17 @@ qed simp_all
 lemma [simp]: "y \<le> x \<Longrightarrow> incrd y (incrd x e) = incrd (Suc x) (incrd y e)"
   by (induction e arbitrary: x y) simp_all
 
+lemma [simp]: "vald e \<Longrightarrow> vald (incrd x e)"
+  by (induction e) simp_all
+
+lemma [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> x \<ge> length \<Gamma> \<Longrightarrow> incrd x e = e"
+proof (induction \<Gamma> e t arbitrary: x rule: typecheckd.induct)
+  case (tcd_var \<Gamma> y t)
+  moreover hence "y < length \<Gamma>" by simp
+  ultimately have "y < x" by linarith
+  thus ?case by (simp add: incr_min)
+qed simp_all
+
 lemma [simp]: "y \<le> x \<Longrightarrow> incrd y (substd x e' e) = substd (Suc x) (incrd y e') (incrd y e)"
   by (induction e arbitrary: x y e') (simp_all add: incr_le incr_lemma)
 
@@ -132,6 +143,16 @@ proof (induction \<Gamma> e t arbitrary: x rule: typecheckd.induct)
   hence "insert_at x t' \<Gamma> \<turnstile>\<^sub>d (incrd x e\<^sub>1) : Arrow t\<^sub>1 t\<^sub>2" by simp
   moreover from tcd_app have "insert_at x t' \<Gamma> \<turnstile>\<^sub>d (incrd x e\<^sub>2) : t\<^sub>1" by simp
   ultimately show ?case by simp
+qed fastforce+
+
+lemma [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> x \<ge> length \<Gamma> \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d incrd x e : t"
+proof (induction e arbitrary: \<Gamma> x t)
+  case (DVar y)
+  hence X: "lookup \<Gamma> y = Some t" by fastforce
+  hence "y < length \<Gamma>" by simp
+  with DVar have "x > y" by simp
+  with X have "lookup \<Gamma> (incr x y) = Some t" using incr_min by (simp, linarith)
+  then show ?case by simp
 qed fastforce+
 
 lemma [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> x \<ge> length \<Gamma> \<Longrightarrow> substd x e' e = e"

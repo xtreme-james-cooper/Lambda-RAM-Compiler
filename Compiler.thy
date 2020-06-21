@@ -265,7 +265,8 @@ proof -
   from EN TN have ED: "convert e \<Down>\<^sub>d convert v\<^sub>n" by simp
   hence VD: "vald (convert v\<^sub>n)" by simp
   from ED have "iter (\<leadsto>\<^sub>d) (convert e) (convert v\<^sub>n)" by (metis BigStep.correctb)
-  with ED EN TD have ES: "iter (\<leadsto>\<^sub>s) (SS [FReturn] (convert e)) (SS [] (convert v\<^sub>n))" by simp
+  with ED EN TD have ES: "iter (\<leadsto>\<^sub>s) (SS False [FReturn] (convert e)) (SS True [] (convert v\<^sub>n))" 
+    by simp
   from TD have TC: "CSE [CReturn []] [] (convert e) :\<^sub>c t" 
     by (metis tcc_state_ev tcc_nil tcc_snil tcc_scons_ret latest_environment.simps(4))
   with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (CSE [CReturn []] [] (convert e)) (CSC [] c) \<and> 
