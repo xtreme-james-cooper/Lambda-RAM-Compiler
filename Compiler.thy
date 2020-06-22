@@ -217,10 +217,10 @@ next
   thus ?case by simp
 qed simp_all
 
-lemma [simp]: "tco_cd (encode' e d) \<noteq> []"
+lemma [simp]: "live_frame (env, tco_cd (encode' e i), tco_r d (encode' e j))"
   by (induction e) simp_all
 
-lemma [simp]: "tco_cd (encode e) \<noteq> []"
+lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r d (encode e))"
   by (simp add: encode_def)
 
 lemma compile_correct: "compile e = (cd, pc) \<Longrightarrow> 

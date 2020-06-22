@@ -49,6 +49,52 @@ primrec zip_encode :: "dexpr list \<Rightarrow> nat \<Rightarrow> tree_code list
   "zip_encode [] d = []"
 | "zip_encode (e # es) d = zip_encode es d @ encode' e d @ [TApply]"
 
+lemma [simp]: "full_block (encode' e d) n = Some (Suc n)"
+  by (induction e arbitrary: d n) simp_all
+
+lemma [simp]: "list_all full_code_closure (encode' e d)"
+  by (induction e arbitrary: d) simp_all
+
+lemma [simp]: "full_closure (encode_closure c)"
+proof (induction c)
+  case (CLam t cs e)
+  thus ?case using list_all_iff by fastforce
+qed simp_all
+
+lemma [simp]: "list_all full_closure (vals_from_stack s)"
+  by (induction s rule: vals_from_stack.induct) simp_all
+
+lemma full_frame_from_stack [simp]: "list_all full_frame (stack_from_stack s)"
+proof (induction s rule: vals_from_stack.induct)
+  case (2 cs e s)
+  thus ?case
+  proof (cases "stack_from_stack s")
+    case (Cons envcd sfs)
+    with 2 show ?thesis by (cases envcd) simp_all
+  qed simp_all
+next
+  case (3 c s)
+  thus ?case
+  proof (cases "stack_from_stack s")
+    case (Cons envcd sfs)
+    with 3 show ?thesis by (cases envcd) simp_all
+  qed simp_all
+next
+  case (4 cs s)
+  thus ?case by (induction cs) simp_all
+qed simp_all
+
+lemma [simp]: "stack_from_stack s = (env, cd) # sfs \<Longrightarrow>
+  list_all full_closure env \<and> list_all full_code_closure cd \<and> list_all full_frame sfs"
+proof -
+  assume "stack_from_stack s = (env, cd) # sfs"
+  hence "list_all full_frame ((env, cd) # sfs)" by (metis full_frame_from_stack)
+  thus ?thesis by simp
+qed
+
+lemma [simp]: "full_state (encode_state \<Sigma>)"
+  by (induction \<Sigma>) (simp_all split: list.splits)
+
 lemma [simp]: "encode' e d \<noteq> []"
   by (induction e) simp_all
 
@@ -65,7 +111,6 @@ lemma [simp]: "stack_from_stack s = (env, cd) # sfs \<Longrightarrow>
 lemma [dest]: "encode' e d @ cd' = TLookup x # cd \<Longrightarrow> 
     (\<And>es. unzip e = (DVar x, es) \<Longrightarrow> cd = zip_encode es d @ cd' \<Longrightarrow> P) \<Longrightarrow> P"
   by (induction e arbitrary: cd') fastforce+
-
 
 lemma [dest]: "encode' e d @ cd' = TPushCon k # cd \<Longrightarrow> 
     (\<And>es. unzip e = (DConst k, es) \<Longrightarrow> cd = zip_encode es d @ cd' \<Longrightarrow> P) \<Longrightarrow> P"
