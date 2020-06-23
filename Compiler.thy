@@ -5,11 +5,8 @@ begin
 abbreviation compile :: "nexpr \<Rightarrow> byte_code list" where 
   "compile \<equiv> flatten_code \<circ> tco \<circ> encode \<circ> convert"
 
-lemma [simp]: "live_frame (env, tco_cd (encode' e i), tco_r d (encode' e j))"
+lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
   by (induction e) simp_all
-
-lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r d (encode e))"
-  by (simp add: encode_def)
 
 theorem tc_terminationn: "typechecks e \<Longrightarrow> compile e = cd \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> 
@@ -37,11 +34,11 @@ proof -
     by (simp add: encode_def)
   hence "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS [] [([], encode (convert e))])) 
     (tco_state (TS [encode_closure c] []))" by (metis iter_tco_eval)
-  hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (convert e)), tco_r 0 (encode (convert e)))]) 
+  hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (convert e)), tco_r (encode (convert e)))]) 
     (TCOS [tco_val (encode_closure c)] [])" by simp
   assume C: "compile e = cd"
   hence UB: "unflatten_state (BS [] [([], length cd)] cd) = 
-    TCOS [] [([], tco_cd (encode (convert e)), tco_r 0 (encode (convert e)))]" 
+    TCOS [] [([], tco_cd (encode (convert e)), tco_r (encode (convert e)))]" 
       by (auto simp add: tco_def simp del: flatten_code.simps)
   from C have "orderly_state (BS [] [([], length cd)] cd)" by auto
   with ET UB obtain v\<^sub>b where EB: 
