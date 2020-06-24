@@ -10,8 +10,8 @@ lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
 
 theorem tc_terminationn: "typechecks e \<Longrightarrow> compile e = cd \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> 
-    (\<exists>h v\<^sub>f. iter (\<leadsto>\<^sub>f) (FS hempty [] [[length cd]] cd) (FS h [v\<^sub>f] [] cd) \<and> 
-      print_hclosure (get_closure h v\<^sub>f) = print_nexpr v)"
+    (\<exists>h env v\<^sub>f. iter (\<leadsto>\<^sub>f) (FS hempty hempty [] [length cd, 0] cd) (FS h env [v\<^sub>f] [] cd) \<and> 
+      print_ceclosure (get_closure h v\<^sub>f) = print_nexpr v)"
 proof -
   assume "typechecks e"
   then obtain t where TN: "Map.empty \<turnstile>\<^sub>n e : t" by fastforce

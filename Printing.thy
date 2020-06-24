@@ -1,7 +1,7 @@
 theory Printing
   imports "03Debruijn/NameRemoval" "05Closure/ClosureConversion" "06TreeCode/TreeCodeConversion"
     "07TailCall/TailCallOptimization" "08FlatCode/CodeFlattening" 
-    "09HeapMemory/HeapConversion" "11FlatMemory/MemoryFlattening"
+    "09HeapMemory/HeapConversion" "10ChainedEnvironment/Chaining" "11FlatMemory/MemoryFlattening"
 begin
 
 function string_of_nat :: "nat \<Rightarrow> string" where
@@ -43,6 +43,10 @@ primrec print_hclosure :: "hclosure \<Rightarrow> string" where
   "print_hclosure (HConst k) = string_of_nat k"
 | "print_hclosure (HLam cs pc) = ''<fun>''"
 
+primrec print_ceclosure :: "ceclosure \<Rightarrow> string" where
+  "print_ceclosure (CEConst k) = string_of_nat k"
+| "print_ceclosure (CELam cs pc) = ''<fun>''"
+
 lemma [simp]: "valn e \<Longrightarrow> print_dexpr (convert e) = print_nexpr e" 
   by (induction e) (simp_all add: convert_def)
 
@@ -63,8 +67,5 @@ lemma [simp]: "print_bclosure c = print_tco_closure (unflatten_closure cd c)"
 
 lemma [simp]: "print_hclosure (hlookup h x) = print_bclosure (unheap_closure h x)"
   by (cases "hlookup h x") simp_all
-
-lemma [simp]: "print_hclosure (flatten_closure mp v) = print_hclosure v"
-  by (induction v) simp_all
 
 end
