@@ -1,5 +1,5 @@
 theory AlgorithmicTypechecking
-  imports Named
+  imports Named "../01Unification/Unification"
 begin
 
 fun tc_alg :: "(var \<rightharpoonup> ty) \<Rightarrow> nexpr \<rightharpoonup> ty" where
