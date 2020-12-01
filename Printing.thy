@@ -47,6 +47,11 @@ primrec print_ceclosure :: "ceclosure \<Rightarrow> string" where
   "print_ceclosure (CEConst k) = string_of_nat k"
 | "print_ceclosure (CELam cs pc) = ''<fun>''"
 
+fun print_uclosure :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> string" where
+  "print_uclosure h p = (case h p of
+      0 \<Rightarrow> string_of_nat (h (Suc p))
+    | Suc x \<Rightarrow> ''<fun>'')"
+
 lemma [simp]: "valn e \<Longrightarrow> print_dexpr (convert e) = print_nexpr e" 
   by (induction e) (simp_all add: convert_def)
 
@@ -67,5 +72,12 @@ lemma [simp]: "print_bclosure c = print_tco_closure (unflatten_closure cd c)"
 
 lemma [simp]: "print_hclosure (hlookup h x) = print_bclosure (unheap_closure h x)"
   by (cases "hlookup h x") simp_all
+
+lemma print_ce [simp]: "print_ceclosure (hlookup h x) = 
+    print_hclosure (hlookup (unchain_heap h env) x)"
+  by (cases "hlookup h x") simp_all
+
+lemma print_u [simp]: "print_uclosure h p = print_ceclosure (get_closure (H h hp) p)"
+  by (cases "h p") simp_all
 
 end

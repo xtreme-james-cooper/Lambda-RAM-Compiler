@@ -111,8 +111,8 @@ lemma [simp]: "code_list_size cd \<noteq> 0"
 lemma [simp]: "flatten_code' lib cd r \<noteq> []"
   by (induction lib cd r rule: flatten_code'.induct) simp_all
 
-lemma [simp]: "flatten_code (cd, r) \<noteq> []"
-  by (simp add: flatten_code_def)
+lemma [simp]: "flatten_code cdr \<noteq> []"
+  by (cases cdr) (simp add: flatten_code_def)
 
 lemma [simp]: "cd \<noteq> [] \<Longrightarrow> return_terminated (cd @ cd') = return_terminated cd"
   by (induction cd) simp_all

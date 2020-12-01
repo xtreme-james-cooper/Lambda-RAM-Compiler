@@ -76,25 +76,38 @@ proof (induction es\<^sub>1 arbitrary: es\<^sub>2)
   thus ?case by (induction es\<^sub>2) simp_all
 qed simp_all
 
-lemma unify_subst_one: "s unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> s unifies Var x and e' \<Longrightarrow> 
+lemma unify_subst_one: "s unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> s unifies Var x and e' \<Longrightarrow> x \<notin> vars e' \<Longrightarrow>
     s unifies subst [x \<mapsto> e'] e\<^sub>1 and subst [x \<mapsto> e'] e\<^sub>2"
 proof (induction e\<^sub>1 arbitrary: e\<^sub>2)
   case (Var y)
   thus ?case 
   proof (induction e\<^sub>2)
-    case (Var z)
-    from Var have "subst s (Var y) = subst s (Var z)" by simp
-    from Var have "subst s (Var x) = subst s e'" by simp
+    case (Ctor k\<^sub>2 es\<^sub>2)
+    thus ?case
+    proof (cases "x = y")
+      case True
+      from Ctor have "(case s y of None \<Rightarrow> Var y | Some e \<Rightarrow> e) = Ctor k\<^sub>2 (map (subst s) es\<^sub>2)" by simp
+      from Ctor have "(case s x of None \<Rightarrow> Var x | Some e \<Rightarrow> e) = subst s e'" by simp
+      from Ctor have "x \<notin> vars e'" by simp
 
+  
+      have "subst s e' = Ctor k\<^sub>2 (map (subst s \<circ> subst [x \<mapsto> e']) es\<^sub>2)" by simp
+      with True have "s unifies subst [x \<mapsto> e'] (Var y) and subst [x \<mapsto> e'] (Ctor k\<^sub>2 es\<^sub>2)" by simp
+      thus ?thesis by blast
+    next
+      case False
+      from Ctor have "(case s y of None \<Rightarrow> Var y | Some e \<Rightarrow> e) = Ctor k\<^sub>2 (map (subst s) es\<^sub>2)" by simp
+      from Ctor have "(case s x of None \<Rightarrow> Var x | Some e \<Rightarrow> e) = subst s e'" by simp
+      from Ctor have "x \<notin> vars e'" by simp
 
-    have "subst s (subst [x \<mapsto> e'] (Var y)) = subst s (subst [x \<mapsto> e'] (Var z))" by simp
-    thus ?case by simp
-  next
-    case (Ctor x1a x2)
-    thus ?case by simp
-  qed
+  
+      have "(case s y of None \<Rightarrow> Var y | Some e \<Rightarrow> e) = Ctor k\<^sub>2 (map (subst s \<circ> subst [x \<mapsto> e']) es\<^sub>2)" by simp
+      with False have "s unifies subst [x \<mapsto> e'] (Var y) and subst [x \<mapsto> e'] (Ctor k\<^sub>2 es\<^sub>2)" by simp
+      thus ?thesis by blast
+    qed
+  qed (auto split: option.splits)
 next
-  case (Ctor e\<^sub>1 es\<^sub>1)
+  case (Ctor k\<^sub>1 es\<^sub>1)
   thus ?case by simp
 qed
 
@@ -102,8 +115,9 @@ lemma [simp]: "x \<notin> vars e \<Longrightarrow> s unifies Var x and e \<Longr
   s unifies\<^sub>l list_subst x e ess"
 proof (induction x e ess rule: list_subst.induct)
   case (2 x e' e\<^sub>1 e\<^sub>2 ess)
-  hence  "s unifies Var x and e'" by simp
+  hence "s unifies Var x and e'" by simp
   moreover from 2 have "s unifies e\<^sub>1 and e\<^sub>2" by simp
+  moreover from 2 have "x \<notin> vars e'" by simp
   ultimately have "s unifies subst [x \<mapsto> e'] e\<^sub>1 and subst [x \<mapsto> e'] e\<^sub>2" by (metis unify_subst_one)
   with 2 show ?case by simp
 qed simp_all

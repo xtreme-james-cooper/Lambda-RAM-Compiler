@@ -19,12 +19,10 @@ fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonu
 inductive evalf :: "flat_state \<Rightarrow> flat_state \<Rightarrow> bool" (infix "\<leadsto>\<^sub>f" 50) where
   evf_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> flat_lookup env p x = Some v \<Longrightarrow> 
     FS h env vs (Suc pc # p # sfs) cd \<leadsto>\<^sub>f FS h env (v # vs) (pc # p # sfs) cd"
-| evf_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> halloc h 0 = (h1, v) \<Longrightarrow> halloc h1 k = (h2, v') \<Longrightarrow> 
-    halloc h2 0 = (h3, v2) \<Longrightarrow>
-      FS h env vs (Suc pc # p # sfs) cd \<leadsto>\<^sub>f FS h3 env (v # vs) (pc # p # sfs) cd"
-| evf_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> halloc h 1 = (h1, v) \<Longrightarrow> 
-    halloc h1 p = (h2, v') \<Longrightarrow> halloc h2 pc' = (h3, v2) \<Longrightarrow>
-      FS h env vs (Suc pc # p # sfs) cd \<leadsto>\<^sub>f FS h3 env (v # vs) (pc # p # sfs) cd"
+| evf_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> halloc_list h [0, k, 0] = (h', v) \<Longrightarrow>
+    FS h env vs (Suc pc # p # sfs) cd \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs) cd"
+| evf_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> halloc_list h [1, p, pc'] = (h', v) \<Longrightarrow> 
+    FS h env vs (Suc pc # p # sfs) cd \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs) cd"
 | evf_apply [simp]: "cd ! pc = BApply \<Longrightarrow> get_closure h v2 = CELam p' pc' \<Longrightarrow>
     halloc env v1 = (env1, p1) \<Longrightarrow> halloc env1 p' = (env2, p2) \<Longrightarrow> 
       FS h env (v1 # v2 # vs) (Suc pc # p # sfs) cd \<leadsto>\<^sub>f 
@@ -40,12 +38,12 @@ proof (induction \<Sigma> \<Sigma>' rule: evalf.induct)
   from evf_lookup(3, 1, 2) show ?case 
     by (induction "FS h env vs (Suc pc # p # sfs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
 next
-  case (evf_pushcon cd pc k h h1 v h2 v' h3 v2 env vs p sfs)
-  from evf_pushcon(5, 1, 2, 3, 4) show ?case 
+  case (evf_pushcon cd pc k h h' v env vs p sfs)
+  from evf_pushcon(3, 1, 2) show ?case 
     by (induction "FS h env vs (Suc pc # p # sfs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
 next
-  case (evf_pushlam cd pc pc' h h1 v p h2 v' h3 v2 env vs sfs)
-  from evf_pushlam(5, 1, 2, 3, 4) show ?case 
+  case (evf_pushlam cd pc pc' h p h' v env vs sfs)
+  from evf_pushlam(3, 1, 2) show ?case 
     by (induction "FS h env vs (Suc pc # p # sfs) cd" \<Sigma>'' rule: evalf.induct) simp_all 
 next
   case (evf_apply cd pc h v2 p' pc' env v1 env1 p1 env2 p2 vs p sfs)

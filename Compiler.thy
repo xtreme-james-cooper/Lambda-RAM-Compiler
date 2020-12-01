@@ -1,5 +1,6 @@
 theory Compiler
   imports "02Source/AlgorithmicTypechecking" Printing "04Stack/StackConversion" 
+          "12UnstructuredMemory/Unstructuring" 
 begin
 
 abbreviation compile :: "nexpr \<Rightarrow> byte_code list" where 
@@ -8,10 +9,13 @@ abbreviation compile :: "nexpr \<Rightarrow> byte_code list" where
 lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
   by (induction e) simp_all
 
+abbreviation nmem :: "nat \<Rightarrow> nat" where
+  "nmem x \<equiv> undefined"
+
 theorem tc_terminationn: "typechecks e \<Longrightarrow> compile e = cd \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> 
-    (\<exists>h env v\<^sub>f. iter (\<leadsto>\<^sub>f) (FS hempty hempty [] [length cd, 0] cd) (FS h env [v\<^sub>f] [] cd) \<and> 
-      print_ceclosure (get_closure h v\<^sub>f) = print_nexpr v)"
+    (\<exists>h hp e ep v\<^sub>u s. iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) 
+      (US h hp 0 0 e ep v\<^sub>u 1 s 0 0 cd) \<and> print_uclosure h (v\<^sub>u 0) = print_nexpr v)"
 proof -
   assume "typechecks e"
   then obtain t where TN: "Map.empty \<turnstile>\<^sub>n e : t" by fastforce
@@ -53,23 +57,40 @@ proof -
     using unheap_empty by blast
   with VB have VH: "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr v\<^sub>n" by simp
   have HS: "heap_structured (HS hempty [] [([], length cd)] cd)" by simp
-  have FS: "flatten (HS hempty [] [([], length cd)] cd) = FS hempty [] [[length cd]] cd" by simp
-  obtain h\<^sub>f mp where HC: "hsplay splay_closure h\<^sub>h = (h\<^sub>f, mp)" by fastforce
-  with SH have "flatten \<Sigma>\<^sub>h' = FS h\<^sub>f [mp v\<^sub>h] [] cd" by simp
-  with EH FS HS have EF: "iter (\<leadsto>\<^sub>f) (FS hempty [] [[length cd]] cd) (FS h\<^sub>f [mp v\<^sub>h] [] cd)"
-    by (metis completef_iter)
-  from EH have "heap_structured \<Sigma>\<^sub>h'" by fastforce
-  with SH have "hcontains h\<^sub>h v\<^sub>h" by simp
-  with HC have "get_closure h\<^sub>f (mp v\<^sub>h) = flatten_closure mp (hlookup h\<^sub>h v\<^sub>h)" 
-    by (metis get_closure_flatten)
-  with VH have VF: "print_hclosure (get_closure h\<^sub>f (mp v\<^sub>h)) = print_nexpr v\<^sub>n" 
+  have CES: "unchain_state (CES hempty hempty [] [(0, length cd)] cd) = 
+    HS hempty [] [([], length cd)] cd" by simp
+  with EH SH obtain \<Sigma>\<^sub>c\<^sub>e' where ECE: "iter (\<leadsto>\<^sub>c\<^sub>e) (CES hempty hempty [] [(0, length cd)] cd) \<Sigma>\<^sub>c\<^sub>e' \<and> 
+    HS h\<^sub>h [v\<^sub>h] [] cd = unchain_state \<Sigma>\<^sub>c\<^sub>e'" by fastforce
+  then obtain h\<^sub>c\<^sub>e env\<^sub>h where VCE: "\<Sigma>\<^sub>c\<^sub>e' = CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] [] cd \<and> h\<^sub>h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>h" 
+    by (metis unchain_state_reverse map_is_Nil_conv)
+  with VH have PCE: "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr v\<^sub>n" by (metis print_ce)
+  from ECE VCE have "iter (\<leadsto>\<^sub>f) (flatten (CES hempty hempty [] [(0, length cd)] cd))
+    (flatten (CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] [] cd))" by (metis completef_iter)
+  hence EF: "iter (\<leadsto>\<^sub>f) (FS (H nmem 0) (H nmem 0) [] [length cd, 0] cd)
+     (FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [v\<^sub>h] [] cd)" by (simp add: hempty_def)
+  from PCE have PF: "print_ceclosure (get_closure (flatten_values h\<^sub>c\<^sub>e) v\<^sub>h) = print_nexpr v\<^sub>n" 
     by (simp del: get_closure.simps)
+  from C have "cd \<noteq> []" by auto
+  with EF have "\<exists>\<Sigma>\<^sub>u'. iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) \<Sigma>\<^sub>u' \<and> 
+    FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [v\<^sub>h] [] cd = restructure \<Sigma>\<^sub>u'" 
+      by (cases cd) simp_all
+  then obtain \<Sigma>\<^sub>u' where 
+    "iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) \<Sigma>\<^sub>u' \<and> 
+      FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [v\<^sub>h] [] cd = restructure \<Sigma>\<^sub>u'" by blast
+  moreover then obtain h\<^sub>u hp\<^sub>u x\<^sub>u p\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u sp\<^sub>u where VU:
+    "\<Sigma>\<^sub>u' = US h\<^sub>u hp\<^sub>u x\<^sub>u p\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u sp\<^sub>u 0 cd \<and> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<and> 
+      flatten_environment env\<^sub>h = H e\<^sub>u ep\<^sub>u \<and> listify' vs\<^sub>u vp\<^sub>u = v\<^sub>h # []" by auto
+  moreover hence VSU: "vs\<^sub>u 0 = v\<^sub>h \<and> vp\<^sub>u = 1" by auto
+  ultimately have EU: "iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) 
+    (US h\<^sub>u hp\<^sub>u x\<^sub>u p\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u sp\<^sub>u 0 cd)" by simp
+
+  from PF VU VSU have PU: "print_uclosure h\<^sub>u (vs\<^sub>u 0) = print_nexpr v\<^sub>n" by (metis print_u)
 
 
 
-  from EF VF have "iter (\<leadsto>\<^sub>f) (FS hempty [] [[length cd]] cd) (FS h\<^sub>f [mp v\<^sub>h] [] cd) \<and> 
-    print_hclosure (get_closure h\<^sub>f (mp v\<^sub>h)) = print_nexpr v\<^sub>n" by simp
-  with EN VN show ?thesis by fastforce
+  have "iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) 
+    (US h\<^sub>u hp\<^sub>u 0 0 e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0 cd)" by simp
+  with EN VN PU show ?thesis by blast
 qed
 
 end
