@@ -1,6 +1,6 @@
 theory Printing
-  imports "03Debruijn/NameRemoval" "05Closure/ClosureConversion" "06TreeCode/TreeCodeConversion"
-    "07TailCall/TailCallOptimization" "08FlatCode/CodeFlattening" 
+  imports "02Typed/Typechecking" "03Debruijn/NameRemoval" "05Closure/ClosureConversion" 
+    "06TreeCode/TreeCodeConversion" "07TailCall/TailCallOptimization" "08FlatCode/CodeFlattening" 
     "09HeapMemory/HeapConversion" "10ChainedEnvironment/Chaining" "11FlatMemory/MemoryFlattening"
 begin
 
@@ -10,6 +10,12 @@ function string_of_nat :: "nat \<Rightarrow> string" where
   by fastforce+
 termination
   by (relation "measure id") simp_all
+
+primrec print_nexpr :: "nexpr \<Rightarrow> string" where
+  "print_nexpr (NVar x) = undefined"
+| "print_nexpr (NConst k) = string_of_nat k"
+| "print_nexpr (NLam x e) = ''<fun>''"
+| "print_nexpr (NApp e\<^sub>1 e\<^sub>2) = undefined"
 
 primrec print_texpr :: "texpr \<Rightarrow> string" where
   "print_texpr (texpr.TVar x) = undefined"
@@ -52,7 +58,10 @@ fun print_uclosure :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> s
       0 \<Rightarrow> string_of_nat (h (Suc p))
     | Suc x \<Rightarrow> ''<fun>'')"
 
-lemma [simp]: "valn e \<Longrightarrow> print_dexpr (convert e) = print_texpr e" 
+lemma [simp]: "valt e \<Longrightarrow> print_texpr e = print_nexpr (erase e)" 
+  by (induction e) (simp_all add: convert_def)
+
+lemma [simp]: "valt e \<Longrightarrow> print_dexpr (convert e) = print_texpr e" 
   by (induction e) (simp_all add: convert_def)
 
 lemma print_eqiv_declosure [simp]: "print_closure c = print_dexpr (declosure c)" 

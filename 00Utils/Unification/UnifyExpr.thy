@@ -1,5 +1,5 @@
 theory UnifyExpr
-  imports "../00Utils/Utils"
+  imports "../Utils"
 begin
 
 datatype expr = 
