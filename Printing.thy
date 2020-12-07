@@ -11,11 +11,11 @@ function string_of_nat :: "nat \<Rightarrow> string" where
 termination
   by (relation "measure id") simp_all
 
-primrec print_nexpr :: "nexpr \<Rightarrow> string" where
-  "print_nexpr (NVar x) = undefined"
-| "print_nexpr (NConst k) = string_of_nat k"
-| "print_nexpr (NLam x t e) = ''<fun>''"
-| "print_nexpr (NApp e\<^sub>1 e\<^sub>2) = undefined"
+primrec print_texpr :: "texpr \<Rightarrow> string" where
+  "print_texpr (texpr.TVar x) = undefined"
+| "print_texpr (texpr.TConst k) = string_of_nat k"
+| "print_texpr (texpr.TLam x t e) = ''<fun>''"
+| "print_texpr (texpr.TApp e\<^sub>1 e\<^sub>2) = undefined"
 
 primrec print_dexpr :: "dexpr \<Rightarrow> string" where
   "print_dexpr (DVar x) = undefined"
@@ -52,7 +52,7 @@ fun print_uclosure :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> s
       0 \<Rightarrow> string_of_nat (h (Suc p))
     | Suc x \<Rightarrow> ''<fun>'')"
 
-lemma [simp]: "valn e \<Longrightarrow> print_dexpr (convert e) = print_nexpr e" 
+lemma [simp]: "valn e \<Longrightarrow> print_dexpr (convert e) = print_texpr e" 
   by (induction e) (simp_all add: convert_def)
 
 lemma print_eqiv_declosure [simp]: "print_closure c = print_dexpr (declosure c)" 

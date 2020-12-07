@@ -104,7 +104,7 @@ next
       case (Some e')
       hence S: "s(x \<mapsto> e') = s" by auto
       from 7 have "\<not> extend_subst x e (s(x := None)) unifies\<^sub>l ess" by simp
-      with 7(2) U Some S show ?thesis by (auto simp add: extend_subst_def)
+      with 7(2) U Some S show ?thesis by auto
     qed
   qed
   thus ?case by simp
@@ -126,5 +126,52 @@ proof (unfold unify_def)
   hence "s unifies\<^sub>l [(e\<^sub>1, e\<^sub>2)]" by (metis unify_some)
   thus "s unifies e\<^sub>1 and e\<^sub>2" by simp
 qed
+
+lemma [simp]: "unify' ess = Some s \<Longrightarrow> t unifies\<^sub>l ess \<Longrightarrow> \<exists>u. subst t = subst u \<circ> subst s"
+proof (induction ess arbitrary: s t rule: unify'_induct)
+  case 1
+  then show ?case by auto
+next
+  case (8 x e ess s')
+  thus ?case
+  proof (cases "t x")
+    case None
+    with 8 have "Var x = subst t e \<and> t unifies\<^sub>l ess" by simp
+    with 8 obtain y where Y: "e = Var y \<and> t y = Some (Var x)" by (metis var_subst)
+
+
+    from 8 have "x \<notin> vars e" by simp
+    from 8 have "unify' (list_subst x e ess) = Some s'" by simp
+    from 8 None Y have "\<exists>u. subst t = subst u \<circ> subst s'" by fastforce
+    then obtain u where U: "subst t = subst u \<circ> subst s'" by fastforce
+
+  
+  
+    have "subst u \<circ> subst s' = subst uu \<circ> subst (extend_subst x e s')" by simp
+    with 8 U show ?thesis by auto
+  next
+    case (Some e')
+    from 8 have "e \<noteq> Var x" by simp
+    from 8 have "x \<notin> vars e" by simp
+    from 8 have "unify' (list_subst x e ess) = Some s'" by simp
+    from 8 Some have "e' = subst t e \<and> t unifies\<^sub>l ess" by simp
+
+
+    from 8 Some obtain u where "subst (t(x := None)) = subst u \<circ> subst s'" by fastforce
+
+
+    have "subst t = subst uu \<circ> subst (extend_subst x e s')" by simp
+    with 8 show ?thesis by auto
+  qed
+qed simp_all
+
+lemma [simp]: "unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> t unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> \<exists>u. subst t = subst u \<circ> subst s"
+proof (unfold unify_def)
+  assume "t unifies e\<^sub>1 and e\<^sub>2"
+  hence "t unifies\<^sub>l [(e\<^sub>1, e\<^sub>2)]" by simp
+  moreover assume "unify' [(e\<^sub>1, e\<^sub>2)] = Some s"
+  ultimately show ?thesis by simp
+qed
+
 
 end

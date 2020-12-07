@@ -130,6 +130,10 @@ lemma [simp]: "s unifies\<^sub>l list_subst x e ess = (extend_subst x e s unifie
 lemma [simp]: "extend_subst x e s x = Some (subst s e)"
   by (simp add: extend_subst_def)
 
+lemma [simp]: "subst Map.empty e = e"
+  and [simp]: "map (subst Map.empty) es = es"
+  by (induction e and es rule: vars_varss.induct) simp_all
+
 lemma [simp]: "x \<notin> vars e \<Longrightarrow> subst (s(x := y)) e = subst s e"
   and [simp]: "x \<notin> varss es \<Longrightarrow> map (subst (s(x := y))) es = map (subst s) es"
   by (induction e and es rule: vars_varss.induct) (simp_all split: option.splits)
@@ -150,5 +154,8 @@ lemma [simp]: "s y = Some (Var x) \<Longrightarrow> s x = None \<Longrightarrow>
 lemma var_subst [simp]: "Var x = subst s e \<Longrightarrow> 
     (e = Var x \<and> s x = None) \<or> (\<exists>y. e = Var y \<and> s y = Some (Var x))"
   by (induction e) (simp_all split: option.splits)
+
+lemma [simp]: "s x = Some (subst s e) \<Longrightarrow> x \<notin> vars e \<Longrightarrow> extend_subst x e (s(x := None)) = s"
+  by rule (simp add: extend_subst_def)
 
 end

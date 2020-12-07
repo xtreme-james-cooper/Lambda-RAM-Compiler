@@ -1,5 +1,5 @@
 theory Debruijn
-  imports "../02Source/Type" "../00Utils/Environment" "../00Utils/Iteration"
+  imports "../02Typed/Type" "../00Utils/Environment" "../00Utils/Iteration"
 begin
 
 datatype dexpr = 
