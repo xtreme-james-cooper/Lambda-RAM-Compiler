@@ -23,7 +23,7 @@ fun list_vars :: "(expr \<times> expr) list \<Rightarrow> string set" where
 
 fun list_ctor_count :: "(expr \<times> expr) list \<Rightarrow> nat" where
   "list_ctor_count [] = 0"
-| "list_ctor_count ((e\<^sub>1, e\<^sub>2) # ess) = ctor_count e\<^sub>1 + ctor_count e\<^sub>2 + list_ctor_count ess"
+| "list_ctor_count ((e\<^sub>1, e\<^sub>2) # ess) = ctor_count e\<^sub>1 + list_ctor_count ess"
 
 lemma [simp]: "finite (vars e)"
   and [simp]: "finite (varss es)"
@@ -45,7 +45,7 @@ lemma [simp]: "list_ctor_count (ess\<^sub>1 @ ess\<^sub>2) = list_ctor_count ess
   by (induction ess\<^sub>1 rule: list_ctor_count.induct) simp_all
 
 lemma [simp]: "length es\<^sub>1 = length es\<^sub>2 \<Longrightarrow> 
-  list_ctor_count (zip es\<^sub>1 es\<^sub>2) = list_sum (map ctor_count es\<^sub>1) + list_sum (map ctor_count es\<^sub>2)"
+  list_ctor_count (zip es\<^sub>1 es\<^sub>2) = list_sum (map ctor_count es\<^sub>1)"
 proof (induction es\<^sub>1 arbitrary: es\<^sub>2)
   case (Cons e\<^sub>1 es\<^sub>1)
   thus ?case by (induction es\<^sub>2) simp_all

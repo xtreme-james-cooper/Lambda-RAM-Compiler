@@ -9,9 +9,6 @@ abbreviation compile :: "nexpr \<Rightarrow> byte_code list" where
 lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
   by (induction e) simp_all
 
-abbreviation nmem :: "nat \<Rightarrow> nat" where
-  "nmem x \<equiv> undefined"
-
 theorem tc_terminationn: "typechecks e \<Longrightarrow> compile e = cd \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> 
     (\<exists>h hp e ep v\<^sub>u s. iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) 
@@ -81,16 +78,20 @@ proof -
     "\<Sigma>\<^sub>u' = US h\<^sub>u hp\<^sub>u x\<^sub>u p\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u sp\<^sub>u 0 cd \<and> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<and> 
       flatten_environment env\<^sub>h = H e\<^sub>u ep\<^sub>u \<and> listify' vs\<^sub>u vp\<^sub>u = v\<^sub>h # []" by auto
   moreover hence VSU: "vs\<^sub>u 0 = v\<^sub>h \<and> vp\<^sub>u = 1" by auto
-  ultimately have EU: "iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) 
+  ultimately have "iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) 
     (US h\<^sub>u hp\<^sub>u x\<^sub>u p\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u sp\<^sub>u 0 cd)" by simp
+  moreover hence "x\<^sub>u = 0 \<and> p\<^sub>u = 0 \<and> sp\<^sub>u = 0" by (metis evalu_clears_regs)
+  ultimately have EU: "iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) 
+    (US h\<^sub>u hp\<^sub>u 0 0 e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0 cd)" by simp
+
+
 
   from PF VU VSU have PU: "print_uclosure h\<^sub>u (vs\<^sub>u 0) = print_nexpr v\<^sub>n" by (metis print_u)
 
 
 
-  have "iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) 
-    (US h\<^sub>u hp\<^sub>u 0 0 e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0 cd)" by simp
-  with EN VN PU show ?thesis by blast
+
+  with EN EU VN PU show ?thesis by blast
 qed
 
 end

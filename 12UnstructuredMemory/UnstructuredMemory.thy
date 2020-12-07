@@ -2,6 +2,9 @@ theory UnstructuredMemory
   imports "../10ChainedEnvironment/ChainedEnvironment"
 begin
 
+abbreviation nmem :: "nat \<Rightarrow> nat" where
+  "nmem x \<equiv> undefined"
+
 datatype unstr_state = 
   US "nat \<Rightarrow> nat" nat nat nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat nat 
      (code: "byte_code list")
@@ -77,5 +80,9 @@ lemma [simp]: "\<Sigma> \<leadsto>\<^sub>u \<Sigma>' \<Longrightarrow> code \<Si
 
 lemma [simp]: "iter (\<leadsto>\<^sub>u) \<Sigma> \<Sigma>' \<Longrightarrow> code \<Sigma> = code \<Sigma>'"
   by (induction \<Sigma> \<Sigma>' rule: iter.induct) simp_all
+
+lemma evalu_clears_regs: "iter (\<leadsto>\<^sub>u) (US nmem 0 0 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd) cd) 
+    (US h\<^sub>u hp\<^sub>u x\<^sub>u p\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u sp\<^sub>u 0 cd) \<Longrightarrow> x\<^sub>u = 0 \<and> p\<^sub>u = 0 \<and> sp\<^sub>u = 0" 
+  by simp
 
 end
