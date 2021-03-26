@@ -2,27 +2,27 @@ theory Substitution
   imports UnifyExpr
 begin
 
-type_synonym subst = "string \<rightharpoonup> expr"
+type_synonym subst = "var \<rightharpoonup> uexpr"
 
-fun subst :: "subst \<Rightarrow> expr \<Rightarrow> expr" where
+fun subst :: "subst \<Rightarrow> uexpr \<Rightarrow> uexpr" where
   "subst s (Var y) = (case s y of Some e \<Rightarrow> e | None \<Rightarrow> Var y)"
 | "subst s (Ctor k es) = Ctor k (map (subst s) es)"
 
-definition subst_vars :: "subst \<Rightarrow> string set" where
+definition subst_vars :: "subst \<Rightarrow> var set" where
   "subst_vars s = \<Union> (vars ` ran s)"
 
-fun list_subst :: "string \<Rightarrow> expr \<Rightarrow> (expr \<times> expr) list \<Rightarrow> (expr \<times> expr) list" where
+fun list_subst :: "var \<Rightarrow> uexpr \<Rightarrow> (uexpr \<times> uexpr) list \<Rightarrow> (uexpr \<times> uexpr) list" where
   "list_subst x e' [] = []"
 | "list_subst x e' ((e\<^sub>1, e\<^sub>2) # ess) = (subst [x \<mapsto> e'] e\<^sub>1, subst [x \<mapsto> e'] e\<^sub>2) # list_subst x e' ess"
 
-abbreviation unifier :: "subst \<Rightarrow> expr \<Rightarrow> expr \<Rightarrow> bool" (infix "unifies _ and" 50) where 
+abbreviation unifier :: "subst \<Rightarrow> uexpr \<Rightarrow> uexpr \<Rightarrow> bool" (infix "unifies _ and" 50) where 
   "unifier s e\<^sub>1 e\<^sub>2 \<equiv> subst s e\<^sub>1 = subst s e\<^sub>2"
 
-fun list_unifier :: "subst \<Rightarrow> (expr \<times> expr) list \<Rightarrow> bool" (infix "unifies\<^sub>l" 50) where 
+fun list_unifier :: "subst \<Rightarrow> (uexpr \<times> uexpr) list \<Rightarrow> bool" (infix "unifies\<^sub>l" 50) where 
   "list_unifier s [] = True"
 | "list_unifier s ((e\<^sub>1, e\<^sub>2) # ess) = ((s unifies e\<^sub>1 and e\<^sub>2) \<and> list_unifier s ess)"
 
-definition extend_subst :: "string \<Rightarrow> expr \<Rightarrow> subst \<Rightarrow> subst" where
+definition extend_subst :: "var \<Rightarrow> uexpr \<Rightarrow> subst \<Rightarrow> subst" where
   "extend_subst x e s = (s(x \<mapsto> subst s e))"
 
 definition ordered_subst :: "subst \<Rightarrow> bool" where

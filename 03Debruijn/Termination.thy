@@ -6,7 +6,8 @@ abbreviation terminatesd :: "dexpr \<Rightarrow> bool" where
   "terminatesd e \<equiv> (\<exists>e'. vald e' \<and> iter (\<leadsto>\<^sub>d) e e')"
 
 primrec stable :: "ty \<Rightarrow> dexpr \<Rightarrow> bool" where
-  "stable Base e = (terminatesd e \<and> [] \<turnstile>\<^sub>d e : Base)"
+  "stable (TVar x) e = False" 
+| "stable Base e = (terminatesd e \<and> [] \<turnstile>\<^sub>d e : Base)"
 | "stable (Arrow t\<^sub>1 t\<^sub>2) e = (terminatesd e \<and> ([] \<turnstile>\<^sub>d e : Arrow t\<^sub>1 t\<^sub>2) \<and> 
     (\<forall>e'. stable t\<^sub>1 e' \<longrightarrow> vald e' \<longrightarrow> stable t\<^sub>2 (DApp e e')))"
 
@@ -58,9 +59,6 @@ qed
 
 lemma stable_evald: "e \<leadsto>\<^sub>d e' \<Longrightarrow> stable t e \<Longrightarrow> stable t e'"
 proof (induction t arbitrary: e e')
-  case Base
-  then show ?case by simp
-next
   case (Arrow t\<^sub>1 t\<^sub>2)
   moreover have "\<And>e\<^sub>2. stable t\<^sub>1 e\<^sub>2 \<Longrightarrow> vald e\<^sub>2 \<Longrightarrow> stable t\<^sub>2 (DApp e' e\<^sub>2)" 
   proof -
@@ -71,7 +69,7 @@ next
     with Arrow(2) X show "stable t\<^sub>2 (DApp e' e\<^sub>2)" by simp
   qed 
   ultimately show ?case by simp
-qed
+qed simp_all
 
 lemma stable_persists: "iter (\<leadsto>\<^sub>d) e e' \<Longrightarrow> stable t e \<Longrightarrow> stable t e'"
   by (induction e e' rule: iter.induct) (simp_all add: stable_evald)
@@ -96,7 +94,7 @@ next
     with Arrow(2) Y Z show "stable t\<^sub>2 (DApp e e\<^sub>2)" by blast
   qed
   with Arrow(3) X show ?case by simp
-qed
+qed simp_all
 
 lemma stable_persists_back: "iter (\<leadsto>\<^sub>d) e e' \<Longrightarrow> [] \<turnstile>\<^sub>d e : t \<Longrightarrow> stable t e' \<Longrightarrow> stable t e"
 proof (induction e e' rule: iter.induct)

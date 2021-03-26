@@ -2,7 +2,7 @@ theory Unification
   imports Substitution
 begin
 
-function unify' :: "(expr \<times> expr) list \<rightharpoonup> subst" where
+function unify' :: "(uexpr \<times> uexpr) list \<rightharpoonup> subst" where
   "unify' [] = Some Map.empty"
 | "unify' ((Ctor k\<^sub>1 es\<^sub>1, Ctor k\<^sub>2 es\<^sub>2) # ess) = (
     if k\<^sub>1 = k\<^sub>2 \<and> length es\<^sub>1 = length es\<^sub>2 then unify' (zip es\<^sub>1 es\<^sub>2 @ ess)
@@ -39,7 +39,7 @@ next
     by (cases "e \<noteq> Var x") (cases "x \<notin> vars e", cases "unify' (list_subst x e ess)", simp_all)
 qed simp_all
 
-definition unify :: "expr \<Rightarrow> expr \<rightharpoonup> subst" where
+definition unify :: "uexpr \<Rightarrow> uexpr \<rightharpoonup> subst" where
   "unify e\<^sub>1 e\<^sub>2 = unify' [(e\<^sub>1, e\<^sub>2)]"
 
 lemma unify_dom [simp]: "unify' ess = Some s \<Longrightarrow> dom s \<subseteq> list_vars ess"

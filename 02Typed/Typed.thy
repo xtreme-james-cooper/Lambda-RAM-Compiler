@@ -1,5 +1,5 @@
 theory Typed
-  imports Type "../01Source/Variable" "../00Utils/Utils"
+  imports Type "../00Utils/Utils"
 begin
 
 datatype texpr = 

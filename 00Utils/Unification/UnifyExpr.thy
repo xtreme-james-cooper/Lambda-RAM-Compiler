@@ -1,27 +1,27 @@
 theory UnifyExpr
-  imports "../Utils"
+  imports "../Utils" "../Variable"
 begin
 
-datatype expr = 
-  Var string
-  | Ctor string "expr list"
+datatype uexpr = 
+  Var var
+  | Ctor string "uexpr list"
 
-fun vars :: "expr \<Rightarrow> string set" 
-and varss :: "expr list \<Rightarrow> string set" where
+fun vars :: "uexpr \<Rightarrow> var set" 
+and varss :: "uexpr list \<Rightarrow> var set" where
   "vars (Var x) = {x}"
 | "vars (Ctor k es) = varss es"
 | "varss [] = {}"
 | "varss (e # es) = vars e \<union> varss es"
 
-primrec ctor_count :: "expr \<Rightarrow> nat" where
+primrec ctor_count :: "uexpr \<Rightarrow> nat" where
   "ctor_count (Var x) = 0"
 | "ctor_count (Ctor k es) = Suc (list_sum (map ctor_count es))"
 
-fun list_vars :: "(expr \<times> expr) list \<Rightarrow> string set" where
+fun list_vars :: "(uexpr \<times> uexpr) list \<Rightarrow> var set" where
   "list_vars [] = {}"
 | "list_vars ((e\<^sub>1, e\<^sub>2) # ess) = vars e\<^sub>1 \<union> vars e\<^sub>2 \<union> list_vars ess"
 
-fun list_ctor_count :: "(expr \<times> expr) list \<Rightarrow> nat" where
+fun list_ctor_count :: "(uexpr \<times> uexpr) list \<Rightarrow> nat" where
   "list_ctor_count [] = 0"
 | "list_ctor_count ((e\<^sub>1, e\<^sub>2) # ess) = ctor_count e\<^sub>1 + list_ctor_count ess"
 
