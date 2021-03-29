@@ -6,7 +6,7 @@ abbreviation terminatesd :: "dexpr \<Rightarrow> bool" where
   "terminatesd e \<equiv> (\<exists>e'. vald e' \<and> iter (\<leadsto>\<^sub>d) e e')"
 
 primrec stable :: "ty \<Rightarrow> dexpr \<Rightarrow> bool" where
-  "stable (TVar x) e = False" 
+  "stable (TyVar x) e = False" 
 | "stable Base e = (terminatesd e \<and> [] \<turnstile>\<^sub>d e : Base)"
 | "stable (Arrow t\<^sub>1 t\<^sub>2) e = (terminatesd e \<and> ([] \<turnstile>\<^sub>d e : Arrow t\<^sub>1 t\<^sub>2) \<and> 
     (\<forall>e'. stable t\<^sub>1 e' \<longrightarrow> vald e' \<longrightarrow> stable t\<^sub>2 (DApp e e')))"

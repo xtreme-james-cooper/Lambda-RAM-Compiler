@@ -173,5 +173,7 @@ proof (unfold unify_def)
   ultimately show ?thesis by simp
 qed
 
+lemma [elim]: "P e\<^sub>1 \<Longrightarrow> P e\<^sub>2 \<Longrightarrow> unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> x \<in> ran s \<Longrightarrow> P x"
+  by simp
 
 end

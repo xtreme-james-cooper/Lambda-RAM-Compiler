@@ -77,4 +77,10 @@ proof -
   ultimately show ?thesis by (simp add: Un_Diff card.insert_remove sup_commute)
 qed
 
+lemma [simp]: "map_option f \<circ> map_option g \<circ> h = map_option (f \<circ> g) \<circ> h"
+  by (rule, auto, metis option.map_comp)
+
+lemma [simp]: "map_option f \<circ> (map_option g \<circ> h) = map_option (f \<circ> g) \<circ> h"
+  by (rule, auto, metis option.map_comp)
+
 end
