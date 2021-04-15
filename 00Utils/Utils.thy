@@ -17,6 +17,9 @@ lemma [simp]: "dom (remove f y) = dom f - {y}"
 lemma [simp]: "dom (\<lambda>a. if a = x then Some y else f a) = insert x (dom f)"
   by (auto simp add: dom_if)
 
+lemma [simp]: "ran (f(x \<mapsto> z)) \<subseteq> insert z (ran f)"
+  by (auto simp add: ran_def)
+
 lemma [simp]: "map_option Suc opt \<noteq> Some 0"
   by (induction opt) simp_all
 
@@ -82,5 +85,12 @@ lemma [simp]: "map_option f \<circ> map_option g \<circ> h = map_option (f \<cir
 
 lemma [simp]: "map_option f \<circ> (map_option g \<circ> h) = map_option (f \<circ> g) \<circ> h"
   by (rule, auto, metis option.map_comp)
+
+lemma [simp]: "length as = length bs \<Longrightarrow> 
+  list_all (\<lambda>(a, b). P a \<and> Q b) (zip as bs) = (list_all P as \<and> list_all Q bs)"
+proof (induction as arbitrary: bs)
+  case (Cons a as)
+  thus ?case by (induction bs) auto
+qed simp_all
 
 end

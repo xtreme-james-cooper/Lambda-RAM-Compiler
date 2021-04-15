@@ -133,22 +133,29 @@ proof (induction ess arbitrary: s t rule: unify'_induct)
   then show ?case by auto
 next
   case (8 x e ess s')
+  hence "dom s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_dom)
+  with 8 have D: "x \<notin> dom s'" by (auto split: if_splits)
+  from 8 have "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_ran)
+  with 8 have R: "x \<notin> subst_vars s'" by (auto split: if_splits)
   thus ?case
   proof (cases "t x")
     case None
-    with 8 have "Var x = subst t e \<and> t unifies\<^sub>l ess" by simp
+    with 8 have T: "Var x = subst t e \<and> t unifies\<^sub>l ess" by simp
     with 8 obtain y where Y: "e = Var y \<and> t y = Some (Var x)" by (metis var_subst)
 
 
-    from 8 have "x \<notin> vars e" by simp
-    from 8 have "unify' (list_subst x e ess) = Some s'" by simp
-    from 8 None Y have "\<exists>u. subst t = subst u \<circ> subst s'" by fastforce
-    then obtain u where U: "subst t = subst u \<circ> subst s'" by fastforce
+    from 8 Y have "tt unifies\<^sub>l list_subst x e ess \<Longrightarrow> \<exists>u. subst tt = subst u \<circ> subst s'" by fastforce
 
-  
-  
-    have "subst u \<circ> subst s' = subst uu \<circ> subst (extend_subst x e s')" by simp
-    with 8 U show ?thesis by auto
+
+    from 8 Y have X: "x \<noteq> y" by simp
+
+
+
+
+    have "subst t = subst uu \<circ> subst [x \<mapsto> subst s' e] \<circ> subst s'" by simp
+    with D R Y have "subst t = subst uu \<circ> subst s' \<circ> subst [x \<mapsto> e]"
+      by (simp add: comp_assoc)
+    with 8 show ?thesis by auto
   next
     case (Some e')
     from 8 have "e \<noteq> Var x" by simp
@@ -157,11 +164,13 @@ next
     from 8 Some have "e' = subst t e \<and> t unifies\<^sub>l ess" by simp
 
 
-    from 8 Some obtain u where "subst (t(x := None)) = subst u \<circ> subst s'" by fastforce
+    from 8 have "tt unifies\<^sub>l list_subst x e ess \<Longrightarrow> \<exists>u. subst tt = subst u \<circ> subst s'" by fastforce
 
 
-    have "subst t = subst uu \<circ> subst (extend_subst x e s')" by simp
-    with 8 show ?thesis by auto
+    have "subst t = subst uu \<circ> subst [x \<mapsto> subst s' e] \<circ> subst s'" by simp
+    with D R have "subst t = subst uu \<circ> subst s' \<circ> subst [x \<mapsto> e]"
+      by (simp add: comp_assoc)
+    with 8 show ?thesis by (auto simp add: expand_extend_subst)
   qed
 qed simp_all
 
@@ -173,7 +182,7 @@ proof (unfold unify_def)
   ultimately show ?thesis by simp
 qed
 
-lemma [elim]: "P e\<^sub>1 \<Longrightarrow> P e\<^sub>2 \<Longrightarrow> unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> x \<in> ran s \<Longrightarrow> P x"
-  by simp
+lemma [elim]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s \<Longrightarrow> \<exists>s\<^sub>1. unify' ess\<^sub>1 = Some s\<^sub>1"
+  by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'.induct) (auto split: if_splits)
 
 end

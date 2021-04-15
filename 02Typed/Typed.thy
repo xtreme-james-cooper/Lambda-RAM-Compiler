@@ -20,6 +20,12 @@ primrec free_varst :: "texpr \<Rightarrow> var set" where
 | "free_varst (TLam x t e) = free_varst e - {x}"
 | "free_varst (TApp e\<^sub>1 e\<^sub>2) = free_varst e\<^sub>1 \<union> free_varst e\<^sub>2"
 
+primrec tvarst :: "texpr \<Rightarrow> var set" where
+  "tvarst (TVar x) = {}"
+| "tvarst (TConst k) = {}"
+| "tvarst (TLam x t e) = tvars t \<union> tvarst e"
+| "tvarst (TApp e\<^sub>1 e\<^sub>2) = tvarst e\<^sub>1 \<union> tvarst e\<^sub>2"
+
 inductive typecheckn :: "(var \<rightharpoonup> ty) \<Rightarrow> texpr \<Rightarrow> ty \<Rightarrow> bool" (infix "\<turnstile>\<^sub>n _ :" 50) where
   tcn_var [simp]: "\<Gamma> x = Some t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>n TVar x : t"
 | tcn_const [simp]: "\<Gamma> \<turnstile>\<^sub>n TConst k : Base"

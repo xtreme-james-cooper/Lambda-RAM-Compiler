@@ -28,8 +28,8 @@ definition extend_subst :: "var \<Rightarrow> uexpr \<Rightarrow> subst \<Righta
 definition ordered_subst :: "subst \<Rightarrow> bool" where
   "ordered_subst s = (dom s \<inter> subst_vars s = {})"
 
-lemma [simp]: "x \<notin> vars e \<Longrightarrow> vars (subst [x \<mapsto> e'] e) = vars e"
-  and [simp]: "x \<notin> varss es \<Longrightarrow> varss (map (subst [x \<mapsto> e']) es) = varss es"
+lemma [simp]: "x \<notin> vars e \<Longrightarrow> subst [x \<mapsto> e'] e = e"
+  and [simp]: "x \<notin> varss es \<Longrightarrow> map (subst [x \<mapsto> e']) es = es"
   by (induction e and es rule: vars_varss.induct) simp_all
 
 lemma [simp]: "x \<in> vars e \<Longrightarrow> vars (subst [x \<mapsto> e'] e) = vars e - {x} \<union> vars e'"
@@ -42,6 +42,16 @@ qed simp_all
 
 lemma [simp]: "vars (subst [x \<mapsto> e'] e) = vars e - {x} \<union> (if x \<in> vars e then vars e' else {})"
   by simp
+
+lemma [simp]: "list_subst x e (es\<^sub>1 @ es\<^sub>2) = list_subst x e es\<^sub>1 @ list_subst x e es\<^sub>2"
+  by (induction es\<^sub>1 rule: list_subst.induct) simp_all
+
+lemma [simp]: "list_subst x e (zip es\<^sub>1 es\<^sub>2) = 
+    zip (map (subst [x \<mapsto> e]) es\<^sub>1) (map (subst [x \<mapsto> e]) es\<^sub>2)"
+proof (induction es\<^sub>1 arbitrary: es\<^sub>2)
+  case (Cons e\<^sub>1 es\<^sub>1)
+  thus ?case by (induction es\<^sub>2) simp_all
+qed simp_all
 
 lemma [simp]: "x \<notin> list_vars ess \<Longrightarrow> list_vars (list_subst x e ess) = list_vars ess"
   by (induction ess rule: list_vars.induct) simp_all
@@ -66,6 +76,30 @@ lemma [simp]: "subst_vars Map.empty = {}"
 
 lemma [simp]: "dom (extend_subst x e s) = insert x (dom s)"
   by (auto simp add: extend_subst_def)
+
+lemma expand_extend_subst: "subst (extend_subst x e s) = subst s \<circ> subst [x \<mapsto> e]"
+proof
+  fix ee
+  show "subst (extend_subst x e s) ee = (subst s \<circ> subst [x \<mapsto> e]) ee"
+    by (induction ee) (auto simp add: extend_subst_def)
+qed
+
+lemma [simp]: "x \<notin> subst_vars s \<Longrightarrow> s y = Some e \<Longrightarrow> subst [x \<mapsto> e'] e = e"
+proof -
+  assume "s y = Some e" 
+  hence "e \<in> ran s" by (metis ranI)
+  moreover assume "x \<notin> subst_vars s" 
+  ultimately show ?thesis by (simp add: subst_vars_def)
+qed
+
+lemma [simp]: "x \<notin> dom s \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow> 
+  subst s \<circ> subst [x \<mapsto> e] = subst [x \<mapsto> subst s e] \<circ> subst s"
+proof
+  fix ee
+  assume "x \<notin> dom s" and "x \<notin> subst_vars s"
+  thus "(subst s \<circ> subst [x \<mapsto> e]) ee = (subst [x \<mapsto> subst s e] \<circ> subst s) ee"
+    by (induction ee) (auto split: option.splits)
+qed
 
 lemma [simp]: "x \<notin> dom s \<Longrightarrow> subst_vars (extend_subst x e s) = vars (subst s e) \<union> subst_vars s"
   by (auto simp add: extend_subst_def subst_vars_def)
