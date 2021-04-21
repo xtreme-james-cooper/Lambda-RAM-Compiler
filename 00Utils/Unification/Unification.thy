@@ -96,8 +96,8 @@ next
     show "?thesis s" 
     proof (cases "s x")
       case None
-      with U have "Var x = subst s e" by simp
-      with 7 obtain y where Y: "e = Var y \<and> s y = Some (Var x)" by (metis var_subst)
+      with U have "subst s e = Var x" by simp
+      with 7 obtain y where Y: "e = Var y \<and> s y = Some (Var x)" by auto
       with 7 have "\<not> extend_subst x (Var y) s unifies\<^sub>l ess" by simp
       with None Y show ?thesis by simp
     next
@@ -127,7 +127,8 @@ proof (unfold unify_def)
   thus "s unifies e\<^sub>1 and e\<^sub>2" by simp
 qed
 
-lemma [simp]: "unify' ess = Some s \<Longrightarrow> t unifies\<^sub>l ess \<Longrightarrow> \<exists>u. subst t = subst u \<circ> subst s"
+lemma [simp]: "unify' ess = Some s \<Longrightarrow> t unifies\<^sub>l ess \<Longrightarrow> ordered_subst t \<Longrightarrow>
+  \<exists>u. subst t = subst u \<circ> subst s \<and> ordered_subst u"
 proof (induction ess arbitrary: s t rule: unify'_induct)
   case 1
   then show ?case by auto
@@ -140,45 +141,62 @@ next
   thus ?case
   proof (cases "t x")
     case None
-    with 8 have T: "Var x = subst t e \<and> t unifies\<^sub>l ess" by simp
-    with 8 obtain y where Y: "e = Var y \<and> t y = Some (Var x)" by (metis var_subst)
-
-
-    from 8 Y have "tt unifies\<^sub>l list_subst x e ess \<Longrightarrow> \<exists>u. subst tt = subst u \<circ> subst s'" by fastforce
-
-
-    from 8 Y have X: "x \<noteq> y" by simp
-
-
-
-
-    have "subst t = subst uu \<circ> subst [x \<mapsto> subst s' e] \<circ> subst s'" by simp
-    with D R Y have "subst t = subst uu \<circ> subst s' \<circ> subst [x \<mapsto> e]"
-      by (simp add: comp_assoc)
-    with 8 show ?thesis by auto
+    with 8 have T: "subst t e = Var x \<and> t unifies\<^sub>l ess" by simp
+    with 8 obtain y where Y: "e = Var y \<and> t y = Some (Var x)" by blast
+    with None T have "t unifies\<^sub>l list_subst x (Var y) ess" by simp
+    with 8 Y obtain u where U: "subst t = subst u \<circ> subst s' \<and> ordered_subst u" by fastforce
+    from None have "x \<notin> dom t" by auto
+    with D U have X: "x \<notin> dom u" by (metis split_not_in_domain)
+    from T Y U have "(subst u \<circ> subst s') (Var y) = Var x" by simp
+    thus ?thesis
+    proof (induction rule: subst_subst_var)
+      case Eq
+      with 8 Y show ?case by simp
+    next
+      case FstOnly
+      have "subst u \<circ> subst s' = subst u \<circ> subst [x \<mapsto> Var x] \<circ> subst s'" by simp
+      with D R Y U FstOnly have "subst t = subst u \<circ> subst s' \<circ> subst [x \<mapsto> e] \<and> ordered_subst u"
+        using comp_assoc by blast
+      with 8 show ?case by auto
+    next
+      case SndOnly
+      with X have "subst u \<circ> subst s' = subst u \<circ> subst [y \<mapsto> Var x] \<circ> subst s'" by simp
+      hence "subst u \<circ> subst s' = subst (extend_subst y (Var x) u) \<circ> subst [x \<mapsto> Var y] \<circ> subst s'" 
+        by (simp add: expand_extend_subst comp_assoc)
+      with D R Y U SndOnly have S: "subst t = 
+        subst (extend_subst y (Var x) u) \<circ> subst s' \<circ> subst [x \<mapsto> e]" by (simp add: comp_assoc)
+      from SndOnly X have "u y = Some (case u x of None \<Rightarrow> Var x | Some e \<Rightarrow> e)" 
+        by (auto split: option.splits)
+      with 8 U have "ordered_subst (extend_subst y (Var x) u)" by simp
+      with 8 S show ?case by auto
+    next
+      case (Both z)
+      with X have "subst u \<circ> subst s' = subst (extend_subst x (Var z) u) \<circ> subst s'" by auto
+      hence Z: "subst u \<circ> subst s' = subst u \<circ> subst [x \<mapsto> Var z] \<circ> subst s'" 
+        by (simp add: expand_extend_subst)
+      from D R Both have "subst s' \<circ> subst [x \<mapsto> Var y] = subst [x \<mapsto> Var z] \<circ> subst s'" by simp
+      with U Z have "subst t = subst u \<circ> subst s' \<circ> subst [x \<mapsto> Var y]" by (metis comp_assoc)
+      with Y have S: "subst t = subst u \<circ> subst s' \<circ> subst [x \<mapsto> e]" by simp
+      from U have "ordered_subst u" by simp
+      with 8 S show ?case by auto
+  qed
   next
     case (Some e')
-    from 8 have "e \<noteq> Var x" by simp
-    from 8 have "x \<notin> vars e" by simp
-    from 8 have "unify' (list_subst x e ess) = Some s'" by simp
-    from 8 Some have "e' = subst t e \<and> t unifies\<^sub>l ess" by simp
-
-
-    from 8 have "tt unifies\<^sub>l list_subst x e ess \<Longrightarrow> \<exists>u. subst tt = subst u \<circ> subst s'" by fastforce
-
-
-    have "subst t = subst uu \<circ> subst [x \<mapsto> subst s' e] \<circ> subst s'" by simp
-    with D R have "subst t = subst uu \<circ> subst s' \<circ> subst [x \<mapsto> e]"
-      by (simp add: comp_assoc)
-    with 8 show ?thesis by (auto simp add: expand_extend_subst)
+    with 8 have "e' = subst t e \<and> t unifies\<^sub>l ess" by simp
+    with 8 Some obtain t' where T: "t = extend_subst x e t' \<and> t' unifies\<^sub>l list_subst x e ess \<and> 
+      ordered_subst t'" by (metis dissect_subst)
+    with 8 obtain u where "subst t' = subst u \<circ> subst s' \<and> ordered_subst u" by fastforce
+    with 8 T show ?thesis by (auto simp add: expand_extend_subst)
   qed
 qed simp_all
 
-lemma [simp]: "unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> t unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> \<exists>u. subst t = subst u \<circ> subst s"
+lemma [simp]: "unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> t unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> ordered_subst t \<Longrightarrow> 
+  \<exists>u. subst t = subst u \<circ> subst s \<and> ordered_subst u"
 proof (unfold unify_def)
   assume "t unifies e\<^sub>1 and e\<^sub>2"
   hence "t unifies\<^sub>l [(e\<^sub>1, e\<^sub>2)]" by simp
   moreover assume "unify' [(e\<^sub>1, e\<^sub>2)] = Some s"
+  moreover assume "ordered_subst t"
   ultimately show ?thesis by simp
 qed
 
