@@ -52,8 +52,8 @@ primrec ufsf :: "byte_code list \<Rightarrow> (bclosure list \<times> nat) \<Rig
 abbreviation ufsfs :: "byte_code list \<Rightarrow> (bclosure list \<times> nat) list \<Rightarrow> tco_stack_frame list" where
   "ufsfs cd pcs \<equiv> map (ufsf cd) pcs"
 
-primrec unflatten_state :: "byte_code_state \<Rightarrow> tco_code_state" where
-  "unflatten_state (BS vs sfs cd) = TCOS (ufcs cd vs) (ufsfs cd sfs)"
+primrec unflatten_state :: "byte_code list \<Rightarrow> byte_code_state \<Rightarrow> tco_code_state" where
+  "unflatten_state cd (BS vs sfs) = TCOS (ufcs cd vs) (ufsfs cd sfs)"
 
 primrec code_size :: "tco_code \<Rightarrow> nat"
     and code_list_size :: "tco_code list \<Rightarrow> nat" where
@@ -89,8 +89,8 @@ fun orderly_stack :: "(bclosure list \<times> nat) list \<Rightarrow> nat \<Righ
 | "orderly_stack ((env, Suc pc) # sfs) cd = 
     (pc < cd \<and> ordered_closures env cd \<and> orderly_stack sfs cd)"
 
-primrec orderly_state :: "byte_code_state \<Rightarrow> bool" where
-  "orderly_state (BS vs sfs cd) = (orderly cd 0 \<and> return_terminated cd \<and> 
+primrec orderly_state :: "byte_code list \<Rightarrow> byte_code_state \<Rightarrow> bool" where
+  "orderly_state cd (BS vs sfs) = (orderly cd 0 \<and> return_terminated cd \<and> 
     orderly_stack sfs (length cd) \<and> ordered_closures vs (length cd))"
 
 lemma flatten_length [simp]: "length (flatten_code' lib cd r) = code_list_size cd"
@@ -262,8 +262,8 @@ lemma orderly_lam [simp]: "pc < length cd \<Longrightarrow> cd ! pc = BPushLam p
 lemma [simp]: "pc < length cd \<Longrightarrow> cd ! pc = BPushLam pc' \<Longrightarrow> orderly cd 0 \<Longrightarrow> pc' \<le> pc"
   using orderly_lam by fastforce
 
-theorem correctb [simp]: "\<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow> 
-  iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state \<Sigma>\<^sub>b) (unflatten_state \<Sigma>\<^sub>b')"
+theorem correctb [simp]: "cd \<tturnstile> \<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state cd \<Sigma>\<^sub>b \<Longrightarrow> 
+  iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state cd \<Sigma>\<^sub>b) (unflatten_state cd \<Sigma>\<^sub>b')"
 proof (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: evalb.induct)
   case (evb_lookup cd pc x env v vs sfs)
   hence "TCOS (ufcs cd vs) 
@@ -327,8 +327,8 @@ lemma [simp]: "TCOLam envt cdt rt = unflatten_closure cdb vb \<Longrightarrow>
     rt = unflatten_return cdb pc"
   by (induction vb) simp_all
 
-lemma unfl_state [dest]: "TCOS vs sfs = unflatten_state \<Sigma>\<^sub>b \<Longrightarrow> \<exists>vsb sfsb cdb. 
-    \<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> vs = ufcs cdb vsb \<and> sfs = ufsfs cdb sfsb"
+lemma unfl_state [dest]: "TCOS vs sfs = unflatten_state cd \<Sigma>\<^sub>b \<Longrightarrow> \<exists>vsb sfsb. 
+    \<Sigma>\<^sub>b = BS vsb sfsb \<and> vs = ufcs cd vsb \<and> sfs = ufsfs cd sfsb"
   by (induction \<Sigma>\<^sub>b) simp_all
 
 lemma [dest]: "TCOLookup x # cdt = unflatten_code cdb (Suc pc) \<Longrightarrow> orderly cdb 0 \<Longrightarrow> 
@@ -426,99 +426,99 @@ proof (induction sfsb "length cdb" rule: orderly_stack.induct)
   with 3 show ?case by simp
 qed simp_all
 
-theorem completeb [simp]: "unflatten_state \<Sigma>\<^sub>b \<leadsto>\<^sub>t\<^sub>c\<^sub>o \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow>
-  \<exists>\<Sigma>\<^sub>b'. iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'"
-proof (induction "unflatten_state \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' rule: evaltco.induct)
+theorem completeb [simp]: "unflatten_state cd\<^sub>b \<Sigma>\<^sub>b \<leadsto>\<^sub>t\<^sub>c\<^sub>o \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow>
+  \<exists>\<Sigma>\<^sub>b'. iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state cd\<^sub>b \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'"
+proof (induction "unflatten_state cd\<^sub>b \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' rule: evaltco.induct)
   case (evtco_lookup env x v vs cd r sfs)
-  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> vs = ufcs cdb vsb \<and> 
-    (env, TCOLookup x # cd, r) # sfs = ufsfs cdb sfsb" by fastforce
-  with evtco_lookup have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  then obtain vsb sfsb where B: "\<Sigma>\<^sub>b = BS vsb sfsb \<and> vs = ufcs cd\<^sub>b vsb \<and> 
+    (env, TCOLookup x # cd, r) # sfs = ufsfs cd\<^sub>b sfsb" by fastforce
+  with evtco_lookup have "orderly cd\<^sub>b 0 \<and> orderly_stack sfsb (length cd\<^sub>b)" by simp
   with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
-    env = ufcs cdb envb \<and> cdb ! pc = BLookup x \<and> cd = unflatten_code cdb pc \<and> 
-      r = unflatten_return cdb pc \<and> sfs = ufsfs cdb sfsb'" by (metis uf_to_lookup)
-  with evtco_lookup obtain v' where V: "lookup envb x = Some v' \<and> unflatten_closure cdb v' = v"
+    env = ufcs cd\<^sub>b envb \<and> cd\<^sub>b ! pc = BLookup x \<and> cd = unflatten_code cd\<^sub>b pc \<and> 
+      r = unflatten_return cd\<^sub>b pc \<and> sfs = ufsfs cd\<^sub>b sfsb'" by (metis uf_to_lookup)
+  with evtco_lookup obtain v' where V: "lookup envb x = Some v' \<and> unflatten_closure cd\<^sub>b v' = v"
     by fastforce
-  with S have "BS vsb ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b BS (v' # vsb) ((envb, pc) # sfsb') cdb"
+  with S have "cd\<^sub>b \<tturnstile> BS vsb ((envb, Suc pc) # sfsb') \<leadsto>\<^sub>b BS (v' # vsb) ((envb, pc) # sfsb')"
     by simp
-  hence "iter (\<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb') cdb) (BS (v' # vsb) ((envb, pc) # sfsb') cdb)" 
+  hence "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb')) (BS (v' # vsb) ((envb, pc) # sfsb'))" 
     by simp
   with B S V show ?case by fastforce
 next
   case (evtco_pushcon vs env k cd r sfs)
-  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> vs = ufcs cdb vsb \<and> 
-    (env, TCOPushCon k # cd, r) # sfs = ufsfs cdb sfsb" by fastforce
-  with evtco_pushcon have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  then obtain vsb sfsb where B: "\<Sigma>\<^sub>b = BS vsb sfsb \<and> vs = ufcs cd\<^sub>b vsb \<and> 
+    (env, TCOPushCon k # cd, r) # sfs = ufsfs cd\<^sub>b sfsb" by fastforce
+  with evtco_pushcon have "orderly cd\<^sub>b 0 \<and> orderly_stack sfsb (length cd\<^sub>b)" by simp
   with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
-    env = ufcs cdb envb \<and> cdb ! pc = BPushCon k \<and> cd = unflatten_code cdb pc \<and> 
-      r = unflatten_return cdb pc \<and> sfs = ufsfs cdb sfsb'" by (metis uf_to_pushcon)
-  with S have "BS vsb ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b BS (BConst k # vsb) ((envb, pc) # sfsb') cdb"
+    env = ufcs cd\<^sub>b envb \<and> cd\<^sub>b ! pc = BPushCon k \<and> cd = unflatten_code cd\<^sub>b pc \<and> 
+      r = unflatten_return cd\<^sub>b pc \<and> sfs = ufsfs cd\<^sub>b sfsb'" by (metis uf_to_pushcon)
+  with S have "cd\<^sub>b \<tturnstile> BS vsb ((envb, Suc pc) # sfsb') \<leadsto>\<^sub>b BS (BConst k # vsb) ((envb, pc) # sfsb')"
     by simp
-  hence "iter (\<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb') cdb) 
-    (BS (BConst k # vsb) ((envb, pc) # sfsb') cdb)" by simp
+  hence "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb')) 
+    (BS (BConst k # vsb) ((envb, pc) # sfsb'))" by simp
   with B S show ?case by fastforce
 next
   case (evtco_pushlam vs env cd' r' cd r sfs)
-  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> vs = ufcs cdb vsb \<and> 
-    (env, TCOPushLam cd' r' # cd, r) # sfs = ufsfs cdb sfsb" by fastforce
-  with evtco_pushlam have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  then obtain vsb sfsb where B: "\<Sigma>\<^sub>b = BS vsb sfsb \<and> vs = ufcs cd\<^sub>b vsb \<and> 
+    (env, TCOPushLam cd' r' # cd, r) # sfs = ufsfs cd\<^sub>b sfsb" by fastforce
+  with evtco_pushlam have "orderly cd\<^sub>b 0 \<and> orderly_stack sfsb (length cd\<^sub>b)" by simp
   with B obtain envb pc sfsb' pc' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
-    env = ufcs cdb envb \<and> cdb ! pc = BPushLam pc' \<and> cd = unflatten_code cdb pc \<and> 
-      r = unflatten_return cdb pc \<and> sfs = ufsfs cdb sfsb' \<and> cd' = unflatten_code cdb pc' \<and> 
-        r' = unflatten_return cdb pc'" by (metis uf_to_pushlam)
-  with S have "BS vsb ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b 
-    BS (BLam envb pc' # vsb) ((envb, pc) # sfsb') cdb" by simp
-  hence "iter (\<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb') cdb) 
-    (BS (BLam envb pc' # vsb) ((envb, pc) # sfsb') cdb)" by simp
+    env = ufcs cd\<^sub>b envb \<and> cd\<^sub>b ! pc = BPushLam pc' \<and> cd = unflatten_code cd\<^sub>b pc \<and> 
+      r = unflatten_return cd\<^sub>b pc \<and> sfs = ufsfs cd\<^sub>b sfsb' \<and> cd' = unflatten_code cd\<^sub>b pc' \<and> 
+        r' = unflatten_return cd\<^sub>b pc'" by (metis uf_to_pushlam)
+  with S have "cd\<^sub>b \<tturnstile> BS vsb ((envb, Suc pc) # sfsb') \<leadsto>\<^sub>b 
+    BS (BLam envb pc' # vsb) ((envb, pc) # sfsb')" by simp
+  hence "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb')) 
+    (BS (BLam envb pc' # vsb) ((envb, pc) # sfsb'))" by simp
   with B S show ?case by fastforce
 next
   case (evtco_apply v env' cd' r' vs env cd r sfs)
-  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> 
-    v # TCOLam env' cd' r' # vs = ufcs cdb vsb \<and> (env, TCOApply # cd, r) # sfs = ufsfs cdb sfsb" 
+  then obtain vsb sfsb where B: "\<Sigma>\<^sub>b = BS vsb sfsb \<and> 
+    v # TCOLam env' cd' r' # vs = ufcs cd\<^sub>b vsb \<and> (env, TCOApply # cd, r) # sfs = ufsfs cd\<^sub>b sfsb" 
       by fastforce
-  with evtco_apply have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  with evtco_apply have "orderly cd\<^sub>b 0 \<and> orderly_stack sfsb (length cd\<^sub>b)" by simp
   with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
-    env = ufcs cdb envb \<and> cdb ! pc = BApply \<and> cd = unflatten_code cdb pc \<and> 
-      r = unflatten_return cdb pc \<and> sfs = ufsfs cdb sfsb'" by (metis uf_to_apply)
+    env = ufcs cd\<^sub>b envb \<and> cd\<^sub>b ! pc = BApply \<and> cd = unflatten_code cd\<^sub>b pc \<and> 
+      r = unflatten_return cd\<^sub>b pc \<and> sfs = ufsfs cd\<^sub>b sfsb'" by (metis uf_to_apply)
   from B obtain vb envb' pc' vsb' where V: "vsb = vb # BLam envb' pc' # vsb' \<and> 
-    v = unflatten_closure cdb vb \<and> env' = ufcs cdb envb' \<and> cd' = unflatten_code cdb pc' \<and>
-      r' = unflatten_return cdb pc' \<and> vs = ufcs cdb vsb'" by fastforce
-  from S have "BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b
-    BS vsb' ((vb # envb', pc') # (envb, pc) # sfsb') cdb" by simp
-  hence "iter (\<leadsto>\<^sub>b) (BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb') cdb) 
-    (BS vsb' ((vb # envb', pc') # (envb, pc) # sfsb') cdb)" by simp
+    v = unflatten_closure cd\<^sub>b vb \<and> env' = ufcs cd\<^sub>b envb' \<and> cd' = unflatten_code cd\<^sub>b pc' \<and>
+      r' = unflatten_return cd\<^sub>b pc' \<and> vs = ufcs cd\<^sub>b vsb'" by fastforce
+  from S have "cd\<^sub>b \<tturnstile> BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb') \<leadsto>\<^sub>b
+    BS vsb' ((vb # envb', pc') # (envb, pc) # sfsb')" by simp
+  hence "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) (BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb')) 
+    (BS vsb' ((vb # envb', pc') # (envb, pc) # sfsb'))" by simp
   with B S V show ?case by auto                                              
 next
   case (evtco_return vs env sfs)
-  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> vs = ufcs cdb vsb \<and> 
-    (env, [], TCOReturn) # sfs = ufsfs cdb sfsb" by fastforce
-  with evtco_return have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  then obtain vsb sfsb where B: "\<Sigma>\<^sub>b = BS vsb sfsb \<and> vs = ufcs cd\<^sub>b vsb \<and> 
+    (env, [], TCOReturn) # sfs = ufsfs cd\<^sub>b sfsb" by fastforce
+  with evtco_return have "orderly cd\<^sub>b 0 \<and> orderly_stack sfsb (length cd\<^sub>b)" by simp
   with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
-    env = ufcs cdb envb \<and> cdb ! pc = BReturn \<and> sfs = ufsfs cdb sfsb'" 
+    env = ufcs cd\<^sub>b envb \<and> cd\<^sub>b ! pc = BReturn \<and> sfs = ufsfs cd\<^sub>b sfsb'" 
       by (metis uf_to_return)
-  with S have "BS vsb ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b BS vsb sfsb' cdb" by simp
-  hence "iter (\<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb') cdb) (BS vsb sfsb' cdb)" by simp
+  with S have "cd\<^sub>b \<tturnstile> BS vsb ((envb, Suc pc) # sfsb') \<leadsto>\<^sub>b BS vsb sfsb'" by simp
+  hence "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) (BS vsb ((envb, Suc pc) # sfsb')) (BS vsb sfsb')" by simp
   with B S show ?case by fastforce
 next
   case (evtco_jump v env' cd' r' vs env sfs)
-  then obtain vsb sfsb cdb where B: "\<Sigma>\<^sub>b = BS vsb sfsb cdb \<and> 
-    v # TCOLam env' cd' r' # vs = ufcs cdb vsb \<and> 
-      (env, [], TCOJump) # sfs = ufsfs cdb sfsb" by fastforce
-  with evtco_jump have "orderly cdb 0 \<and> orderly_stack sfsb (length cdb)" by simp
+  then obtain vsb sfsb where B: "\<Sigma>\<^sub>b = BS vsb sfsb \<and> 
+    v # TCOLam env' cd' r' # vs = ufcs cd\<^sub>b vsb \<and> 
+      (env, [], TCOJump) # sfs = ufsfs cd\<^sub>b sfsb" by fastforce
+  with evtco_jump have "orderly cd\<^sub>b 0 \<and> orderly_stack sfsb (length cd\<^sub>b)" by simp
   with B obtain envb pc sfsb' where S: "sfsb = (envb, Suc pc) # sfsb' \<and> 
-    env = ufcs cdb envb \<and> cdb ! pc = BJump \<and> sfs = ufsfs cdb sfsb'" 
+    env = ufcs cd\<^sub>b envb \<and> cd\<^sub>b ! pc = BJump \<and> sfs = ufsfs cd\<^sub>b sfsb'" 
       by (metis uf_to_jump)
   from B obtain vb envb' pc' vsb' where V: "vsb = vb # BLam envb' pc' # vsb' \<and> 
-    v = unflatten_closure cdb vb \<and> env' = ufcs cdb envb' \<and> cd' = unflatten_code cdb pc' \<and>
-      r' = unflatten_return cdb pc' \<and> vs = ufcs cdb vsb'" by fastforce
-  from S have "BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb') cdb \<leadsto>\<^sub>b
-    BS vsb' ((vb # envb', pc') # sfsb') cdb" by simp
-  hence "iter (\<leadsto>\<^sub>b) (BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb') cdb) 
-    (BS vsb' ((vb # envb', pc') # sfsb') cdb)" by simp
+    v = unflatten_closure cd\<^sub>b vb \<and> env' = ufcs cd\<^sub>b envb' \<and> cd' = unflatten_code cd\<^sub>b pc' \<and>
+      r' = unflatten_return cd\<^sub>b pc' \<and> vs = ufcs cd\<^sub>b vsb'" by fastforce
+  from S have "cd\<^sub>b \<tturnstile> BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb') \<leadsto>\<^sub>b
+    BS vsb' ((vb # envb', pc') # sfsb')" by simp
+  hence "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) (BS (vb # BLam envb' pc' # vsb') ((envb, Suc pc) # sfsb')) 
+    (BS vsb' ((vb # envb', pc') # sfsb'))" by simp
   with B S V show ?case by auto                                              
 qed
 
-lemma [simp]: "\<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow> orderly_state \<Sigma>\<^sub>b'"
-proof (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: evalb.induct)
+lemma [simp]: "cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b'"
+proof (induction cd\<^sub>b \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: evalb.induct)
   case (evb_lookup cd pc x env v vs sfs)
   thus ?case by (cases pc, cases cd) simp_all
 next
@@ -539,40 +539,42 @@ next
   thus ?case by (cases pc') simp_all
 qed simp_all
 
-lemma [simp]: "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow> orderly_state \<Sigma>\<^sub>b'"
+lemma [simp]: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b'"
   by (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: iter.induct) simp_all
 
-lemma [simp]: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state \<Sigma>\<^sub>b) \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow>
-  \<exists>\<Sigma>\<^sub>b'. iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'"
-proof (induction "unflatten_state \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' arbitrary: \<Sigma>\<^sub>b rule: iter.induct)
+lemma [simp]: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state cd\<^sub>b \<Sigma>\<^sub>b) \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow>
+  \<exists>\<Sigma>\<^sub>b'. iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state cd\<^sub>b \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'"
+proof (induction "unflatten_state cd\<^sub>b \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' arbitrary: \<Sigma>\<^sub>b rule: iter.induct)
   case (iter_step \<Sigma>\<^sub>t' \<Sigma>\<^sub>t'')
-  moreover then obtain \<Sigma>\<^sub>b' where S: "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'" by fastforce
-  moreover with iter_step have "orderly_state \<Sigma>\<^sub>b'" by fastforce
-  ultimately obtain \<Sigma>\<^sub>b'' where "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b' \<Sigma>\<^sub>b'' \<and> unflatten_state \<Sigma>\<^sub>b'' = \<Sigma>\<^sub>t''" by fastforce
+  moreover then obtain \<Sigma>\<^sub>b' where S: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state cd\<^sub>b \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'" 
+    by fastforce
+  moreover with iter_step have "orderly_state cd\<^sub>b \<Sigma>\<^sub>b'" by fastforce
+  ultimately obtain \<Sigma>\<^sub>b'' where "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b' \<Sigma>\<^sub>b'' \<and> unflatten_state cd\<^sub>b \<Sigma>\<^sub>b'' = \<Sigma>\<^sub>t''" 
+    by fastforce
   with S show ?case by (metis iter_append)
 qed force+
 
-lemma unfl_terminal [simp]: "unflatten_state \<Sigma> = TCOS [c] [] \<Longrightarrow>
-  \<exists>v cd. \<Sigma> = BS [v] [] cd \<and> c = unflatten_closure cd v"
+lemma unfl_terminal [simp]: "unflatten_state cd \<Sigma> = TCOS [c] [] \<Longrightarrow>
+  \<exists>v. \<Sigma> = BS [v] [] \<and> c = unflatten_closure cd v"
 proof -
-  assume "unflatten_state \<Sigma> = TCOS [c] []"
-  then obtain vs sfs cd where S: "\<Sigma> = BS vs sfs cd \<and> [c] = ufcs cd vs \<and> [] = ufsfs cd sfs" 
+  assume "unflatten_state cd \<Sigma> = TCOS [c] []"
+  then obtain vs sfs where S: "\<Sigma> = BS vs sfs \<and> [c] = ufcs cd vs \<and> [] = ufsfs cd sfs" 
     by (metis unfl_state)
   moreover then obtain v where "vs = [v] \<and> c = unflatten_closure cd v" by blast
   ultimately show ?thesis by simp
 qed
 
-lemma evalb_end [simp]: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state \<Sigma>\<^sub>b) (TCOS [c] []) \<Longrightarrow> orderly_state \<Sigma>\<^sub>b \<Longrightarrow>
-  \<exists>v. iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b (BS [v] [] (code \<Sigma>\<^sub>b)) \<and> c = unflatten_closure (code \<Sigma>\<^sub>b) v"
+lemma evalb_end [simp]: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state cd\<^sub>b \<Sigma>\<^sub>b) (TCOS [c] []) \<Longrightarrow> 
+  orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow> 
+    \<exists>v. iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b (BS [v] []) \<and> c = unflatten_closure cd\<^sub>b v"
 proof -
-  assume "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state \<Sigma>\<^sub>b) (TCOS [c] [])"
-  moreover assume O: "orderly_state \<Sigma>\<^sub>b"
-  ultimately obtain \<Sigma>\<^sub>b' where E: "iter (\<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<Sigma>\<^sub>b' = TCOS [c] []" 
+  assume "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state cd\<^sub>b \<Sigma>\<^sub>b) (TCOS [c] [])"
+  moreover assume O: "orderly_state cd\<^sub>b \<Sigma>\<^sub>b"
+  ultimately obtain \<Sigma>\<^sub>b' where E: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state cd\<^sub>b \<Sigma>\<^sub>b' = TCOS [c] []" 
     by fastforce
-  moreover with O have "orderly_state \<Sigma>\<^sub>b'" by fastforce
-  moreover with E obtain v cd where "\<Sigma>\<^sub>b' = BS [v] [] cd \<and> c = unflatten_closure cd v" 
+  moreover with O have "orderly_state cd\<^sub>b \<Sigma>\<^sub>b'" by fastforce
+  moreover with E obtain v where "\<Sigma>\<^sub>b' = BS [v] [] \<and> c = unflatten_closure cd\<^sub>b v" 
     by (metis unfl_terminal)
-  moreover with E have "code \<Sigma>\<^sub>b = cd" by fastforce
   ultimately show ?thesis by blast
 qed
 
