@@ -25,6 +25,9 @@ fun list_ctor_count :: "(uexpr \<times> uexpr) list \<Rightarrow> nat" where
   "list_ctor_count [] = 0"
 | "list_ctor_count ((e\<^sub>1, e\<^sub>2) # ess) = ctor_count e\<^sub>1 + list_ctor_count ess"
 
+definition structural :: "(uexpr \<Rightarrow> bool) \<Rightarrow> bool" where
+  "structural P = (\<exists>f. \<forall>k es. P (Ctor k es) = (list_all P es \<and> f k (length es)))"
+
 lemma [simp]: "finite (vars e)"
   and [simp]: "finite (varss es)"
   by (induction e and es rule: vars_varss.induct) simp_all

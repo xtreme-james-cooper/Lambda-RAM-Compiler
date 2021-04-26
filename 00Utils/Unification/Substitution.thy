@@ -25,6 +25,9 @@ fun list_unifier :: "subst \<Rightarrow> (uexpr \<times> uexpr) list \<Rightarro
 definition extend_subst :: "var \<Rightarrow> uexpr \<Rightarrow> subst \<Rightarrow> subst" where
   "extend_subst x e s = (s(x \<mapsto> subst s e))"
 
+definition combine_subst :: "subst \<Rightarrow> subst \<Rightarrow> subst" where
+  "combine_subst s\<^sub>1 s\<^sub>2 x = (case s\<^sub>2 x of None \<Rightarrow> s\<^sub>1 x | Some e \<Rightarrow> Some (subst s\<^sub>1 e))"
+
 definition ordered_subst :: "subst \<Rightarrow> bool" where
   "ordered_subst s = (dom s \<inter> subst_vars s = {})"
 
@@ -76,6 +79,9 @@ lemma [simp]: "subst_vars Map.empty = {}"
 
 lemma [simp]: "dom (extend_subst x e s) = insert x (dom s)"
   by (auto simp add: extend_subst_def)
+
+lemma [simp]: "ran (extend_subst x e s) = insert (subst s e) (ran (s(x := None)))"
+  by (auto simp add: extend_subst_def ran_def)
 
 lemma [simp]: "subst [x \<mapsto> Var x] e = e"
   and [simp]: "map (subst [x \<mapsto> Var x]) es = es"
@@ -288,5 +294,20 @@ proof -
   hence "t x \<noteq> Some (Var x)" by simp
   with X Y show "x \<notin> dom t" by (auto split: option.splits)
 qed
+
+lemma [simp]: "P e \<Longrightarrow> \<forall>x\<in>ran s. P x \<Longrightarrow> structural P \<Longrightarrow> P (subst s e)"
+  and [simp]: "list_all P es \<Longrightarrow> \<forall>x\<in>ran s. P x \<Longrightarrow> structural P \<Longrightarrow> list_all P (map (subst s) es)"
+  by (induction e and es rule: vars_varss.induct) 
+    (auto simp add: structural_def ran_def split: option.splits)
+
+lemma [simp]: "P e \<Longrightarrow> structural P \<Longrightarrow> list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess \<Longrightarrow> 
+    list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) (list_subst x e ess)"
+  by (induction ess rule: list_subst.induct) simp_all
+
+lemma [simp]: "subst (combine_subst s t) e = subst s (subst t e)"
+  by (induction e) (simp_all add: combine_subst_def split: option.splits)
+
+lemma [simp]: "subst (combine_subst s t) = subst s \<circ> subst t"
+  by auto
 
 end

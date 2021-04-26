@@ -26,7 +26,7 @@ lemma unify'_induct: "P [] \<Longrightarrow>
     (\<And>x ess. P ess \<Longrightarrow> P ((Var x, Var x) # ess)) \<Longrightarrow>
     (\<And>x e ess. e \<noteq> Var x \<Longrightarrow> x \<in> vars e \<Longrightarrow> P ((Var x, e) # ess)) \<Longrightarrow>
     (\<And>x e ess. e \<noteq> Var x \<Longrightarrow> x \<notin> vars e \<Longrightarrow> P (list_subst x e ess) \<Longrightarrow> 
-      unify' (list_subst x e ess) = None \<Longrightarrow>P ((Var x, e) # ess)) \<Longrightarrow> 
+      unify' (list_subst x e ess) = None \<Longrightarrow> P ((Var x, e) # ess)) \<Longrightarrow> 
     (\<And>x e ess s'. e \<noteq> Var x \<Longrightarrow> x \<notin> vars e \<Longrightarrow> P (list_subst x e ess) \<Longrightarrow> 
       unify' (list_subst x e ess) = Some s' \<Longrightarrow> P ((Var x, e) # ess)) \<Longrightarrow> 
     P ts"
@@ -201,6 +201,43 @@ proof (unfold unify_def)
 qed
 
 lemma [elim]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s \<Longrightarrow> \<exists>s\<^sub>1. unify' ess\<^sub>1 = Some s\<^sub>1"
-  by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'.induct) (auto split: if_splits)
+  by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct) auto
+
+lemma unify'_props: "unify' ess = Some s \<Longrightarrow> structural P \<Longrightarrow> 
+  list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess \<Longrightarrow> \<forall>x\<in>ran s. P x"
+proof (induction ess arbitrary: s rule: unify'_induct)
+  case (2 k es\<^sub>1 es\<^sub>2 ess)
+  from 2(1, 3) have X: "unify' (zip es\<^sub>1 es\<^sub>2 @ ess) = Some s" by simp
+  from 2(1) have "length es\<^sub>1 = length es\<^sub>2" by simp
+  moreover from 2(5) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess" by simp
+  moreover from 2(4, 5) have "list_all P es\<^sub>1" by (auto simp add: structural_def)
+  moreover from 2(4, 5) have "list_all P es\<^sub>2" by (auto simp add: structural_def)
+  ultimately have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) (zip es\<^sub>1 es\<^sub>2 @ ess)" by simp
+  with 2(2, 4) X show ?case by blast
+next
+  case (4 x es k ess)
+  from 4(2) have X: "unify' ((Var x, Ctor k es) # ess) = Some s" by simp
+  from 4(4) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ((Var x, Ctor k es) # ess)" by simp
+  with 4(1, 3) X show ?case by blast
+next
+  case (5 x ess)
+  from 5(2) have X: "unify' ess = Some s" by simp
+  from 5(4) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess" by simp
+  with 5(1, 3) X show ?case by blast
+next
+  case (8 x e ess s')
+  from 8(6, 7) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) (list_subst x e ess)" by simp
+  with 8(3, 4, 6) have S: "\<forall>a\<in>ran s'. P a" by blast
+  hence "\<forall>x\<in>ran (s'(x := None)). P x" by (auto simp add: ran_def)
+  with S 8(1, 2, 3, 5, 6, 7) S show ?case by auto
+qed fastforce+
+
+lemma unify_props: "unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> P e\<^sub>1 \<Longrightarrow> P e\<^sub>2 \<Longrightarrow> structural P \<Longrightarrow> \<forall>x \<in> ran s. P x"
+proof (unfold unify_def)
+  assume "P e\<^sub>1" and "P e\<^sub>2"
+  hence "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) [(e\<^sub>1, e\<^sub>2)]" by simp
+  moreover assume "unify' [(e\<^sub>1, e\<^sub>2)] = Some s" and "structural P"
+  ultimately show "\<forall>x\<in>ran s. P x" by (metis unify'_props)
+qed
 
 end
