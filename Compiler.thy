@@ -3,8 +3,11 @@ theory Compiler
     "13AssemblyCode/Assemble" 
 begin
 
-abbreviation compile :: "nexpr \<rightharpoonup> assm list" where 
-  "compile \<equiv> map_option (fst \<circ> assemble \<circ> flatten_code \<circ> tco \<circ> encode \<circ> convert \<circ> fst) \<circ> typecheck"
+abbreviation code_compile :: "texpr \<Rightarrow> mach list" where
+  "code_compile \<equiv> disassemble \<circ> fst \<circ> assemble \<circ> flatten_code \<circ> tco \<circ> encode \<circ> convert"
+
+abbreviation compile :: "nexpr \<rightharpoonup> mach list" where 
+  "compile \<equiv> map_option (code_compile \<circ> fst) \<circ> typecheck"
 
 lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
   by (induction e) simp_all
@@ -17,10 +20,9 @@ proof -
 qed
 
 theorem tc_terminationn: "compile e = Some cd \<Longrightarrow> 
-  \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>rs mem. rs VP = 1 \<and> rs SP = 0 \<and> 
-    print_uclosure (mem Hp) (mem Val 0) = print_nexpr v \<and>
-      iter (\<tturnstile> cd \<leadsto>\<^sub>a) (AS ((\<lambda>r. 0)(SP := 1)) ((\<lambda>m. nmem)(Stk := nmem(0 := 0))) (length cd))
-        (AS rs mem 0))"
+  \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>rs mem. rs R3 = 1 \<and> rs R4 = 0 \<and> 
+    print_mval mem (4 * mem 2) = print_nexpr v \<and> 
+      iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS ((\<lambda>r. 0)(R4 := 1)) (nmem(3 := 0)) (length cd)) (MS rs mem 0))"
 proof -
   assume C: "compile e = Some cd"
   then obtain e\<^sub>t t where T: "typecheck e = Some (e\<^sub>t, t)" by fastforce
@@ -39,7 +41,6 @@ proof -
     by (metis tcc_state_ev tcc_nil tcc_snil tcc_scons_ret latest_environment.simps(4))
   with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (CSE [CReturn []] [] (convert e\<^sub>t)) (CSC [] c) \<and> 
     declosure c = convert v\<^sub>t" by fastforce
-  with VT have VC: "print_closure c = print_nexpr (erase v\<^sub>t)" by simp
   from TC EC have "iter (\<leadsto>\<^sub>t) (encode_state (CSE [CReturn []] [] (convert e\<^sub>t))) 
     (encode_state (CSC [] c))" by (metis iter_completet)
   hence "iter (\<leadsto>\<^sub>t) (TS [] [([], encode (convert e\<^sub>t))]) (TS [encode_closure c] [])" 
@@ -55,13 +56,10 @@ proof -
   have "orderly_state ?cd (BS [] [([], length ?cd)])" by auto
   with ET UB obtain v\<^sub>b where EB: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>b) (BS [] [([], length ?cd)]) (BS [v\<^sub>b] []) \<and> 
     tco_val (encode_closure c) = unflatten_closure ?cd v\<^sub>b" by (metis evalb_end)
-  hence "print_bclosure v\<^sub>b = print_tco_closure (tco_val (encode_closure c))" by simp
-  with VC have VB: "print_bclosure v\<^sub>b = print_nexpr (erase v\<^sub>t)" by simp
-  from EB obtain \<Sigma>\<^sub>h' where EH: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>h) (HS hempty [] [([], length ?cd)]) \<Sigma>\<^sub>h' \<and> 
+  then obtain \<Sigma>\<^sub>h' where EH: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>h) (HS hempty [] [([], length ?cd)]) \<Sigma>\<^sub>h' \<and> 
     BS [v\<^sub>b] [] = unheap \<Sigma>\<^sub>h'" by fastforce
   then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = HS h\<^sub>h [v\<^sub>h] [] \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 
     using unheap_empty by blast
-  with VB have VH: "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by simp
   have HS: "heap_structured (HS hempty [] [([], length ?cd)])" by simp
   have CES: "unchain_state (CES hempty hempty [] [(0, length ?cd)]) = 
     HS hempty [] [([], length ?cd)]" by simp
@@ -69,13 +67,11 @@ proof -
     (CES hempty hempty [] [(0, length ?cd)]) \<Sigma>\<^sub>c\<^sub>e' \<and> HS h\<^sub>h [v\<^sub>h] [] = unchain_state \<Sigma>\<^sub>c\<^sub>e'" by fastforce
   then obtain h\<^sub>c\<^sub>e env\<^sub>h where VCE: "\<Sigma>\<^sub>c\<^sub>e' = CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] [] \<and> h\<^sub>h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>h" 
     by (metis unchain_state_reverse map_is_Nil_conv)
-  with VH have PCE: "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by (metis print_ce)
-  from ECE VCE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (CES hempty hempty [] [(0, length ?cd)]))
+  with ECE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (CES hempty hempty [] [(0, length ?cd)]))
     (flatten (CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis completef_iter)
   hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (FS (H nmem 0) (H nmem 0) [] [length ?cd, 0])
      (FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [v\<^sub>h] [])" by (simp add: hempty_def)
-  from PCE have PF: "print_ceclosure (get_closure (flatten_values h\<^sub>c\<^sub>e) v\<^sub>h) = print_nexpr (erase v\<^sub>t)" 
-    by (simp del: get_closure.simps)
+  from VCE have VH: "hcontains h\<^sub>c\<^sub>e v\<^sub>h" by simp
   from C have "?cd \<noteq> []" by auto
   with EF have "\<exists>\<Sigma>\<^sub>u'. 
     iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
@@ -95,22 +91,43 @@ proof -
     (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   let ?mem = "(\<lambda>m. case m of Hp \<Rightarrow> h\<^sub>u | Env \<Rightarrow> e\<^sub>u | Val \<Rightarrow> vs\<^sub>u | Stk \<Rightarrow> sh\<^sub>u)"
   let ?rs = "(\<lambda>r. case r of HP \<Rightarrow> hp\<^sub>u | EP \<Rightarrow> ep\<^sub>u | VP \<Rightarrow> Suc 0 | SP \<Rightarrow> 0)"
+  let ?cd' = "(fst \<circ> assemble) ?cd"
 
-  from C T obtain mp where "assemble ?cd = (cd, mp)" by (cases "assemble ?cd") simp_all
-  with EU have "iter (\<tturnstile> cd \<leadsto>\<^sub>a) 
+
+  from C T obtain mp where "assemble ?cd = (?cd', mp)" by (cases "assemble ?cd") simp_all
+  with EU have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
     (assemble_state mp (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd))) 
       (assemble_state mp (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correcta_iter)
-  hence EA: "iter (\<tturnstile> cd \<leadsto>\<^sub>a) (AS ((\<lambda>r. 0)(SP := 1)) ((\<lambda>m. nmem)(Stk := nmem(0 := 0))) (length cd))
-    (AS ?rs ?mem 0)" by simp
+  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
+    (AS ((\<lambda>r. 0)(SP := 1)) ((\<lambda>m. nmem)(Stk := nmem(0 := 0))) (length ?cd')) (AS ?rs ?mem 0)" by simp
+  hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) 
+    (disassemble_state (AS ((\<lambda>r. 0)(SP := 1)) ((\<lambda>m. nmem)(Stk := nmem(0 := 0))) (length ?cd'))) 
+      (disassemble_state (AS ?rs ?mem 0))" by (metis correctm_iter)
+  with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS ((\<lambda>r. 0)(R4 := 1)) (nmem(3 := 0)) (length cd)) 
+    (MS (?rs \<circ> inv_register_map) (uncurry ?mem \<circ> unmap_mem) 0)" by simp
 
 
-  from PF VU VSU have "print_uclosure h\<^sub>u (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
-  hence PA: "print_uclosure (?mem Hp) (?mem Val 0) = print_nexpr (erase v\<^sub>t)" by simp
+
+  from EC VT have "print_closure c = print_nexpr (erase v\<^sub>t)" by simp
+  moreover from EB have "print_bclosure v\<^sub>b = print_tco_closure (tco_val (encode_closure c))" by simp
+  ultimately have "print_bclosure v\<^sub>b = print_nexpr (erase v\<^sub>t)" by simp
+  with SH have "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by simp
+  with VCE VH have "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by (metis print_ce)
+  hence "print_ceclosure (get_closure (flatten_values h\<^sub>c\<^sub>e) v\<^sub>h) = print_nexpr (erase v\<^sub>t)" 
+    by (simp del: get_closure.simps)
+  with VU VSU have "print_uval h\<^sub>u (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
+  hence PU: "print_uval (?mem Hp) (?mem Val 0) = print_nexpr (erase v\<^sub>t)" by simp
+  have "unmap_mem (4 * ?mem Val 0) = (Hp, ?mem Val 0)" by simp
+  hence "unmap_mem (4 * (uncurry ?mem \<circ> unmap_mem) 2) = (Hp, ?mem Val 0)" by (simp add: numeral_def)
+  with PU have PM: "print_mval (uncurry ?mem \<circ> unmap_mem) (4 * (uncurry ?mem \<circ> unmap_mem) 2) = 
+    print_nexpr (erase v\<^sub>t)" by (metis print_m)
 
 
 
-  have "?rs VP = 1 \<and> ?rs SP = 0" by simp
-  with VN TN EN EA PA show ?thesis by blast
+
+
+  have "(?rs \<circ> inv_register_map) R3 = 1 \<and> (?rs \<circ> inv_register_map) R4 = 0" by simp
+  with VN TN EN EM PM show ?thesis by blast
 qed
 
 end

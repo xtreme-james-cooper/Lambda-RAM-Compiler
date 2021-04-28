@@ -4,21 +4,21 @@ begin
 
 datatype memory = Hp | Env | Val | Stk
 
-datatype register = HP | EP | VP | SP | ACC | ACC2
+datatype aregister = HP | EP | VP | SP | ACC | ACC2
 
 datatype assm = 
-    ALdI register nat
-  | ALod register memory register
-  | ASto memory register register
-  | AMov register register
-  | AAdd register nat
-  | ASub register nat
-  | AIJp register (* indirect jump *)
-  | AJIZ register nat (* forwards jump *)
+    ALdI aregister nat
+  | ALod aregister memory aregister
+  | ASto memory aregister aregister
+  | AMov aregister aregister
+  | AAdd aregister nat
+  | ASub aregister nat
+  | AIJp aregister (* indirect jump *)
+  | AJIZ aregister nat (* forwards jump *)
   | AJmp nat (* backwards jump *)
-  | AAssert register "nat \<Rightarrow> bool"
+  | AAssert aregister "nat \<Rightarrow> bool"
 
-datatype assm_state = AS "register \<Rightarrow> nat" "memory \<Rightarrow> nat \<Rightarrow> nat" nat
+datatype assm_state = AS "aregister \<Rightarrow> nat" "memory \<Rightarrow> nat \<Rightarrow> nat" nat
 
 inductive evala :: "assm list \<Rightarrow> assm_state \<Rightarrow> assm_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>a" 50) where 
   eva_ldi [simp]: "cd ! pc = ALdI r k \<Longrightarrow> cd \<tturnstile> AS rs mem (Suc pc) \<leadsto>\<^sub>a AS (rs(r := k)) mem pc"

@@ -93,4 +93,7 @@ proof (induction as arbitrary: bs)
   thus ?case by (induction bs) auto
 qed simp_all
 
+primrec uncurry :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> 'a \<times> 'b \<Rightarrow> 'c" where
+  "uncurry f (a, b) = f a b"
+
 end
