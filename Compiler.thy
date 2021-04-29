@@ -62,11 +62,11 @@ proof -
     using unheap_empty by blast
   have HS: "heap_structured (HS hempty [] [([], length ?cd)])" by simp
   have CES: "unchain_state (CES hempty hempty [] [(0, length ?cd)]) = 
-    HS hempty [] [([], length ?cd)]" by simp
+    HS hempty [] [([], length ?cd)]" by (simp add: unchain_stack_def)
   with EH SH obtain \<Sigma>\<^sub>c\<^sub>e' where ECE: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>c\<^sub>e) 
     (CES hempty hempty [] [(0, length ?cd)]) \<Sigma>\<^sub>c\<^sub>e' \<and> HS h\<^sub>h [v\<^sub>h] [] = unchain_state \<Sigma>\<^sub>c\<^sub>e'" by fastforce
   then obtain h\<^sub>c\<^sub>e env\<^sub>h where VCE: "\<Sigma>\<^sub>c\<^sub>e' = CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] [] \<and> h\<^sub>h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>h" 
-    by (metis unchain_state_reverse map_is_Nil_conv)
+    by (metisx unchain_state_reverse map_is_Nil_conv)
   with ECE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (CES hempty hempty [] [(0, length ?cd)]))
     (flatten (CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis completef_iter)
   hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (FS (H nmem 0) (H nmem 0) [] [length ?cd, 0])
@@ -105,9 +105,6 @@ proof -
       (disassemble_state (AS ?rs ?mem 0))" by (metis correctm_iter)
   with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS ((\<lambda>r. 0)(R4 := 1)) (nmem(3 := 0)) (length cd)) 
     (MS (?rs \<circ> inv_register_map) (uncurry ?mem \<circ> unmap_mem) 0)" by simp
-
-
-
   from EC VT have "print_closure c = print_nexpr (erase v\<^sub>t)" by simp
   moreover from EB have "print_bclosure v\<^sub>b = print_tco_closure (tco_val (encode_closure c))" by simp
   ultimately have "print_bclosure v\<^sub>b = print_nexpr (erase v\<^sub>t)" by simp
@@ -121,11 +118,6 @@ proof -
   hence "unmap_mem (4 * (uncurry ?mem \<circ> unmap_mem) 2) = (Hp, ?mem Val 0)" by (simp add: numeral_def)
   with PU have PM: "print_mval (uncurry ?mem \<circ> unmap_mem) (4 * (uncurry ?mem \<circ> unmap_mem) 2) = 
     print_nexpr (erase v\<^sub>t)" by (metis print_m)
-
-
-
-
-
   have "(?rs \<circ> inv_register_map) R3 = 1 \<and> (?rs \<circ> inv_register_map) R4 = 0" by simp
   with VN TN EN EM PM show ?thesis by blast
 qed

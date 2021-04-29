@@ -48,7 +48,7 @@ lemma heap_lookup_all: "hlookup h x = a \<Longrightarrow> heap_all p h \<Longrig
 lemma [elim]: "heap_all p h \<Longrightarrow> halloc h a = (h', x) \<Longrightarrow> p x a \<Longrightarrow> heap_all p h'"
   by (induction h) auto
 
-lemma [elim]: "(\<And>x y. p x y \<Longrightarrow> q x y) \<Longrightarrow> heap_all p h \<Longrightarrow> heap_all q h"
+lemma heap_all_impl [elim]: "(\<And>x y. p x y \<Longrightarrow> q x y) \<Longrightarrow> heap_all p h \<Longrightarrow> heap_all q h"
   by (induction h) simp_all
 
 lemma [simp]: "heap_all f hempty"
@@ -66,8 +66,24 @@ lemma [simp]: "hmap f hempty = hempty"
 lemma halloc_map [simp]: "halloc h a = (h', v) \<Longrightarrow> halloc (hmap f h) (f a) = (hmap f h', v)"
   by (induction h) auto+
 
+lemma halloc_map_inv [simp]: "halloc (hmap f h) (f a) = (h', v) \<Longrightarrow> 
+    \<exists>h''. halloc h a = (h'', v) \<and> h' = hmap f h''"
+  by (induction h) auto
+
 lemma [simp]: "hcontains h x \<Longrightarrow> hlookup (hmap f h) x = f (hlookup h x)"
   by (induction h) simp_all
+
+lemma hmap_eq: "(\<And>x. hcontains h x \<Longrightarrow> f (hlookup h x) = g (hlookup h x)) \<Longrightarrow> hmap f h = hmap g h"
+proof (induction h)
+  case (H h hp)
+  have "(\<lambda>x. if x < hp then f (h x) else undefined) = (\<lambda>x. if x < hp then g (h x) else undefined)" 
+  proof 
+    fix x
+    from H show "(if x < hp then f (h x) else undefined) = (if x < hp then g (h x) else undefined)"
+      by (simp split: if_splits)
+  qed
+  thus ?case by simp
+qed
 
 primrec stack_contains :: "'a heap \<Rightarrow> ptr list \<Rightarrow> bool" where
   "stack_contains h [] = True"

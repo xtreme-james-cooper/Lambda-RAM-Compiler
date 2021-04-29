@@ -29,6 +29,13 @@ next
   then show ?case by simp
 qed
 
+lemma [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> iter (\<tturnstile> cd \<leadsto>\<^sub>f) (restructure \<Sigma>\<^sub>u) (restructure \<Sigma>\<^sub>u')" 
+  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: iter.induct) (simp, metis completeu iter_append)
+
+lemma evalu_clears_regs: "iter (\<tturnstile> cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd)) 
+    (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u sp\<^sub>u 0) \<Longrightarrow> sp\<^sub>u = 0"
+  by simp
+
 lemma [dest]: "FS h env vs sfs = restructure \<Sigma> \<Longrightarrow> \<exists>h' hp e ep vs' vp sh sp pc. 
   \<Sigma> = US h' hp e ep vs' vp sh sp pc \<and> h = H h' hp \<and> env = H e ep \<and> vs = listify' vs' vp \<and> 
     ((pc = 0 \<and> sfs = []) \<or> (\<exists>pc'. pc = Suc pc' \<and> sfs = pc # listify' sh sp))"

@@ -64,8 +64,4 @@ next
     by (induction cd "US h hp e ep vs vp sh sp (Suc pc)" \<Sigma>'' rule: evalu.induct) simp_all
 qed
 
-lemma evalu_clears_regs: "iter (\<tturnstile> cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd)) 
-    (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u sp\<^sub>u 0) \<Longrightarrow> sp\<^sub>u = 0"
-  by simp
-
 end
