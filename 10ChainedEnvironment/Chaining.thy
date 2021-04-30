@@ -3,10 +3,11 @@ theory Chaining
 begin
 
 abbreviation chain_structured :: "ceclosure heap \<Rightarrow> (ptr \<times> ptr) heap \<Rightarrow> bool" where
-  "chain_structured h env \<equiv> heap_all (\<lambda>p (v, p'). p' < p \<and> hcontains h v) env"
+  "chain_structured h env \<equiv> heap_all (\<lambda>p (v, p'). p' \<le> p \<and> hcontains h v) env"
 
-primrec chained_frame :: "(ptr \<times> ptr) heap \<Rightarrow> (ptr \<times> nat) \<Rightarrow> bool" where
-  "chained_frame env (p, pc) = hcontains env p"
+fun chained_frame :: "(ptr \<times> ptr) heap \<Rightarrow> (ptr \<times> nat) \<Rightarrow> bool" where
+  "chained_frame env (0, pc) = True"
+| "chained_frame env (Suc p, pc) = hcontains env p"
 
 abbreviation chained_stack :: "(ptr \<times> ptr) heap \<Rightarrow> (ptr \<times> nat) list \<Rightarrow> bool" where
   "chained_stack env sfs \<equiv> list_all (chained_frame env) sfs"
@@ -16,7 +17,7 @@ abbreviation chained_vals :: "ceclosure heap \<Rightarrow> ptr list \<Rightarrow
 
 primrec chained_closure :: "(ptr \<times> ptr) heap \<Rightarrow> ceclosure \<Rightarrow> bool" where
   "chained_closure env (CEConst n) = True"
-| "chained_closure env (CELam p pc) = hcontains env p"
+| "chained_closure env (CELam p pc) = chained_frame env (p, pc)"
 
 abbreviation chained_closures :: "(ptr \<times> ptr) heap \<Rightarrow> ceclosure heap \<Rightarrow> bool" where
   "chained_closures env h \<equiv> heap_all (\<lambda>p. chained_closure env) h"
@@ -26,10 +27,9 @@ primrec chained_state :: "chained_state \<Rightarrow> bool" where
     chain_structured h env \<and> chained_closures env h \<and> chained_vals h vs \<and> chained_stack env sfs)"
 
 fun unstack_list :: "(ptr \<times> ptr) heap \<Rightarrow> ptr \<Rightarrow> ptr list" where
-  "unstack_list env p = (case hlookup env p of 
-      (v, p') \<Rightarrow> v # (if p' < p then unstack_list env p' else undefined))"
-
-declare unstack_list.simps [simp del]
+  "unstack_list env 0 = []"
+| "unstack_list env (Suc p) = (case hlookup env p of 
+      (v, p') \<Rightarrow> v # (if p' \<le> p then unstack_list env p' else undefined))"
 
 primrec unchain_closure :: "(ptr \<times> ptr) heap \<Rightarrow> ceclosure \<Rightarrow> hclosure" where
   "unchain_closure env (CEConst k) = HConst k"
@@ -50,39 +50,46 @@ primrec unchain_state :: "chained_state \<Rightarrow> heap_state" where
 lemma [simp]: "unchain_heap hempty env = hempty"
   by (simp add: unchain_heap_def)
 
-lemma [simp]: "chain_structured h env \<Longrightarrow> hcontains env p \<Longrightarrow> halloc env a = (env', b) \<Longrightarrow> 
-    unstack_list env' p = unstack_list env p" 
+lemma [simp]: "chain_structured h env \<Longrightarrow> chained_frame env (p, pc) \<Longrightarrow> halloc env a = (env', b) \<Longrightarrow> 
+  unstack_list env' p = unstack_list env p" 
 proof (induction env p rule: unstack_list.induct)
-  case (1 env p)
+  case (2 env p)
   obtain v p' where V: "hlookup env p = (v, p')" by (cases "hlookup env p")
-  from 1 have H: "hcontains env p" by auto
-  with 1 V have P: "p' < p" using heap_lookup_all by fast
-  with H have "hcontains env p'" by auto
-  with 1 V P have U: "unstack_list env' p' = unstack_list env p'" by simp
-  from 1 V H have "hlookup env' p = (v, p')" by simp
-  with V P U show ?case by (simp add: unstack_list.simps)
-qed
+  from 2 have H: "hcontains env p" by auto
+  with 2 V have P: "p' \<le> p" using heap_lookup_all by fast
+  with H have "chained_frame env (p', pc)" by (cases p') auto
+  with 2 V P have U: "unstack_list env' p' = unstack_list env p'" by simp
+  from 2 V H have "hlookup env' p = (v, p')" by simp
+  with V P U show ?case by simp
+qed simp_all
 
-lemma unfold_unstack [simp]: "chain_structured h env \<Longrightarrow> hcontains env p \<Longrightarrow> 
-  halloc env (v, p) = (env', p') \<Longrightarrow> unstack_list env' p' = v # unstack_list env p"
+lemma unfold_unstack_list [simp]: "chain_structured h env \<Longrightarrow> chained_frame env (p, pc) \<Longrightarrow> 
+  halloc env (v, p) = (env', p') \<Longrightarrow> unstack_list env' (Suc p') = v # unstack_list env p"
 proof -
   assume A: "chain_structured h env"
-  assume B: "hcontains env p"
+  assume B: "chained_frame env (p, pc)"
   assume C: "halloc env (v, p) = (env', p')"
   moreover with A B have "unstack_list env' p = unstack_list env p" by simp
-  moreover from A B C have "p < p'" by simp
-  ultimately show ?thesis by (simp add: unstack_list.simps)
+  moreover have "p \<le> p'" 
+  proof (cases p)
+    case (Suc pp)
+    moreover with B C have "pp < p'" by simp
+    ultimately show ?thesis by simp
+  qed simp_all
+  ultimately show ?thesis by simp
 qed
 
-lemma [simp]: "chain_structured h env \<Longrightarrow> hcontains env p \<Longrightarrow>
-  lookup (unstack_list env p) x = Some (chain_lookup env p x)"
-proof (induction x arbitrary: p)
-  case (Suc x)
-  moreover obtain v p' where "hlookup env p = (v, p')" by (cases "hlookup env p")
-  moreover with Suc have "p' < p" using heap_lookup_all by fast
-  moreover with Suc(3) have "hcontains env p'" by auto
-  ultimately show ?case by (simp add: unstack_list.simps)
-qed (simp_all add: unstack_list.simps split: prod.splits)
+lemma [simp]: "chain_structured h env \<Longrightarrow> chained_frame env (p, pc) \<Longrightarrow>
+  lookup (unstack_list env p) x = chain_lookup env p x"
+proof (induction env p x rule: chain_lookup.induct)
+  case (3 env p x)
+  obtain v p' where V: "hlookup env p = (v, p')" by (cases "hlookup env p")
+  from 3 have "hcontains env p" by auto
+  with 3 V have P: "p' \<le> p" using heap_lookup_all by fast
+  with 3(3) have "hcontains env p'" by auto
+  hence "chained_frame env (p', pc)" by (cases p') auto
+  with 3(1, 2) V P show ?case by fastforce
+qed (simp_all split: prod.splits)
 
 lemma [simp]: "halloc h (CEConst k) = (h', p) \<Longrightarrow> 
   halloc (unchain_heap h env) (HConst k) = (unchain_heap h' env, p)"
@@ -122,18 +129,20 @@ lemma [dest]: "HLam env\<^sub>h pc = unchain_closure env\<^sub>c\<^sub>e x \<Lon
 lemma [elim]: "hcontains env p \<Longrightarrow> halloc env v = (env', q) \<Longrightarrow> 
     unstack_list env' p = unstack_list env p"
 proof (induction env p rule: unstack_list.induct)
-  case (1 env p)
+  case (2 env p)
   obtain vv p' where V: "hlookup env p = (vv, p')" by (cases "hlookup env p")
-  with 1(2, 3) have V': "hlookup env' p = (vv, p')" by simp
-  from 1(2) V have "p' < p \<Longrightarrow> hcontains env p'" by auto
-  with 1 V have "p' < p \<Longrightarrow> unstack_list env' p' = unstack_list env p'" by metis
-  with V V' show ?case by (simp add: unstack_list.simps)
-qed
+  from 2(2) have "hcontains env p" by fast
+  with 2(3) V have V': "hlookup env' p = (vv, p')" by simp
+  from 2(2) V have "p' \<le> p \<Longrightarrow> hcontains env p'" by auto
+  with 2 V have "p' \<le> p \<Longrightarrow> unstack_list env' p' = unstack_list env p'" by metis
+  with V V' show ?case by simp
+qed simp_all
 
-lemma [elim]: "chained_closures env h \<Longrightarrow> halloc env v = (env', p) \<Longrightarrow> 
+lemma [elim]: "chain_structured h env \<Longrightarrow> chained_closures env h \<Longrightarrow> halloc env v = (env', p) \<Longrightarrow> 
   unchain_heap h env' = unchain_heap h env"
 proof (unfold unchain_heap_def)
-  assume C: "chained_closures env h" and A: "halloc env v = (env', p)"
+  assume S: "chain_structured h env" and C: "chained_closures env h" 
+    and A: "halloc env v = (env', p)"
   have "\<And>x. hcontains h x \<Longrightarrow> unchain_closure env' (hlookup h x) = 
     unchain_closure env (hlookup h x)" 
   proof -
@@ -143,7 +152,7 @@ proof (unfold unchain_heap_def)
     proof (cases "hlookup h x")
       case (CELam pp pc)
       with C X have "chained_closure env (CELam pp pc)" by (metis heap_lookup_all)
-      with A CELam show ?thesis by auto
+      with S A CELam show ?thesis by auto
     qed simp_all
   qed
   thus "hmap (unchain_closure env') h = hmap (unchain_closure env) h" by (metis hmap_eq)
@@ -151,14 +160,19 @@ qed
 
 lemma [elim]: "chained_frame env a \<Longrightarrow> halloc env v = (env', p) \<Longrightarrow> 
     unchain_frame env' a = unchain_frame env a"
-  by (induction a) auto
+proof (induction env a rule: chained_frame.induct)
+  case (2 env p pc)
+  moreover obtain v' p' where "hlookup env p = (v', p')" by (cases "hlookup env p")
+  moreover from 2 have "p' \<le> p \<Longrightarrow> hcontains env p'" by auto
+  ultimately show ?case by auto
+qed simp_all
 
 lemma [elim]: "chained_stack env sfs \<Longrightarrow> halloc env v = (env', p) \<Longrightarrow> 
     unchain_stack env' sfs = unchain_stack env sfs"
   by (induction sfs) (auto simp add: unchain_stack_def)
 
 theorem completece [simp]: "cd \<tturnstile> unchain_state \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>h \<Sigma>\<^sub>h \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow>
-    \<exists>\<Sigma>\<^sub>c\<^sub>e'. (cd \<tturnstile> \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e') \<and> \<Sigma>\<^sub>h = unchain_state \<Sigma>\<^sub>c\<^sub>e'"
+  \<exists>\<Sigma>\<^sub>c\<^sub>e'. (cd \<tturnstile> \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e') \<and> \<Sigma>\<^sub>h = unchain_state \<Sigma>\<^sub>c\<^sub>e'"
 proof (induction "unchain_state \<Sigma>\<^sub>c\<^sub>e" \<Sigma>\<^sub>h arbitrary: \<Sigma>\<^sub>c\<^sub>e rule: evalh.induct)
   case (evh_lookup cd pc x env v h vs sfs)
   then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e' where S: "\<Sigma>\<^sub>c\<^sub>e = CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs sfs\<^sub>c\<^sub>e' \<and> h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> 
@@ -166,13 +180,13 @@ proof (induction "unchain_state \<Sigma>\<^sub>c\<^sub>e" \<Sigma>\<^sub>h arbit
   then obtain sf\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where SF: "sfs\<^sub>c\<^sub>e' = sf\<^sub>c\<^sub>e # sfs\<^sub>c\<^sub>e \<and> (env, Suc pc) = unchain_frame env\<^sub>c\<^sub>e sf\<^sub>c\<^sub>e \<and> 
     sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by (auto simp add: unchain_stack_def)
   then obtain p where P: "sf\<^sub>c\<^sub>e = (p, Suc pc) \<and> env = unstack_list env\<^sub>c\<^sub>e p" by (cases sf\<^sub>c\<^sub>e) simp_all
-  with evh_lookup S SF have "chain_structured h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> hcontains env\<^sub>c\<^sub>e p" by simp
-  hence "lookup (unstack_list env\<^sub>c\<^sub>e p) x = Some (chain_lookup env\<^sub>c\<^sub>e p x)" by fastforce
+  with evh_lookup S SF have C: "chain_structured h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e" by simp
   with evh_lookup S SF P have X: "HS h (v # vs) ((env, pc) # sfs) = 
-    unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (chain_lookup env\<^sub>c\<^sub>e p x # vs) ((p, pc) # sfs\<^sub>c\<^sub>e))" 
-      by (simp add: unchain_stack_def)
-  from evh_lookup have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
-    CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (chain_lookup env\<^sub>c\<^sub>e p x # vs) ((p, pc) # sfs\<^sub>c\<^sub>e)" by simp
+    unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v # vs) ((p, pc) # sfs\<^sub>c\<^sub>e))" by (simp add: unchain_stack_def)
+  from evh_lookup S SF P have "chained_frame env\<^sub>c\<^sub>e (p, Suc pc)" by simp
+  with C have "lookup (unstack_list env\<^sub>c\<^sub>e p) x = chain_lookup env\<^sub>c\<^sub>e p x" by simp
+  with evh_lookup P C have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
+    CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v # vs) ((p, pc) # sfs\<^sub>c\<^sub>e)" by simp
   with S SF P X show ?case by blast
 next
   case (evh_pushcon cd pc k h h' v vs env sfs)
@@ -221,23 +235,23 @@ next
   obtain env\<^sub>c\<^sub>e' p'' where H: "halloc env\<^sub>c\<^sub>e (v1, p') = (env\<^sub>c\<^sub>e', p'')" 
     by (cases "halloc env\<^sub>c\<^sub>e (v1, p')") simp_all
   from evh_apply S SF P have C: "chain_structured h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> chained_closures env\<^sub>c\<^sub>e h\<^sub>c\<^sub>e \<and>
-    hcontains h\<^sub>c\<^sub>e v1 \<and> hcontains h\<^sub>c\<^sub>e v2 \<and> chained_vals h\<^sub>c\<^sub>e vs \<and> hcontains env\<^sub>c\<^sub>e p \<and> 
+    hcontains h\<^sub>c\<^sub>e v1 \<and> hcontains h\<^sub>c\<^sub>e v2 \<and> chained_vals h\<^sub>c\<^sub>e vs \<and> chained_frame env\<^sub>c\<^sub>e (p, Suc pc) \<and> 
       chained_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by simp
   with H have Y: "unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e" by fast
-  from H C have "unstack_list env\<^sub>c\<^sub>e' p = unstack_list env\<^sub>c\<^sub>e p" by fast
+  from H C have "unstack_list env\<^sub>c\<^sub>e' p = unstack_list env\<^sub>c\<^sub>e p" by fastforce
   with P have W: "env = unstack_list env\<^sub>c\<^sub>e' p" by metis
   from P' C have "chained_closure env\<^sub>c\<^sub>e (CELam p' pc')" by (metis heap_lookup_all)
-  hence HP: "hcontains env\<^sub>c\<^sub>e p'" by simp
-  with H have PP: "p' < p''" by simp
-  from H C HP have "unstack_list env\<^sub>c\<^sub>e' p' = unstack_list env\<^sub>c\<^sub>e p'" by fast
-  with P' PP have "env' = (if p' < p'' then unstack_list env\<^sub>c\<^sub>e' p' else undefined)" by simp
-  with H have Z: "v1 # env' = unstack_list env\<^sub>c\<^sub>e' p''" by (simp add: unstack_list.simps)
+  hence "chained_frame env\<^sub>c\<^sub>e (p', Suc pc)" by (cases p') auto
+  with H C have "unstack_list env\<^sub>c\<^sub>e' (Suc p'') = v1 # unstack_list env\<^sub>c\<^sub>e p'" 
+    by (metis unfold_unstack_list)
+  with H P' have Z: "v1 # env' = unstack_list env\<^sub>c\<^sub>e' (Suc p'')" by simp
   from H C have "unchain_stack env\<^sub>c\<^sub>e' sfs\<^sub>c\<^sub>e = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by fast
   with SF have "sfs = unchain_stack env\<^sub>c\<^sub>e' sfs\<^sub>c\<^sub>e" by simp
   with S Y Z W have X: "HS h vs ((v1 # env', pc') # (env, pc) # sfs) = 
-    unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((p'', pc') # (p, pc) # sfs\<^sub>c\<^sub>e))" by (simp add: unchain_stack_def)
+    unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((Suc p'', pc') # (p, pc) # sfs\<^sub>c\<^sub>e))" 
+      by (simp add: unchain_stack_def)
   from evh_apply P' H have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1 # v2 # vs) ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
-      CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((p'', pc') # (p, pc) # sfs\<^sub>c\<^sub>e)" by simp
+      CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((Suc p'', pc') # (p, pc) # sfs\<^sub>c\<^sub>e)" by simp
   with S SF P X show ?case by blast
 next
   case (evh_return cd pc h vs env sfs)
@@ -262,58 +276,58 @@ next
   obtain env\<^sub>c\<^sub>e' p'' where H: "halloc env\<^sub>c\<^sub>e (v1, p') = (env\<^sub>c\<^sub>e', p'')" 
     by (cases "halloc env\<^sub>c\<^sub>e (v1, p')") simp_all
   from evh_jump S SF P have C: "chain_structured h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> chained_closures env\<^sub>c\<^sub>e h\<^sub>c\<^sub>e \<and>
-    hcontains h\<^sub>c\<^sub>e v1 \<and> hcontains h\<^sub>c\<^sub>e v2 \<and> chained_vals h\<^sub>c\<^sub>e vs \<and> hcontains env\<^sub>c\<^sub>e p \<and> 
+    hcontains h\<^sub>c\<^sub>e v1 \<and> hcontains h\<^sub>c\<^sub>e v2 \<and> chained_vals h\<^sub>c\<^sub>e vs \<and> chained_frame env\<^sub>c\<^sub>e (p, Suc pc) \<and> 
       chained_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by simp
   with H have Y: "unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e" by fast
   from P' C have "chained_closure env\<^sub>c\<^sub>e (CELam p' pc')" by (metis heap_lookup_all)
-  hence HP: "hcontains env\<^sub>c\<^sub>e p'" by simp
-  with H have PP: "p' < p''" by simp
-  from H C HP have "unstack_list env\<^sub>c\<^sub>e' p' = unstack_list env\<^sub>c\<^sub>e p'" by fast
-  with P' PP have "env' = (if p' < p'' then unstack_list env\<^sub>c\<^sub>e' p' else undefined)" by simp
-  with H have Z: "v1 # env' = unstack_list env\<^sub>c\<^sub>e' p''" by (simp add: unstack_list.simps)
+  hence "chained_frame env\<^sub>c\<^sub>e (p', Suc pc)" by (cases p') auto
+  with H C have "unstack_list env\<^sub>c\<^sub>e' (Suc p'') = v1 # unstack_list env\<^sub>c\<^sub>e p'" 
+    by (metis unfold_unstack_list)
+  with H P' have Z: "v1 # env' = unstack_list env\<^sub>c\<^sub>e' (Suc p'')" by simp
   from H C have "unchain_stack env\<^sub>c\<^sub>e' sfs\<^sub>c\<^sub>e = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by fast
   with SF have "sfs = unchain_stack env\<^sub>c\<^sub>e' sfs\<^sub>c\<^sub>e" by simp
   with S Y Z have X: "HS h vs ((v1 # env', pc') # sfs) = 
-    unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((p'', pc') # sfs\<^sub>c\<^sub>e))" by (simp add: unchain_stack_def)
+    unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((Suc p'', pc') # sfs\<^sub>c\<^sub>e))" by (simp add: unchain_stack_def)
   from evh_jump P' H have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1 # v2 # vs) ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
-      CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((p'', pc') # sfs\<^sub>c\<^sub>e)" by simp
+      CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((Suc p'', pc') # sfs\<^sub>c\<^sub>e)" by simp
   with S SF P X show ?case by blast
 qed
 
 theorem correctce [simp]: "cd \<tturnstile> \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow> 
   cd \<tturnstile> unchain_state \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>h unchain_state \<Sigma>\<^sub>c\<^sub>e'"
 proof (induction \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' rule: evalce.induct)
-  case (evce_lookup cd pc x h env vs p sfs)
-  moreover hence "lookup (unstack_list env p) x = Some (chain_lookup env p x)" by auto
+  case (evce_lookup cd pc x env p v h vs sfs)
+  moreover hence "lookup (unstack_list env p) x = chain_lookup env p x" by auto
   ultimately show ?case by (simp add: unchain_stack_def)
 next
   case (evce_apply cd pc h v2 p' pc' env v1 env' p'' vs p sfs)
   from evce_apply have "chained_closures env h \<and> hcontains h v2" by simp
   with evce_apply have "chained_closure env (CELam p' pc')" by (metis heap_lookup_all)
-  with evce_apply have "chain_structured h env \<and> hcontains env p' \<and> 
-    halloc env (v1, p') = (env', p'')" by simp
-  hence X: "unstack_list env' p'' = v1 # unstack_list env p'" by (metis unfold_unstack)
+  with evce_apply have "chain_structured h env \<and> chained_frame env (p', pc) \<and> 
+    halloc env (v1, p') = (env', p'')" by (cases p') auto
+  hence X: "unstack_list env' (Suc p'') = v1 # unstack_list env p'" by (metis unfold_unstack_list)
   from evce_apply have A: "unchain_heap h env' = unchain_heap h env" by auto
   from evce_apply have B: "unstack_list env' p = unstack_list env p" by auto
   from evce_apply have "unchain_stack env' sfs = unchain_stack env sfs" by auto 
   with evce_apply X A B have "cd \<tturnstile> HS (unchain_heap h env) (v1 # v2 # vs) 
     ((unstack_list env p, Suc pc) # unchain_stack env sfs) \<leadsto>\<^sub>h
       HS (unchain_heap h env') vs 
-        ((unstack_list env' p'', pc') # (unstack_list env' p, pc) # unchain_stack env' sfs)" by simp
+        ((unstack_list env' (Suc p''), pc') # (unstack_list env' p, pc) # unchain_stack env' sfs)" 
+    by simp
   thus ?case by (simp add: unchain_stack_def)
 next
   case (evce_jump cd pc h v2 p' pc' env v1 env' p'' vs p sfs)
   from evce_jump have "chained_closures env h \<and> hcontains h v2" by simp
   with evce_jump have "chained_closure env (CELam p' pc')" by (metis heap_lookup_all)
-  with evce_jump have "chain_structured h env \<and> hcontains env p' \<and> 
-    halloc env (v1, p') = (env', p'')" by simp
-  hence X: "unstack_list env' p'' = v1 # unstack_list env p'" by (metis unfold_unstack)
+  with evce_jump have "chain_structured h env \<and> chained_frame env (p', pc) \<and> 
+    halloc env (v1, p') = (env', p'')" by (cases p') auto
+  hence X: "unstack_list env' (Suc p'') = v1 # unstack_list env p'" by (metis unfold_unstack_list)
   from evce_jump have A: "unchain_heap h env' = unchain_heap h env" by auto
   from evce_jump have "unchain_stack env' sfs = unchain_stack env sfs" by auto 
   with evce_jump X A have "cd \<tturnstile> HS (unchain_heap h env) (v1 # v2 # vs) 
     ((unstack_list env p, Suc pc) # unchain_stack env sfs) \<leadsto>\<^sub>h
       HS (unchain_heap h env') vs 
-        ((unstack_list env' p'', pc') # unchain_stack env' sfs)" by simp
+        ((unstack_list env' (Suc p''), pc') # unchain_stack env' sfs)" by simp
   thus ?case by (simp add: unchain_stack_def)
 qed (simp_all add: unchain_stack_def)
 
@@ -322,7 +336,7 @@ lemma [simp]: "halloc env (v, p') = (env', p) \<Longrightarrow> p' < p \<Longrig
   by auto
 
 lemma [simp]: "halloc env (v, p') = (env', p) \<Longrightarrow> chained_frame env f \<Longrightarrow> chained_frame env' f"
-  by (induction f) simp_all
+  by (induction env f rule: chained_frame.induct) simp_all
 
 lemma [simp]: "halloc env (v, p') = (env', p) \<Longrightarrow> chained_stack env sfs \<Longrightarrow> 
     chained_stack env' sfs"
@@ -332,27 +346,29 @@ lemma [elim]: "chain_structured h env \<Longrightarrow> hcontains env p \<Longri
     hcontains h a"
 proof -
   assume "chain_structured h env" and "hcontains env p" and "hlookup env p = (a, b)"
-  hence "(\<lambda>(v, p'). p' < p \<and> hcontains h v) (a, b)" by (metis heap_lookup_all)
+  hence "(\<lambda>(v, p'). p' \<le> p \<and> hcontains h v) (a, b)" by (metis heap_lookup_all)
   thus ?thesis by simp
 qed
 
-lemma [simp]: "chain_structured h env \<Longrightarrow> hcontains env p \<Longrightarrow> hcontains h (chain_lookup env p x)"
-proof (induction x arbitrary: p)
-  case 0
+lemma [elim]: "chain_structured h env \<Longrightarrow> hcontains env p \<Longrightarrow> chain_lookup env p x = Some v \<Longrightarrow> 
+  hcontains h v"
+proof (induction env p x rule: chain_lookup.induct)
+  case (2 env p)
   moreover obtain a b where "hlookup env p = (a, b)" by (cases "hlookup env p")
   ultimately show ?case by auto
 next
-  case (Suc x)
-  moreover obtain a b where A: "hlookup env p = (a, b)" by (cases "hlookup env p")
-  ultimately have "b < p \<and> hcontains h a" using heap_lookup_all by fast
-  with Suc have "hcontains env b" by fastforce
-  with Suc A show ?case by simp
-qed
+  case (3 env p x)
+  obtain a b where A: "hlookup env p = (a, b)" by (cases "hlookup env p")
+  from 3 have "hcontains env p" by auto
+  with 3 A have "b \<le> p \<and> hcontains h a" using heap_lookup_all by fast
+  with 3 have "hcontains env b" by fastforce
+  with 3 A show ?case by simp
+qed simp_all
 
 lemma [elim]: "halloc h v = (h', p) \<Longrightarrow> chain_structured h env \<Longrightarrow> chain_structured h' env"
 proof -
-  define pp where "pp = (\<lambda>(p::nat) (v, p'). p' < p \<and> hcontains h v)"
-  define qq where "qq = (\<lambda>(p::nat) (v, p'). p' < p \<and> hcontains h' v)"
+  define pp where "pp = (\<lambda>(p::nat) (v, p'). p' \<le> p \<and> hcontains h v)"
+  define qq where "qq = (\<lambda>(p::nat) (v, p'). p' \<le> p \<and> hcontains h' v)"
   assume "halloc h v = (h', p)"
   hence A: "\<And>x y. pp x y \<Longrightarrow> qq x y" by (auto simp add: pp_def qq_def split: prod.splits)
   assume "chain_structured h env"
@@ -364,8 +380,11 @@ qed
 lemma [elim]: "halloc h v = (h', p) \<Longrightarrow> chained_vals h vs \<Longrightarrow> chained_vals h' vs"
   by (induction vs) auto
 
+lemma [elim]: "halloc env v = (env', p) \<Longrightarrow> chained_frame env (a, b) \<Longrightarrow> chained_frame env' (a, b)"
+  by (cases a) simp_all
+
 lemma [elim]: "halloc env v = (env', p) \<Longrightarrow> chained_closure env c \<Longrightarrow> chained_closure env' c"
-  by (induction c) simp_all
+  by (induction c) auto
 
 lemma [elim]: "halloc env v = (env', p) \<Longrightarrow> chained_closures env h \<Longrightarrow> chained_closures env' h"
 proof -
@@ -380,15 +399,50 @@ lemma [elim]: "hlookup h v2 = CELam p' pc' \<Longrightarrow> chained_closures en
     chain_structured h env'"
 proof -
   assume "chained_closures env h" and "hlookup h v2 = CELam p' pc'" and "hcontains h v2"
-  hence X: "hcontains env p'" using heap_lookup_all by fastforce
-  moreover assume "halloc env (v1, p') = (env', p'')" and "chain_structured h env" 
+  hence X: "chained_frame env (p', pc')" using heap_lookup_all by fastforce
+  moreover assume A: "halloc env (v1, p') = (env', p'')" and "chain_structured h env" 
     and "hcontains h v1"
-  moreover with X have "p' < p''" by simp
+  moreover have "p' \<le> p''" 
+  proof (cases p')
+    case (Suc pp)
+    moreover with X A have "pp < p''" by simp
+    ultimately show ?thesis by simp
+  qed simp_all
   ultimately show ?thesis by auto
 qed
 
+lemma [elim]: "chain_lookup env (Suc p) x = Some v \<Longrightarrow> chain_structured h env \<Longrightarrow> 
+  hcontains env p \<Longrightarrow> hcontains h v"
+proof (induction env "Suc p" x arbitrary: p rule: chain_lookup.induct)
+  case (2 env p)
+  then obtain b where "hlookup env p = (v, b)" by (cases "hlookup env p") simp_all
+  with 2 have "b \<le> p \<and> hcontains h v" using heap_lookup_all by fast
+  with 2 show ?case by simp
+next
+  case (3 env p x)
+  moreover then obtain a b where A: "hlookup env p = (a, b)" by (cases "hlookup env p")
+  moreover with 3 have "b \<le> p \<and> hcontains h a" using heap_lookup_all by fast
+  ultimately show ?case by (cases b) auto
+qed
+
+lemma [elim]: "halloc h (CELam p pc') = (h', v) \<Longrightarrow> chained_closures env h \<Longrightarrow> 
+    chained_frame env (p, pc) \<Longrightarrow> chained_closures env h'"
+  by (cases p, auto)
+
 lemma [simp]: "cd \<tturnstile> \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e'"
-  by (induction \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' rule: evalce.induct) auto
+proof (induction \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' rule: evalce.induct)
+case (evce_lookup cd pc x env p v h vs sfs)
+  thus ?case by (cases p) auto
+next
+  case (evce_pushcon cd pc k h h' v env vs p sfs)
+  thus ?case by (cases p) auto
+next
+  case (evce_pushlam cd pc pc' h p h' v env vs sfs)
+  thus ?case by (cases p) auto
+next
+case (evce_apply cd pc h v2 p' pc' env v1 env' p'' vs p sfs)
+  thus ?case by (cases p) auto
+qed auto
 
 lemma [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>c\<^sub>e) \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow> 
   iter (\<tturnstile> cd \<leadsto>\<^sub>h) (unchain_state \<Sigma>\<^sub>c\<^sub>e) (unchain_state \<Sigma>\<^sub>c\<^sub>e')"
@@ -409,5 +463,9 @@ proof (induction "unchain_state \<Sigma>\<^sub>c\<^sub>e" \<Sigma>\<^sub>h arbit
   ultimately have "iter (\<tturnstile> cd \<leadsto>\<^sub>c\<^sub>e) \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e'' \<and> \<Sigma>\<^sub>h'' = unchain_state \<Sigma>\<^sub>c\<^sub>e''" by fastforce
   then show ?case by fastforce
 qed force+
+
+lemma preserve_chained [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>c\<^sub>e) \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow> 
+    chained_state \<Sigma>\<^sub>c\<^sub>e'"
+  by (induction \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' rule: iter.induct) simp_all
 
 end

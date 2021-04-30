@@ -66,12 +66,14 @@ proof -
   with EH SH obtain \<Sigma>\<^sub>c\<^sub>e' where ECE: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>c\<^sub>e) 
     (CES hempty hempty [] [(0, length ?cd)]) \<Sigma>\<^sub>c\<^sub>e' \<and> HS h\<^sub>h [v\<^sub>h] [] = unchain_state \<Sigma>\<^sub>c\<^sub>e'" by fastforce
   then obtain h\<^sub>c\<^sub>e env\<^sub>h where VCE: "\<Sigma>\<^sub>c\<^sub>e' = CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] [] \<and> h\<^sub>h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>h" 
-    by (metisx unchain_state_reverse map_is_Nil_conv)
+    by (metis unchain_state_reverse map_is_Nil_conv unchain_stack_def)
   with ECE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (CES hempty hempty [] [(0, length ?cd)]))
     (flatten (CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis completef_iter)
   hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (FS (H nmem 0) (H nmem 0) [] [length ?cd, 0])
      (FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [v\<^sub>h] [])" by (simp add: hempty_def)
-  from VCE have VH: "hcontains h\<^sub>c\<^sub>e v\<^sub>h" by simp
+  have "chained_state (CES hempty hempty [] [(0, length ?cd)])" by simp
+  with ECE have "chained_state \<Sigma>\<^sub>c\<^sub>e'" by (metis preserve_chained)
+  with VCE have VH: "hcontains h\<^sub>c\<^sub>e v\<^sub>h" by simp
   from C have "?cd \<noteq> []" by auto
   with EF have "\<exists>\<Sigma>\<^sub>u'. 
     iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
