@@ -70,50 +70,54 @@ proof -
   with ECE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (CES hempty hempty [] [(0, length ?cd)]))
     (flatten (CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis completef_iter)
   hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (FS (H nmem 0) (H nmem 0) [] [length ?cd, 0])
-     (FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [v\<^sub>h] [])" by (simp add: hempty_def)
+     (FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [])" by (simp add: hempty_def)
   have "chained_state (CES hempty hempty [] [(0, length ?cd)])" by simp
   with ECE have "chained_state \<Sigma>\<^sub>c\<^sub>e'" by (metis preserve_chained)
   with VCE have VH: "hcontains h\<^sub>c\<^sub>e v\<^sub>h" by simp
   from C have "?cd \<noteq> []" by auto
   with EF have "\<exists>\<Sigma>\<^sub>u'. 
     iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
-      FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'"
+      FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'"
         by (cases ?cd) simp_all
   then obtain \<Sigma>\<^sub>u' where 
     "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
-      FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by blast
+      FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by blast
   moreover then obtain h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u sp\<^sub>u where VU:
     "\<Sigma>\<^sub>u' = US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u sp\<^sub>u 0 \<and> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<and> 
-      flatten_environment env\<^sub>h = H e\<^sub>u ep\<^sub>u \<and> listify' vs\<^sub>u vp\<^sub>u = v\<^sub>h # []" by auto
-  moreover hence VSU: "vs\<^sub>u 0 = v\<^sub>h \<and> vp\<^sub>u = 1" by auto
+      flatten_environment env\<^sub>h = H e\<^sub>u ep\<^sub>u \<and> listify' vs\<^sub>u vp\<^sub>u = 3 * v\<^sub>h # []" by auto
+  moreover hence VSU: "vs\<^sub>u 0 = 3 * v\<^sub>h \<and> vp\<^sub>u = 1" by auto
   ultimately have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) 
     (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u sp\<^sub>u 0)" by simp
   moreover hence "sp\<^sub>u = 0" by (metis evalu_clears_regs)
   ultimately have EU: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) 
     (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   let ?mem = "(\<lambda>m. case m of Hp \<Rightarrow> h\<^sub>u | Env \<Rightarrow> e\<^sub>u | Val \<Rightarrow> vs\<^sub>u | Stk \<Rightarrow> sh\<^sub>u)"
-  let ?rs = "(\<lambda>r. case r of HP \<Rightarrow> hp\<^sub>u | EP \<Rightarrow> ep\<^sub>u | VP \<Rightarrow> Suc 0 | SP \<Rightarrow> 0)"
+  let ?rs = "(\<lambda>r. case r of HP \<Rightarrow> hp\<^sub>u | EP \<Rightarrow> ep\<^sub>u | VP \<Rightarrow> Suc 0 | SP \<Rightarrow> 0 | ACC \<Rightarrow> 0 | ACC2 \<Rightarrow> 0)"
   let ?cd' = "(fst \<circ> assemble) ?cd"
 
 
-  from C T obtain mp where "assemble ?cd = (?cd', mp)" by (cases "assemble ?cd") simp_all
+
+
+  from C T obtain mp where MP: "assemble ?cd = (?cd', mp)" by (cases "assemble ?cd") simp_all
   with EU have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
     (assemble_state mp (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd))) 
       (assemble_state mp (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correcta_iter)
-  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
-    (AS ((\<lambda>r. 0)(SP := 1)) ((\<lambda>m. nmem)(Stk := nmem(0 := 0))) (length ?cd')) (AS ?rs ?mem 0)" by simp
+  with MP have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
+    (AS (\<lambda>r. if r = SP then Suc 0 else 0) (\<lambda>m. if m = Stk then nmem(0 := 0) else nmem) 
+      (length ?cd')) (AS ?rs ?mem 0)" by simp
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) 
-    (disassemble_state (AS ((\<lambda>r. 0)(SP := 1)) ((\<lambda>m. nmem)(Stk := nmem(0 := 0))) (length ?cd'))) 
-      (disassemble_state (AS ?rs ?mem 0))" by (metis correctm_iter)
+    (disassemble_state (AS (\<lambda>r. if r = SP then Suc 0 else 0) 
+      (\<lambda>m. if m = Stk then nmem(0 := 0) else nmem) (length ?cd'))) 
+        (disassemble_state (AS ?rs ?mem 0))" by (metis correctm_iter)
   with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS ((\<lambda>r. 0)(R4 := 1)) (nmem(3 := 0)) (length cd)) 
-    (MS (?rs \<circ> inv_register_map) (uncurry ?mem \<circ> unmap_mem) 0)" by simp
+    (MS (?rs \<circ> inv_register_map) (uncurry ?mem \<circ> unmap_mem) 0)" by auto
   from EC VT have "print_closure c = print_nexpr (erase v\<^sub>t)" by simp
   moreover from EB have "print_bclosure v\<^sub>b = print_tco_closure (tco_val (encode_closure c))" by simp
   ultimately have "print_bclosure v\<^sub>b = print_nexpr (erase v\<^sub>t)" by simp
   with SH have "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by simp
   with VCE VH have "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by (metis print_ce)
-  hence "print_ceclosure (get_closure (flatten_values h\<^sub>c\<^sub>e) v\<^sub>h) = print_nexpr (erase v\<^sub>t)" 
-    by (simp del: get_closure.simps)
+  with VH have "print_ceclosure (get_closure (flatten_values h\<^sub>c\<^sub>e) (3 * v\<^sub>h)) = print_nexpr (erase v\<^sub>t)" 
+    by simp
   with VU VSU have "print_uval h\<^sub>u (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
   hence PU: "print_uval (?mem Hp) (?mem Val 0) = print_nexpr (erase v\<^sub>t)" by simp
   have "unmap_mem (4 * ?mem Val 0) = (Hp, ?mem Val 0)" by simp

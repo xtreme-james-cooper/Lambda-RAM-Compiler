@@ -183,26 +183,37 @@ proof (induction h)
   ultimately show ?case by simp
 qed
 
-lemma [simp]: "(\<And>a. length (f a) = 2 \<and> fst a = f a ! 0) \<Longrightarrow> hcontains h p \<Longrightarrow>
-  hlookup (hsplay f h) (2 * p) = fst (hlookup h p)"
-proof -
-  assume "\<And>a. length (f a) = 2 \<and> fst a = f a ! 0" and "hcontains h p"
-  moreover have "(0::nat) < 2" by simp
-  ultimately have "hlookup (hsplay f h) (0 + 2 * p) = fst (hlookup h p)" by (metis hlookup_hsplay)
-  thus ?thesis by simp
-qed
-
-lemma [simp]: "(\<And>a. length (f a) = 2 \<and> snd a = f a ! 1) \<Longrightarrow> hcontains h p \<Longrightarrow>
-  hlookup (hsplay f h) (Suc (2 * p)) = snd (hlookup h p)"
-proof -
-  assume "\<And>a. length (f a) = 2 \<and> snd a = f a ! 1" and "hcontains h p"
-  moreover have "(1::nat) < 2" by simp
-  ultimately have "hlookup (hsplay f h) (1 + 2 * p) = snd (hlookup h p)" by (metis hlookup_hsplay)
-  thus ?thesis by simp
-qed
-
 lemma [simp]: "hsplay f hempty = hempty"
   by (simp add: hempty_def)
+
+lemma halloc_list_hsplay' [simp]: "n \<le> hpa \<Longrightarrow> hsplay' f ha hpa hb hpb n = (h, hp) \<Longrightarrow> 
+  hsplay' f (ha(hpa := a)) (Suc hpa) hb hpb n = (h', hp') \<Longrightarrow> 
+    h' = halloc_list' h hp (f a) \<and> hp' = hp + length (f a)"
+  by (induction f ha hpa hb hpb n rule: hsplay'.induct) simp_all
+
+lemma hsplay'_index [simp]: "hsplay' f ha hpa hb hpb n = (h, hp) \<Longrightarrow> (\<And>x. length (f x) = k) \<Longrightarrow> 
+    hp = hpb + k * (hpa - n)"
+proof (induction f ha hpa hb hpb n rule: hsplay'.induct)
+  case (2 hpa n f ha hb hpb)
+  moreover have "n < hpa \<Longrightarrow> k + k * (hpa - Suc n) = k * (hpa - n)"
+    by (metis Suc_diff_Suc mult_Suc_right)
+  ultimately show ?case by simp
+qed simp_all
+
+lemma [simp]: "halloc h a = (h', p) \<Longrightarrow> (\<And>x. length (f x) = k) \<Longrightarrow> 
+  halloc_list (hsplay f h) (f a) = (hsplay f h', k * p)"
+proof (induction h)
+  case (H h hp)
+  hence "hp = p" by simp
+  moreover with H have "h' = H (h(p := a)) (Suc p)" by simp
+  moreover obtain hh' hp' where HH: "hsplay' f h p (\<lambda>x. undefined) 0 0 = (hh', hp')" by fastforce
+  moreover obtain hh'' hp'' where HH': "hsplay' f (h(p := a)) (Suc p) (\<lambda>x. undefined) 0 0 = 
+    (hh'', hp'')" by fastforce
+  moreover with HH have "hh'' = halloc_list' hh' hp' (f a) \<and> hp'' = hp' + length (f a)" 
+    using halloc_list_hsplay' by fast
+  moreover from H HH have "hp' = 0 + k * (p - 0)" by (metis hsplay'_index)
+  ultimately show ?case by fastforce
+qed
 
 primrec listify' :: "(nat \<Rightarrow> 'a) \<Rightarrow> nat \<Rightarrow> 'a list" where
   "listify' h 0 = []"

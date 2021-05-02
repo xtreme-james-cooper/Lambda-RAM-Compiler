@@ -1,5 +1,5 @@
 theory Unstructuring
-  imports UnstructuredMemory "../11FlatMemory/FlatMemory"
+  imports UnstructuredMemory "../11FlatMemory/FlatMemory" "../00Utils/Utils"
 begin
 
 fun restructure :: "unstr_state \<Rightarrow> flat_state" where
@@ -8,7 +8,7 @@ fun restructure :: "unstr_state \<Rightarrow> flat_state" where
 | "restructure (US h hp e ep vs vp sh sp (Suc pc)) = 
     FS (H h hp) (H e ep) (listify' vs vp) (Suc pc # listify' sh sp)"
 
-theorem completeu [simp]: "cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> iter (\<tturnstile> cd \<leadsto>\<^sub>f) (restructure \<Sigma>\<^sub>u) (restructure \<Sigma>\<^sub>u')"
+theorem completeu [simp]: "cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> cd \<tturnstile> restructure \<Sigma>\<^sub>u \<leadsto>\<^sub>f restructure \<Sigma>\<^sub>u'"
 proof (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induct)
   case (evu_lookup cd pc x h sh sp y hp e ep vs vp)
   then show ?case by simp
@@ -30,7 +30,7 @@ next
 qed
 
 lemma [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> iter (\<tturnstile> cd \<leadsto>\<^sub>f) (restructure \<Sigma>\<^sub>u) (restructure \<Sigma>\<^sub>u')" 
-  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: iter.induct) (simp, metis completeu iter_append)
+  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: iter.induct) (simp, metis completeu iter_step)
 
 lemma evalu_clears_regs: "iter (\<tturnstile> cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length cd)) 
     (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u sp\<^sub>u 0) \<Longrightarrow> sp\<^sub>u = 0"
@@ -42,7 +42,7 @@ lemma [dest]: "FS h env vs sfs = restructure \<Sigma> \<Longrightarrow> \<exists
   by (induction \<Sigma> rule: restructure.induct) simp_all
 
 theorem correctu [simp]: "cd \<tturnstile> restructure \<Sigma>\<^sub>u \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> 
-    \<exists>\<Sigma>\<^sub>u'. iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>u'"
+    \<exists>\<Sigma>\<^sub>u'. (cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u') \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>u'"
 proof (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' rule: evalf.induct)
   case (evf_lookup cd pc x env p v h vs sfs)
   hence "FS h env vs (Suc pc # p # sfs) = restructure \<Sigma>\<^sub>u" by simp
@@ -56,7 +56,8 @@ proof (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' rule: evalf.in
 
 
 
-  have "iter (\<tturnstile> cd \<leadsto>\<^sub>u) (US h' hp e ep vs' vp sh sp (Suc pc)) \<Sigma>\<^sub>u' \<and> FS h env (v # vs) (pc # p # sfs) = restructure \<Sigma>\<^sub>u'" by simp
+  from S have "(cd \<tturnstile> US h' hp e ep vs' vp sh sp (Suc pc) \<leadsto>\<^sub>u US h' hp e ep xvs xvp sh sp (Suc xpc)) \<and> 
+    FS h env (v # vs) (pc # p # sfs) = restructure (US h' hp e ep xvs xvp sh sp (Suc xpc))" by simp
   with S show ?case by blast
 next
   case (evf_pushcon cd pc k h h' v env vs p sfs)
@@ -65,19 +66,19 @@ next
   case (evf_pushlam cd pc pc' h p h' v env vs sfs)
   then show ?case by simp
 next
-  case (evf_apply cd pc h v2 p' pc' env v1 env1 p1 env2 p2 vs p sfs)
+  case (evf_apply cd pc h v2 p' pc' env v1 env' p2 vs p sfs)
   then show ?case by simp
 next
   case (evf_return cd pc h env vs p sfs)
   then show ?case by simp
 next
-  case (evf_jump cd pc h v2 p' pc' env v1 env1 p1 env2 p2 vs p sfs)
+  case (evf_jump cd pc h v2 p' pc' env v1 env' p2 vs p sfs)
   then show ?case by simp
 qed
 
 theorem correctu_iter [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>f) (restructure \<Sigma>\<^sub>u) \<Sigma>\<^sub>f' \<Longrightarrow> 
     \<exists>\<Sigma>\<^sub>u'. iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>u'"
-  by (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' arbitrary: \<Sigma>\<^sub>u rule: iter.induct)
-     (force, metis correctu iter_append)
+  by (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' arbitrary: \<Sigma>\<^sub>u rule: iter.induct) 
+     (force, metis correctu iter_step)
 
 end

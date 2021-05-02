@@ -143,10 +143,13 @@ proof (induction e arbitrary: \<Gamma> vs)
   with NLam(4) X show ?case by blast
 qed (simp_all add: Let_def split: option.splits prod.splits)
 
+lemma [simp]: "tsubsts Map.empty e = e"
+  by (induction e) simp_all
+
 lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> typeify (subst sub t) = tsubsts sub (typeify t)"
   by (induction t rule: typeify.induct) (simp_all split: option.splits)
 
-lemma [simp]: "valid_ty_subst Map.empty"
+lemma valid_empty [simp]: "valid_ty_subst Map.empty"
   by (simp add: valid_ty_subst_def)
 
 lemma [simp]: "valid_ty_uexpr e \<Longrightarrow> typeify (subst sub e) = tsubsts sub (typeify e)"
@@ -364,7 +367,7 @@ proof -
   then obtain e' tt vs sub where T: "typecheck' Map.empty {} e = Some (e', tt, vs, sub) \<and>
     e\<^sub>t = tsubstt sub (solidify e') \<and> t = tsubsts sub (typeify tt)" by (auto split: option.splits)
   moreover hence "map_option (typeify \<circ> subst sub) \<circ> Map.empty \<turnstile>\<^sub>n solidify (hsubst sub e') : 
-    typeify (subst sub tt)" by (metis typecheck_succeeds)
+    typeify (subst sub tt)" by (metis typecheck_succeeds valid_empty)
   moreover from T have "valid_ty_uexpr tt" and "valid_ty_hexpr e'" by auto
   ultimately show "Map.empty \<turnstile>\<^sub>n e\<^sub>t : t" by simp
 qed

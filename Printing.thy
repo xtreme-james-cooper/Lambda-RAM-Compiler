@@ -92,8 +92,11 @@ lemma print_ce [simp]: "hcontains h x \<Longrightarrow>
     print_ceclosure (hlookup h x) = print_hclosure (hlookup (unchain_heap h env) x)"
   by (cases "hlookup h x") simp_all
 
+lemma [simp]: "print_ceclosure (flatten_closure' c) = print_ceclosure c"
+  by (induction c) simp_all
+
 lemma print_u [simp]: "print_uval h p = print_ceclosure (get_closure (H h hp) p)"
-  by (cases "h p") simp_all
+  by (cases "h p") (simp_all add: get_closure.simps)
 
 lemma print_m [simp]: "unmap_mem p = (a, b) \<Longrightarrow> 
     print_mval (uncurry mem \<circ> unmap_mem) p = print_uval (mem a) b" 

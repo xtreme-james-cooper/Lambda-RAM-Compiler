@@ -96,4 +96,7 @@ qed simp_all
 primrec uncurry :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> 'a \<times> 'b \<Rightarrow> 'c" where
   "uncurry f (a, b) = f a b"
 
+abbreviation nmem :: "nat \<Rightarrow> nat" where
+  "nmem x \<equiv> undefined"
+
 end

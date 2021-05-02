@@ -97,19 +97,42 @@ primrec assemble :: "byte_code list \<Rightarrow> assm list \<times> (nat \<Righ
 | "assemble (op # cd) = (
     let (cd', mp) = assemble cd
     in let op' = assemble' mp op
-    in (op' @ cd', \<lambda>x. if x < length cd then mp x else mp x + length op'))"
+    in (op' @ cd', \<lambda>x. case x of 0 \<Rightarrow> 0 | Suc x' \<Rightarrow> mp x' + length op'))"
 
 primrec assemble_state :: "(nat \<Rightarrow> nat) \<Rightarrow> unstr_state \<Rightarrow> assm_state" where
-  "assemble_state mv (US h hp e ep vs vp sh sp pc) = AS (\<lambda>r. case r of
+  "assemble_state mp (US h hp e ep vs vp sh sp pc) = AS (\<lambda>r. case r of
       HP \<Rightarrow> hp 
     | EP \<Rightarrow> ep
     | VP \<Rightarrow> vp
     | SP \<Rightarrow> sp
-    | ACC \<Rightarrow> undefined) (\<lambda>m. case m of
+    | ACC \<Rightarrow> 0
+    | ACC2 \<Rightarrow> 0) (\<lambda>m. case m of
       Hp \<Rightarrow> h
     | Env \<Rightarrow> e
     | Val \<Rightarrow> vs
-    | Stk \<Rightarrow> sh) pc"
+    | Stk \<Rightarrow> sh) (mp pc)"
+
+lemma [simp]: "(\<lambda>r. case r of HP \<Rightarrow> 0 | EP \<Rightarrow> 0 | VP \<Rightarrow> 0 | SP \<Rightarrow> Suc 0 | ACC \<Rightarrow> 0 | ACC2 \<Rightarrow> 0) = 
+  (\<lambda>r. 0)(SP := Suc 0)"
+proof
+  fix r
+  show "(case r of HP \<Rightarrow> 0 | EP \<Rightarrow> 0 | VP \<Rightarrow> 0 | SP \<Rightarrow> Suc 0 | ACC \<Rightarrow> 0 | ACC2 \<Rightarrow> 0) = 
+    ((\<lambda>r. 0)(SP := Suc 0)) r"
+      by (cases r) simp_all
+  qed
+
+lemma [simp]: "(\<lambda>m. case m of Stk \<Rightarrow> nmem(0 := 0) | _ \<Rightarrow> nmem) = (\<lambda>m. nmem)(Stk := nmem(0 := 0))"
+proof
+  fix m
+  show "(case m of Stk \<Rightarrow> nmem(0 := 0) | _ \<Rightarrow> nmem) = ((\<lambda>m. nmem)(Stk := nmem(0 := 0))) m"
+    by (cases m) simp_all
+qed
+
+lemma [simp]: "assemble cd = (cd', mp) \<Longrightarrow> mp 0 = 0"
+  by (induction cd arbitrary: cd' mp) (auto simp add: Let_def split: prod.splits)
+
+lemma [simp]: "assemble cd = (cd', mp) \<Longrightarrow> mp (length cd) = length cd'"
+  by (induction cd arbitrary: cd' mp) (auto simp add: Let_def split: prod.splits)
 
 theorem completea [simp]: "cd\<^sub>a \<tturnstile> \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> 
   \<exists>cd\<^sub>b mp \<Sigma>\<^sub>u \<Sigma>\<^sub>u'. assemble cd\<^sub>b = (cd\<^sub>a, mp) \<and> assemble_state mp \<Sigma>\<^sub>u = \<Sigma>\<^sub>a \<and> 

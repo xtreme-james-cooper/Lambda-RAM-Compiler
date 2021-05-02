@@ -49,6 +49,9 @@ lemma [simp]: "unmap_mem p = (a, b) \<Longrightarrow> uncurry mem (unmap_mem (4 
 lemma [simp]: "unmap_mem (4 * x) = (Hp, x)"
   by (induction x rule: unmap_mem.induct) (simp_all add: numeral_def)
 
+lemma [simp]: "length (disassemble cd) = length cd"
+  by (simp add: disassemble_def)
+
 theorem completem [simp]: "cd\<^sub>m \<tturnstile> \<Sigma>\<^sub>m \<leadsto>\<^sub>m \<Sigma>\<^sub>m' \<Longrightarrow> 
   \<exists>cd\<^sub>a \<Sigma>\<^sub>a \<Sigma>\<^sub>a'. cd\<^sub>m = disassemble cd\<^sub>a \<and> disassemble_state \<Sigma>\<^sub>a = \<Sigma>\<^sub>m \<and> 
     disassemble_state \<Sigma>\<^sub>a' = \<Sigma>\<^sub>m' \<and> iter (\<tturnstile> cd\<^sub>a \<leadsto>\<^sub>a) \<Sigma>\<^sub>a \<Sigma>\<^sub>a'"
@@ -62,6 +65,19 @@ lemma [simp]: "register_map (inv_register_map r) = r"
 
 lemma [simp]: "((rs \<circ> inv_register_map)(register_map r := k)) = (rs(r := k) \<circ> inv_register_map)"
   by (rule, auto)
+
+lemma [dest]: "inv_register_map r = SP \<Longrightarrow> r = R4"
+  by (induction r) simp_all
+
+lemma [simp]: "((\<lambda>r. if r = SP then Suc 0 else 0) \<circ> inv_register_map) = (\<lambda>r. 0)(R4 := Suc 0)"
+  by (rule, auto)
+
+lemma [simp]: "uncurry (\<lambda>m. if m = Stk then nmem(0 := 0) else nmem) \<circ> unmap_mem = nmem(3 := 0)"
+proof
+  fix x
+  show "(uncurry (\<lambda>m. if m = Stk then nmem(0 := 0) else nmem) \<circ> unmap_mem) x = (nmem(3 := 0)) x" 
+    by (induction x rule: unmap_mem.induct) (simp_all split: prod.splits)
+qed
 
 theorem correctm [simp]: "cd\<^sub>a \<tturnstile> \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow>
    disassemble cd\<^sub>a \<tturnstile> disassemble_state \<Sigma>\<^sub>a \<leadsto>\<^sub>m disassemble_state \<Sigma>\<^sub>a'"

@@ -2,9 +2,6 @@ theory UnstructuredMemory
   imports "../10ChainedEnvironment/ChainedEnvironment"
 begin
 
-abbreviation nmem :: "nat \<Rightarrow> nat" where
-  "nmem x \<equiv> undefined"
-
 datatype unstr_state = 
   US "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat nat
 
