@@ -34,6 +34,10 @@ proof (induction \<Sigma>)
   thus ?case by (cases sp) simp_all
 qed simp_all
 
+lemma [dest]: "FS h env vs [] = restructure \<Sigma> \<Longrightarrow> \<exists>h' hp e ep vs' vp. 
+    \<Sigma> = USF h' hp e ep vs' vp \<and> h = H h' hp \<and> env = H e ep \<and> vs = listify' vs' vp"
+  by (induction \<Sigma>) simp_all
+
 theorem correctu [simp]: "cd \<tturnstile> restructure \<Sigma>\<^sub>u \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> 
     \<exists>\<Sigma>\<^sub>u'. (cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u') \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>u'"
 proof (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' rule: evalf.induct)
@@ -77,24 +81,59 @@ next
 next
   case (evf_apply cd pc h v2 p' pc' env v1 env' p2 vs p sfs)
   then obtain h' hp e ep vs' vp sh sp where S: "\<Sigma>\<^sub>u = US h' hp e ep vs' vp sh (Suc sp) (Suc pc) \<and> 
-    h = H h' hp \<and> env = H e ep \<and> v1 # v2 # vs = listify' vs' vp \<and> p = sh sp \<and> sfs = listify' sh sp" 
+    h = H h' hp \<and> env = H e ep \<and> listify' vs' vp = v1 # v2 # vs \<and> p = sh sp \<and> sfs = listify' sh sp" 
       by fastforce
-
-  then show ?case by simp
+  then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
+    vs = listify' vs' vp'" by fastforce
+  with evf_apply S obtain x where H: "h' (vs' vp') = Suc x \<and> p' = h' (Suc (vs' vp')) \<and> 
+    pc' = h' (Suc (Suc (vs' vp')))" by (cases "h' (vs' vp')") simp_all
+  from evf_apply S have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := p')) (Suc (Suc p2))" by fastforce
+  with S V have X: "FS h env' vs (pc' # Suc (Suc p2) # pc # p # sfs) = 
+    restructure (US h' hp (e(ep := v1, Suc ep := p')) (2 + ep) vs' vp' 
+      (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (2 + Suc sp) pc')" by simp
+  from evf_apply V H have "
+    cd \<tturnstile> US h' hp e ep vs' (Suc (Suc vp')) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
+      US h' hp (e(ep := v1, Suc ep := p')) (2 + ep) vs' vp'
+        (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (2 + Suc sp) pc'"
+    by (metis evu_apply)
+  with S X V show ?case by blast
 next
   case (evf_return cd pc h env vs p sfs)
   then obtain h' hp e ep vs' vp sh sp where S: "\<Sigma>\<^sub>u = US h' hp e ep vs' vp sh (Suc sp) (Suc pc) \<and> 
     h = H h' hp \<and> env = H e ep \<and> vs = listify' vs' vp \<and> p = sh sp \<and> sfs = listify' sh sp" 
       by fastforce
-
-  then show ?case by simp
+  thus ?case
+  proof (cases sp)
+    case 0
+    with S have X: "FS h env vs sfs = restructure (USF h' hp e ep vs' vp)" by simp
+    from evf_return have "cd \<tturnstile> US h' hp e ep vs' vp sh (Suc 0) (Suc pc) \<leadsto>\<^sub>u (USF h' hp e ep vs' vp)" 
+      by simp
+    with S X 0 show ?thesis by blast
+  next
+    case (Suc sp')
+    with S have X: "FS h env vs sfs = restructure (US h' hp e ep vs' vp sh sp' (sh sp'))" by simp
+    from evf_return have "cd \<tturnstile> US h' hp e ep vs' vp sh (Suc (Suc sp')) (Suc pc) \<leadsto>\<^sub>u 
+      US h' hp e ep vs' vp sh sp' (sh sp')" by simp
+    with S X Suc show ?thesis by blast
+  qed
 next
   case (evf_jump cd pc h v2 p' pc' env v1 env' p2 vs p sfs)
   then obtain h' hp e ep vs' vp sh sp where S: "\<Sigma>\<^sub>u = US h' hp e ep vs' vp sh (Suc sp) (Suc pc) \<and> 
-    h = H h' hp \<and> env = H e ep \<and> v1 # v2 # vs = listify' vs' vp \<and> p = sh sp \<and> sfs = listify' sh sp" 
+    h = H h' hp \<and> env = H e ep \<and> listify' vs' vp = v1 # v2 # vs \<and> p = sh sp \<and> sfs = listify' sh sp" 
       by fastforce
-
-  then show ?case by simp
+  then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
+    vs = listify' vs' vp'" by fastforce
+  with evf_jump S obtain x where H: "h' (vs' vp') = Suc x \<and> p' = h' (Suc (vs' vp')) \<and> 
+    pc' = h' (Suc (Suc (vs' vp')))" by (cases "h' (vs' vp')") simp_all
+  from evf_jump S have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := p')) (Suc (Suc p2))" by fastforce
+  with S V have X: "FS h env' vs (pc' # Suc (Suc p2) # sfs) = 
+    restructure (US h' hp (e(ep := v1, Suc ep := p')) (2 + ep) vs' vp' 
+      (sh(sp := Suc (Suc ep))) (Suc sp) pc')" by simp
+  from evf_jump V H have "
+        cd \<tturnstile> US h' hp e ep vs' (Suc (Suc vp')) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
+    US h' hp (e(ep := v1, Suc ep := p')) (2 + ep) vs' vp'
+      (sh(sp := Suc (Suc ep))) (Suc sp) pc'" by (metis evu_jump)
+  with S V X show ?case by blast
 qed
 
 theorem correctu_iter [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>f) (restructure \<Sigma>\<^sub>u) \<Sigma>\<^sub>f' \<Longrightarrow> 
