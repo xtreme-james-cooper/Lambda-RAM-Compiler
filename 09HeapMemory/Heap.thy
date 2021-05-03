@@ -200,7 +200,7 @@ proof (induction f ha hpa hb hpb n rule: hsplay'.induct)
   ultimately show ?case by simp
 qed simp_all
 
-lemma [simp]: "halloc h a = (h', p) \<Longrightarrow> (\<And>x. length (f x) = k) \<Longrightarrow> 
+lemma halloc_list_hsplay [simp]: "halloc h a = (h', p) \<Longrightarrow> (\<And>x. length (f x) = k) \<Longrightarrow> 
   halloc_list (hsplay f h) (f a) = (hsplay f h', k * p)"
 proof (induction h)
   case (H h hp)

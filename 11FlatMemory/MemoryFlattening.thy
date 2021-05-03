@@ -126,6 +126,16 @@ proof -
   ultimately show ?thesis by auto
 qed
 
+lemma [simp]: "halloc env (v, p) = (env', p') \<Longrightarrow> 
+  halloc_list (flatten_environment env) [3 * v, 2 * p] = (flatten_environment env', 2 * p')" 
+proof -
+  assume "halloc env (v, p) = (env', p')"
+  moreover have "\<And>x. length (flatten_env x) = 2" by simp
+  ultimately have "halloc_list (flatten_environment env) (flatten_env (v, p)) = 
+    (flatten_environment env', 2 * p')" by (metis halloc_list_hsplay)
+  thus ?thesis by simp
+qed
+
 theorem correctf: "cd \<tturnstile> flatten \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow> 
   \<exists>\<Sigma>\<^sub>c\<^sub>e'. (cd \<tturnstile> \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e') \<and> flatten \<Sigma>\<^sub>c\<^sub>e' = \<Sigma>\<^sub>f'" 
 proof (induction "flatten \<Sigma>\<^sub>c\<^sub>e" \<Sigma>\<^sub>f' rule: evalf.induct)
@@ -176,53 +186,41 @@ next
   with evf_apply have "get_closure (flatten_values h\<^sub>c\<^sub>e) (3 * v2\<^sub>c\<^sub>e) = CELam p' pc'" by simp
   moreover from evf_apply S have "hcontains h\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e" by simp
   ultimately obtain p\<^sub>c\<^sub>e' where P: "hlookup h\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e = CELam p\<^sub>c\<^sub>e' pc' \<and> p' = 2 * p\<^sub>c\<^sub>e'" by blast
-
-
-  have "halloc env\<^sub>c\<^sub>e a = (env\<^sub>c\<^sub>e', p2\<^sub>c\<^sub>e) \<Longrightarrow> 
-  halloc_list (flatten_environment env\<^sub>c\<^sub>e) (flatten_env a) = (flatten_environment env\<^sub>c\<^sub>e', 2 * p2\<^sub>c\<^sub>e)" by simp
-
-  from evf_apply S P have "halloc_list (flatten_environment env\<^sub>c\<^sub>e) (flatten_env (v1\<^sub>c\<^sub>e, p\<^sub>c\<^sub>e')) = (env', p2)" by simp
-
-  from S P have X: "flatten (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs\<^sub>c\<^sub>e ((Suc xp\<^sub>c\<^sub>e', pc') # (p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)) = 
+  obtain env\<^sub>c\<^sub>e' p2\<^sub>c\<^sub>e where E: "halloc env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e, p\<^sub>c\<^sub>e') = (env\<^sub>c\<^sub>e', p2\<^sub>c\<^sub>e)" by fastforce
+  with evf_apply S P have X: "flatten (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs\<^sub>c\<^sub>e ((Suc p2\<^sub>c\<^sub>e, pc') # (p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)) = 
     FS h env' vs (pc' # Suc (Suc p2) # pc # p # sfs)" by simp
-
-
-  have "halloc env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e, p\<^sub>c\<^sub>e') = (env\<^sub>c\<^sub>e', xp\<^sub>c\<^sub>e')" by simp
-  with evf_apply P have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e # v2\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
-        CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs\<^sub>c\<^sub>e ((Suc xp\<^sub>c\<^sub>e', pc') # (p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)" by simp
+  from evf_apply P E have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e # v2\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
+    CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs\<^sub>c\<^sub>e ((Suc p2\<^sub>c\<^sub>e, pc') # (p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)" by simp
   with S X show ?case by blast
 next
   case (evf_return cd pc h env vs p sfs)
   then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e p\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where S: "\<Sigma>\<^sub>c\<^sub>e = CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<and> 
     h = flatten_values h\<^sub>c\<^sub>e \<and> env = flatten_environment env\<^sub>c\<^sub>e \<and> vs = flatten_vals vs\<^sub>c\<^sub>e \<and> 
       sfs = flatten_stack sfs\<^sub>c\<^sub>e \<and> p = 2 * p\<^sub>c\<^sub>e" by fastforce
-
-  then show ?case by simp
+  hence X: "flatten (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e) = FS h env vs sfs" by simp
+  from evf_return have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
+    CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by simp
+  with S X show ?case by blast
 next
   case (evf_jump cd pc h v2 p' pc' env v1 env' p2 vs p sfs)
   then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e v1\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e p\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where S: "
     \<Sigma>\<^sub>c\<^sub>e = CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e # v2\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<and> h = flatten_values h\<^sub>c\<^sub>e \<and> 
       env = flatten_environment env\<^sub>c\<^sub>e \<and> v1 = 3 * v1\<^sub>c\<^sub>e \<and> v2 = 3 * v2\<^sub>c\<^sub>e \<and> vs = flatten_vals vs\<^sub>c\<^sub>e \<and> 
         sfs = flatten_stack sfs\<^sub>c\<^sub>e \<and> p = 2 * p\<^sub>c\<^sub>e" by fastforce
-
-  then show ?case by simp
+  with evf_jump have "get_closure (flatten_values h\<^sub>c\<^sub>e) (3 * v2\<^sub>c\<^sub>e) = CELam p' pc'" by simp
+  moreover from evf_jump S have "hcontains h\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e" by simp
+  ultimately obtain p\<^sub>c\<^sub>e' where P: "hlookup h\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e = CELam p\<^sub>c\<^sub>e' pc' \<and> p' = 2 * p\<^sub>c\<^sub>e'" by blast
+  obtain env\<^sub>c\<^sub>e' p2\<^sub>c\<^sub>e where E: "halloc env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e, p\<^sub>c\<^sub>e') = (env\<^sub>c\<^sub>e', p2\<^sub>c\<^sub>e)" by fastforce
+  with evf_jump S P have X: "flatten (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs\<^sub>c\<^sub>e ((Suc p2\<^sub>c\<^sub>e, pc') # sfs\<^sub>c\<^sub>e)) = 
+    FS h env' vs (pc' # Suc (Suc p2) # sfs)" by simp
+  from evf_jump P E have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e # v2\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
+    CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs\<^sub>c\<^sub>e ((Suc p2\<^sub>c\<^sub>e, pc') # sfs\<^sub>c\<^sub>e)" by simp
+  with S X show ?case by blast
 qed
 
 theorem completef [simp]: "cd \<tturnstile> \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow> 
   cd \<tturnstile> flatten \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>f flatten \<Sigma>\<^sub>c\<^sub>e'" 
 proof (induction \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' rule: evalce.induct)
-  case (evce_lookup cd pc x env p v h vs sfs)
-  hence "chain_structured h env \<and> chained_closures env h \<and> chained_vals h vs \<and> chained_frame env (p, Suc pc) \<and> chained_stack env sfs" by simp
-
-  from evce_lookup have "hcontains env p \<Longrightarrow>
-    flat_lookup (flatten_environment env) (2 * p) x = map_option ((*) 3) (chain_lookup env p x)" by simp
-
-  have "cd \<tturnstile> FS (flatten_values h) (flatten_environment env) (flatten_vals vs) 
-    (Suc pc # 2 * p # flatten_stack sfs) \<leadsto>\<^sub>f
-      FS (flatten_values h) (flatten_environment env) (3 * v # flatten_vals vs) 
-        (pc # 2 * p # flatten_stack sfs)" by simp
-  then show ?case by simp
-next
   case (evce_pushcon cd pc k h h' v env vs p sfs)
   moreover hence "halloc_list (flatten_values h) [0, k, 0] = (flatten_values h', 3 * v)"
     using flatten_halloc by fastforce
@@ -234,20 +232,11 @@ next
   ultimately show ?case by simp
 next
   case (evce_apply cd pc h v2 p' pc' env v1 env' p'' vs p sfs)
-  from evce_apply have "cd ! pc = BApply" by simp
-  from evce_apply have "hlookup h v2 = CELam p' pc'" by simp
-  from evce_apply have "halloc env (v1, p') = (env', p'')" by simp
-
-
-  have "cd \<tturnstile> FS (flatten_values h) (flatten_environment env) (3 * v1 # 3 * v2 # flatten_vals vs) 
-    (Suc pc # 2 * p # flatten_stack sfs) \<leadsto>\<^sub>f
-      FS (flatten_values h) (flatten_environment env') (flatten_vals vs) 
-        (pc' # Suc (Suc (2 * p'')) # pc # 2 * p # flatten_stack sfs)" by simp
-  then show ?case by simp
+  thus ?case by (simp del: get_closure.simps)
 next
   case (evce_jump cd pc h v2 p' pc' env v1 env' p'' vs p sfs)
-  then show ?case by simp
-qed simp_all
+  thus ?case by (simp del: get_closure.simps)
+qed fastforce+
 
 lemma completef_iter [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>c\<^sub>e) \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow>
   iter (\<tturnstile> cd \<leadsto>\<^sub>f) (flatten \<Sigma>\<^sub>c\<^sub>e) (flatten \<Sigma>\<^sub>c\<^sub>e')"
