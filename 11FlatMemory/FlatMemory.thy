@@ -10,8 +10,6 @@ fun get_closure :: "nat heap \<Rightarrow> nat \<Rightarrow> ceclosure" where
       0 \<Rightarrow> CEConst (hlookup h (Suc p))
     | Suc x \<Rightarrow> CELam (hlookup h (Suc p)) (hlookup h (Suc (Suc p))))"
 
-declare get_closure.simps [simp del]
-
 fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonup> ptr" where
   "flat_lookup h 0 x = None"
 | "flat_lookup h (Suc 0) x = None"
@@ -27,11 +25,12 @@ inductive evalf :: "byte_code list \<Rightarrow> flat_state \<Rightarrow> flat_s
     cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs)"
 | evf_apply [simp]: "cd ! pc = BApply \<Longrightarrow> get_closure h v2 = CELam p' pc' \<Longrightarrow>
     halloc_list env [v1, p'] = (env', p2) \<Longrightarrow> 
-      cd \<tturnstile> FS h env (v1 # v2 # vs) (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env' vs (pc' # Suc p2 # pc # p # sfs)"
+      cd \<tturnstile> FS h env (v1 # v2 # vs) (Suc pc # p # sfs) \<leadsto>\<^sub>f 
+        FS h env' vs (pc' # Suc (Suc p2) # pc # p # sfs)"
 | evf_return [simp]: "cd ! pc = BReturn \<Longrightarrow> cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env vs sfs"
 | evf_jump [simp]: "cd ! pc = BJump \<Longrightarrow> get_closure h v2 = CELam p' pc' \<Longrightarrow>
     halloc_list env [v1, p'] = (env', p2) \<Longrightarrow> 
-      cd \<tturnstile> FS h env (v1 # v2 # vs) (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env' vs (pc' # Suc p2 # sfs)"
+      cd \<tturnstile> FS h env (v1 # v2 # vs) (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env' vs (pc' # Suc (Suc p2) # sfs)"
 
 theorem determinismf: "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: evalf.induct)

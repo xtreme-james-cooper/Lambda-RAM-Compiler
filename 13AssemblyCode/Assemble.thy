@@ -106,7 +106,7 @@ primrec assemble_state :: "(nat \<Rightarrow> nat) \<Rightarrow> unstr_state \<R
     | VP \<Rightarrow> vp
     | SP \<Rightarrow> sp
     | ACC \<Rightarrow> 0
-    | ACC2 \<Rightarrow> 0) (\<lambda>m. case m of
+    | AC2 \<Rightarrow> 0) (\<lambda>m. case m of
       Hp \<Rightarrow> h
     | Env \<Rightarrow> e
     | Val \<Rightarrow> vs

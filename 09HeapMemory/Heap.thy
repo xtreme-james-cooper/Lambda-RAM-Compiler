@@ -217,7 +217,7 @@ qed
 
 primrec listify' :: "(nat \<Rightarrow> 'a) \<Rightarrow> nat \<Rightarrow> 'a list" where
   "listify' h 0 = []"
-| "listify' h (Suc x) = h 0 # listify' (h \<circ> Suc) x"
+| "listify' h (Suc x) = h x # listify' h x"
 
 primrec listify :: "'a heap \<Rightarrow> 'a list" where
   "listify (H h hp) = listify' h hp"
@@ -225,7 +225,10 @@ primrec listify :: "'a heap \<Rightarrow> 'a list" where
 lemma [dest]: "listify' h x = [] \<Longrightarrow> x = 0"
   by (induction x) simp_all
 
-lemma [dest]: "listify' h x = a # as \<Longrightarrow> h 0 = a \<and> (\<exists>y. x = Suc y \<and> listify' (h \<circ> Suc) y = as)"
+lemma [dest]: "listify' h x = a # as \<Longrightarrow> \<exists>y. x = Suc y \<and> h y = a \<and> listify' h y = as"
   by (induction x) simp_all
+
+lemma [simp]: "hp \<le> x \<Longrightarrow> listify' (h(x := v)) hp = listify' h hp"
+  by (induction hp) simp_all
 
 end
