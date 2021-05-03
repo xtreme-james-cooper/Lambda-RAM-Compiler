@@ -8,7 +8,7 @@ primrec register_map :: "aregister \<Rightarrow> register" where
 | "register_map VP = R3"
 | "register_map SP = R4"
 | "register_map ACC = R5"
-| "register_map ACC2 = R6"
+| "register_map AC2 = R6"
 
 primrec inv_register_map :: "register \<Rightarrow> aregister" where
   "inv_register_map R1 = HP"
@@ -16,7 +16,7 @@ primrec inv_register_map :: "register \<Rightarrow> aregister" where
 | "inv_register_map R3 = VP"
 | "inv_register_map R4 = SP"
 | "inv_register_map R5 = ACC"
-| "inv_register_map R6 = ACC2"
+| "inv_register_map R6 = AC2"
 
 primrec disassemble' :: "assm \<Rightarrow> mach" where
   "disassemble' (ALdI r k) = LDI (register_map r) k"

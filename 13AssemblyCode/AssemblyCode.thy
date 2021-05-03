@@ -4,7 +4,7 @@ begin
 
 datatype memory = Hp | Env | Val | Stk
 
-datatype aregister = HP | EP | VP | SP | ACC | ACC2
+datatype aregister = HP | EP | VP | SP | ACC | AC2
 
 datatype assm = 
     ALdI aregister nat
