@@ -4,7 +4,6 @@ begin
 
 datatype unstr_state = 
   US "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat nat
-  | USF "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat
 
 fun unstr_lookup :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<rightharpoonup> nat" where
   "unstr_lookup h 0 x = None"
@@ -30,11 +29,11 @@ inductive evalu :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> unstr
 | evu_return_normal [simp]: "cd ! pc = BReturn \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u US h hp e ep vs vp sh sp (sh sp)"
 | evu_return_end [simp]: "cd ! pc = BReturn \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs vp sh (Suc 0) (Suc pc) \<leadsto>\<^sub>u USF h hp e ep vs vp"
+    cd \<tturnstile> US h hp e ep vs vp sh (Suc 0) (Suc pc) \<leadsto>\<^sub>u US h hp e ep vs vp sh 0 0"
 | evu_jump [simp]: "cd ! pc = BJump \<Longrightarrow> h (vs vp) = Suc x \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
+    cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
-        (sh(sp := Suc (Suc ep))) (Suc sp) (h (Suc (Suc (vs vp))))"
+        (sh(sp - 1 := Suc (Suc ep))) sp (h (Suc (Suc (vs vp))))"
 
 theorem determinismu: "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>u \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>u \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction cd \<Sigma> \<Sigma>' rule: evalu.induct)
@@ -63,11 +62,12 @@ next
 next
   case (evu_return_end cd pc h hp e ep vs vp sh)
   from evu_return_end(2, 1) show ?case 
-    by (induction cd "US h hp e ep vs vp sh (Suc 0) (Suc pc)" \<Sigma>'' rule: evalu.induct) simp_all
+    by (induction cd "US h hp e ep vs vp sh (Suc 0) (Suc pc)" \<Sigma>'' rule: evalu.induct) 
+       simp_all
 next
   case (evu_jump cd pc h vs vp x hp e ep sh sp)
   from evu_jump(3, 1, 2) show ?case    
-    by (induction cd "US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc)" \<Sigma>'' rule: evalu.induct) 
+    by (induction cd "US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc)" \<Sigma>'' rule: evalu.induct) 
        simp_all
 qed
 

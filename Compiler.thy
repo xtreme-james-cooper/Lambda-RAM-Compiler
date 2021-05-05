@@ -74,24 +74,25 @@ proof -
      (FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [])" by (simp add: hempty_def)
   with ECE CS have "chained_state \<Sigma>\<^sub>c\<^sub>e'" by (metis preserve_chained)
   with VCE have VH: "hcontains h\<^sub>c\<^sub>e v\<^sub>h" by simp
-  from C have "?cd \<noteq> []" by auto
-  with EF have "\<exists>\<Sigma>\<^sub>u'. 
-    iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
-      FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'"
-        by (cases ?cd) simp_all
+
+
+
+  have "restructurable (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) ?cd" by simp
+  with EF have "\<exists>\<Sigma>\<^sub>u'. iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) \<Sigma>\<^sub>u' \<and>
+    FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by simp_all
   then obtain \<Sigma>\<^sub>u' where 
     "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
       FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by blast
-  moreover then obtain h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u where VU:
-    "\<Sigma>\<^sub>u' = USF h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u \<and> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<and> 
+  moreover then obtain h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u where VU:
+    "\<Sigma>\<^sub>u' = US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u 0 0 \<and> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<and> 
       flatten_environment env\<^sub>h = H e\<^sub>u ep\<^sub>u \<and> listify' vs\<^sub>u vp\<^sub>u = 3 * v\<^sub>h # []" by auto
   moreover hence VSU: "vs\<^sub>u 0 = 3 * v\<^sub>h \<and> vp\<^sub>u = 1" by auto
   ultimately have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) 
-    (USF h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1)" by simp
+    (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   hence EU: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) 
-    (USF h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1)" by simp
+    (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   let ?mem = "(\<lambda>m. case m of Hp \<Rightarrow> h\<^sub>u | Env \<Rightarrow> e\<^sub>u | Val \<Rightarrow> vs\<^sub>u | Stk \<Rightarrow> sh\<^sub>u)"
-  let ?rs = "(\<lambda>r. case r of HP \<Rightarrow> hp\<^sub>u | EP \<Rightarrow> ep\<^sub>u | VP \<Rightarrow> Suc 0 | SP \<Rightarrow> 0 | ACC \<Rightarrow> 0 | ACC2 \<Rightarrow> 0)"
+  let ?rs = "(\<lambda>r. case r of HP \<Rightarrow> hp\<^sub>u | EP \<Rightarrow> ep\<^sub>u | VP \<Rightarrow> Suc 0 | SP \<Rightarrow> 0 | ACC \<Rightarrow> 0 | AC2 \<Rightarrow> 0)"
   let ?cd' = "(fst \<circ> assemble) ?cd"
 
 
