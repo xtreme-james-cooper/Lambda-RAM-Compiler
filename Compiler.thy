@@ -1,6 +1,6 @@
 theory Compiler
   imports Printing "04Stack/StackConversion" "12UnstructuredMemory/Unstructuring" 
-    "13AssemblyCode/Assemble" 
+    "14AssemblyCode/Assemble" 
 begin
 
 abbreviation code_compile :: "texpr \<Rightarrow> mach list" where
@@ -74,9 +74,6 @@ proof -
      (FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [])" by (simp add: hempty_def)
   with ECE CS have "chained_state \<Sigma>\<^sub>c\<^sub>e'" by (metis preserve_chained)
   with VCE have VH: "hcontains h\<^sub>c\<^sub>e v\<^sub>h" by simp
-
-
-
   have "restructurable (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) ?cd" by simp
   with EF have "\<exists>\<Sigma>\<^sub>u'. iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0)) 1 (length ?cd)) \<Sigma>\<^sub>u' \<and>
     FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by simp_all

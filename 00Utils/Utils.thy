@@ -99,4 +99,17 @@ primrec uncurry :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> 'a \<ti
 abbreviation nmem :: "nat \<Rightarrow> nat" where
   "nmem x \<equiv> undefined"
 
+lemma [simp]: "(a # as @ bs) ! length as = (a # as) ! length as"
+  by (induction as arbitrary: a) simp_all
+
+lemma [simp]: "0 < x \<Longrightarrow> x \<le> length as \<Longrightarrow> (as @ bs) ! (length as - x) = as ! (length as - x)"
+proof (induction as arbitrary: x bs rule: rev_induct)
+  case (snoc a as)
+  thus ?case 
+  proof (induction x)
+    case (Suc x)
+    thus ?case by (induction x) simp_all
+  qed simp_all
+qed simp_all
+
 end

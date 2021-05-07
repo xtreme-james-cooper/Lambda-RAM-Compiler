@@ -134,14 +134,34 @@ lemma [simp]: "assemble cd = (cd', mp) \<Longrightarrow> mp 0 = 0"
 lemma [simp]: "assemble cd = (cd', mp) \<Longrightarrow> mp (length cd) = length cd'"
   by (induction cd arbitrary: cd' mp) (auto simp add: Let_def split: prod.splits)
 
-theorem completea [simp]: "cd\<^sub>a \<tturnstile> \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> 
-  \<exists>cd\<^sub>b mp \<Sigma>\<^sub>u \<Sigma>\<^sub>u'. assemble cd\<^sub>b = (cd\<^sub>a, mp) \<and> assemble_state mp \<Sigma>\<^sub>u = \<Sigma>\<^sub>a \<and> 
-    assemble_state mp \<Sigma>\<^sub>u' = \<Sigma>\<^sub>a' \<and> iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u'"
-  by (induction cd\<^sub>a \<Sigma>\<^sub>a \<Sigma>\<^sub>a' rule: evala.induct) blast
+theorem completea [simp]: "cd\<^sub>a \<tturnstile> assemble_state mp \<Sigma>\<^sub>u \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> assemble cd\<^sub>b = (cd\<^sub>a, mp) \<Longrightarrow>
+  \<exists>\<Sigma>\<^sub>u'. assemble_state mp \<Sigma>\<^sub>u' = \<Sigma>\<^sub>a' \<and> iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u'"
+  by (induction cd\<^sub>a "assemble_state mp \<Sigma>\<^sub>u" \<Sigma>\<^sub>a' rule: evala.induct) blast
 
 theorem correcta [simp]: "cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> assemble cd\<^sub>b = (cd\<^sub>a, mp) \<Longrightarrow>
     iter (\<tturnstile> cd\<^sub>a \<leadsto>\<^sub>a) (assemble_state mp \<Sigma>\<^sub>u) (assemble_state mp \<Sigma>\<^sub>u')"
-  by (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induct) blast
+proof (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induct)
+case (evu_lookup cd pc x e sh sp y h hp ep vs vp)
+  then show ?case by simp
+next
+  case (evu_pushcon cd pc k h hp e ep vs vp sh sp)
+  then show ?case by simp
+next
+  case (evu_pushlam cd pc pc' h hp e ep vs vp sh sp)
+  then show ?case by simp
+next
+  case (evu_apply cd pc h vs vp x hp e ep sh sp)
+  then show ?case by simp
+next
+  case (evu_return_normal cd pc h hp e ep vs vp sh sp)
+  then show ?case by simp
+next
+  case (evu_return_end cd pc h hp e ep vs vp sh)
+  then show ?case by simp
+next
+  case (evu_jump cd pc h vs vp x hp e ep sh sp)
+  then show ?case by simp
+qed
 
 theorem correcta_iter [simp]: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> assemble cd\<^sub>b = (cd\<^sub>a, mp) \<Longrightarrow>
     iter (\<tturnstile> cd\<^sub>a \<leadsto>\<^sub>a) (assemble_state mp \<Sigma>\<^sub>u) (assemble_state mp \<Sigma>\<^sub>u')"

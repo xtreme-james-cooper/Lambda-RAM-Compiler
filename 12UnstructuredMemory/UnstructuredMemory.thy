@@ -1,5 +1,5 @@
 theory UnstructuredMemory
-  imports "../10ChainedEnvironment/ChainedEnvironment"
+  imports "../08FlatCode/ByteCode"
 begin
 
 datatype unstr_state = 
