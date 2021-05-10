@@ -23,25 +23,21 @@ primrec erase :: "texpr \<Rightarrow> nexpr" where
 definition env_subst :: "subst \<Rightarrow> subst \<Rightarrow> subst" where
   "env_subst sub \<Gamma> = map_option (subst sub) \<circ> \<Gamma>"
 
-primrec typecheck' :: "subst \<Rightarrow> var set \<Rightarrow> nexpr \<rightharpoonup> hexpr \<times> uexpr \<times> var set \<times> subst" where
+primrec typecheck' :: "subst \<Rightarrow> var set \<Rightarrow> nexpr \<Rightarrow> hexpr \<times> uexpr \<times> var set \<times> (uexpr \<times> uexpr) list" 
+    where
   "typecheck' \<Gamma> vs (NVar x) = (case \<Gamma> x of 
-      Some t \<Rightarrow> Some (HVar x, t, vs, Map.empty) 
-    | None \<Rightarrow> None)"
-| "typecheck' \<Gamma> vs (NConst k) = Some (HConst k, Ctor ''Base'' [], vs, Map.empty)"
+      Some t \<Rightarrow> (HVar x, t, vs, []) 
+    | None \<Rightarrow> (HVar x, Ctor ''Base'' [], vs, fail))"
+| "typecheck' \<Gamma> vs (NConst k) = (HConst k, Ctor ''Base'' [], vs, [])"
 | "typecheck' \<Gamma> vs (NLam x e) = (
     let v = fresh vs
-    in case typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e of
-        Some (e', t, vs', sub) \<Rightarrow> Some (HLam x (Var v) e', Ctor ''Arrow'' [Var v, t], vs', sub)
-      | None \<Rightarrow> None)"
+    in let (e', t, vs', con) = typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e
+    in (HLam x (Var v) e', Ctor ''Arrow'' [Var v, t], vs', con))"
 | "typecheck' \<Gamma> vs (NApp e\<^sub>1 e\<^sub>2) = (
     let v = fresh vs
-    in case typecheck' \<Gamma> (insert v vs) e\<^sub>1 of 
-        Some (e\<^sub>1', t\<^sub>1, vs', sub\<^sub>1) \<Rightarrow> (case typecheck' (env_subst sub\<^sub>1 \<Gamma>) vs' e\<^sub>2 of
-            Some (e\<^sub>2', t\<^sub>2, vs'', sub\<^sub>2) \<Rightarrow> (case unify t\<^sub>1 (Ctor ''Arrow'' [t\<^sub>2, Var v]) of
-                Some sub\<^sub>3 \<Rightarrow> Some (HApp e\<^sub>1' e\<^sub>2', Var v, vs'', combine_subst sub\<^sub>3 sub\<^sub>2)
-              | None \<Rightarrow> None)
-          | None \<Rightarrow> None)
-      | None \<Rightarrow> None)"
+    in let (e\<^sub>1', t\<^sub>1, vs', con\<^sub>1) = typecheck' \<Gamma> (insert v vs) e\<^sub>1 
+    in let (e\<^sub>2', t\<^sub>2, vs'', con\<^sub>2) = typecheck' \<Gamma> vs' e\<^sub>2 
+    in (HApp e\<^sub>1' e\<^sub>2', Var v, vs'', (t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v]) # con\<^sub>1 @ con\<^sub>2))"
 
 fun typeify :: "uexpr \<Rightarrow> ty" where
   "typeify (Var v) = TyVar v"
@@ -49,6 +45,31 @@ fun typeify :: "uexpr \<Rightarrow> ty" where
 | "typeify (Ctor k [t\<^sub>1, t\<^sub>2]) = 
     (if k = ''Arrow'' then Arrow (typeify t\<^sub>1) (typeify t\<^sub>2) else undefined)"
 | "typeify (Ctor k ts) = undefined"
+
+primrec solidify :: "hexpr \<Rightarrow> texpr" where
+  "solidify (HVar x) = TVar x"
+| "solidify (HConst k) = TConst k"
+| "solidify (HLam x t e) = TLam x (typeify t) (solidify e)"
+| "solidify (HApp e\<^sub>1 e\<^sub>2) = TApp (solidify e\<^sub>1) (solidify e\<^sub>2)"
+
+
+fun tsubsts :: "subst \<Rightarrow> ty \<Rightarrow> ty" where
+  "tsubsts sub (TyVar y) = (case sub y of Some t \<Rightarrow> typeify t | None \<Rightarrow> TyVar y)"
+| "tsubsts sub Base = Base"
+| "tsubsts sub (Arrow t\<^sub>1 t\<^sub>2) = Arrow (tsubsts sub t\<^sub>1) (tsubsts sub t\<^sub>2)"
+
+primrec tsubstt :: "subst \<Rightarrow> texpr \<Rightarrow> texpr" where
+  "tsubstt sub (TVar x) = TVar x"
+| "tsubstt sub (TConst k) = TConst k"
+| "tsubstt sub (TLam x t e) = TLam x (tsubsts sub t) (tsubstt sub e)"
+| "tsubstt sub (TApp e\<^sub>1 e\<^sub>2) = TApp (tsubstt sub e\<^sub>1) (tsubstt sub e\<^sub>2)"
+
+fun typecheck :: "nexpr \<rightharpoonup> texpr \<times> ty" where
+  "typecheck e = (
+    let (e', t, vs, con) = typecheck' Map.empty {} e
+    in case unify' con of 
+        Some sub \<Rightarrow> Some (tsubstt sub (solidify e'), tsubsts sub (typeify t))
+      | None \<Rightarrow> None)"
 
 fun valid_ty_uexpr' :: "string \<Rightarrow> nat \<Rightarrow> bool" where
   "valid_ty_uexpr' k 0 = (k = ''Base'')"
@@ -66,82 +87,28 @@ definition valid_ty_uexprs :: "(uexpr \<times> uexpr) list \<Rightarrow> bool" w
 definition valid_ty_subst :: "subst \<Rightarrow> bool" where
   "valid_ty_subst \<Gamma> = (\<forall>t \<in> ran \<Gamma>. valid_ty_uexpr t)"
 
-primrec solidify :: "hexpr \<Rightarrow> texpr" where
-  "solidify (HVar x) = TVar x"
-| "solidify (HConst k) = TConst k"
-| "solidify (HLam x t e) = TLam x (typeify t) (solidify e)"
-| "solidify (HApp e\<^sub>1 e\<^sub>2) = TApp (solidify e\<^sub>1) (solidify e\<^sub>2)"
-
 primrec valid_ty_hexpr :: "hexpr \<Rightarrow> bool" where
   "valid_ty_hexpr (HVar x) = True"
 | "valid_ty_hexpr (HConst k) = True"
 | "valid_ty_hexpr (HLam x t e) = (valid_ty_uexpr t \<and> valid_ty_hexpr e)"
 | "valid_ty_hexpr (HApp e\<^sub>1 e\<^sub>2) = (valid_ty_hexpr e\<^sub>1 \<and> valid_ty_hexpr e\<^sub>2)"
 
-fun tsubsts :: "subst \<Rightarrow> ty \<Rightarrow> ty" where
-  "tsubsts sub (TyVar y) = (case sub y of Some t \<Rightarrow> typeify t | None \<Rightarrow> TyVar y)"
-| "tsubsts sub Base = Base"
-| "tsubsts sub (Arrow t\<^sub>1 t\<^sub>2) = Arrow (tsubsts sub t\<^sub>1) (tsubsts sub t\<^sub>2)"
-
-primrec tsubstt :: "subst \<Rightarrow> texpr \<Rightarrow> texpr" where
-  "tsubstt sub (TVar x) = TVar x"
-| "tsubstt sub (TConst k) = TConst k"
-| "tsubstt sub (TLam x t e) = TLam x (tsubsts sub t) (tsubstt sub e)"
-| "tsubstt sub (TApp e\<^sub>1 e\<^sub>2) = TApp (tsubstt sub e\<^sub>1) (tsubstt sub e\<^sub>2)"
-
-fun typecheck :: "nexpr \<rightharpoonup> texpr \<times> ty" where
-  "typecheck e = (case typecheck' Map.empty {} e of
-      Some (e', t, vs, sub) \<Rightarrow> Some (tsubstt sub (solidify e'), tsubsts sub (typeify t))
-    | None \<Rightarrow> None)"
-
-lemma typecheck_Some [consumes 1, case_names NVar NConst NLam NApp]: "
-  typecheck' \<Gamma> vs e = Some (e', t, vs', sub) \<Longrightarrow> 
-  (\<And>\<Gamma> vs t x. \<Gamma> x = Some t \<Longrightarrow> P \<Gamma> vs (NVar x) (HVar x) t vs Map.empty) \<Longrightarrow> 
-  (\<And>\<Gamma> vs k. P \<Gamma> vs (NConst k) (HConst k) (Ctor ''Base'' []) vs Map.empty) \<Longrightarrow> 
-  (\<And>\<Gamma> vs vs' sub x e\<^sub>1 e\<^sub>1' t' v. v = fresh vs \<Longrightarrow> typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e\<^sub>1 = 
-    Some (e\<^sub>1', t', vs', sub) \<Longrightarrow> P (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e\<^sub>1 e\<^sub>1' t' vs' sub \<Longrightarrow> 
-      P \<Gamma> vs (NLam x e\<^sub>1) (HLam x (Var v) e\<^sub>1') (Ctor ''Arrow'' [Var v, t']) vs' sub) \<Longrightarrow> 
-  (\<And>\<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' sub\<^sub>1 e\<^sub>2' t\<^sub>2 sub\<^sub>2 sub\<^sub>3. v = fresh vs \<Longrightarrow> 
-    typecheck' \<Gamma> (insert v vs) e\<^sub>1 = Some (e\<^sub>1', t\<^sub>1, vs'', sub\<^sub>1) \<Longrightarrow> 
-      typecheck' (env_subst sub\<^sub>1 \<Gamma>) vs'' e\<^sub>2 = Some (e\<^sub>2', t\<^sub>2, vs', sub\<^sub>2) \<Longrightarrow> 
-        P \<Gamma> (insert v vs) e\<^sub>1 e\<^sub>1' t\<^sub>1 vs'' sub\<^sub>1 \<Longrightarrow> P (env_subst sub\<^sub>1 \<Gamma>) vs'' e\<^sub>2 e\<^sub>2' t\<^sub>2 vs' sub\<^sub>2 \<Longrightarrow> 
-          unify t\<^sub>1 (Ctor ''Arrow'' [t\<^sub>2, Var v]) = Some sub\<^sub>3 \<Longrightarrow> 
-            P \<Gamma> vs (NApp e\<^sub>1 e\<^sub>2) (HApp e\<^sub>1' e\<^sub>2') (Var v) vs' (combine_subst sub\<^sub>3 sub\<^sub>2)) \<Longrightarrow> 
-              P \<Gamma> vs e e' t vs' sub"
-proof (induction e arbitrary: \<Gamma> vs e' t vs' sub)
-  case (NLam x e)
-  let ?v = "fresh vs"
-  from NLam(2) obtain ee' tt where E: "e' = HLam x (Var ?v) ee' \<and> t = Ctor ''Arrow'' [Var ?v, tt] \<and>
-    typecheck' (\<Gamma>(x \<mapsto> Var ?v)) (insert ?v vs) e = Some (ee', tt, vs', sub)" 
-      by (auto simp add: Let_def split: option.splits)
-  with NLam have "P (\<Gamma>(x \<mapsto> Var ?v)) (insert ?v vs) e ee' tt vs' sub" by auto
-  with NLam E show ?case by metis
-qed (auto simp add: Let_def split: option.splits)
-
-lemma typecheck_None [consumes 1, case_names NVar NLam NApp1 NApp2 NApp3]: "
-  typecheck' \<Gamma> vs e = None \<Longrightarrow> 
-  (\<And>\<Gamma> vs x. \<Gamma> x = None \<Longrightarrow> P \<Gamma> vs (NVar x)) \<Longrightarrow> 
-  (\<And>\<Gamma> vs x e\<^sub>1 v. v = fresh vs \<Longrightarrow> typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e\<^sub>1 = None \<Longrightarrow> 
-    P (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e\<^sub>1 \<Longrightarrow> P \<Gamma> vs (NLam x e\<^sub>1)) \<Longrightarrow> 
-  (\<And>\<Gamma> vs e\<^sub>1 e\<^sub>2 v. v = fresh vs \<Longrightarrow> typecheck' \<Gamma> (insert v vs) e\<^sub>1 = None \<Longrightarrow> P \<Gamma> (insert v vs) e\<^sub>1 \<Longrightarrow> 
-    P \<Gamma> vs (NApp e\<^sub>1 e\<^sub>2)) \<Longrightarrow> 
-  (\<And>\<Gamma> vs e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' sub\<^sub>1. v = fresh vs \<Longrightarrow> 
-    typecheck' \<Gamma> (insert v vs) e\<^sub>1 = Some (e\<^sub>1', t\<^sub>1, vs'', sub\<^sub>1) \<Longrightarrow> 
-      typecheck' (env_subst sub\<^sub>1 \<Gamma>) vs'' e\<^sub>2 = None \<Longrightarrow> P (env_subst sub\<^sub>1 \<Gamma>) vs'' e\<^sub>2 \<Longrightarrow> 
-        P \<Gamma> vs (NApp e\<^sub>1 e\<^sub>2)) \<Longrightarrow> 
-  (\<And>\<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' sub\<^sub>1 e\<^sub>2' t\<^sub>2 sub\<^sub>2. v = fresh vs \<Longrightarrow> 
-    typecheck' \<Gamma> (insert v vs) e\<^sub>1 = Some (e\<^sub>1', t\<^sub>1, vs'', sub\<^sub>1) \<Longrightarrow> 
-      typecheck' (env_subst sub\<^sub>1 \<Gamma>) vs'' e\<^sub>2 = Some (e\<^sub>2', t\<^sub>2, vs', sub\<^sub>2) \<Longrightarrow> 
-        unify t\<^sub>1 (Ctor ''Arrow'' [t\<^sub>2, Var v]) = None \<Longrightarrow> 
-          P \<Gamma> vs (NApp e\<^sub>1 e\<^sub>2)) \<Longrightarrow> P \<Gamma> vs e"
-proof (induction e arbitrary: \<Gamma> vs)
-  case (NLam x e)
-  let ?v = "fresh vs"
-  from NLam have X: "typecheck' (\<Gamma>(x \<mapsto> Var ?v)) (insert ?v vs) e = None" 
-    by (auto simp add: Let_def split: option.splits)
-  with NLam have "P (\<Gamma>(x \<mapsto> Var ?v)) (insert ?v vs) e" by simp
-  with NLam(4) X show ?case by blast
-qed (simp_all add: Let_def split: option.splits prod.splits)
+lemma typecheck_induct [consumes 1, case_names NVarS NVarN NConst NLam NApp]: "
+  typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> 
+  (\<And>\<Gamma> vs t x. \<Gamma> x = Some t \<Longrightarrow> P \<Gamma> vs (NVar x) (HVar x) t vs []) \<Longrightarrow> 
+  (\<And>\<Gamma> vs x. \<Gamma> x = None \<Longrightarrow> P \<Gamma> vs (NVar x) (HVar x) (Ctor ''Base'' [])  vs fail) \<Longrightarrow> 
+  (\<And>\<Gamma> vs k. P \<Gamma> vs (NConst k) (HConst k) (Ctor ''Base'' []) vs []) \<Longrightarrow> 
+  (\<And>\<Gamma> vs vs' con x e\<^sub>1 e\<^sub>1' t' v. v = fresh vs \<Longrightarrow> typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e\<^sub>1 = 
+    (e\<^sub>1', t', vs', con) \<Longrightarrow> P (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e\<^sub>1 e\<^sub>1' t' vs' con \<Longrightarrow> 
+      P \<Gamma> vs (NLam x e\<^sub>1) (HLam x (Var v) e\<^sub>1') (Ctor ''Arrow'' [Var v, t']) vs' con) \<Longrightarrow> 
+  (\<And>\<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 e\<^sub>2' t\<^sub>2 con\<^sub>2. v = fresh vs \<Longrightarrow> 
+    typecheck' \<Gamma> (insert v vs) e\<^sub>1 = (e\<^sub>1', t\<^sub>1, vs'', con\<^sub>1) \<Longrightarrow> 
+      typecheck' \<Gamma> vs'' e\<^sub>2 = (e\<^sub>2', t\<^sub>2, vs', con\<^sub>2) \<Longrightarrow> P \<Gamma> (insert v vs) e\<^sub>1 e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 \<Longrightarrow> 
+        P \<Gamma> vs'' e\<^sub>2 e\<^sub>2' t\<^sub>2 vs' con\<^sub>2 \<Longrightarrow> P \<Gamma> vs (NApp e\<^sub>1 e\<^sub>2) (HApp e\<^sub>1' e\<^sub>2') (Var v) vs' 
+          ((t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v]) # con\<^sub>1 @ con\<^sub>2)) \<Longrightarrow> 
+    P \<Gamma> vs e e' t vs' con"
+  by (induction e arbitrary: \<Gamma> vs e' t vs' con) 
+     (auto simp add: Let_def split: option.splits prod.splits)
 
 lemma [simp]: "tsubsts Map.empty e = e"
   by (induction e) simp_all
@@ -296,87 +263,48 @@ qed
 lemma [simp]: "hsubst (combine_subst s t) e = hsubst s (hsubst t e)"
   by (induction e) simp_all
 
-lemma [simp]: "typecheck' \<Gamma> vs e = Some (e', t, vs', sub) \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow>  
-  valid_ty_hexpr e' \<and> valid_ty_uexpr t \<and> valid_ty_subst sub"
-proof (induction rule: typecheck_Some)
-  case (NApp \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' sub\<^sub>1 e\<^sub>2' t\<^sub>2 sub\<^sub>2 sub\<^sub>3)
-  hence "valid_ty_uexpr (Ctor ''Arrow'' [t\<^sub>2, Var v])" by simp
-  with NApp have X: "valid_ty_subst sub\<^sub>3" by fastforce
-  hence "valid_ty_uexpr (case sub\<^sub>3 v of None \<Rightarrow> Var v | Some e \<Rightarrow> e)" 
-    by (auto simp add: valid_ty_subst_def ran_def split: option.splits)
-  with NApp X show ?case by auto
-qed fastforce+
+lemma [elim]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_uexpr t"
+  by (induction rule: typecheck_induct) auto
 
-lemma [elim]: "valid_ty_subst \<Gamma> \<Longrightarrow> typecheck' \<Gamma> vs e = Some (e', t, vs', sub) \<Longrightarrow> valid_ty_uexpr t"
-  by simp
+lemma [elim]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_hexpr e'"
+  by (induction rule: typecheck_induct) auto
 
-lemma [elim]: "valid_ty_subst \<Gamma> \<Longrightarrow> typecheck' \<Gamma> vs e = Some (e', t, vs', sub) \<Longrightarrow> 
-    valid_ty_hexpr e'"
-  by simp
-
-lemma [elim]: "valid_ty_subst \<Gamma> \<Longrightarrow> typecheck' \<Gamma> vs e = Some (e', t, vs', sub) \<Longrightarrow> 
-    valid_ty_subst sub"
-  by simp
-
-lemma typecheck_succeeds [simp]: "typecheck' \<Gamma> vs e = Some (e', t, vs', sub) \<Longrightarrow> 
-  valid_ty_subst \<Gamma> \<Longrightarrow>
+lemma typecheck_succeeds [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> 
+  valid_ty_subst \<Gamma> \<Longrightarrow> unify' con = Some sub \<Longrightarrow>
     map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e') : typeify (subst sub t)"
-proof (induction rule: typecheck_Some)
-  case (NLam \<Gamma> vs vs' sub x e\<^sub>1 e\<^sub>1' t' v)
+proof (induction arbitrary: sub rule: typecheck_induct)
+  case (NVarS \<Gamma> vs t x)
+  thus ?case by simp
+next
+  case (NLam \<Gamma> vs vs' con x e\<^sub>1 e\<^sub>1' t' v)
   hence "valid_ty_subst (\<Gamma>(x \<mapsto> Var v))" by simp
   with NLam have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma>(x \<mapsto> Var v) \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>1') : 
-    typeify (subst sub t')" by blast
+      typeify (subst sub t')" by blast
   hence "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub (HLam x (Var v) e\<^sub>1')) :
     typeify (subst sub (Ctor ''Arrow'' [Var v, t']))" by simp
   thus ?case by blast
 next
-  case (NApp \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' sub\<^sub>1 e\<^sub>2' t\<^sub>2 sub\<^sub>2 sub\<^sub>3)
-  from NApp have "v = fresh vs" by simp
-  from NApp have "typecheck' \<Gamma> (insert v vs) e\<^sub>1 = Some (e\<^sub>1', t\<^sub>1, vs'', sub\<^sub>1)" by simp
-  with NApp have E1: "valid_ty_hexpr e\<^sub>1' \<and> valid_ty_subst sub\<^sub>1" by auto
-  from NApp have "typecheck' (env_subst sub\<^sub>1 \<Gamma>) vs'' e\<^sub>2 = Some (e\<^sub>2', t\<^sub>2, vs', sub\<^sub>2)" by simp
-  with NApp have E2: "valid_ty_hexpr e\<^sub>2' \<and> valid_ty_subst sub\<^sub>2" by auto
-  from NApp have "unify t\<^sub>1 (Ctor ''Arrow'' [t\<^sub>2, Var v]) = Some sub\<^sub>3" by simp
-  from NApp have "map_option (typeify \<circ> subst sub\<^sub>1) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub\<^sub>1 e\<^sub>1') : typeify (subst sub\<^sub>1 t\<^sub>1)" by blast
-  from NApp have "valid_ty_subst \<Gamma>" by simp
-
-  from NApp E1 have "valid_ty_subst (env_subst sub\<^sub>1 \<Gamma>)" by simp
-  with NApp have "map_option (typeify \<circ> subst sub\<^sub>2) \<circ> env_subst sub\<^sub>1 \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub\<^sub>2 e\<^sub>2') : typeify (subst sub\<^sub>2 t\<^sub>2)" by blast
-
-
-  from E1 have X: "map_option (tsubsts sub\<^sub>3 \<circ> tsubsts sub\<^sub>2 \<circ> typeify) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub\<^sub>3 (hsubst sub\<^sub>2 e\<^sub>1')) : 
-    Arrow xt\<^sub>1 (typeify (subst sub\<^sub>3 (subst sub\<^sub>2 (Var v))))" by simp
-  with NApp E2 have X: "map_option (typeify \<circ> subst sub\<^sub>3 \<circ> subst sub\<^sub>2) \<circ> \<Gamma> \<turnstile>\<^sub>n 
-    solidify (hsubst sub\<^sub>3 (hsubst sub\<^sub>2 e\<^sub>1')) : Arrow xt\<^sub>1 (typeify (subst sub\<^sub>3 (subst sub\<^sub>2 (Var v))))" 
-      by simp
-
-
-  from E2 have "map_option (tsubsts sub\<^sub>3 \<circ> tsubsts sub\<^sub>2 \<circ> typeify) \<circ> \<Gamma> \<turnstile>\<^sub>n tsubstt sub\<^sub>3 (tsubstt sub\<^sub>2 (solidify e\<^sub>2')) : xt\<^sub>1" 
-    by simp
-  with NApp E2 have "map_option (typeify \<circ> subst sub\<^sub>3 \<circ> subst sub\<^sub>2) \<circ> \<Gamma> \<turnstile>\<^sub>n 
-    tsubstt sub\<^sub>3 (tsubstt sub\<^sub>2 (solidify e\<^sub>2')) : xt\<^sub>1" by simp
-  with X E1 E2 have "map_option (typeify \<circ> subst (combine_subst sub\<^sub>3 sub\<^sub>2)) \<circ> \<Gamma> \<turnstile>\<^sub>n 
-    solidify (hsubst (combine_subst sub\<^sub>3 sub\<^sub>2) (HApp e\<^sub>1' e\<^sub>2')) :
-      typeify (subst (combine_subst sub\<^sub>3 sub\<^sub>2) (Var v))" by (simp add: comp_assoc)
-  thus ?case by blast
+  case (NApp \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 e\<^sub>2' t\<^sub>2 con\<^sub>2)
+  thus ?case by simp
 qed simp_all
 
 lemma [simp]: "typecheck e = Some (e\<^sub>t, t) \<Longrightarrow> Map.empty \<turnstile>\<^sub>n e\<^sub>t : t"
 proof -
   assume "typecheck e = Some (e\<^sub>t, t)"
-  then obtain e' tt vs sub where T: "typecheck' Map.empty {} e = Some (e', tt, vs, sub) \<and>
-    e\<^sub>t = tsubstt sub (solidify e') \<and> t = tsubsts sub (typeify tt)" by (auto split: option.splits)
+  then obtain e' tt vs con sub where T: "typecheck' Map.empty {} e = (e', tt, vs, con) \<and>
+    unify' con = Some sub \<and> e\<^sub>t = tsubstt sub (solidify e') \<and> t = tsubsts sub (typeify tt)" 
+      by (auto split: option.splits prod.splits)
   moreover hence "map_option (typeify \<circ> subst sub) \<circ> Map.empty \<turnstile>\<^sub>n solidify (hsubst sub e') : 
     typeify (subst sub tt)" by (metis typecheck_succeeds valid_empty)
   moreover from T have "valid_ty_uexpr tt" and "valid_ty_hexpr e'" by auto
   ultimately show "Map.empty \<turnstile>\<^sub>n e\<^sub>t : t" by simp
 qed
 
-lemma [simp]: "typecheck' \<Gamma> vs e = Some (e', t, vs', sub) \<Longrightarrow> e = erase (solidify e')"
-  by (induction rule: typecheck_Some) auto
+lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> e = erase (solidify e')"
+  by (induction rule: typecheck_induct) auto
 
 lemma [simp]: "typecheck e = Some (e\<^sub>t, t) \<Longrightarrow> e = erase e\<^sub>t"
-  by (auto split: option.splits)
+  by (auto split: option.splits prod.splits)
 
 lemma [dest]: "erase e\<^sub>t = NVar x \<Longrightarrow> e\<^sub>t = TVar x"
   by (induction e\<^sub>t) simp_all
@@ -387,31 +315,15 @@ lemma [dest]: "erase e\<^sub>t = NLam x e \<Longrightarrow> \<exists>t e\<^sub>t
 lemma [dest]: "erase e\<^sub>t = NApp e\<^sub>1 e\<^sub>2 \<Longrightarrow> \<exists>e\<^sub>1' e\<^sub>2'. e\<^sub>t = TApp e\<^sub>1' e\<^sub>2' \<and> e\<^sub>1 = erase e\<^sub>1'\<and> e\<^sub>2 = erase e\<^sub>2'"
   by (induction e\<^sub>t) simp_all
 
-lemma typecheck_fails' [simp]: "typecheck' \<Gamma> vs e = None \<Longrightarrow> map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>t : t \<Longrightarrow> 
-  erase e\<^sub>t = e \<Longrightarrow> False"
-proof (induction arbitrary: e\<^sub>t t rule: typecheck_None)
-  case (NLam \<Gamma> vs x e v)
-  then obtain t\<^sub>1 e\<^sub>t' where E: "e\<^sub>t = TLam x t\<^sub>1 e\<^sub>t' \<and> e = erase e\<^sub>t'" by auto
-  with NLam obtain t\<^sub>2 where T: "((map_option typeify \<circ> \<Gamma>)(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>n e\<^sub>t' : t\<^sub>2) \<and> t = Arrow t\<^sub>1 t\<^sub>2" 
-    by blast
-
-
-
-
-  from T have "(map_option typeify \<circ> \<Gamma>(x \<mapsto> Var v) \<turnstile>\<^sub>n xe\<^sub>t' : xt) \<and> erase xe\<^sub>t' = e" by simp
-  with NLam E show ?case by blast
-next
-  case (NApp2 \<Gamma> vs e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' sub\<^sub>1)
-  thus ?case by simp
-next
-  case (NApp3 \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' sub\<^sub>1 e\<^sub>2' t\<^sub>2 sub\<^sub>2)
-  thus ?case by simp
-qed fastforce+
+lemma typecheck_fails' [simp]: "typecheck' \<Gamma> vs e = (e', tt, vs', con) \<Longrightarrow> unify' con = None \<Longrightarrow> 
+  map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>t : t \<Longrightarrow> erase e\<^sub>t = e \<Longrightarrow> False"
+by simp
 
 lemma typecheck_fails [simp]: "typecheck e = None \<Longrightarrow> \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> e = erase e\<^sub>t"
 proof 
   assume "typecheck e = None"
-  hence X: "typecheck' Map.empty {} e = None" by (auto split: option.splits)
+  then obtain e' tt vs' con where X: "typecheck' Map.empty {} e = (e', tt, vs', con) \<and> 
+    unify' con = None" by (auto split: option.splits)
   assume "\<exists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> e = erase e\<^sub>t"
   then obtain e\<^sub>t t where "(map_option typeify \<circ> Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> e = erase e\<^sub>t" by fastforce
   with X show "False" by (metis typecheck_fails')

@@ -42,6 +42,9 @@ qed simp_all
 definition unify :: "uexpr \<Rightarrow> uexpr \<rightharpoonup> subst" where
   "unify e\<^sub>1 e\<^sub>2 = unify' [(e\<^sub>1, e\<^sub>2)]"
 
+definition fail :: "(uexpr \<times> uexpr) list" where
+  "fail = [(Ctor ''a'' [], Ctor ''b'' [])]"
+
 lemma unify_dom [simp]: "unify' ess = Some s \<Longrightarrow> dom s \<subseteq> list_vars ess"
 proof (induction ess arbitrary: s rule: unify'_induct)
   case (8 x e ess s')
@@ -239,5 +242,8 @@ proof (unfold unify_def)
   moreover assume "unify' [(e\<^sub>1, e\<^sub>2)] = Some s" and "structural P"
   ultimately show "\<forall>x\<in>ran s. P x" by (metis unify'_props)
 qed
+
+lemma [simp]: "unify' fail = None"
+  by (simp add: fail_def)
 
 end
