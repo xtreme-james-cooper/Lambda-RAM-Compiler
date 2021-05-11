@@ -69,7 +69,7 @@ next
       (vs'(vp := hp)) (Suc vp) sh (Suc sp) pc)" by simp
   from evf_pushlam S have "cd \<tturnstile> US hh hp e ep vs' vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
     US (hh(hp := 0, Suc hp := sh sp, Suc (Suc hp) := pc')) (3 + hp) e ep (vs'(vp := hp)) 
-      (Suc vp) sh (Suc sp) pc" by (metis diff_Suc_1 evu_pushlam)
+      (Suc vp) sh (Suc sp) pc" by (metis evu_pushlam)
   with S X show ?case by blast
 next
   case (evf_apply cd pc h v2 p' pc' env v1 env' p2 vs p sfs)
@@ -126,7 +126,7 @@ next
   from evf_jump V H have "
         cd \<tturnstile> US h' hp e ep vs' (Suc (Suc vp')) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
     US h' hp (e(ep := v1, Suc ep := p')) (2 + ep) vs' vp'
-      (sh(Suc sp - 1 := Suc (Suc ep))) (Suc sp) pc'" by (metis evu_jump)
+      (sh(Suc sp - 1 := Suc (Suc ep))) (Suc sp) pc'" using evu_jump by fastforce
   with S V X show ?case by blast
 qed
 

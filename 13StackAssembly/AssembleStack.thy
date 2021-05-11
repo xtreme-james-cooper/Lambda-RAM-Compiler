@@ -266,6 +266,9 @@ lemma [simp]: "odd (Suc sp) \<Longrightarrow>
     assemble_stack (assembly_map cd) (sh(sp := Suc (Suc ep)))"
   by (auto simp add: assemble_stack_def)
 
+lemma [simp]: "odd (Suc sp) \<Longrightarrow> assemble_stack (assembly_map cd) sh sp = sh sp"
+  by (simp add: assemble_stack_def)
+
 theorem correctsa [simp]: "cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow> 
   \<exists>n. iter_evalsa (assemble_stack_code cd\<^sub>b) n (assm_state cd\<^sub>b \<Sigma>\<^sub>u) = Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u')"
 proof (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induct)
@@ -306,10 +309,10 @@ next
     SAPush Hp Acc" by (simp del: add_2_eq_Suc) 
   ultimately have "iter_evalsa (assemble_stack_code cd) 9 (SAS (case_memory 
     (assemble_heap (assembly_map cd) h) e vs (assemble_stack (assembly_map cd) sh)) 
-      (case_memory hp ep vp sp) 0 0 (assembly_map cd (Suc pc))) = Some (SAS (case_memory 
+      (case_memory hp ep vp (Suc sp)) 0 0 (assembly_map cd (Suc pc))) = Some (SAS (case_memory 
         (assemble_heap (assembly_map cd) 
-          (h(hp := 0, Suc hp := sh (sp - Suc 0), Suc (Suc hp) := pc'))) e (vs(vp := hp)) 
-            (assemble_stack (assembly_map cd) sh)) (case_memory (3 + hp) ep (Suc vp) sp) 0 0 
+          (h(hp := 0, Suc hp := sh sp, Suc (Suc hp) := pc'))) e (vs(vp := hp)) 
+            (assemble_stack (assembly_map cd) sh)) (case_memory (3 + hp) ep (Suc vp) (Suc sp)) 0 0 
               (assembly_map cd pc))" 
     by (auto simp add: numeral_def)
   thus ?case by auto
@@ -352,7 +355,7 @@ next
           Suc ep := h (Suc (vs vp)))) vs (assemble_stack (assembly_map cd) 
             (sh(sp := pc, Suc sp := Suc (Suc ep))))) (case_memory hp (Suc (Suc ep)) vp 
               (Suc (Suc sp))) 0 0 (assembly_map cd (h (Suc (Suc (vs vp))))))" 
-    by (auto simp add: numeral_def)
+    by (auto simp add: numeral_def split: if_splits)
   thus ?case by auto
 next
   case (evu_return_normal cd pc h hp e ep vs vp sh sp)
@@ -390,10 +393,11 @@ next
     by (simp del: add_2_eq_Suc)
   ultimately have "iter_evalsa (assemble_stack_code cd) 15 (SAS (case_memory 
     (assemble_heap (assembly_map cd) h) e vs (assemble_stack (assembly_map cd) sh))
-      (case_memory hp ep (Suc (Suc vp)) sp) 0 0 (assembly_map cd (Suc pc))) = Some (SAS (case_memory 
-        (assemble_heap (assembly_map cd) h) (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) vs
-          (assemble_stack (assembly_map cd) (sh(sp - Suc 0 := Suc (Suc ep)))))
-            (case_memory hp (Suc (Suc ep)) vp sp) 0 0 (assembly_map cd (h (Suc (Suc (vs vp))))))" 
+      (case_memory hp ep (Suc (Suc vp)) (Suc sp)) 0 0 (assembly_map cd (Suc pc))) = Some (SAS 
+        (case_memory (assemble_heap (assembly_map cd) h) (e(ep := vs (Suc vp), 
+          Suc ep := h (Suc (vs vp)))) vs (assemble_stack (assembly_map cd) 
+            (sh(sp := Suc (Suc ep))))) (case_memory hp (Suc (Suc ep)) vp (Suc sp)) 0 0 
+              (assembly_map cd (h (Suc (Suc (vs vp))))))" 
     by (auto simp add: numeral_def split: nat.splits)
   thus ?case by auto
 qed

@@ -12,16 +12,17 @@ fun unstr_lookup :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat
 | "unstr_lookup h (Suc (Suc p)) (Suc x) = unstr_lookup h (h (Suc p)) x"
 
 inductive evalu :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> unstr_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>u" 50) where
-  evu_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> unstr_lookup e (sh (sp - 1)) x = Some y \<Longrightarrow>
-    cd \<tturnstile> US h hp e ep vs vp sh sp (Suc pc) \<leadsto>\<^sub>u US h hp e ep (vs(vp := y)) (Suc vp) sh sp pc"
+  evu_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> unstr_lookup e (sh sp) x = Some y \<Longrightarrow>
+    cd \<tturnstile> US h hp e ep vs vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
+      US h hp e ep (vs(vp := y)) (Suc vp) sh (Suc sp) pc"
 | evu_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh sp (Suc pc) \<leadsto>\<^sub>u 
       US (h(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep 
         (vs(vp := hp)) (Suc vp) sh sp pc"
 | evu_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs vp sh sp (Suc pc) \<leadsto>\<^sub>u 
-      US (h(hp := 0, Suc hp := sh (sp - 1), Suc (Suc hp) := pc')) (3 + hp) e ep 
-        (vs(vp := hp)) (Suc vp) sh sp pc"
+    cd \<tturnstile> US h hp e ep vs vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
+      US (h(hp := 0, Suc hp := sh sp, Suc (Suc hp) := pc')) (3 + hp) e ep 
+        (vs(vp := hp)) (Suc vp) sh (Suc sp) pc"
 | evu_apply [simp]: "cd ! pc = BApply \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
@@ -31,15 +32,15 @@ inductive evalu :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> unstr
 | evu_return_end [simp]: "cd ! pc = BReturn \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh (Suc 0) (Suc pc) \<leadsto>\<^sub>u US h hp e ep vs vp sh 0 0"
 | evu_jump [simp]: "cd ! pc = BJump \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc) \<leadsto>\<^sub>u 
+    cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
-        (sh(sp - 1 := Suc (Suc ep))) sp (h (Suc (Suc (vs vp))))"
+        (sh(sp := Suc (Suc ep))) (Suc sp) (h (Suc (Suc (vs vp))))"
 
 theorem determinismu: "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>u \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>u \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction cd \<Sigma> \<Sigma>' rule: evalu.induct)
   case (evu_lookup cd pc x e sh sp y h hp ep vs vp)
   from evu_lookup(3, 1, 2) show ?case 
-    by (induction cd "US h hp e ep vs vp sh sp (Suc pc)" \<Sigma>'' rule: evalu.induct) simp_all
+    by (induction cd "US h hp e ep vs vp sh (Suc sp) (Suc pc)" \<Sigma>'' rule: evalu.induct) simp_all
 next
 next
   case (evu_pushcon cd pc k h hp e ep vs vp sh sp)
@@ -48,7 +49,7 @@ next
 next
   case (evu_pushlam cd pc pc' h hp e ep vs vp sh sp)
   from evu_pushlam(2, 1) show ?case 
-    by (induction cd "US h hp e ep vs vp sh sp (Suc pc)" \<Sigma>'' rule: evalu.induct) simp_all
+    by (induction cd "US h hp e ep vs vp sh (Suc sp) (Suc pc)" \<Sigma>'' rule: evalu.induct) simp_all
 next
   case (evu_apply cd pc h vs vp hp e ep sh sp)
   from evu_apply(3, 1, 2) show ?case    
@@ -67,7 +68,7 @@ next
 next
   case (evu_jump cd pc h vs vp hp e ep sh sp)
   from evu_jump(3, 1, 2) show ?case    
-    by (induction cd "US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc)" \<Sigma>'' rule: evalu.induct) 
+    by (induction cd "US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc)" \<Sigma>'' rule: evalu.induct) 
        simp_all
 qed
 
@@ -90,7 +91,7 @@ primrec restructurable :: "unstr_state \<Rightarrow> byte_code list \<Rightarrow
   "restructurable (US h hp e ep vs vp sh sp pc) cd = (pc \<le> length cd \<and> 
     length cd \<noteq> 0 \<and> orderly cd 0 \<and> return_terminated cd \<and> restructurable_heap h hp ep (length cd) \<and> 
       restructurable_env e ep hp \<and> restructurable_vals vs vp hp \<and> 
-        restructurable_stack sh sp ep (length cd) \<and> (if pc = 0 then sp = 0 else odd sp))"
+        restructurable_stack sh sp ep (length cd) \<and> (if sp = 0 then pc = 0 else odd sp))"
 
 lemma [simp]: "odd (x::nat) \<Longrightarrow> 0 < x"
   by (cases x) simp_all
@@ -217,8 +218,8 @@ proof -
   ultimately show ?thesis by simp
 qed
 
-lemma [simp]: "restructurable_env e ep hp \<Longrightarrow> restructurable_stack sh sp ep lcd \<Longrightarrow> odd sp \<Longrightarrow> 
-    restructurable_stack (sh(sp - Suc 0 := Suc (Suc ep))) sp (Suc (Suc ep)) lcd"
+lemma [simp]: "restructurable_env e ep hp \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> 
+    even sp \<Longrightarrow> restructurable_stack (sh(sp := Suc (Suc ep))) (Suc sp) (Suc (Suc ep)) lcd"
   by (unfold restructurable_stack_def) auto
 
 lemma [simp]: "h (vs vp) = 0 \<Longrightarrow> restructurable_heap h hp ep lcd \<Longrightarrow> 
@@ -245,27 +246,27 @@ proof (induction e p x rule: unstr_lookup.induct)
   ultimately show ?case by simp
 qed (auto simp add: restructurable_env_def)
 
-lemma [simp]: "odd sp \<Longrightarrow> restructurable_stack sh sp ep lcd \<Longrightarrow> even (sh (sp - Suc 0))" 
+lemma [simp]: "even sp \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> even (sh sp)" 
   by (unfold restructurable_stack_def) auto
 
-lemma [simp]: "odd sp \<Longrightarrow> restructurable_stack sh sp ep lcd \<Longrightarrow> sh (sp - Suc 0) \<le> ep" 
+lemma [simp]: "even sp \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> sh sp \<le> ep" 
   by (unfold restructurable_stack_def) auto
 
-lemma [elim]: "unstr_lookup e (sh (sp - Suc 0)) x = Some y \<Longrightarrow> restructurable_stack sh sp ep lcd \<Longrightarrow> 
-  restructurable_env e ep hp \<Longrightarrow> odd sp \<Longrightarrow> y < hp"
+lemma [elim]: "unstr_lookup e (sh sp) x = Some y \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> 
+  restructurable_env e ep hp \<Longrightarrow> even sp \<Longrightarrow> y < hp"
 proof -
-  assume "odd sp" and "restructurable_stack sh sp ep lcd"  
-  hence "even (sh (sp - Suc 0))" and "sh (sp - Suc 0) \<le> ep" by auto
-  moreover assume "unstr_lookup e (sh (sp - Suc 0)) x = Some y" and "restructurable_env e ep hp"
+  assume "even sp" and "restructurable_stack sh (Suc sp) ep lcd"  
+  hence "even (sh sp)" and "sh sp \<le> ep" by auto
+  moreover assume "unstr_lookup e (sh sp) x = Some y" and "restructurable_env e ep hp"
   ultimately show "y < hp" by auto
 qed
 
-lemma [elim]: "unstr_lookup e (sh (sp - Suc 0)) x = Some y \<Longrightarrow> restructurable_stack sh sp ep lcd \<Longrightarrow> 
-    restructurable_env e ep hp \<Longrightarrow> odd sp \<Longrightarrow> 3 dvd y"
+lemma [elim]: "unstr_lookup e (sh sp) x = Some y \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> 
+  restructurable_env e ep hp \<Longrightarrow> even sp \<Longrightarrow> 3 dvd y"
 proof -
-  assume "odd sp" and "restructurable_stack sh sp ep lcd"  
-  hence "sh (sp - Suc 0) \<le> ep \<and> even (sh (sp - Suc 0))" by (unfold restructurable_stack_def) auto
-  moreover assume "unstr_lookup e (sh (sp - Suc 0)) x = Some y" and "restructurable_env e ep hp"
+  assume "even sp" and "restructurable_stack sh (Suc sp) ep lcd"  
+  hence "sh sp \<le> ep \<and> even (sh sp)" by simp
+  moreover assume "unstr_lookup e (sh sp) x = Some y" and "restructurable_env e ep hp"
   ultimately show "3 dvd y" by auto
 qed
 
@@ -275,6 +276,6 @@ lemma [simp]: "h (vs vp) = 0 \<Longrightarrow> restructurable_heap h hp ep (leng
 
 lemma preserve_restructure [simp]: "cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd \<Longrightarrow> 
     restructurable \<Sigma>\<^sub>u' cd"
-  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induct) auto
+  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induct) (auto split: if_splits)
 
 end
