@@ -16,21 +16,19 @@ inductive evalu :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> unstr
     cd \<tturnstile> US h hp e ep vs vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US h hp e ep (vs(vp := y)) (Suc vp) sh (Suc sp) pc"
 | evu_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs vp sh sp (Suc pc) \<leadsto>\<^sub>u 
+    cd \<tturnstile> US h hp e ep vs vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US (h(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep 
-        (vs(vp := hp)) (Suc vp) sh sp pc"
+        (vs(vp := hp)) (Suc vp) sh (Suc sp) pc"
 | evu_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US (h(hp := 0, Suc hp := sh sp, Suc (Suc hp) := pc')) (3 + hp) e ep 
         (vs(vp := hp)) (Suc vp) sh (Suc sp) pc"
 | evu_apply [simp]: "cd ! pc = BApply \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc) \<leadsto>\<^sub>u 
+    cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
-        (sh(sp := pc, Suc sp := Suc (Suc ep))) (2 + sp) (h (Suc (Suc (vs vp))))"
-| evu_return_normal [simp]: "cd ! pc = BReturn \<Longrightarrow> 
+        (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (2 + Suc sp) (h (Suc (Suc (vs vp))))"
+| evu_return [simp]: "cd ! pc = BReturn \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u US h hp e ep vs vp sh sp (sh sp)"
-| evu_return_end [simp]: "cd ! pc = BReturn \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs vp sh (Suc 0) (Suc pc) \<leadsto>\<^sub>u US h hp e ep vs vp sh 0 0"
 | evu_jump [simp]: "cd ! pc = BJump \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
@@ -45,7 +43,7 @@ next
 next
   case (evu_pushcon cd pc k h hp e ep vs vp sh sp)
   from evu_pushcon(2, 1) show ?case 
-    by (induction cd "US h hp e ep vs vp sh sp (Suc pc)" \<Sigma>'' rule: evalu.induct) simp_all
+    by (induction cd "US h hp e ep vs vp sh (Suc sp) (Suc pc)" \<Sigma>'' rule: evalu.induct) simp_all
 next
   case (evu_pushlam cd pc pc' h hp e ep vs vp sh sp)
   from evu_pushlam(2, 1) show ?case 
@@ -53,17 +51,12 @@ next
 next
   case (evu_apply cd pc h vs vp hp e ep sh sp)
   from evu_apply(3, 1, 2) show ?case    
-    by (induction cd "US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc)" \<Sigma>'' rule: evalu.induct) 
+    by (induction cd "US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc)" \<Sigma>'' rule: evalu.induct) 
        simp_all
 next
-  case (evu_return_normal cd pc h hp e ep vs vp sh sp)
-  from evu_return_normal(2, 1) show ?case 
+  case (evu_return cd pc h hp e ep vs vp sh sp)
+  from evu_return(2, 1) show ?case 
     by (induction cd "US h hp e ep vs vp sh (Suc (Suc sp)) (Suc pc)" \<Sigma>'' rule: evalu.induct) 
-       simp_all
-next
-  case (evu_return_end cd pc h hp e ep vs vp sh)
-  from evu_return_end(2, 1) show ?case 
-    by (induction cd "US h hp e ep vs vp sh (Suc 0) (Suc pc)" \<Sigma>'' rule: evalu.induct) 
        simp_all
 next
   case (evu_jump cd pc h vs vp hp e ep sh sp)
@@ -84,14 +77,14 @@ definition restructurable_vals :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<R
   "restructurable_vals vs vp hp = (\<forall>x < vp. 3 dvd vs x \<and> vs x < hp)"
 
 definition restructurable_stack :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
-  "restructurable_stack sh sp ep lcd = 
-    (\<forall>x < sp. if odd x then sh x \<noteq> 0 \<and> sh x \<le> lcd else even (sh x) \<and> sh x \<le> ep)"
+  "restructurable_stack sh sp ep lcd = (\<forall>x < sp. 
+    if x = 0 then sh x = 0 else if even x then sh x \<noteq> 0 \<and> sh x \<le> lcd else even (sh x) \<and> sh x \<le> ep)"
 
 primrec restructurable :: "unstr_state \<Rightarrow> byte_code list \<Rightarrow> bool" where
   "restructurable (US h hp e ep vs vp sh sp pc) cd = (pc \<le> length cd \<and> 
     length cd \<noteq> 0 \<and> orderly cd 0 \<and> return_terminated cd \<and> restructurable_heap h hp ep (length cd) \<and> 
       restructurable_env e ep hp \<and> restructurable_vals vs vp hp \<and> 
-        restructurable_stack sh sp ep (length cd) \<and> (if sp = 0 then pc = 0 else odd sp))"
+        restructurable_stack sh sp ep (length cd) \<and> even sp \<and> (sp = 0 \<longrightarrow> pc = 0))"
 
 lemma [simp]: "odd (x::nat) \<Longrightarrow> 0 < x"
   by (cases x) simp_all
@@ -194,18 +187,34 @@ lemma [elim]: "restructurable_stack sh (Suc (Suc sp)) ep lcd \<Longrightarrow> r
 lemma [simp]: "restructurable_stack sh 0 ep lcd"
   by (simp add: restructurable_stack_def)
 
-lemma [simp]: "restructurable_stack sh (Suc (Suc sp)) ep lcd \<Longrightarrow> odd sp \<Longrightarrow> sh sp \<noteq> 0"
+lemma [elim]: "restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> sh 0 = 0"
   by (simp add: restructurable_stack_def)
 
-lemma [simp]: "restructurable_stack sh (Suc (Suc sp)) ep lcd \<Longrightarrow> odd sp \<Longrightarrow> sh sp \<le> lcd"
-  by (simp add: restructurable_stack_def)
+lemma [simp]: "restructurable_stack sh (Suc (Suc sp)) ep lcd \<Longrightarrow> even sp \<Longrightarrow> sh sp \<le> lcd"
+proof (unfold restructurable_stack_def)
+  assume "\<forall>x<Suc (Suc sp). if x = 0 then sh x = 0 else if even x 
+    then sh x \<noteq> 0 \<and> sh x \<le> lcd else even (sh x) \<and> sh x \<le> ep"
+     and "even sp"
+  hence "if sp = 0 then sh sp = 0 else sh sp \<noteq> 0 \<and> sh sp \<le> lcd" by simp
+  thus "sh sp \<le> lcd" by (simp split: if_splits)
+qed
 
-lemma [simp]: "restructurable_stack sh sp ep lcd \<Longrightarrow> odd sp \<Longrightarrow> pc \<noteq> 0 \<Longrightarrow> Suc pc \<le> lcd \<Longrightarrow> 
-  even ep \<Longrightarrow> 
+lemma [simp]: "0 \<noteq> pc \<Longrightarrow> pc \<le> lcd \<Longrightarrow> even ep \<Longrightarrow> even sp \<Longrightarrow> sp \<noteq> 0 \<Longrightarrow> 
+  restructurable_stack sh sp ep lcd \<Longrightarrow>
     restructurable_stack (sh(sp := pc, Suc sp := Suc (Suc ep))) (Suc (Suc sp)) (Suc (Suc ep)) lcd"
-  by (unfold restructurable_stack_def) auto
+proof (unfold restructurable_stack_def)
+  let ?sh = "sh(sp := pc, Suc sp := Suc (Suc ep))"
+  assume R: "\<forall>x < sp. if x = 0 then sh x = 0 else if even x then sh x \<noteq> 0 \<and> sh x \<le> lcd 
+    else even (sh x) \<and> sh x \<le> ep"
+  hence "\<And>x. x < sp \<Longrightarrow> x \<noteq> 0 \<Longrightarrow> odd x \<Longrightarrow> even (sh x) \<and> sh x \<le> ep" by simp
+  hence X: "\<And>x. odd x \<Longrightarrow> x < sp \<Longrightarrow> sh x \<le> Suc (Suc ep)" by fastforce
+  assume "0 \<noteq> pc" and "pc \<le> lcd" and "even ep" and "even sp" and "sp \<noteq> 0"
+  with R X show "\<forall>x<Suc (Suc sp). if x = 0 then ?sh x = 0 
+    else if even x then ?sh x \<noteq> 0 \<and> ?sh x \<le> lcd else even (?sh x) \<and> ?sh x \<le> Suc (Suc ep)" 
+      by auto
+qed
 
-lemma [simp]: "restructurable_stack sh sp ep lcd \<Longrightarrow> odd sp \<Longrightarrow> Suc pc \<le> lcd \<Longrightarrow> 
+lemma [simp]: "restructurable_stack sh sp ep lcd \<Longrightarrow> even sp \<Longrightarrow> Suc pc \<le> lcd \<Longrightarrow> sp \<noteq> 0 \<Longrightarrow>
   restructurable_env e ep hp \<Longrightarrow> return_terminated cd \<Longrightarrow> cd ! pc = BApply \<Longrightarrow> 
     restructurable_stack (sh(sp := pc, Suc sp := Suc (Suc ep))) (Suc (Suc sp)) (Suc (Suc ep)) lcd"
 proof -
@@ -214,13 +223,24 @@ proof -
   hence "pc \<noteq> 0" by auto
   moreover assume "restructurable_env e ep hp"
   moreover hence "even ep" by auto
-  moreover assume "restructurable_stack sh sp ep lcd" and "odd sp" and "Suc pc \<le> lcd"
+  moreover assume "restructurable_stack sh sp ep lcd" and "even sp" and "Suc pc \<le> lcd" and "sp \<noteq> 0"
   ultimately show ?thesis by simp
 qed
 
 lemma [simp]: "restructurable_env e ep hp \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> 
-    even sp \<Longrightarrow> restructurable_stack (sh(sp := Suc (Suc ep))) (Suc sp) (Suc (Suc ep)) lcd"
-  by (unfold restructurable_stack_def) auto
+    odd sp \<Longrightarrow> restructurable_stack (sh(sp := Suc (Suc ep))) (Suc sp) (Suc (Suc ep)) lcd"
+proof (unfold restructurable_stack_def)
+  assume E: "restructurable_env e ep hp"
+  assume O: "odd sp"
+  assume R: "\<forall>x < Suc sp. if x = 0 then sh x = 0 else if even x then sh x \<noteq> 0 \<and> sh x \<le> lcd 
+    else even (sh x) \<and> sh x \<le> ep"
+  hence "\<And>x. x < Suc sp \<Longrightarrow> x \<noteq> 0 \<Longrightarrow> odd x \<Longrightarrow> even (sh x) \<and> sh x \<le> ep" by simp
+  hence "\<And>x. odd x \<Longrightarrow> x < Suc sp \<Longrightarrow> sh x \<le> Suc (Suc ep)" by fastforce
+  with E R O show "\<forall>x<Suc sp. if x = 0 then (sh(sp := Suc (Suc ep))) x = 0
+    else if even x then (sh(sp := Suc (Suc ep))) x \<noteq> 0 \<and> (sh(sp := Suc (Suc ep))) x \<le> lcd
+      else even ((sh(sp := Suc (Suc ep))) x) \<and> (sh(sp := Suc (Suc ep))) x \<le> Suc (Suc ep)" 
+    by auto
+qed
 
 lemma [simp]: "h (vs vp) = 0 \<Longrightarrow> restructurable_heap h hp ep lcd \<Longrightarrow> 
     restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> 0 < h (Suc (Suc (vs vp)))"
@@ -246,25 +266,25 @@ proof (induction e p x rule: unstr_lookup.induct)
   ultimately show ?case by simp
 qed (auto simp add: restructurable_env_def)
 
-lemma [simp]: "even sp \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> even (sh sp)" 
+lemma [simp]: "odd sp \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> even (sh sp)" 
   by (unfold restructurable_stack_def) auto
 
-lemma [simp]: "even sp \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> sh sp \<le> ep" 
+lemma [simp]: "odd sp \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> sh sp \<le> ep" 
   by (unfold restructurable_stack_def) auto
 
 lemma [elim]: "unstr_lookup e (sh sp) x = Some y \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> 
-  restructurable_env e ep hp \<Longrightarrow> even sp \<Longrightarrow> y < hp"
+  restructurable_env e ep hp \<Longrightarrow> odd sp \<Longrightarrow> y < hp"
 proof -
-  assume "even sp" and "restructurable_stack sh (Suc sp) ep lcd"  
+  assume "odd sp" and "restructurable_stack sh (Suc sp) ep lcd"  
   hence "even (sh sp)" and "sh sp \<le> ep" by auto
   moreover assume "unstr_lookup e (sh sp) x = Some y" and "restructurable_env e ep hp"
   ultimately show "y < hp" by auto
 qed
 
 lemma [elim]: "unstr_lookup e (sh sp) x = Some y \<Longrightarrow> restructurable_stack sh (Suc sp) ep lcd \<Longrightarrow> 
-  restructurable_env e ep hp \<Longrightarrow> even sp \<Longrightarrow> 3 dvd y"
+  restructurable_env e ep hp \<Longrightarrow> odd sp \<Longrightarrow> 3 dvd y"
 proof -
-  assume "even sp" and "restructurable_stack sh (Suc sp) ep lcd"  
+  assume "odd sp" and "restructurable_stack sh (Suc sp) ep lcd"  
   hence "sh sp \<le> ep \<and> even (sh sp)" by simp
   moreover assume "unstr_lookup e (sh sp) x = Some y" and "restructurable_env e ep hp"
   ultimately show "3 dvd y" by auto
@@ -276,6 +296,21 @@ lemma [simp]: "h (vs vp) = 0 \<Longrightarrow> restructurable_heap h hp ep (leng
 
 lemma preserve_restructure [simp]: "cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd \<Longrightarrow> 
     restructurable \<Sigma>\<^sub>u' cd"
-  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induct) (auto split: if_splits)
+  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induct) auto
+
+lemma [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd \<Longrightarrow> restructurable \<Sigma>\<^sub>u' cd"
+  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: iter.induct) auto
+
+lemma [simp]: "restructurable_heap nmem 0 0 x"
+  by (simp add: restructurable_heap_def)
+
+lemma [simp]: "restructurable_env nmem 0 0"
+  by (simp add: restructurable_env_def)
+
+lemma [simp]: "restructurable_vals nmem 0 0" 
+  by (simp add: restructurable_vals_def)
+
+lemma [simp]: "restructurable_stack (nmem(0 := 0, Suc 0 := 0)) 2 0 lcd"
+  by (simp only: restructurable_stack_def) simp_all
 
 end

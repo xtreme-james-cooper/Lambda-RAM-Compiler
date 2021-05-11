@@ -231,4 +231,7 @@ lemma [dest]: "listify' h x = a # as \<Longrightarrow> \<exists>y. x = Suc y \<a
 lemma [simp]: "hp \<le> x \<Longrightarrow> listify' (h(x := v)) hp = listify' h hp"
   by (induction hp) simp_all
 
+lemma [simp]: "hp \<le> x \<Longrightarrow> listify' (h(Suc x := v) \<circ> Suc) hp = listify' (h \<circ> Suc) hp"
+  by (induction hp) auto
+
 end
