@@ -6,9 +6,9 @@ primrec assemble_stack_len :: "byte_code \<Rightarrow> nat" where
   "assemble_stack_len (BLookup x) = 1"
 | "assemble_stack_len (BPushCon k) = 6"
 | "assemble_stack_len (BPushLam pc) = 9"
-| "assemble_stack_len BApply = 16"
+| "assemble_stack_len BApply = 17"
 | "assemble_stack_len BReturn = 1"
-| "assemble_stack_len BJump = 1"
+| "assemble_stack_len BJump = 15"
 
 primrec assemble_stack_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Rightarrow> sassm_code list" where
   "assemble_stack_op mp (BLookup x) = [undefined]"
@@ -40,25 +40,39 @@ primrec assemble_stack_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<
     SAAdd 1,
     SAPop Vals,
     SAPush Stk Acc,
+    SAAdd 1,
     SAMov (Mem Env),
     SAPush Stk Acc,
-    SASub 13,
+    SASub 14,
     SAMov PC,
     SAPush Env Acc,
     SAPop Vals]"
 | "assemble_stack_op mp BReturn = [undefined]"
-| "assemble_stack_op mp BJump = [undefined]"
+| "assemble_stack_op mp BJump = [
+    SAJump,
+    SAGet Hp,
+    SAAdd 1,
+    SAUnbackup,
+    SAPush Env Acc,
+    SAGet Hp,
+    SABackup,
+    SAAdd 1,
+    SAPop Vals,
+    SAPush Stk Acc,
+    SAAdd 1,
+    SAMov (Mem Env),
+    SAPop Stk,
+    SAPush Env Acc,
+    SAPop Vals]"
 
 (*   evu_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> unstr_lookup e (sh (sp - 1)) x = Some y \<Longrightarrow>
     cd \<tturnstile> US h hp e ep vs vp sh sp (Suc pc) \<leadsto>\<^sub>u US h hp e ep (vs(vp := y)) (Suc vp) sh sp pc"
 | evu_return_normal [simp]: "cd ! pc = BReturn \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u US h hp e ep vs vp sh sp (sh sp)"
+    cd \<tturnstile> US h hp e ep vs vp sh (Suc (Suc sp)) (Suc pc) 0 0 \<leadsto>\<^sub>u 
+         US h hp e ep vs vp sh sp             (sh sp)  0 0"
 | evu_return_end [simp]: "cd ! pc = BReturn \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs vp sh (Suc 0) (Suc pc) \<leadsto>\<^sub>u US h hp e ep vs vp sh 0 0"
-| evu_jump [simp]: "cd ! pc = BJump \<Longrightarrow> h (vs vp) = Suc x \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc) \<leadsto>\<^sub>u 
-      US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
-        (sh(sp - 1 := Suc (Suc ep))) sp (h (Suc (Suc (vs vp))))" *)
+    cd \<tturnstile> US h hp e ep vs vp sh (Suc 0) (Suc pc) 0 0 \<leadsto>\<^sub>u 
+         US h hp e ep vs vp sh 0       0        0 0" *)
 
 abbreviation assemble_extend_map :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat" where
   "assemble_extend_map mp b lop x \<equiv> (if x < b then mp x else mp x + lop - 1)"
@@ -223,16 +237,21 @@ proof (unfold assemble_heap_def restructurable_vals_def)
          else h (Suc (vs vp))) = h (Suc (vs vp))" by simp
 qed
 
+lemma [simp]: "restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow>
+    assemble_heap mp h (Suc (Suc (vs vp))) = mp (h (Suc (Suc (vs vp))))"
+proof (unfold assemble_heap_def restructurable_vals_def)
+  assume "\<forall>x<Suc (Suc vp). 3 dvd vs x \<and> vs x < hp"
+  hence "3 dvd vs vp" by simp
+  hence "Suc (Suc (vs vp)) mod 3 = 2" by presburger
+  moreover assume "h (vs vp) = 0"
+  ultimately show "(if Suc (Suc (vs vp)) mod 3 = 2 \<and> h (Suc (Suc (vs vp)) - 2) = 0 
+    then mp (h (Suc (Suc (vs vp)))) else h (Suc (Suc (vs vp)))) = mp (h (Suc (Suc (vs vp))))" 
+      by simp
+qed
+
 lemma [simp]: "h (vs vp) = Suc x \<Longrightarrow>
     assemble_heap mp h (Suc (Suc (vs vp))) = h (Suc (Suc (vs vp)))"
-proof (unfold assemble_heap_def)
-  assume "h (vs vp) = Suc x"
-
-
-  show "(if Suc (Suc (vs vp)) mod 3 = 2 \<and> h (Suc (Suc (vs vp)) - 2) = 0 
-         then mp (h (Suc (Suc (vs vp)))) else h (Suc (Suc (vs vp)))) =
-    h (Suc (Suc (vs vp)))" by simp
-qed
+  by (simp add: assemble_heap_def)
 
 lemma [simp]: "odd sp \<Longrightarrow> assemble_stack (assembly_map cd) sh (sp - Suc 0) = sh (sp - Suc 0)"
   by (simp add: assemble_stack_def)
@@ -240,6 +259,11 @@ lemma [simp]: "odd sp \<Longrightarrow> assemble_stack (assembly_map cd) sh (sp 
 lemma [simp]: "odd sp \<Longrightarrow> 
   ((assemble_stack (assembly_map cd) sh)(sp := assembly_map cd pc, Suc sp := a)) =
     (assemble_stack (assembly_map cd) (sh(sp := pc, Suc sp := a)))"
+  by (auto simp add: assemble_stack_def)
+
+lemma [simp]: "odd (Suc sp) \<Longrightarrow> 
+  (assemble_stack (assembly_map cd) sh)(sp := Suc (Suc ep)) = 
+    assemble_stack (assembly_map cd) (sh(sp := Suc (Suc ep)))"
   by (auto simp add: assemble_stack_def)
 
 theorem correctsa [simp]: "cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow> 
@@ -291,18 +315,20 @@ next
   thus ?case by auto
 next
   case (evu_apply cd pc h vs vp hp e ep sh sp)
-  moreover from evu_apply have "assemble_stack_code cd ! (15 + assembly_map cd pc) = SAPop Vals" 
+  moreover from evu_apply have "assemble_stack_code cd ! (16 + assembly_map cd pc) = SAPop Vals" 
     by simp
-  moreover from evu_apply have "assemble_stack_code cd ! (14 + assembly_map cd pc) = SAPush Env Acc" 
+  moreover from evu_apply have "assemble_stack_code cd ! (15 + assembly_map cd pc) = SAPush Env Acc" 
     by simp
-  moreover from evu_apply have "assemble_stack_code cd ! (13 + assembly_map cd pc) = SAMov PC" 
+  moreover from evu_apply have "assemble_stack_code cd ! (14 + assembly_map cd pc) = SAMov PC" 
     by simp
-  moreover from evu_apply have "assemble_stack_code cd ! (12 + assembly_map cd pc) = SASub 13" 
+  moreover from evu_apply have "assemble_stack_code cd ! (13 + assembly_map cd pc) = SASub 14" 
     by simp
-  moreover from evu_apply have "assemble_stack_code cd ! (11 + assembly_map cd pc) = SAPush Stk Acc" 
+  moreover from evu_apply have "assemble_stack_code cd ! (12 + assembly_map cd pc) = SAPush Stk Acc" 
     by simp
-  moreover from evu_apply have "assemble_stack_code cd ! (10 + assembly_map cd pc) = 
+  moreover from evu_apply have "assemble_stack_code cd ! (11 + assembly_map cd pc) = 
     SAMov (Mem Env)" by simp
+  moreover from evu_apply have "assemble_stack_code cd ! (10 + assembly_map cd pc) = SAAdd 1" 
+    by simp
   moreover from evu_apply have "assemble_stack_code cd ! (9 + assembly_map cd pc) = SAPush Stk Acc" 
     by simp
   moreover from evu_apply have "assemble_stack_code cd ! (8 + assembly_map cd pc) = SAPop Vals" 
@@ -319,9 +345,9 @@ next
     by simp
   moreover from evu_apply have "assemble_stack_code cd ! (2 + assembly_map cd pc) = SAAdd 1" 
     by (simp del: add_2_eq_Suc)
-  ultimately have "iter_evalsa (assemble_stack_code cd) 16 (SAS (case_memory 
+  ultimately have "iter_evalsa (assemble_stack_code cd) 17 (SAS (case_memory 
     (assemble_heap (assembly_map cd) h) e vs (assemble_stack (assembly_map cd) sh)) 
-      (case_memory hp ep (Suc (Suc vp)) sp) 0 0 (assembly_map cd (Suc pc))) = 
+      (case_memory hp ep (Suc (Suc vp)) sp) 0 0 (assembly_map cd (Suc pc))) =
         Some (SAS (case_memory (assemble_heap (assembly_map cd) h) (e(ep := vs (Suc vp), 
           Suc ep := h (Suc (vs vp)))) vs (assemble_stack (assembly_map cd) 
             (sh(sp := pc, Suc sp := Suc (Suc ep))))) (case_memory hp (Suc (Suc ep)) vp 
@@ -336,7 +362,40 @@ next
   then show ?case by simp
 next
   case (evu_jump cd pc h vs vp hp e ep sh sp)
-  then show ?case by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (14 + assembly_map cd pc) = SAPop Vals" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (13 + assembly_map cd pc) = SAPush Env Acc" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (12 + assembly_map cd pc) = SAPop Stk" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (11 + assembly_map cd pc) = SAMov (Mem Env)" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (10 + assembly_map cd pc) = SAAdd 1" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (9 + assembly_map cd pc) = SAPush Stk Acc" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (8 + assembly_map cd pc) = SAPop Vals" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (7 + assembly_map cd pc) = SAAdd 1" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (6 + assembly_map cd pc) = SABackup" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (5 + assembly_map cd pc) = SAGet Hp" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (4 + assembly_map cd pc) = SAPush Env Acc" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (3 + assembly_map cd pc) = SAUnbackup" 
+    by simp
+  moreover from evu_jump have "assemble_stack_code cd ! (2 + assembly_map cd pc) = SAAdd 1" 
+    by (simp del: add_2_eq_Suc)
+  ultimately have "iter_evalsa (assemble_stack_code cd) 15 (SAS (case_memory 
+    (assemble_heap (assembly_map cd) h) e vs (assemble_stack (assembly_map cd) sh))
+      (case_memory hp ep (Suc (Suc vp)) sp) 0 0 (assembly_map cd (Suc pc))) = Some (SAS (case_memory 
+        (assemble_heap (assembly_map cd) h) (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) vs
+          (assemble_stack (assembly_map cd) (sh(sp - Suc 0 := Suc (Suc ep)))))
+            (case_memory hp (Suc (Suc ep)) vp sp) 0 0 (assembly_map cd (h (Suc (Suc (vs vp))))))" 
+    by (auto simp add: numeral_def split: nat.splits)
+  thus ?case by auto
 qed
 
 theorem correctsa_iter [simp]: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow> 
