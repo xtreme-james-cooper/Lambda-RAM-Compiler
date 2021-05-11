@@ -16,13 +16,13 @@ inductive evalu :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> unstr
     cd \<tturnstile> US h hp e ep vs vp sh sp (Suc pc) \<leadsto>\<^sub>u US h hp e ep (vs(vp := y)) (Suc vp) sh sp pc"
 | evu_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh sp (Suc pc) \<leadsto>\<^sub>u 
-      US (h(hp := 0, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep 
+      US (h(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep 
         (vs(vp := hp)) (Suc vp) sh sp pc"
 | evu_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh sp (Suc pc) \<leadsto>\<^sub>u 
-      US (h(hp := 1, Suc hp := sh (sp - 1), Suc (Suc hp) := pc')) (3 + hp) e ep 
+      US (h(hp := 0, Suc hp := sh (sp - 1), Suc (Suc hp) := pc')) (3 + hp) e ep 
         (vs(vp := hp)) (Suc vp) sh sp pc"
-| evu_apply [simp]: "cd ! pc = BApply \<Longrightarrow> h (vs vp) = Suc x \<Longrightarrow> 
+| evu_apply [simp]: "cd ! pc = BApply \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
         (sh(sp := pc, Suc sp := Suc (Suc ep))) (2 + sp) (h (Suc (Suc (vs vp))))"
@@ -30,7 +30,7 @@ inductive evalu :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> unstr
     cd \<tturnstile> US h hp e ep vs vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u US h hp e ep vs vp sh sp (sh sp)"
 | evu_return_end [simp]: "cd ! pc = BReturn \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh (Suc 0) (Suc pc) \<leadsto>\<^sub>u US h hp e ep vs vp sh 0 0"
-| evu_jump [simp]: "cd ! pc = BJump \<Longrightarrow> h (vs vp) = Suc x \<Longrightarrow> 
+| evu_jump [simp]: "cd ! pc = BJump \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
         (sh(sp - 1 := Suc (Suc ep))) sp (h (Suc (Suc (vs vp))))"
@@ -50,7 +50,7 @@ next
   from evu_pushlam(2, 1) show ?case 
     by (induction cd "US h hp e ep vs vp sh sp (Suc pc)" \<Sigma>'' rule: evalu.induct) simp_all
 next
-  case (evu_apply cd pc h vs vp x hp e ep sh sp)
+  case (evu_apply cd pc h vs vp hp e ep sh sp)
   from evu_apply(3, 1, 2) show ?case    
     by (induction cd "US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc)" \<Sigma>'' rule: evalu.induct) 
        simp_all
@@ -65,14 +65,14 @@ next
     by (induction cd "US h hp e ep vs vp sh (Suc 0) (Suc pc)" \<Sigma>'' rule: evalu.induct) 
        simp_all
 next
-  case (evu_jump cd pc h vs vp x hp e ep sh sp)
+  case (evu_jump cd pc h vs vp hp e ep sh sp)
   from evu_jump(3, 1, 2) show ?case    
     by (induction cd "US h hp e ep vs (Suc (Suc vp)) sh sp (Suc pc)" \<Sigma>'' rule: evalu.induct) 
        simp_all
 qed
 
 definition restructurable_heap :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
-  "restructurable_heap h hp ep lcd = (3 dvd hp \<and> (\<forall>x < hp. 3 dvd x \<longrightarrow> h x \<noteq> 0 \<longrightarrow> 
+  "restructurable_heap h hp ep lcd = (3 dvd hp \<and> (\<forall>x < hp. 3 dvd x \<longrightarrow> h x = 0 \<longrightarrow> 
     (even (h (Suc x)) \<and> (h (Suc x)) \<le> ep \<and> h (Suc (Suc x)) \<noteq> 0 \<and> h (Suc (Suc x)) \<le> lcd)))"
 
 definition restructurable_env :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
@@ -126,27 +126,27 @@ lemma [elim]: "restructurable_heap h hp ep lcd \<Longrightarrow> 3 dvd hp"
   by (simp add: restructurable_heap_def)
 
 lemma [simp]: "restructurable_heap h hp ep lcd \<Longrightarrow> 
-    restructurable_heap (h(hp := 0, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) ep lcd"
+    restructurable_heap (h(hp := Suc 0, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) ep lcd"
   by (auto simp add: restructurable_heap_def)
 
 lemma [simp]: "restructurable_heap h hp ep lcd \<Longrightarrow> lcd \<noteq> 0 \<Longrightarrow>
-  restructurable_heap (h(hp := Suc 0, Suc hp := k, Suc (Suc hp) := pc)) (3 + hp) ep lcd = 
+  restructurable_heap (h(hp := 0, Suc hp := k, Suc (Suc hp) := pc)) (3 + hp) ep lcd = 
     (even k \<and> k \<le> ep \<and> pc \<noteq> 0 \<and> pc \<le> lcd)"
 proof
-  let ?f = "\<lambda>x. if x = Suc (Suc hp) then pc else (h(hp := Suc 0, Suc hp := k)) x"
-  let ?g = "\<lambda>x. if x = Suc hp then pc else (h(hp := Suc 0, Suc hp := k)) (Suc x)"
-  let ?h = "\<lambda>x. if x = hp then pc else (h(hp := Suc 0, Suc hp := k)) (Suc (Suc x))"
-  assume H: "restructurable_heap (h(hp := Suc 0, Suc hp := k, Suc (Suc hp) := pc)) (3 + hp) ep lcd"
-  moreover hence "\<And>x. x < 3 + hp \<Longrightarrow> 3 dvd x \<Longrightarrow> 0 < ?f x \<and> ?f x \<le> lcd \<Longrightarrow> 
+  let ?f = "\<lambda>x. if x = Suc (Suc hp) then pc else (h(hp := 0, Suc hp := k)) x"
+  let ?g = "\<lambda>x. if x = Suc hp then pc else (h(hp := 0, Suc hp := k)) (Suc x)"
+  let ?h = "\<lambda>x. if x = hp then pc else (h(hp := 0, Suc hp := k)) (Suc (Suc x))"
+  assume H: "restructurable_heap (h(hp := 0, Suc hp := k, Suc (Suc hp) := pc)) (3 + hp) ep lcd"
+  moreover hence "\<And>x. x < 3 + hp \<Longrightarrow> 3 dvd x \<Longrightarrow> ?f x = 0 \<Longrightarrow> 
     even (?g x) \<and> ?g x \<le> ep \<and> 0 < ?h x \<and> ?h x \<le> lcd" by (simp add: restructurable_heap_def)
   moreover from H have "3 dvd hp" by (simp add: restructurable_heap_def)
-  ultimately have "hp < 3 + hp \<Longrightarrow> 0 < ?f hp \<and> ?f hp \<le> lcd \<Longrightarrow> 
+  ultimately have "hp < 3 + hp \<Longrightarrow> ?f hp = 0 \<Longrightarrow> 
     even (?g hp) \<and> ?g hp \<le> ep \<and> 0 < ?h hp \<and> ?h hp \<le> lcd" by blast
   moreover assume "lcd \<noteq> 0"
   ultimately show "even k \<and> k \<le> ep \<and> pc \<noteq> 0 \<and> pc \<le> lcd" by simp
 next
   assume "restructurable_heap h hp ep lcd" and "even k \<and> k \<le> ep \<and> pc \<noteq> 0 \<and> pc \<le> lcd"
-  thus "restructurable_heap (h(hp := Suc 0, Suc hp := k, Suc (Suc hp) := pc)) (3 + hp) ep lcd" 
+  thus "restructurable_heap (h(hp := 0, Suc hp := k, Suc (Suc hp) := pc)) (3 + hp) ep lcd" 
     by (auto simp add: restructurable_heap_def)
 qed
 
@@ -157,14 +157,14 @@ lemma [simp]: "restructurable_env e ep hp \<Longrightarrow> restructurable_env e
   by (auto simp add: restructurable_env_def)
 
 lemma [simp]: "restructurable_env e ep hp \<Longrightarrow> restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> 
-  restructurable_heap h hp ep lcd \<Longrightarrow> h (vs vp) = Suc x \<Longrightarrow>
+  restructurable_heap h hp ep lcd \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow>
     restructurable_env (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (Suc (Suc ep)) hp"
 proof (unfold restructurable_env_def restructurable_vals_def restructurable_heap_def, 
        rule, simp, rule, rule)
   fix y 
-  assume "3 dvd hp \<and> (\<forall>x < hp. 3 dvd x \<longrightarrow> h x \<noteq> 0 \<longrightarrow> 
+  assume "3 dvd hp \<and> (\<forall>x < hp. 3 dvd x \<longrightarrow> h x = 0 \<longrightarrow> 
     even (h (Suc x)) \<and> h (Suc x) \<le> ep \<and> h (Suc (Suc x)) \<noteq> 0 \<and> h (Suc (Suc x)) \<le> lcd)"
-     and "h (vs vp) = Suc x" and "\<forall>x < Suc (Suc vp). 3 dvd vs x \<and> vs x < hp"
+     and "h (vs vp) = 0" and "\<forall>x < Suc (Suc vp). 3 dvd vs x \<and> vs x < hp"
   hence "even (h (Suc (vs vp))) \<and> h (Suc (vs vp)) \<le> ep" by simp
   moreover assume "even ep \<and> 
     (\<forall>x < ep. if even x then 3 dvd e x \<and> e x < hp else even (e x) \<and> e x \<le> ep)"
@@ -221,11 +221,11 @@ lemma [simp]: "restructurable_env e ep hp \<Longrightarrow> restructurable_stack
     restructurable_stack (sh(sp - Suc 0 := Suc (Suc ep))) sp (Suc (Suc ep)) lcd"
   by (unfold restructurable_stack_def) auto
 
-lemma [simp]: "h (vs vp) = Suc y \<Longrightarrow> restructurable_heap h hp ep lcd \<Longrightarrow> 
+lemma [simp]: "h (vs vp) = 0 \<Longrightarrow> restructurable_heap h hp ep lcd \<Longrightarrow> 
     restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> 0 < h (Suc (Suc (vs vp)))"
   by (simp add: restructurable_heap_def restructurable_vals_def)
 
-lemma [simp]: "h (vs vp) = Suc y \<Longrightarrow> restructurable_heap h hp ep lcd \<Longrightarrow> 
+lemma [simp]: "h (vs vp) = 0 \<Longrightarrow> restructurable_heap h hp ep lcd \<Longrightarrow> 
     restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> h (Suc (Suc (vs vp))) \<le> lcd"
   by (simp add: restructurable_heap_def restructurable_vals_def)
 
@@ -269,7 +269,7 @@ proof -
   ultimately show "3 dvd y" by auto
 qed
 
-lemma [simp]: "h (vs vp) = Suc x \<Longrightarrow> restructurable_heap h hp ep (length cd) \<Longrightarrow> 
+lemma [simp]: "h (vs vp) = 0 \<Longrightarrow> restructurable_heap h hp ep (length cd) \<Longrightarrow> 
     restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> h (Suc (Suc (vs vp))) \<noteq> 0"
   by simp
 

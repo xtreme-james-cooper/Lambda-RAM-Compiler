@@ -56,13 +56,13 @@ primrec print_ceclosure :: "ceclosure \<Rightarrow> string" where
 
 fun print_uval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> string" where
   "print_uval h p = (case h p of
-      0 \<Rightarrow> string_of_nat (h (Suc p))
-    | Suc x \<Rightarrow> ''<fun>'')"
+      0 \<Rightarrow> ''<fun>''
+    | Suc x \<Rightarrow> string_of_nat (h (Suc p)))"
 
 fun print_mval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> string" where
   "print_mval m p = (case m p of
-      0 \<Rightarrow> string_of_nat (m (4 + p))
-    | Suc x \<Rightarrow> ''<fun>'')"
+      0 \<Rightarrow> ''<fun>'' 
+    | Suc x \<Rightarrow> string_of_nat (m (4 + p)))"
 
 lemma [simp]: "valt e \<Longrightarrow> print_texpr e = print_nexpr (erase e)" 
   by (induction e) (simp_all add: convert_def)

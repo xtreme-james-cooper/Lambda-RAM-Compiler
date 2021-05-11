@@ -26,7 +26,7 @@ primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> nexpr 
     where
   "collect_constraints \<Gamma> vs (NVar x) = (case \<Gamma> x of 
       Some t \<Rightarrow> (t, vs, []) 
-    | None \<Rightarrow> (undefined, vs, fail))"
+    | None \<Rightarrow> (Ctor ''Base'' [], vs, fail))"
 | "collect_constraints \<Gamma> vs (NConst k) = (Ctor ''Base'' [], vs, [])"
 | "collect_constraints \<Gamma> vs (NLam x e) = (
     let v = fresh vs

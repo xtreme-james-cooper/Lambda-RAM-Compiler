@@ -49,13 +49,13 @@ next
     h = H hh hp \<and> env = H e ep \<and> vs = listify' vs' vp \<and> p = sh sp \<and> sfs = listify' sh sp" 
       by fastforce
   with evf_pushcon have "v = hp \<and> 
-    h' = H (hh(hp := 0, Suc hp := k, Suc (Suc hp) := 0)) (Suc (Suc (Suc hp)))" by fastforce
+    h' = H (hh(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (Suc (Suc (Suc hp)))" by fastforce
   with S have X: "FS h' env (v # vs) (pc # p # sfs) = 
-    restructure (US (hh(hp := 0, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep 
+    restructure (US (hh(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep 
       (vs'(vp := hp)) (Suc vp) sh (Suc sp) pc)" by simp
   from evf_pushcon have "cd \<tturnstile> US hh hp e ep vs' vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
-    US (hh(hp := 0, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep (vs'(vp := hp)) 
-      (Suc vp) sh (Suc sp) pc" by simp
+    US (hh(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep (vs'(vp := hp)) 
+      (Suc vp) sh (Suc sp) pc" by (metis evu_pushcon)
   with S X show ?case by blast
 next
   case (evf_pushlam cd pc pc' h p h' v env vs sfs)
@@ -63,12 +63,12 @@ next
     h = H hh hp \<and> env = H e ep \<and> vs = listify' vs' vp \<and> p = sh sp \<and> sfs = listify' sh sp" 
       by fastforce
   with evf_pushlam have "v = hp \<and> 
-    h' = H (hh(hp := 1, Suc hp := sh sp, Suc (Suc hp) := pc')) (Suc (Suc (Suc hp)))" by fastforce
+    h' = H (hh(hp := 0, Suc hp := sh sp, Suc (Suc hp) := pc')) (Suc (Suc (Suc hp)))" by fastforce
   with S have X: "FS h' env (v # vs) (pc # p # sfs) = 
-    restructure (US (hh(hp := 1, Suc hp := p, Suc (Suc hp) := pc')) (3 + hp) e ep 
+    restructure (US (hh(hp := 0, Suc hp := p, Suc (Suc hp) := pc')) (3 + hp) e ep 
       (vs'(vp := hp)) (Suc vp) sh (Suc sp) pc)" by simp
   from evf_pushlam S have "cd \<tturnstile> US hh hp e ep vs' vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
-    US (hh(hp := 1, Suc hp := sh sp, Suc (Suc hp) := pc')) (3 + hp) e ep (vs'(vp := hp)) 
+    US (hh(hp := 0, Suc hp := sh sp, Suc (Suc hp) := pc')) (3 + hp) e ep (vs'(vp := hp)) 
       (Suc vp) sh (Suc sp) pc" by (metis diff_Suc_1 evu_pushlam)
   with S X show ?case by blast
 next
@@ -78,7 +78,7 @@ next
       by fastforce
   then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
     vs = listify' vs' vp'" by fastforce
-  with evf_apply S obtain x where H: "h' (vs' vp') = Suc x \<and> p' = h' (Suc (vs' vp')) \<and> 
+  with evf_apply S have H: "h' (vs' vp') = 0 \<and> p' = h' (Suc (vs' vp')) \<and> 
     pc' = h' (Suc (Suc (vs' vp')))" by (cases "h' (vs' vp')") simp_all
   from evf_apply S have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := p')) (Suc (Suc p2))" by fastforce
   with S V have X: "FS h env' vs (pc' # Suc (Suc p2) # pc # p # sfs) = 
@@ -117,7 +117,7 @@ next
       by fastforce
   then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
     vs = listify' vs' vp'" by fastforce
-  with evf_jump S obtain x where H: "h' (vs' vp') = Suc x \<and> p' = h' (Suc (vs' vp')) \<and> 
+  with evf_jump S have H: "h' (vs' vp') = 0 \<and> p' = h' (Suc (vs' vp')) \<and> 
     pc' = h' (Suc (Suc (vs' vp')))" by (cases "h' (vs' vp')") simp_all
   from evf_jump S have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := p')) (Suc (Suc p2))" by fastforce
   with S V have X: "FS h env' vs (pc' # Suc (Suc p2) # sfs) = 

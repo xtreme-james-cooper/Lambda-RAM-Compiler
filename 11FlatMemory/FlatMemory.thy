@@ -7,8 +7,8 @@ datatype flat_state =
 
 fun get_closure :: "nat heap \<Rightarrow> nat \<Rightarrow> ceclosure" where
   "get_closure h p = (case hlookup h p of
-      0 \<Rightarrow> CEConst (hlookup h (Suc p))
-    | Suc x \<Rightarrow> CELam (hlookup h (Suc p)) (hlookup h (Suc (Suc p))))"
+      0 \<Rightarrow> CELam (hlookup h (Suc p)) (hlookup h (Suc (Suc p)))
+    | Suc x \<Rightarrow> CEConst (hlookup h (Suc p)))"
 
 fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonup> ptr" where
   "flat_lookup h 0 x = None"
@@ -19,9 +19,9 @@ fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonu
 inductive evalf :: "byte_code list \<Rightarrow> flat_state \<Rightarrow> flat_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>f" 50) where
   evf_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> flat_lookup env p x = Some v \<Longrightarrow> 
     cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env (v # vs) (pc # p # sfs)"
-| evf_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> halloc_list h [0, k, 0] = (h', v) \<Longrightarrow>
+| evf_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> halloc_list h [1, k, 0] = (h', v) \<Longrightarrow>
     cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs)"
-| evf_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> halloc_list h [1, p, pc'] = (h', v) \<Longrightarrow> 
+| evf_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> halloc_list h [0, p, pc'] = (h', v) \<Longrightarrow> 
     cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs)"
 | evf_apply [simp]: "cd ! pc = BApply \<Longrightarrow> get_closure h v2 = CELam p' pc' \<Longrightarrow>
     halloc_list env [v1, p'] = (env', p2) \<Longrightarrow> 

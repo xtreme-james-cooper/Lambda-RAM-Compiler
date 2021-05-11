@@ -3,8 +3,8 @@ theory MemoryFlattening
 begin
 
 primrec flatten_closure :: "ceclosure \<Rightarrow> nat list" where
-  "flatten_closure (CEConst k) = [0, k, 0]"
-| "flatten_closure (CELam p pc) = [1, 2 * p, pc]"
+  "flatten_closure (CEConst k) = [1, k, 0]"
+| "flatten_closure (CELam p pc) = [0, 2 * p, pc]"
 
 primrec flatten_closure' :: "ceclosure \<Rightarrow> ceclosure" where
   "flatten_closure' (CEConst k) = CEConst k"
@@ -35,7 +35,7 @@ primrec flatten :: "chained_state \<Rightarrow> flat_state" where
 lemma [simp]: "length (flatten_closure c) = 3"
   by (induction c) simp_all
 
-lemma [simp]: "flatten_closure c ! 0 = (case c of CEConst _ \<Rightarrow> 0 | CELam _ _ \<Rightarrow> 1)"
+lemma [simp]: "flatten_closure c ! 0 = (case c of CELam _ _ \<Rightarrow> 0 | CEConst _ \<Rightarrow> 1)"
   by (simp split: ceclosure.splits)
 
 lemma flatten_c1 [simp]: "flatten_closure c ! 1 = (case c of CEConst k \<Rightarrow> k | CELam p _ \<Rightarrow> 2 * p)"
@@ -51,12 +51,12 @@ proof -
   hence H: "\<And>k g. (\<And>a. flatten_closure a ! k = g a) \<Longrightarrow>
     k < 3 \<Longrightarrow> hlookup (hsplay flatten_closure h) (k + 3 * v) = g (hlookup h v)" by simp
   hence "hlookup (hsplay flatten_closure h) (3 * v) = 
-    (case hlookup h v of CEConst _ \<Rightarrow> 0 | CELam _ _ \<Rightarrow> 1)" by force
+    (case hlookup h v of CELam _ _ \<Rightarrow> 0 | CEConst _ \<Rightarrow> 1)" by force
   moreover from H have "hlookup (hsplay flatten_closure h) (Suc (3 * v)) = 
-    (case hlookup h v of CEConst k \<Rightarrow> k | CELam p _ \<Rightarrow> 2 * p)"
+    (case hlookup h v of CELam p _ \<Rightarrow> 2 * p | CEConst k \<Rightarrow> k)"
       by (metis flatten_c1 one_less_numeral_iff plus_1_eq_Suc semiring_norm(77))
   moreover from H have "hlookup (hsplay flatten_closure h) (Suc (Suc (3 * v))) = 
-    (case hlookup h v of CEConst k \<Rightarrow> 0 | CELam _ pc \<Rightarrow> pc)"
+    (case hlookup h v of CELam _ pc \<Rightarrow> pc | CEConst k \<Rightarrow> 0)"
       by (metis flatten_c2 add.left_neutral add_2_eq_Suc' add_Suc eval_nat_numeral(3) lessI)
   ultimately show ?thesis by (simp split: ceclosure.splits)
 qed
@@ -222,12 +222,12 @@ theorem completef [simp]: "cd \<tturnstile> \<Sigma>\<^sub>c\<^sub>e \<leadsto>\
   cd \<tturnstile> flatten \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>f flatten \<Sigma>\<^sub>c\<^sub>e'" 
 proof (induction \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' rule: evalce.induct)
   case (evce_pushcon cd pc k h h' v env vs p sfs)
-  moreover hence "halloc_list (flatten_values h) [0, k, 0] = (flatten_values h', 3 * v)"
+  moreover hence "halloc_list (flatten_values h) [1, k, 0] = (flatten_values h', 3 * v)"
     using flatten_halloc by fastforce
   ultimately show ?case by simp
 next
   case (evce_pushlam cd pc pc' h p h' v env vs sfs)
-  moreover hence "halloc_list (flatten_values h) [1, 2 * p, pc'] = (flatten_values h', 3 * v)" 
+  moreover hence "halloc_list (flatten_values h) [0, 2 * p, pc'] = (flatten_values h', 3 * v)" 
     using flatten_halloc by fastforce
   ultimately show ?case by simp
 next
