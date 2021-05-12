@@ -1,10 +1,9 @@
 theory Compiler
   imports Printing "04Stack/StackConversion" "12UnstructuredMemory/Unstructuring" 
-    "14AssemblyCode/Assemble" 
 begin
 
 abbreviation code_compile :: "texpr \<Rightarrow> mach list" where
-  "code_compile \<equiv> disassemble \<circ> fst \<circ> assemble \<circ> flatten_code \<circ> tco \<circ> encode \<circ> convert"
+  "code_compile \<equiv> disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco \<circ> encode \<circ> convert"
 
 abbreviation compile :: "nexpr \<rightharpoonup> mach list" where 
   "compile \<equiv> map_option (code_compile \<circ> fst) \<circ> typecheck"

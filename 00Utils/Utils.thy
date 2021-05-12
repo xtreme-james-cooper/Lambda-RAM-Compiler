@@ -44,6 +44,9 @@ primrec list_sum :: "nat list \<Rightarrow> nat" where
   "list_sum [] = 0"
 | "list_sum (n # ns) = n + list_sum ns"
 
+lemma [simp]: "length (concat (map f as)) = list_sum (map (length \<circ> f) as)"
+  by (induction as) simp_all
+
 lemma [simp]: "length as \<noteq> length bs \<Longrightarrow> map f as \<noteq> map f bs"
 proof (induction as arbitrary: bs)
   case Nil
@@ -97,7 +100,7 @@ primrec uncurry :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> 'a \<ti
   "uncurry f (a, b) = f a b"
 
 abbreviation nmem :: "nat \<Rightarrow> nat" where
-  "nmem x \<equiv> undefined"
+  "nmem x \<equiv> 0"
 
 lemma [simp]: "(a # as @ bs) ! length as = (a # as) ! length as"
   by (induction as arbitrary: a) simp_all

@@ -10,7 +10,7 @@ primrec assemble_op_len :: "byte_code \<Rightarrow> nat" where
 | "assemble_op_len BReturn = 3"
 | "assemble_op_len BJump = 21"
 
-primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Rightarrow> assm_code list" where
+primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Rightarrow> assm list" where
   "assemble_op mp (BLookup x) = [
     AMov Acc (Con 0),
     AAdd Vals 1,
@@ -46,7 +46,7 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Righta
     AAdd Vals 1,
     APut Vals Vals (Reg Hp)]"
 | "assemble_op mp BApply = [
-    AJump,
+    AJmp,
     AGet Acc Hp Acc,
     AAdd Acc 1,
     AMov Acc2 (Con 0),
@@ -71,11 +71,11 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Righta
     AGet Acc Vals Vals,
     ASub Vals 1]"
 | "assemble_op mp BReturn = [
-    AJump,
+    AJmp,
     AGet Acc Stk Stk,
     ASub Stk 2]"
 | "assemble_op mp BJump = [
-    AJump,
+    AJmp,
     AGet Acc Hp Acc,
     AAdd Acc 1,
     AMov Acc2 (Con 0),
@@ -105,7 +105,7 @@ fun assembly_map :: "byte_code list \<Rightarrow> nat \<Rightarrow> nat" where
 | "assembly_map (op # cd) 0 = 0"
 | "assembly_map (op # cd) (Suc x) = assemble_op_len op + assembly_map cd x"
 
-definition assemble_code :: "byte_code list \<Rightarrow> assm_code list" where
+definition assemble_code :: "byte_code list \<Rightarrow> assm list" where
   "assemble_code cd = concat (map (assemble_op (assembly_map cd)) cd)"
 
 definition assemble_heap :: "(nat \<Rightarrow> nat) \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat" where
@@ -131,9 +131,18 @@ abbreviation assm_state :: "byte_code list \<Rightarrow> unstr_state \<Rightarro
 lemma [simp]: "length (assemble_op mp op) = assemble_op_len op"
   by (induction op) simp_all
 
+lemma [simp]: "length \<circ> assemble_op mp = assemble_op_len"
+  by auto
+
+lemma assemble_op_len_Succ: " 0 < assemble_op_len op"
+  by (induction op) simp_all
+
 theorem completea [simp]: "assemble_code cd\<^sub>b \<tturnstile>\<^sub>a assm_state cd\<^sub>b \<Sigma>\<^sub>u = Some \<Sigma>\<^sub>a' \<Longrightarrow> 
     \<exists>n \<Sigma>\<^sub>u'. iter_evala (assemble_code cd\<^sub>b) n \<Sigma>\<^sub>a' = Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u') \<and> cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u'"
   by simp
+
+lemma [simp]: "assembly_map mp 0 = 0"
+  by (induction mp) simp_all
 
 lemma [simp]: "cd ! pc = op \<Longrightarrow> pc < length cd \<Longrightarrow> 
   assembly_map cd (Suc pc) = assemble_op_len op + assembly_map cd pc"
@@ -141,6 +150,18 @@ proof (induction cd pc rule: assembly_map.induct)
   case (2 op' cd)
   thus ?case by (cases cd) simp_all
 qed simp_all
+
+lemma [simp]: "length (assemble_code cd) = list_sum (map assemble_op_len cd)"
+  by (induction cd) (simp_all add: assemble_code_def)
+
+lemma [simp]: "assembly_map cd (length cd) = length (assemble_code cd)"
+  by (induction cd) (simp_all add: assemble_code_def)
+
+lemma [simp]: "assm_hp cd nmem = nmem"
+  by (auto simp add: assemble_heap_def)
+
+lemma [simp]: "assm_stk cd nmem = nmem"
+  by (auto simp add: assemble_stack_def)
 
 lemma assemble_code_lookup' [simp]: "cd ! pc = op \<Longrightarrow> pc < length cd \<Longrightarrow> 
   x < assemble_op_len op \<Longrightarrow> concat (map (assemble_op (assembly_map (cd' @ cd))) cd) ! 
@@ -299,6 +320,9 @@ lemma [simp]: "even (Suc (Suc sp)) \<Longrightarrow> assm_stk cd sh sp = assembl
   by (simp add: assemble_stack_def)
 
 lemma [simp]: "odd sp \<Longrightarrow> (assm_stk cd sh)(sp := sh sp) = assm_stk cd sh"
+  by (auto simp add: assemble_stack_def)
+
+lemma [simp]: "assm_stk cd (sh(0 := 0, Suc 0 := 0)) = ((assm_stk cd sh)(0 := 0, Suc 0 := 0))"
   by (auto simp add: assemble_stack_def)
 
 lemma [simp]: "x < y \<Longrightarrow> (concat (replicate y [a, b]) @ bs) ! (2 * x) = a"
@@ -519,7 +543,7 @@ next
   thus ?case by auto
 qed
 
-theorem correcta_iter [simp]: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow> 
+lemma [simp]: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow> 
   \<exists>n. iter_evala (assemble_code cd\<^sub>b) n (assm_state cd\<^sub>b \<Sigma>\<^sub>u) = Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u')"
 proof (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: iter.induct)
   case (iter_refl \<Sigma>\<^sub>u)
@@ -536,6 +560,16 @@ next
   ultimately have "iter_evala (assemble_code cd\<^sub>b) (n + m) (assm_state cd\<^sub>b \<Sigma>\<^sub>u) = 
     Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u'')" by simp
   thus ?case by blast
+qed
+
+theorem correcta_iter [simp]: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow> 
+  iter (\<tturnstile> assemble_code cd\<^sub>b \<leadsto>\<^sub>a) (assm_state cd\<^sub>b \<Sigma>\<^sub>u) (assm_state cd\<^sub>b \<Sigma>\<^sub>u')"
+proof -
+  assume "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u'" and "restructurable \<Sigma>\<^sub>u cd\<^sub>b"
+  hence "\<exists>n. iter_evala (assemble_code cd\<^sub>b) n (assm_state cd\<^sub>b \<Sigma>\<^sub>u) = Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u')" 
+    by simp
+  thus "iter (\<tturnstile> assemble_code cd\<^sub>b \<leadsto>\<^sub>a) (assm_state cd\<^sub>b \<Sigma>\<^sub>u) (assm_state cd\<^sub>b \<Sigma>\<^sub>u')" 
+    by (simp add: iter_evala_equiv)
 qed
 
 end

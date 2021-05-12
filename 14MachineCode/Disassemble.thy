@@ -1,47 +1,47 @@
 theory Disassemble
-  imports MachineCode "../14AssemblyCode/AssemblyCode" "../00Utils/Utils" "../00Utils/Iteration"
+  imports MachineCode "../13AssemblyCode/AssemblyCode" "../00Utils/Utils" "../00Utils/Iteration"
 begin
 
-primrec register_map :: "aregister \<Rightarrow> register" where
-  "register_map HP = R1"
-| "register_map EP = R2"
-| "register_map VP = R3"
-| "register_map SP = R4"
-| "register_map ACC = R5"
-| "register_map AC2 = R6"
+primrec register_map :: "register \<Rightarrow> reg" where
+  "register_map Hp = R1"
+| "register_map Env = R2"
+| "register_map Vals = R3"
+| "register_map Stk = R4"
+| "register_map Acc = R5"
+| "register_map Acc2 = R6"
 
-primrec inv_register_map :: "register \<Rightarrow> aregister" where
-  "inv_register_map R1 = HP"
-| "inv_register_map R2 = EP"
-| "inv_register_map R3 = VP"
-| "inv_register_map R4 = SP"
-| "inv_register_map R5 = ACC"
-| "inv_register_map R6 = AC2"
+primrec inv_register_map :: "reg \<Rightarrow> register" where
+  "inv_register_map R1 = Hp"
+| "inv_register_map R2 = Env"
+| "inv_register_map R3 = Vals"
+| "inv_register_map R4 = Stk"
+| "inv_register_map R5 = Acc"
+| "inv_register_map R6 = Acc2"
 
-primrec disassemble' :: "assm \<Rightarrow> mach" where
-  "disassemble' (ALdI r k) = LDI (register_map r) k"
-| "disassemble' (ALod r1 m r2) = LOD (register_map r1) (register_map r2)"
-| "disassemble' (ASto m r1 r2) = STO (register_map r1) (register_map r2)"
-| "disassemble' (AMov r1 r2) = MOV (register_map r1) (register_map r2)"
-| "disassemble' (AAdd r k) = ADD (register_map r) k"
-| "disassemble' (ASub r k) = SUB (register_map r) k"
-| "disassemble' (AIJp r) = IJP (register_map r)"
-| "disassemble' (AJIZ r k) = JIZ (register_map r) k"
-| "disassemble' (AJmp k) = JMP k"
-| "disassemble' (AAssert r p) = ASSERT (register_map r) p"
+fun disassemble' :: "assm \<Rightarrow> mach" where
+  "disassemble' (AMov r1 (Reg r2)) = MOV (register_map r1) (register_map r2)"
+| "disassemble' (AMov r1 PC) = MVP (register_map r1)"
+| "disassemble' (AMov r1 (Con k)) = LDI (register_map r1) k"
+| "disassemble' (AGet r1 r2 r3) = LOD (register_map r1) (register_map r3)"
+| "disassemble' (APut r1 r2 (Reg r3)) = STO (register_map r1) (register_map r3)"
+| "disassemble' (APut r1 r2 PC) = undefined"
+| "disassemble' (APut r1 r2 (Con k)) = STI (register_map r1) k"
+| "disassemble' (ASub r1 k) = SUB (register_map r1) k"
+| "disassemble' (AAdd r1 k) = ADD (register_map r1) k"
+| "disassemble' AJmp = JMP R5"
 
 definition disassemble :: "assm list \<Rightarrow> mach list" where
   "disassemble cd = map disassemble' cd"
 
-fun unmap_mem :: "nat \<Rightarrow> memory \<times> nat" where
+fun unmap_mem :: "nat \<Rightarrow> register \<times> nat" where
   "unmap_mem 0 = (Hp, 0)" 
 | "unmap_mem (Suc 0) = (Env, 0)"
-| "unmap_mem (Suc (Suc 0)) = (Val, 0)"
+| "unmap_mem (Suc (Suc 0)) = (Vals, 0)"
 | "unmap_mem (Suc (Suc (Suc 0))) = (Stk, 0)"
 | "unmap_mem (Suc (Suc (Suc (Suc x)))) = (case unmap_mem x of (a, b) \<Rightarrow> (a, Suc b))"
 
 primrec disassemble_state :: "assm_state \<Rightarrow> mach_state" where
-  "disassemble_state (AS rs mem pc) = MS (rs \<circ> inv_register_map) (uncurry mem \<circ> unmap_mem) pc"
+  "disassemble_state (AS mem rs pc) = MS (rs \<circ> inv_register_map) (uncurry mem \<circ> unmap_mem) pc"
 
 lemma [simp]: "unmap_mem p = (a, b) \<Longrightarrow> uncurry mem (unmap_mem (4 + p)) = mem a (Suc b)"
   by (simp add: numeral_def split: prod.splits)
@@ -55,7 +55,34 @@ lemma [simp]: "length (disassemble cd) = length cd"
 theorem completem [simp]: "cd\<^sub>m \<tturnstile> \<Sigma>\<^sub>m \<leadsto>\<^sub>m \<Sigma>\<^sub>m' \<Longrightarrow> 
   \<exists>cd\<^sub>a \<Sigma>\<^sub>a \<Sigma>\<^sub>a'. cd\<^sub>m = disassemble cd\<^sub>a \<and> disassemble_state \<Sigma>\<^sub>a = \<Sigma>\<^sub>m \<and> 
     disassemble_state \<Sigma>\<^sub>a' = \<Sigma>\<^sub>m' \<and> iter (\<tturnstile> cd\<^sub>a \<leadsto>\<^sub>a) \<Sigma>\<^sub>a \<Sigma>\<^sub>a'"
-  by (induction cd\<^sub>m \<Sigma>\<^sub>m \<Sigma>\<^sub>m' rule: evalm.induct) blast
+proof (induction cd\<^sub>m \<Sigma>\<^sub>m \<Sigma>\<^sub>m' rule: evalm.induct)
+case (evm_ldi cd pc r k rs mem)
+  thus ?case by simp
+next
+case (evm_lod cd pc r ptr rs mem)
+  thus ?case by simp
+next
+case (evm_sto cd pc ptr r rs mem)
+  thus ?case by simp
+next
+case (evm_sti cd pc ptr k rs mem)
+  thus ?case by simp
+next
+case (evm_mov cd pc r1 r2 rs mem)
+  thus ?case by simp
+next
+  case (evm_mvp cd pc r rs mem)
+  thus ?case by simp
+next
+  case (evm_add cd pc r k rs mem)
+  thus ?case by simp
+next
+  case (evm_sub cd pc r k rs mem)
+  thus ?case by simp
+next
+  case (evm_jmp cd pc r rs mem)
+  thus ?case by simp
+qed
 
 lemma [simp]: "inv_register_map (register_map r) = r"
   by (induction r) simp_all
@@ -63,65 +90,66 @@ lemma [simp]: "inv_register_map (register_map r) = r"
 lemma [simp]: "register_map (inv_register_map r) = r"
   by (induction r) simp_all
 
-lemma [simp]: "((rs \<circ> inv_register_map)(register_map r := k)) = (rs(r := k) \<circ> inv_register_map)"
-  by (rule, auto)
-
-lemma [dest]: "inv_register_map r = SP \<Longrightarrow> r = R4"
-  by (induction r) simp_all
-
-lemma [simp]: "((\<lambda>r. if r = SP then Suc 0 else 0) \<circ> inv_register_map) = (\<lambda>r. 0)(R4 := Suc 0)"
-  by (rule, auto)
-
-lemma [simp]: "uncurry (\<lambda>m. if m = Stk then nmem(0 := 0) else nmem) \<circ> unmap_mem = nmem(3 := 0)"
-proof
+lemma [simp]: "case_register a b c d e f \<circ> inv_register_map = case_reg a b c d e f"
+proof 
   fix x
-  show "(uncurry (\<lambda>m. if m = Stk then nmem(0 := 0) else nmem) \<circ> unmap_mem) x = (nmem(3 := 0)) x" 
-    by (induction x rule: unmap_mem.induct) (simp_all split: prod.splits)
+  show "(case_register a b c d e f \<circ> inv_register_map) x = 
+    (case x of R1 \<Rightarrow> a | R2 \<Rightarrow> b | R3 \<Rightarrow> c | R4 \<Rightarrow> d | R5 \<Rightarrow> e | R6 \<Rightarrow> f)" 
+    by (induction x) simp_all
 qed
 
 theorem correctm [simp]: "cd\<^sub>a \<tturnstile> \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow>
    disassemble cd\<^sub>a \<tturnstile> disassemble_state \<Sigma>\<^sub>a \<leadsto>\<^sub>m disassemble_state \<Sigma>\<^sub>a'"
 proof (induction cd\<^sub>a \<Sigma>\<^sub>a \<Sigma>\<^sub>a' rule: evala.induct)
-  case (eva_ldi cd pc r k rs mem)
-  hence "disassemble cd ! pc = LDI (register_map r) k" by simp
-  hence "disassemble cd \<tturnstile> MS (rs \<circ> inv_register_map) (uncurry mem \<circ> unmap_mem) (Suc pc) \<leadsto>\<^sub>m 
-    MS ((rs \<circ> inv_register_map)(register_map r := k)) (uncurry mem \<circ> unmap_mem) pc" 
-      by (metis evm_ldi)
+  case (eva_movr cd pc r' r mem ps)
   thus ?case by simp
 next
-  case (eva_lod cd pc r m ptr rs mem)
+  case (eva_movp cd pc r' mem ps)
   thus ?case by simp
 next
-  case (eva_sto cd pc m ptr r rs mem)
+  case (eva_movk cd pc r' k mem ps)
   thus ?case by simp
 next
-  case (eva_mov cd pc r1 r2 rs mem)
+  case (eva_get cd pc r' m r mem ps)
   thus ?case by simp
 next
-  case (eva_add cd pc r k rs mem)
+  case (eva_putr cd pc m r' r mem ps)
   thus ?case by simp
 next
-  case (eva_sub cd pc r k rs mem)
+  case (eva_putp cd pc m r' mem ps)
   thus ?case by simp
 next
-  case (eva_ijp cd pc r rs mem)
+  case (eva_putk cd pc m r' k mem ps)
   thus ?case by simp
 next
-  case (eva_jiz_z cd pc r k rs mem)
+  case (eva_sub cd pc r k mem ps)
   thus ?case by simp
 next
-  case (eva_jiz_s cd pc r pc' rs y mem)
+  case (eva_add cd pc r k mem ps)
   thus ?case by simp
 next
-  case (eva_jmp cd pc k rs mem)
-  thus ?case by simp
-next
-  case (eva_assert cd pc r p rs mem)
+  case (eva_jmp cd pc mem ps)
   thus ?case by simp
 qed
 
 theorem correctm_iter [simp]: "iter (\<tturnstile> cd\<^sub>a \<leadsto>\<^sub>a) \<Sigma>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> 
     iter (\<tturnstile> disassemble cd\<^sub>a \<leadsto>\<^sub>m) (disassemble_state \<Sigma>\<^sub>a) (disassemble_state \<Sigma>\<^sub>a')"
   by (induction \<Sigma>\<^sub>a \<Sigma>\<^sub>a' rule: iter.induct) (simp, metis correctm iter_append iter_one)
+
+lemma [simp]: "unmap_mem x = (Stk, 0) \<Longrightarrow> x = 3"
+  by (induction x rule: unmap_mem.induct) (simp_all split: prod.splits)
+
+lemma [simp]: "(uncurry (case_register nmem nmem nmem (nmem(0 := 0, Suc 0 := 0)) nmem nmem) \<circ> 
+  unmap_mem) = (nmem(3 := 0, 7 := 0))"
+proof
+  fix x
+  show "(uncurry (case_register nmem nmem nmem (nmem(0 := 0, Suc 0 := 0)) nmem nmem) \<circ> 
+    unmap_mem) x = (nmem(3 := 0, 7 := 0)) x"
+    by (induction x rule: unmap_mem.induct) 
+       (auto simp add: numeral_def split: prod.splits register.splits)
+qed
+
+lemma [simp]: "case_reg 0 0 0 2 0 0 = ((\<lambda>r. 0)(R4 := 2))"
+  by (auto split: reg.splits)
 
 end

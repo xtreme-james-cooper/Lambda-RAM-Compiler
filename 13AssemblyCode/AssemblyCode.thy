@@ -1,18 +1,18 @@
 theory AssemblyCode
-  imports Main
+  imports "../00Utils/Iteration"
 begin
 
 datatype register = Hp | Env | Vals | Stk | Acc | Acc2
 
 datatype pseudoreg = Reg register | PC | Con nat
 
-datatype assm_code = 
+datatype assm = 
   AMov register pseudoreg
   | AGet register register register
   | APut register register pseudoreg
   | ASub register nat
   | AAdd register nat
-  | AJump
+  | AJmp
 
 datatype assm_state = 
   AS "register \<Rightarrow> nat \<Rightarrow> nat" "register \<Rightarrow> nat" nat
@@ -20,21 +20,40 @@ datatype assm_state =
 fun mem_upd :: "(register \<Rightarrow> nat \<Rightarrow> nat) \<Rightarrow> register \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> register \<Rightarrow> nat \<Rightarrow> nat" where
   "mem_upd mem m mp k m' x = (if m = m' \<and> mp = x then k else mem m' x)"
 
-fun evala :: "assm_code list \<Rightarrow> assm_state \<rightharpoonup> assm_state" (infix "\<tturnstile>\<^sub>a" 50) where
+fun alg_evala :: "assm list \<Rightarrow> assm_state \<rightharpoonup> assm_state" (infix "\<tturnstile>\<^sub>a" 50) where
   "cd \<tturnstile>\<^sub>a AS mem ps 0 = None"
-| "cd \<tturnstile>\<^sub>a AS mem ps (Suc pc) = (case cd ! pc of
-      AMov r' (Reg r) \<Rightarrow> Some (AS mem (ps(r' := ps r)) pc)
-    | AMov r' PC \<Rightarrow> Some (AS mem (ps(r' := pc)) pc)
-    | AMov r' (Con k) \<Rightarrow> Some (AS mem (ps(r' := k)) pc)
-    | AGet r' m r \<Rightarrow> Some (AS mem (ps(r' := mem m (ps r))) pc)
-    | APut m r' (Reg r) \<Rightarrow> Some (AS (mem_upd mem m (ps r') (ps r)) ps pc)
-    | APut m r' PC \<Rightarrow> Some (AS (mem_upd mem m (ps r') pc) ps pc)
-    | APut m r' (Con k) \<Rightarrow> Some (AS (mem_upd mem m (ps r') k) ps pc)
-    | ASub r k \<Rightarrow> Some (AS mem (ps(r := ps r - k)) pc)
-    | AAdd r k \<Rightarrow> Some (AS mem (ps(r := ps r + k)) pc)
-    | AJump \<Rightarrow> Some (AS mem (ps(Acc := 0)) (ps Acc)))"
+| "cd \<tturnstile>\<^sub>a AS mem ps (Suc pc) = Some  (case cd ! pc of
+      AMov r' (Reg r) \<Rightarrow> AS mem (ps(r' := ps r)) pc
+    | AMov r' PC \<Rightarrow> AS mem (ps(r' := pc)) pc
+    | AMov r' (Con k) \<Rightarrow> AS mem (ps(r' := k)) pc
+    | AGet r' m r \<Rightarrow> AS mem (ps(r' := mem m (ps r))) pc
+    | APut m r' (Reg r) \<Rightarrow> AS (mem_upd mem m (ps r') (ps r)) ps pc
+    | APut m r' PC \<Rightarrow> AS (mem_upd mem m (ps r') pc) ps pc
+    | APut m r' (Con k) \<Rightarrow> AS (mem_upd mem m (ps r') k) ps pc
+    | ASub r k \<Rightarrow> AS mem (ps(r := ps r - k)) pc
+    | AAdd r k \<Rightarrow> AS mem (ps(r := ps r + k)) pc
+    | AJmp \<Rightarrow> AS mem (ps(Acc := 0)) (ps Acc))"
 
-primrec iter_evala :: "assm_code list \<Rightarrow> nat \<Rightarrow> assm_state \<rightharpoonup> assm_state" where
+inductive evala :: "assm list \<Rightarrow> assm_state \<Rightarrow> assm_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>a" 50) where
+  eva_movr [simp]: "cd ! pc = AMov r' (Reg r) \<Longrightarrow> 
+    cd \<tturnstile> AS mem ps (Suc pc) \<leadsto>\<^sub>a AS mem (ps(r' := ps r)) pc"
+| eva_movp [simp]: "cd ! pc = AMov r' PC \<Longrightarrow> 
+    cd \<tturnstile> AS mem ps (Suc pc) \<leadsto>\<^sub>a AS mem (ps(r' := pc)) pc"
+| eva_movk [simp]: "cd ! pc = AMov r' (Con k) \<Longrightarrow> 
+    cd \<tturnstile> AS mem ps (Suc pc) \<leadsto>\<^sub>a AS mem (ps(r' := k)) pc"
+| eva_get [simp]: "cd ! pc = AGet r' m r \<Longrightarrow> 
+    cd \<tturnstile> AS mem ps (Suc pc) \<leadsto>\<^sub>a AS mem (ps(r' := mem m (ps r))) pc"
+| eva_putr [simp]: "cd ! pc = APut m r' (Reg r) \<Longrightarrow> 
+    cd \<tturnstile> AS mem ps (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem m (ps r') (ps r)) ps pc"
+| eva_putp [simp]: "cd ! pc = APut m r' PC \<Longrightarrow> 
+    cd \<tturnstile> AS mem ps (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem m (ps r') pc) ps pc"
+| eva_putk [simp]: "cd ! pc = APut m r' (Con k) \<Longrightarrow> 
+    cd \<tturnstile> AS mem ps (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem m (ps r') k) ps pc"
+| eva_sub [simp]: "cd ! pc = ASub r k \<Longrightarrow> cd \<tturnstile> AS mem ps (Suc pc) \<leadsto>\<^sub>a AS mem (ps(r := ps r - k)) pc"
+| eva_add [simp]: "cd ! pc = AAdd r k \<Longrightarrow> cd \<tturnstile> AS mem ps (Suc pc) \<leadsto>\<^sub>a AS mem (ps(r := ps r + k)) pc"
+| eva_jmp [simp]: "cd ! pc = AJmp \<Longrightarrow> cd \<tturnstile> AS mem ps (Suc pc) \<leadsto>\<^sub>a AS mem (ps(Acc := 0)) (ps Acc)"
+
+primrec iter_evala :: "assm list \<Rightarrow> nat \<Rightarrow> assm_state \<rightharpoonup> assm_state" where
   "iter_evala cd 0 \<Sigma> = Some \<Sigma>"
 | "iter_evala cd (Suc x) \<Sigma> = Option.bind (cd \<tturnstile>\<^sub>a \<Sigma>) (iter_evala cd x)"
 
@@ -71,5 +90,36 @@ proof (induction n arbitrary: \<Sigma>)
   case (Suc n)
   then show ?case by (cases "cd \<tturnstile>\<^sub>a \<Sigma>") simp_all
 qed simp_all
+
+lemma alg_evala_equiv: "cd \<tturnstile>\<^sub>a \<Sigma> = Some \<Sigma>' = (cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>')"
+proof
+  show "cd \<tturnstile>\<^sub>a \<Sigma> = Some \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>'"
+    by (induction \<Sigma> rule: alg_evala.induct) (auto split: assm.splits pseudoreg.splits)
+  show "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>' \<Longrightarrow> cd \<tturnstile>\<^sub>a \<Sigma> = Some \<Sigma>'" by (induction cd \<Sigma> \<Sigma>' rule: evala.induct) simp_all
+qed
+
+lemma iter_evala_equiv: "(\<exists>n. iter_evala cd n \<Sigma> = Some \<Sigma>') = iter (\<tturnstile> cd \<leadsto>\<^sub>a) \<Sigma> \<Sigma>'"
+proof
+  assume "\<exists>n. iter_evala cd n \<Sigma> = Some \<Sigma>'"
+  then obtain n where "iter_evala cd n \<Sigma> = Some \<Sigma>'" by fastforce
+  thus "iter (\<tturnstile> cd \<leadsto>\<^sub>a) \<Sigma> \<Sigma>'" 
+  proof (induction n arbitrary: \<Sigma>)
+    case (Suc n)
+    thus ?case by (cases "cd \<tturnstile>\<^sub>a \<Sigma>") (simp_all add: alg_evala_equiv)
+  qed simp_all
+next
+  show "iter (\<tturnstile> cd \<leadsto>\<^sub>a) \<Sigma> \<Sigma>' \<Longrightarrow> \<exists>n. iter_evala cd n \<Sigma> = Some \<Sigma>'" 
+  proof (induction \<Sigma> \<Sigma>' rule: iter.induct)
+    case (iter_refl \<Sigma>)
+    have "iter_evala cd 0 \<Sigma> = Some \<Sigma>" by simp
+    thus ?case by blast
+  next
+    case (iter_step \<Sigma> \<Sigma>' \<Sigma>'')
+    then obtain n where "iter_evala cd n \<Sigma>' = Some \<Sigma>''" by fastforce
+    moreover from iter_step have "cd \<tturnstile>\<^sub>a \<Sigma> = Some \<Sigma>'" by (simp add: alg_evala_equiv)
+    ultimately have "iter_evala cd (Suc n) \<Sigma> = Some \<Sigma>''" by simp
+    thus ?case by blast
+  qed
+qed
 
 end

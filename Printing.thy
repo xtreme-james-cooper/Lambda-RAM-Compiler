@@ -2,7 +2,7 @@ theory Printing
   imports "02Typed/Typechecking" "03Debruijn/NameRemoval" "05Closure/ClosureConversion" 
     "06TreeCode/TreeCodeConversion" "07TailCall/TailCallOptimization" "08FlatCode/CodeFlattening" 
     "09HeapMemory/HeapConversion" "10ChainedEnvironment/Chaining" "11FlatMemory/MemoryFlattening"
-    "15MachineCode/Disassemble" 
+    "13AssemblyCode/Assemble" "14MachineCode/Disassemble" 
 begin
 
 function string_of_nat :: "nat \<Rightarrow> string" where
@@ -94,6 +94,15 @@ lemma print_ce [simp]: "hcontains h x \<Longrightarrow>
 
 lemma [simp]: "print_ceclosure (flatten_closure' c) = print_ceclosure c"
   by (induction c) simp_all
+
+lemma print_a [simp]: "3 dvd x \<Longrightarrow> print_uval (assm_hp cd h) x = print_uval h x"
+proof (induction "h x")
+  case (Suc nat)
+  hence "h x = Suc nat" by simp
+  moreover from Suc have "3 dvd x" by simp
+  moreover from Suc have "Suc x mod 3 = 1" by presburger
+  ultimately show ?case by (simp add: assm_hp_lemma1 assm_hp_lemma2 split: nat.splits)
+qed (simp_all add: assemble_heap_def)
 
 lemma print_u [simp]: "print_uval h p = print_ceclosure (get_closure (H h hp) p)"
   by (cases "h p") simp_all
