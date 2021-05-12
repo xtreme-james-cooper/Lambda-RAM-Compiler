@@ -119,9 +119,9 @@ next
     p = sh (Suc sp) \<and> sfs = listify' (sh \<circ> Suc) sp \<and> 
       \<Sigma>\<^sub>u = US h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   moreover with evf_return have X: "FS h env vs sfs = 
-    restructure (US h' hp e ep vs' vp sh sp (sh sp))" by (auto split: nat.splits)
+    restructure (US h' hp e ep vs' vp (sh(sp := 0)) sp (sh sp))" by (auto split: nat.splits)
   moreover from evf_return have "cd \<tturnstile> US h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-    US h' hp e ep vs' vp sh sp (sh sp)" by (metis evu_return)
+    US h' hp e ep vs' vp (sh(sp := 0)) sp (sh sp)" by (metis evu_return)
   ultimately show ?case by blast
 next
   case (evf_jump cd pc h v2 p' pc' env v1 env' p2 vs p sfs)

@@ -28,7 +28,8 @@ inductive evalu :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> unstr
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
         (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (2 + Suc sp) (h (Suc (Suc (vs vp))))"
 | evu_return [simp]: "cd ! pc = BReturn \<Longrightarrow> 
-    cd \<tturnstile> US h hp e ep vs vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u US h hp e ep vs vp sh sp (sh sp)"
+    cd \<tturnstile> US h hp e ep vs vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
+      US h hp e ep vs vp (sh(sp := 0)) sp (sh sp)"
 | evu_jump [simp]: "cd ! pc = BJump \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
@@ -181,7 +182,8 @@ lemma [simp]: "restructurable_vals vs vp hp \<Longrightarrow>
 lemma [elim]: "restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> restructurable_vals vs vp hp"
   by (simp add: restructurable_vals_def)
 
-lemma [elim]: "restructurable_stack sh (Suc (Suc sp)) ep lcd \<Longrightarrow> restructurable_stack sh sp ep lcd"
+lemma [elim]: "restructurable_stack sh (Suc (Suc sp)) ep lcd \<Longrightarrow>
+    restructurable_stack (sh(sp := 0)) sp ep lcd"
   by (simp add: restructurable_stack_def)
 
 lemma [simp]: "restructurable_stack sh 0 ep lcd"
