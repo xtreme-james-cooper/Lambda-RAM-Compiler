@@ -95,7 +95,7 @@ lemma print_ce [simp]: "hcontains h x \<Longrightarrow>
 lemma [simp]: "print_ceclosure (flatten_closure' c) = print_ceclosure c"
   by (induction c) simp_all
 
-lemma print_a [simp]: "3 dvd x \<Longrightarrow> print_uval (assm_hp cd h) x = print_uval h x"
+lemma print_a [simp]: "3 dvd x \<Longrightarrow> print_uval (assm_hp hp cd h) x = print_uval h x"
 proof (induction "h x")
   case (Suc nat)
   hence "h x = Suc nat" by simp

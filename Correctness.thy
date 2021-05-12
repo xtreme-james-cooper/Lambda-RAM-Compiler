@@ -86,20 +86,20 @@ proof -
     (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   let ?cd' = "assemble_code ?cd"
   let ?mp = "assembly_map ?cd"
-  let ?mem = "case_register (assm_hp ?cd h\<^sub>u) e\<^sub>u vs\<^sub>u (assm_stk ?cd sh\<^sub>u) nmem nmem"
+  let ?mem = "case_register (assm_hp hp\<^sub>u ?cd h\<^sub>u) e\<^sub>u vs\<^sub>u (assm_stk ?cd sh\<^sub>u) nmem nmem"
   let ?rs = "case_register hp\<^sub>u ep\<^sub>u (Suc 0) 0 0 0"
   from R EU have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
     (assemble_state ?mp (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0, 1 := 0)) 2 (length ?cd))) 
       (assemble_state ?mp (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correcta_iter)
-  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
-    (AS (case_register (assm_hp ?cd nmem) nmem nmem ((assm_stk ?cd nmem)(0 := 0, 1 := 0)) nmem nmem) 
-      (case_register 0 0 0 2 0 0) (length ?cd')) (AS ?mem ?rs 0)" by simp 
+  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (AS (case_register (assm_hp 0 ?cd nmem) nmem nmem 
+    ((assm_stk ?cd nmem)(0 := 0, 1 := 0)) nmem nmem) (case_register 0 0 0 2 0 0) (length ?cd')) 
+      (AS ?mem ?rs 0)" by simp 
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) 
-    (disassemble_state (AS (case_register (assm_hp ?cd nmem) nmem nmem 
+    (disassemble_state (AS (case_register (assm_hp 0 ?cd nmem) nmem nmem 
       ((assm_stk ?cd nmem)(0 := 0, 1 := 0)) nmem nmem) (case_register 0 0 0 2 0 0) (length ?cd')))
         (disassemble_state (AS ?mem ?rs 0))" by (metis correctm_iter)
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 0 0 2 0 0)
-    (uncurry (case_register (assm_hp ?cd nmem) nmem nmem ((assm_stk ?cd nmem)(0 := 0, Suc 0 := 0)) 
+    (uncurry (case_register (assm_hp 0 ?cd nmem) nmem nmem ((assm_stk ?cd nmem)(0 := 0, Suc 0 := 0)) 
       nmem nmem) \<circ> unmap_mem) (list_sum (map assemble_op_len ?cd)))
         (MS (case_reg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0 0) (uncurry ?mem \<circ> unmap_mem) 0)" 
     by simp

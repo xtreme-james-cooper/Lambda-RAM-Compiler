@@ -100,7 +100,7 @@ primrec uncurry :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> 'a \<ti
   "uncurry f (a, b) = f a b"
 
 abbreviation nmem :: "nat \<Rightarrow> nat" where
-  "nmem x \<equiv> 0"
+  "nmem x \<equiv> undefined"
 
 lemma [simp]: "(a # as @ bs) ! length as = (a # as) ! length as"
   by (induction as arbitrary: a) simp_all
