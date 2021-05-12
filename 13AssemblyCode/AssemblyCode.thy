@@ -7,10 +7,9 @@ datatype register = Hp | Env | Vals | Stk | Acc | Acc2
 datatype pseudoreg = Reg register | PC | Con nat
 
 datatype assm_code = 
-  APush register pseudoreg
-  | APop register
-  | AMov register pseudoreg
-  | AGet register register
+  AMov register pseudoreg
+  | AGet register register register
+  | APut register register pseudoreg
   | ASub register nat
   | AAdd register nat
   | AJump
@@ -24,22 +23,16 @@ fun mem_upd :: "(register \<Rightarrow> nat \<Rightarrow> nat) \<Rightarrow> reg
 fun evala :: "assm_code list \<Rightarrow> assm_state \<rightharpoonup> assm_state" (infix "\<tturnstile>\<^sub>a" 50) where
   "cd \<tturnstile>\<^sub>a AS mem ps 0 = None"
 | "cd \<tturnstile>\<^sub>a AS mem ps (Suc pc) = (case cd ! pc of
-      APush m (Reg r) \<Rightarrow> 
-        Some (AS (mem_upd mem m (ps m) (ps r)) (ps(m := Suc (ps m))) pc)
-    | APush m PC \<Rightarrow> 
-        Some (AS (mem_upd mem m (ps m) pc) (ps(m := Suc (ps m))) pc)
-    | APush m (Con k) \<Rightarrow> 
-        Some (AS (mem_upd mem m (ps m) k) (ps(m := Suc (ps m))) pc)
-    | APop m \<Rightarrow> (case ps m of
-          Suc p \<Rightarrow> Some (AS mem (ps(m := p, Acc := mem m p)) pc)
-        | 0 \<Rightarrow> None)
-    | AMov r' (Reg r) \<Rightarrow> Some (AS mem (ps(r' := ps r)) pc)
+      AMov r' (Reg r) \<Rightarrow> Some (AS mem (ps(r' := ps r)) pc)
     | AMov r' PC \<Rightarrow> Some (AS mem (ps(r' := pc)) pc)
     | AMov r' (Con k) \<Rightarrow> Some (AS mem (ps(r' := k)) pc)
-    | AGet m r \<Rightarrow> Some (AS mem (ps(Acc := mem m (ps r))) pc)
+    | AGet r' m r \<Rightarrow> Some (AS mem (ps(r' := mem m (ps r))) pc)
+    | APut m r' (Reg r) \<Rightarrow> Some (AS (mem_upd mem m (ps r') (ps r)) ps pc)
+    | APut m r' PC \<Rightarrow> Some (AS (mem_upd mem m (ps r') pc) ps pc)
+    | APut m r' (Con k) \<Rightarrow> Some (AS (mem_upd mem m (ps r') k) ps pc)
     | ASub r k \<Rightarrow> Some (AS mem (ps(r := ps r - k)) pc)
     | AAdd r k \<Rightarrow> Some (AS mem (ps(r := ps r + k)) pc)
-    | AJump \<Rightarrow> Some (AS mem (ps(Acc := 0, Acc2 := 0)) (ps Acc)))"
+    | AJump \<Rightarrow> Some (AS mem (ps(Acc := 0)) (ps Acc)))"
 
 primrec iter_evala :: "assm_code list \<Rightarrow> nat \<Rightarrow> assm_state \<rightharpoonup> assm_state" where
   "iter_evala cd 0 \<Sigma> = Some \<Sigma>"
