@@ -112,4 +112,7 @@ proof (induction as arbitrary: x bs rule: rev_induct)
   qed simp_all
 qed simp_all
 
+lemma [simp]: "length (concat (replicate x as)) = length as * x"
+  by (induction x) simp_all
+
 end

@@ -8,11 +8,7 @@ datatype pseudoreg = Acc | Acc2 | Con nat
 datatype pseudomem = Mem memory | PC | MCon nat
 
 datatype sassm_code = 
-  BLookup nat
-  | BReturn
-  | BJump
-
-  | SAPush memory pseudoreg
+  SAPush memory pseudoreg
   | SAPop memory
   | SAMov pseudomem
   | SAGet memory
@@ -88,8 +84,8 @@ lemma [simp]: "(case_memory hp ep vp sp)(Vals := x) = case_memory hp ep x sp"
 lemma [simp]: "(case_memory hp ep vp sp)(Stk := x) = case_memory hp ep vp x"
   by rule (simp split: memory.splits)
 
-lemma [simp]: "iter_evalsa cd n \<Sigma> = Some \<Sigma>' \<Longrightarrow> iter_evalsa cd m \<Sigma>' = Some \<Sigma>'' \<Longrightarrow> 
-  iter_evalsa cd (n + m) \<Sigma> = Some \<Sigma>''"
+lemma iter_evalsa_combine [simp]: "iter_evalsa cd n \<Sigma> = Some \<Sigma>' \<Longrightarrow> 
+  iter_evalsa cd m \<Sigma>' = Some \<Sigma>'' \<Longrightarrow> iter_evalsa cd (n + m) \<Sigma> = Some \<Sigma>''"
 proof (induction n arbitrary: \<Sigma>)
   case (Suc n)
   then show ?case by (cases "cd \<tturnstile>\<^sub>s\<^sub>a \<Sigma>") simp_all
