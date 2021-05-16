@@ -2,7 +2,7 @@ theory AssemblyCode
   imports "../00Utils/Iteration"
 begin
 
-datatype register = Hp | Env | Vals | Stk | Acc | Acc2
+datatype register = Hp | Env | Vals | Stk | Acc
 
 datatype pseudoreg = Reg register | PC | Con nat
 
@@ -57,31 +57,28 @@ primrec iter_evala :: "assm list \<Rightarrow> nat \<Rightarrow> assm_state \<ri
   "iter_evala cd 0 \<Sigma> = Some \<Sigma>"
 | "iter_evala cd (Suc x) \<Sigma> = Option.bind (cd \<tturnstile>\<^sub>a \<Sigma>) (iter_evala cd x)"
 
-lemma [simp]: "mem_upd (case_register h e vs sh a b) Hp x y = case_register (h(x := y)) e vs sh a b"
+lemma [simp]: "mem_upd (case_register h e vs sh a) Hp x y = case_register (h(x := y)) e vs sh a"
   by (rule+) (simp split: register.splits)
 
-lemma [simp]: "mem_upd (case_register h e vs sh a b) Env x y = 
-    case_register h (e(x := y)) vs sh a b"
+lemma [simp]: "mem_upd (case_register h e vs sh a) Env x y = case_register h (e(x := y)) vs sh a"
   by (rule+) (simp split: register.splits)
 
-lemma [simp]: "mem_upd (case_register h e vs sh a b) Vals x y = 
-    case_register h e (vs(x := y)) sh a b"
+lemma [simp]: "mem_upd (case_register h e vs sh a) Vals x y = case_register h e (vs(x := y)) sh a"
   by (rule+) (simp split: register.splits)
 
-lemma [simp]: "mem_upd (case_register h e vs sh a b) Stk x y = 
-    case_register h e vs (sh(x := y)) a b"
+lemma [simp]: "mem_upd (case_register h e vs sh a) Stk x y = case_register h e vs (sh(x := y)) a"
   by (rule+) (simp split: register.splits)
 
-lemma [simp]: "(case_register hp ep vp sp a b)(Hp := x) = case_register x ep vp sp a b"
+lemma [simp]: "(case_register hp ep vp sp a)(Hp := x) = case_register x ep vp sp a"
   by rule (simp split: register.splits)
 
-lemma [simp]: "(case_register hp ep vp sp a b)(Env := x) = case_register hp x vp sp a b"
+lemma [simp]: "(case_register hp ep vp sp a)(Env := x) = case_register hp x vp sp a"
   by rule (simp split: register.splits)
 
-lemma [simp]: "(case_register hp ep vp sp a b)(Vals := x) = case_register hp ep x sp a b"
+lemma [simp]: "(case_register hp ep vp sp a)(Vals := x) = case_register hp ep x sp a"
   by rule (simp split: register.splits)
 
-lemma [simp]: "(case_register hp ep vp sp a b)(Stk := x) = case_register hp ep vp x a b"
+lemma [simp]: "(case_register hp ep vp sp a)(Stk := x) = case_register hp ep vp x a"
   by rule (simp split: register.splits)
 
 lemma iter_evala_combine [simp]: "iter_evala cd n \<Sigma> = Some \<Sigma>' \<Longrightarrow> 

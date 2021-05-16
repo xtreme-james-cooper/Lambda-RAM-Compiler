@@ -8,7 +8,6 @@ primrec register_map :: "register \<Rightarrow> reg" where
 | "register_map Vals = R3"
 | "register_map Stk = R4"
 | "register_map Acc = R5"
-| "register_map Acc2 = R6"
 
 primrec inv_register_map :: "reg \<Rightarrow> register" where
   "inv_register_map R1 = Hp"
@@ -16,7 +15,6 @@ primrec inv_register_map :: "reg \<Rightarrow> register" where
 | "inv_register_map R3 = Vals"
 | "inv_register_map R4 = Stk"
 | "inv_register_map R5 = Acc"
-| "inv_register_map R6 = Acc2"
 
 fun disassemble' :: "assm \<Rightarrow> mach" where
   "disassemble' (AMov r1 (Reg r2)) = MOV (register_map r1) (register_map r2)"
@@ -90,12 +88,11 @@ lemma [simp]: "inv_register_map (register_map r) = r"
 lemma [simp]: "register_map (inv_register_map r) = r"
   by (induction r) simp_all
 
-lemma [simp]: "case_register a b c d e f \<circ> inv_register_map = case_reg a b c d e f"
+lemma [simp]: "case_register a b c d e \<circ> inv_register_map = case_reg a b c d e"
 proof 
   fix x
-  show "(case_register a b c d e f \<circ> inv_register_map) x = 
-    (case x of R1 \<Rightarrow> a | R2 \<Rightarrow> b | R3 \<Rightarrow> c | R4 \<Rightarrow> d | R5 \<Rightarrow> e | R6 \<Rightarrow> f)" 
-    by (induction x) simp_all
+  show "(case_register a b c d e \<circ> inv_register_map) x = 
+    (case x of R1 \<Rightarrow> a | R2 \<Rightarrow> b | R3 \<Rightarrow> c | R4 \<Rightarrow> d | R5 \<Rightarrow> e)" by (induction x) simp_all
 qed
 
 theorem correctm [simp]: "cd\<^sub>a \<tturnstile> \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow>
@@ -139,17 +136,17 @@ theorem correctm_iter [simp]: "iter (\<tturnstile> cd\<^sub>a \<leadsto>\<^sub>a
 lemma [simp]: "unmap_mem x = (Stk, 0) \<Longrightarrow> x = 3"
   by (induction x rule: unmap_mem.induct) (simp_all split: prod.splits)
 
-lemma [simp]: "(uncurry (case_register nmem nmem nmem (nmem(0 := 0, Suc 0 := 0)) nmem nmem) \<circ> 
+lemma [simp]: "(uncurry (case_register nmem nmem nmem (nmem(0 := 0, Suc 0 := 0)) nmem) \<circ> 
   unmap_mem) = (nmem(3 := 0, 7 := 0))"
 proof
   fix x
-  show "(uncurry (case_register nmem nmem nmem (nmem(0 := 0, Suc 0 := 0)) nmem nmem) \<circ> 
+  show "(uncurry (case_register nmem nmem nmem (nmem(0 := 0, Suc 0 := 0)) nmem) \<circ> 
     unmap_mem) x = (nmem(3 := 0, 7 := 0)) x"
-    by (induction x rule: unmap_mem.induct) 
-       (auto simp add: numeral_def split: prod.splits register.splits)
+      by (induction x rule: unmap_mem.induct) 
+         (auto simp add: numeral_def split: prod.splits register.splits)
 qed
 
-lemma [simp]: "case_reg 0 0 0 2 0 0 = ((\<lambda>r. 0)(R4 := 2))"
+lemma [simp]: "case_reg 0 0 0 2 0 = ((\<lambda>r. 0)(R4 := 2))"
   by (auto split: reg.splits)
 
 end

@@ -13,7 +13,7 @@ proof -
 qed
 
 theorem tc_terminationn: "compile e = Some cd \<Longrightarrow> 
-  \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>rs mem. rs R3 = 1 \<and> rs R4 = 0 \<and> 
+  \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>rs mem. rs R3 = 6 \<and> rs R4 = 3 \<and> 
     print_mval mem (4 * mem 2) = print_nexpr v \<and> 
       iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS ((\<lambda>r. 0)(R4 := 2)) (nmem(3 := 0, 7 := 0)) (length cd)) (MS rs mem 0))"
 proof -
@@ -86,25 +86,25 @@ proof -
     (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   let ?cd' = "assemble_code ?cd"
   let ?mp = "assembly_map ?cd"
-  let ?mem = "case_register (assm_hp hp\<^sub>u ?cd h\<^sub>u) e\<^sub>u vs\<^sub>u sh\<^sub>u nmem nmem"
-  let ?rs = "case_register hp\<^sub>u ep\<^sub>u (Suc 0) 0 0 0"
+  let ?mem = "case_register (assm_hp hp\<^sub>u ?cd h\<^sub>u) e\<^sub>u vs\<^sub>u sh\<^sub>u nmem"
+  let ?rs = "case_register hp\<^sub>u ep\<^sub>u (Suc 0) 0 0"
   from R EU have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
     (assemble_state ?mp (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0, 1 := 0)) 2 (length ?cd))) 
       (assemble_state ?mp (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correcta_iter)
   hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (AS (case_register (assm_hp 0 ?cd nmem) nmem nmem 
-    (nmem(0 := 0, 1 := 0)) nmem nmem) (case_register 0 0 0 2 0 0) (length ?cd')) 
+    (nmem(0 := 0, 1 := 0)) nmem) (case_register 0 0 0 2 0) (length ?cd')) 
       (AS ?mem ?rs 0)" by simp 
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) 
     (disassemble_state (AS (case_register (assm_hp 0 ?cd nmem) nmem nmem 
-      (nmem(0 := 0, 1 := 0)) nmem nmem) (case_register 0 0 0 2 0 0) (length ?cd')))
+      (nmem(0 := 0, 1 := 0)) nmem) (case_register 0 0 0 2 0) (length ?cd')))
         (disassemble_state (AS ?mem ?rs 0))" by (metis correctm_iter)
-  hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 0 0 2 0 0)
+  hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 0 0 2 0)
     (uncurry (case_register (assm_hp 0 ?cd nmem) nmem nmem (nmem(0 := 0, Suc 0 := 0)) 
-      nmem nmem) \<circ> unmap_mem) (list_sum (map assemble_op_len ?cd)))
-        (MS (case_reg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0 0) (uncurry ?mem \<circ> unmap_mem) 0)" 
+      nmem) \<circ> unmap_mem) (list_sum (map assemble_op_len ?cd)))
+        (MS (case_reg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0) (uncurry ?mem \<circ> unmap_mem) 0)" 
     by simp
   with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS ((\<lambda>r. 0)(R4 := 2)) (nmem(3 := 0, 7 := 0)) (length cd)) 
-    (MS (case_reg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0 0) (uncurry ?mem \<circ> unmap_mem) 0)" by auto
+    (MS (case_reg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0) (uncurry ?mem \<circ> unmap_mem) 0)" by auto
   from EC VT have "print_closure c = print_nexpr (erase v\<^sub>t)" by simp
   moreover from EB have "print_bclosure v\<^sub>b = print_tco_closure (tco_val (encode_closure c))" by simp
   ultimately have "print_bclosure v\<^sub>b = print_nexpr (erase v\<^sub>t)" by simp
@@ -120,7 +120,7 @@ proof -
     by (simp add: numeral_def)
   with PA have PM: "print_mval (uncurry ?mem \<circ> unmap_mem) (4 * (uncurry ?mem \<circ> unmap_mem) 2) = 
     print_nexpr (erase v\<^sub>t)" using print_m by presburger
-  have "(case_reg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0 0) R3 = 1 \<and> (case_reg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0 0) R4 = 0" by simp
+  have "(case_reg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0) R3 = 1 \<and> (case_reg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0) R4 = 0" by simp
   with VN TN EN EM PM show ?thesis by blast
 qed
 
