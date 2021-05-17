@@ -35,7 +35,7 @@ inductive evalm :: "mach list \<Rightarrow> mach_state \<Rightarrow> mach_state 
 | evm_sub [simp]: "cd ! pc = SUB r k \<Longrightarrow> 
     cd \<tturnstile> MS rs mem (Suc pc) \<leadsto>\<^sub>m MS (rs(r := rs r - k)) mem pc"
 | evm_jmp [simp]: "cd ! pc = JMP r \<Longrightarrow> 
-    cd \<tturnstile> MS rs mem (Suc pc) \<leadsto>\<^sub>m MS rs mem (rs r)"
+    cd \<tturnstile> MS rs mem (Suc pc) \<leadsto>\<^sub>m MS (rs(r := 0)) mem (rs r)"
 
 theorem determinismm: "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>m \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>m \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction cd \<Sigma> \<Sigma>' rule: evalm.induct)
