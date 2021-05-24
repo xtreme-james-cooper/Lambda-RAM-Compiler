@@ -16,6 +16,18 @@ primrec register_offset :: "register \<Rightarrow> nat" where
 | "register_offset Stk = 3"
 | "register_offset Acc = 0"
 
+primrec register_size :: "register \<Rightarrow> nat" where
+  "register_size Hp = 4"
+| "register_size Env = 4"
+| "register_size Vals = 4"
+| "register_size Stk = 4"
+| "register_size Acc = 1"
+
+primrec pseudoreg_size :: "pseudoreg \<Rightarrow> nat" where
+  "pseudoreg_size (Reg r) = register_size r"
+| "pseudoreg_size PC = 1"
+| "pseudoreg_size (Con k) = 1"
+
 fun disassemble' :: "assm \<Rightarrow> mach" where
   "disassemble' (AMov (Reg r)) = MOV R5 (register_map r)"
 | "disassemble' (AMov PC) = MVP R5"
@@ -24,9 +36,9 @@ fun disassemble' :: "assm \<Rightarrow> mach" where
 | "disassemble' (APut r1 r2 (Reg r3)) = STO (register_map r1) (register_map r3)"
 | "disassemble' (APut r1 r2 PC) = undefined"
 | "disassemble' (APut r1 r2 (Con k)) = STI (register_map r1) k"
-| "disassemble' (ASub Acc k t) = SUB R5 k"
+| "disassemble' (ASub Acc k t) = SUB R5 (pseudoreg_size t * k)"
 | "disassemble' (ASub r k t) = SUB (register_map r) (4 * k)"
-| "disassemble' (AAdd Acc k t) = ADD R5 k"
+| "disassemble' (AAdd Acc k t) = ADD R5 (pseudoreg_size t * k)"
 | "disassemble' (AAdd r k t) = ADD (register_map r) (4 * k)"
 | "disassemble' AJmp = JMP R5"
 
@@ -54,6 +66,9 @@ fun inv_register_map :: "(register \<Rightarrow> nat) \<Rightarrow> pseudoreg \<
 
 primrec disassemble_state :: "assm_state \<Rightarrow> mach_state" where
   "disassemble_state (AS mem rs t pc) = MS (inv_register_map rs t) (unmap_mem mem) pc"
+
+primrec dissassembleable :: "assm_state \<Rightarrow> nat \<Rightarrow> bool" where
+  "dissassembleable (AS mem rs t pc) lcd = (pc < lcd)"
 
 lemma [simp]: "unmap_mem' (4 * k) = (Hp, k)"
   by (induction k) (simp_all add: numeral_def)
@@ -203,24 +218,27 @@ lemma [simp]: "m \<noteq> Acc \<Longrightarrow> (r \<noteq> Acc \<Longrightarrow
 lemma [simp]: "m \<noteq> Acc \<Longrightarrow> unmap_mem mem (ps Acc * 4 + register_offset m) = mem m (ps Acc)"
   by (simp add: unmap_mem_def)
 
-theorem correctm [simp]: "cd\<^sub>a \<tturnstile> \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow>
+lemma [simp]: "Suc pc < length cd \<Longrightarrow> disassemble cd ! pc = disassemble' (cd ! pc)"
+proof (induction cd)
+  case (Cons op cd)
+  thus ?case by (induction pc) (simp_all add: disassemble_def)
+qed simp_all
+
+theorem correctm [simp]: "cd\<^sub>a \<tturnstile> \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> dissassembleable \<Sigma>\<^sub>a (length cd\<^sub>a) \<Longrightarrow>
   disassemble cd\<^sub>a \<tturnstile> disassemble_state \<Sigma>\<^sub>a \<leadsto>\<^sub>m disassemble_state \<Sigma>\<^sub>a'"
 proof (induction cd\<^sub>a \<Sigma>\<^sub>a \<Sigma>\<^sub>a' rule: evala.induct)
   case (eva_movr cd pc r mem ps act)
-  hence "disassemble cd ! pc = MOV R5 (register_map r)" by simp
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
     MS ((inv_register_map ps act)(R5 := inv_register_map ps act (register_map r))) 
       (unmap_mem mem) pc" by simp
   with eva_movr show ?case by (simp add: inv_reg_map_reg)
 next
   case (eva_movp cd pc mem ps act)
-  hence "disassemble cd ! pc = MVP R5" by simp
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
     MS ((inv_register_map ps act)(R5 := pc)) (unmap_mem mem) pc" by simp
   thus ?case by (simp add: inv_reg_map_pc)
 next
   case (eva_movk cd pc k mem ps act)
-  hence "disassemble cd ! pc = LDI R5 k" by simp
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
     MS ((inv_register_map ps act)(R5 := k)) (unmap_mem mem) pc" by simp
   thus ?case by (simp add: inv_reg_map_con)
@@ -252,14 +270,17 @@ next
   then show ?case try0 by simp
 next
   case (eva_sub cd pc r k mem ps act)
-  hence "disassemble cd ! pc = SUB (register_map r) (4 * k)" by simp
+  hence "disassemble cd ! pc = SUB (register_map r) (4 * k)" by (cases r) simp_all
   with eva_sub show ?case by simp
 next
-  case (eva_adda cd pc k mem ps act)
+  case (eva_adda cd pc k act mem ps)
+  hence "disassemble cd \<tturnstile> MS (inv_register_map ps act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
+    MS ((inv_register_map ps act)(R5 := inv_register_map ps act R5 + pseudoreg_size act * k)) 
+      (unmap_mem mem) pc" by simp
   thus ?case by simp
 next
   case (eva_add cd pc r k mem ps act)
-  hence "disassemble cd ! pc = ADD (register_map r) (4 * k)" by simp
+  hence "disassemble cd ! pc = ADD (register_map r) (4 * k)" by (cases r) simp_all
   with eva_add show ?case by simp
 next
   case (eva_jmp cd pc mem ps)
@@ -267,14 +288,12 @@ next
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps PC) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
     MS ((inv_register_map ps PC)(R5 := 0)) (unmap_mem mem) (inv_register_map ps PC R5)" 
       by (metis evm_jmp)
-  hence "disassemble cd \<tturnstile> MS (inv_register_map ps PC) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
-    MS (inv_register_map (ps(Acc := 0)) (Con 0)) (unmap_mem mem) (ps Acc)" by simp
-  thus ?case by simp
+  thus ?case by (simp add: inv_reg_map_con)
 qed
 
 theorem correctm_iter [simp]: "iter (\<tturnstile> cd\<^sub>a \<leadsto>\<^sub>a) \<Sigma>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> 
     iter (\<tturnstile> disassemble cd\<^sub>a \<leadsto>\<^sub>m) (disassemble_state \<Sigma>\<^sub>a) (disassemble_state \<Sigma>\<^sub>a')"
-  by (induction \<Sigma>\<^sub>a \<Sigma>\<^sub>a' rule: iter.induct) (simp, metis correctm iter_append iter_one)
+  by (induction \<Sigma>\<^sub>a \<Sigma>\<^sub>a' rule: iter.induct) (simp, metisx correctm iter_append iter_one)
  
 lemma [simp]: "inv_register_map (case_register 0 0 0 2 0) (Con 0) = case_reg 0 1 2 11 0" 
   by (auto split: reg.splits)

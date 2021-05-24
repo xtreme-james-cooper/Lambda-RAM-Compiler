@@ -323,7 +323,7 @@ lemma typecheck_fails [simp]: "typecheck e = None \<Longrightarrow> \<nexists>e\
 proof 
   assume "typecheck e = None"
   then obtain e' tt vs' con where X: "typecheck' Map.empty {} e = (e', tt, vs', con) \<and> 
-    unify' con = None" by (auto split: option.splits)
+    unify' con = None" by (auto split: prod.splits option.splits)
   assume "\<exists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> e = erase e\<^sub>t"
   then obtain e\<^sub>t t where "(map_option typeify \<circ> Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> e = erase e\<^sub>t" by fastforce
   with X show "False" by (metis typecheck_fails')
@@ -356,37 +356,51 @@ lemma [simp]: "tsubstt sub (substt x v e) = substt x (tsubstt sub v) (tsubstt su
 lemma [simp]: "e \<Down>\<^sub>t v \<Longrightarrow> tsubstt sub e \<Down>\<^sub>t tsubstt sub v"
   by (induction e v rule: evalt.induct) simp_all
 
-lemma correctness' [simp]: "e \<Down> v \<Longrightarrow> typecheck' \<Gamma> vs e = Some (e\<^sub>t, t1, vs1, sub1) \<Longrightarrow> 
-  typecheck' \<Gamma> vs v = Some (v\<^sub>t, t2, vs2, sub2) \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> 
-    tsubsts sub1 (typeify t1) = tsubsts sub2 (typeify t2) \<and> 
+lemma correctness' [simp]: "e \<Down> v \<Longrightarrow> typecheck' \<Gamma> vs e = (e\<^sub>t, t1, vs1, uni1) \<Longrightarrow> 
+  typecheck' \<Gamma> vs v = (v\<^sub>t, t2, vs2, uni2) \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> unify' uni1 = Some sub1 \<Longrightarrow>
+    unify' uni2 = Some sub2 \<Longrightarrow> tsubsts sub1 (typeify t1) = tsubsts sub2 (typeify t2) \<and> 
       tsubstt sub1 (solidify e\<^sub>t) \<Down>\<^sub>t tsubstt sub2 (solidify v\<^sub>t)"
-proof (induction e v arbitrary: vs e\<^sub>t t1 vs1 sub1 v\<^sub>t t2 vs2 sub2 rule: evaln.induct)
+proof (induction e v arbitrary: vs e\<^sub>t t1 vs1 uni1 sub1 v\<^sub>t t2 vs2 uni2 sub2 rule: evaln.induct)
   case (evn_app e\<^sub>1 x e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
   let ?v = "fresh vs"
-  from evn_app obtain e\<^sub>1'' t\<^sub>1 vs' sub\<^sub>1 e\<^sub>2' t\<^sub>2 sub\<^sub>2 sub\<^sub>3 where E: "e\<^sub>t = HApp e\<^sub>1'' e\<^sub>2' \<and> t1 = Var ?v \<and> 
-    typecheck' \<Gamma> (insert ?v vs) e\<^sub>1 = Some (e\<^sub>1'', t\<^sub>1, vs', sub\<^sub>1) \<and> sub1 = combine_subst sub\<^sub>3 sub\<^sub>2 \<and> 
-      typecheck' (env_subst sub\<^sub>1 \<Gamma>) vs' e\<^sub>2 = Some (e\<^sub>2', t\<^sub>2, vs1, sub\<^sub>2) \<and> 
-        unify t\<^sub>1 (Ctor ''Arrow'' [t\<^sub>2, Var ?v]) = Some sub\<^sub>3" 
-    by (auto simp add: Let_def split: option.splits)
+  obtain e\<^sub>1\<^sub>t t\<^sub>1 vs' con\<^sub>1 where E1: "typecheck' \<Gamma> (insert ?v vs) e\<^sub>1 = (e\<^sub>1\<^sub>t, t\<^sub>1, vs', con\<^sub>1)" 
+    by (cases "typecheck' \<Gamma> (insert ?v vs) e\<^sub>1") 
+  obtain e\<^sub>2\<^sub>t t\<^sub>2 vs'' con\<^sub>2 where E2: "typecheck' \<Gamma> vs' e\<^sub>2 = (e\<^sub>2\<^sub>t, t\<^sub>2, vs'', con\<^sub>2)" 
+    by (cases "typecheck' \<Gamma> vs' e\<^sub>2") 
+  with evn_app E1 have E: "e\<^sub>t = HApp e\<^sub>1\<^sub>t e\<^sub>2\<^sub>t \<and> t1 = Var ?v \<and> vs1 = vs'' \<and> 
+    uni1 = (t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var ?v]) # con\<^sub>1 @ con\<^sub>2" 
+      by (auto simp add: Let_def)
 
 
   from evn_app have "e\<^sub>1 \<Down> NLam x e\<^sub>1'" by simp
   from evn_app have "e\<^sub>2 \<Down> v\<^sub>2" by simp
   from evn_app have "substn x v\<^sub>2 e\<^sub>1' \<Down> v" by simp
-  from evn_app E have "typecheck' \<Gamma> (insert ?v vs) (NLam x e\<^sub>1') = Some (xv\<^sub>t, xt20, xvs20, xsub2) \<Longrightarrow>
-    tsubsts sub\<^sub>1 (typeify t\<^sub>1) = tsubsts xsub2 (typeify xt20) \<and> tsubstt sub\<^sub>1 (solidify e\<^sub>1'') \<Down>\<^sub>t tsubstt xsub2 (solidify xv\<^sub>t)" by simp
-  from evn_app have "typecheck' \<Gamma> xvs e\<^sub>2 = Some (xe\<^sub>t, xt10, xvs10, xsub1) \<Longrightarrow>
-    typecheck' \<Gamma> xvs v\<^sub>2 = Some (xv\<^sub>t, xt20, xvs20, xsub2) \<Longrightarrow>
-    tsubsts xsub1 (typeify xt10) = tsubsts xsub2 (typeify xt20) \<and> tsubstt xsub1 (solidify xe\<^sub>t) \<Down>\<^sub>t tsubstt xsub2 (solidify xv\<^sub>t)" by simp
-  from evn_app have "typecheck' \<Gamma> xvs (substn x v\<^sub>2 e\<^sub>1') = Some (xe\<^sub>t, xt10, xvs10, xsub1) \<Longrightarrow>
-    typecheck' \<Gamma> xvs v = Some (xv\<^sub>t, xt20, xvs20, xsub2) \<Longrightarrow>
-    tsubsts xsub1 (typeify xt10) = tsubsts xsub2 (typeify xt20) \<and> tsubstt xsub1 (solidify xe\<^sub>t) \<Down>\<^sub>t tsubstt xsub2 (solidify xv\<^sub>t)" by simp
-  from evn_app have "typecheck' \<Gamma> vs v = Some (v\<^sub>t, t2, vs2, sub2)" by simp
+  from evn_app E1 have "typecheck' \<Gamma> (insert ?v vs) (NLam x e\<^sub>1') = (xv\<^sub>t, xt20, xvs20, xuni2) \<Longrightarrow>
+    unify' con\<^sub>1 = Some xsub10 \<Longrightarrow>
+    unify' xuni2 = Some xsub20 \<Longrightarrow>
+    tsubsts xsub10 (typeify t\<^sub>1) = tsubsts xsub20 (typeify xt20) \<and>
+    tsubstt xsub10 (solidify e\<^sub>1\<^sub>t) \<Down>\<^sub>t tsubstt xsub20 (solidify xv\<^sub>t)" by simp
+  from evn_app E2 have "typecheck' \<Gamma> vs' v\<^sub>2 = (xv\<^sub>t, xt20, xvs20, xuni2) \<Longrightarrow>
+    unify' con\<^sub>2 = Some xsub10 \<Longrightarrow>
+    unify' xuni2 = Some xsub20 \<Longrightarrow>
+    tsubsts xsub10 (typeify t\<^sub>2) = tsubsts xsub20 (typeify xt20) \<and>
+    tsubstt xsub10 (solidify e\<^sub>2\<^sub>t) \<Down>\<^sub>t tsubstt xsub20 (solidify xv\<^sub>t)" by simp
+  from evn_app have "typecheck' \<Gamma> xvs (substn x v\<^sub>2 e\<^sub>1') = (xe\<^sub>t, xt10, xvs10, xuni1) \<Longrightarrow>
+    typecheck' \<Gamma> xvs v = (xv\<^sub>t, xt20, xvs20, xuni2) \<Longrightarrow>
+    valid_ty_subst \<Gamma> \<Longrightarrow>
+    unify' xuni1 = Some xsub10 \<Longrightarrow>
+    unify' xuni2 = Some xsub20 \<Longrightarrow>
+    tsubsts xsub10 (typeify xt10) = tsubsts xsub20 (typeify xt20) \<and>
+    tsubstt xsub10 (solidify xe\<^sub>t) \<Down>\<^sub>t tsubstt xsub20 (solidify xv\<^sub>t)" by simp
+  from evn_app have "typecheck' \<Gamma> vs v = (v\<^sub>t, t2, vs2, uni2)" by simp
   from evn_app have "valid_ty_subst \<Gamma>" by simp
+  from evn_app have "unify' uni1 = Some sub1" by simp
+  from evn_app have "unify' uni2 = Some sub2" by simp
 
 
-  have "tsubsts sub1 (typeify t1) = tsubsts sub2 (typeify t2) \<and> tsubstt sub1 (solidify e\<^sub>t) \<Down>\<^sub>t tsubstt sub2 (solidify v\<^sub>t)" by simp
-  thus ?case by simp
+  have "tsubsts sub1 (typeify (Var ?v)) = tsubsts sub2 (typeify t2) \<and> 
+    TApp (tsubstt sub1 (solidify e\<^sub>1\<^sub>t)) (tsubstt sub1 (solidify e\<^sub>2\<^sub>t)) \<Down>\<^sub>t tsubstt sub2 (solidify v\<^sub>t)" by simp
+  with E show ?case by simp
 qed (auto simp add: Let_def split: option.splits prod.splits)
 
 theorem correctness: "e \<Down> v \<Longrightarrow> typecheck e = Some (e\<^sub>t, t) \<Longrightarrow> typecheck v = Some (v\<^sub>t, t) \<Longrightarrow> 
