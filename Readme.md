@@ -1,3 +1,5 @@
+A simple verified compiler, from the (simple typed, call-by-value) lambda calculus to a simple RAM machine
+
 Goals:
 
 Complete missing steps

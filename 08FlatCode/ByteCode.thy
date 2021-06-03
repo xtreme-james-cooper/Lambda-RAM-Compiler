@@ -19,17 +19,18 @@ datatype byte_code_state =
 
 inductive evalb :: "byte_code list \<Rightarrow> byte_code_state \<Rightarrow> byte_code_state \<Rightarrow> bool" 
     (infix "\<tturnstile> _ \<leadsto>\<^sub>b" 50) where
-  evb_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> lookup env x = Some v \<Longrightarrow> 
+  evb_lookup [simp]: "lookup cd pc = Some (BLookup x) \<Longrightarrow> lookup env x = Some v \<Longrightarrow> 
     cd \<tturnstile> BS vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>b BS (v # vs) ((env, pc) # sfs)" 
-| evb_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> 
+| evb_pushcon [simp]: "lookup cd pc = Some (BPushCon k) \<Longrightarrow> 
     cd \<tturnstile> BS vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>b BS (BConst k # vs) ((env, pc) # sfs)"
-| evb_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> 
+| evb_pushlam [simp]: "lookup cd pc = Some (BPushLam pc') \<Longrightarrow> 
     cd \<tturnstile> BS vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>b BS (BLam env pc' # vs) ((env, pc) # sfs)"
-| evb_apply [simp]: "cd ! pc = BApply \<Longrightarrow> 
+| evb_apply [simp]: "lookup cd pc = Some BApply \<Longrightarrow> 
     cd \<tturnstile> BS (v # BLam env' pc' # vs) ((env, Suc pc) # sfs) \<leadsto>\<^sub>b 
       BS vs ((v # env', pc') # (env, pc) # sfs)"
-| evb_return [simp]: "cd ! pc = BReturn \<Longrightarrow> cd \<tturnstile> BS vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>b BS vs sfs"
-| evb_jump [simp]: "cd ! pc = BJump \<Longrightarrow> 
+| evb_return [simp]: "lookup cd pc = Some BReturn \<Longrightarrow> 
+    cd \<tturnstile> BS vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>b BS vs sfs"
+| evb_jump [simp]: "lookup cd pc = Some BJump \<Longrightarrow> 
     cd \<tturnstile> BS (v # BLam env' pc' # vs) ((env, Suc pc) # sfs) \<leadsto>\<^sub>b BS vs ((v # env', pc') # sfs)"
 
 theorem determinismb: "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>b \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>b \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"

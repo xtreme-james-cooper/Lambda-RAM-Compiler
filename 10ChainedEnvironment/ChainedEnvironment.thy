@@ -16,20 +16,20 @@ fun chain_lookup :: "('a \<times> ptr) heap \<Rightarrow> ptr \<Rightarrow> nat 
 
 inductive evalce :: "byte_code list \<Rightarrow> chained_state \<Rightarrow> chained_state \<Rightarrow> bool" 
     (infix "\<tturnstile> _ \<leadsto>\<^sub>c\<^sub>e" 50) where
-  evce_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> chain_lookup env p x = Some v \<Longrightarrow>
+  evce_lookup [simp]: "lookup cd pc = Some (BLookup x) \<Longrightarrow> chain_lookup env p x = Some v \<Longrightarrow>
     cd \<tturnstile> CES h env vs ((p, Suc pc) # sfs) \<leadsto>\<^sub>c\<^sub>e CES h env (v # vs) ((p, pc) # sfs)"
-| evce_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> halloc h (CEConst k) = (h', v) \<Longrightarrow>
+| evce_pushcon [simp]: "lookup cd pc = Some (BPushCon k) \<Longrightarrow> halloc h (CEConst k) = (h', v) \<Longrightarrow>
     cd \<tturnstile> CES h env vs ((p, Suc pc) # sfs) \<leadsto>\<^sub>c\<^sub>e CES h' env (v # vs) ((p, pc) # sfs)"
-| evce_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> 
+| evce_pushlam [simp]: "lookup cd pc = Some (BPushLam pc') \<Longrightarrow> 
     halloc h (CELam p pc') = (h', v) \<Longrightarrow> 
       cd \<tturnstile> CES h env vs ((p, Suc pc) # sfs) \<leadsto>\<^sub>c\<^sub>e CES h' env (v # vs) ((p, pc) # sfs)"
-| evce_apply [simp]: "cd ! pc = BApply \<Longrightarrow> hlookup h v2 = CELam p' pc' \<Longrightarrow>
+| evce_apply [simp]: "lookup cd pc = Some BApply \<Longrightarrow> hlookup h v2 = CELam p' pc' \<Longrightarrow>
     halloc env (v1, p') = (env', p'') \<Longrightarrow> 
       cd \<tturnstile> CES h env (v1 # v2 # vs) ((p, Suc pc) # sfs) \<leadsto>\<^sub>c\<^sub>e 
         CES h env' vs ((Suc p'', pc') # (p, pc) # sfs)"
-| evce_return [simp]: "cd ! pc = BReturn \<Longrightarrow> 
+| evce_return [simp]: "lookup cd pc = Some BReturn \<Longrightarrow> 
     cd \<tturnstile> CES h env vs ((p, Suc pc) # sfs) \<leadsto>\<^sub>c\<^sub>e CES h env vs sfs"
-| evce_jump [simp]: "cd ! pc = BJump \<Longrightarrow> hlookup h v2 = CELam p' pc' \<Longrightarrow>
+| evce_jump [simp]: "lookup cd pc = Some BJump \<Longrightarrow> hlookup h v2 = CELam p' pc' \<Longrightarrow>
     halloc env (v1, p') = (env', p'') \<Longrightarrow>
       cd \<tturnstile> CES h env (v1 # v2 # vs) ((p, Suc pc) # sfs) \<leadsto>\<^sub>c\<^sub>e CES h env' vs ((Suc p'', pc') # sfs)"
 

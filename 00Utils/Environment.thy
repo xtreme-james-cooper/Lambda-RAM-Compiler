@@ -102,7 +102,13 @@ lemma [simp]: "x \<le> length as \<Longrightarrow> mset (insert_at x a as) = add
 lemma [simp]: "x \<ge> length as \<Longrightarrow> lookup as x = None"
   by (induction as x rule: lookup.induct) simp_all
 
+lemma [simp]: "x < length as \<Longrightarrow> lookup as x \<noteq> None"
+  by (induction as x rule: lookup.induct) simp_all
+
 lemma [simp]: "lookup as x = Some a \<Longrightarrow> x < length as"
+  by (induction as x rule: lookup.induct) simp_all
+
+lemma [simp]: "lookup as (Suc x) = Some a \<Longrightarrow> x < length as"
   by (induction as x rule: lookup.induct) simp_all
 
 lemma [simp]: "x < length as \<Longrightarrow> \<exists>a. lookup as x = Some a"
@@ -141,6 +147,15 @@ qed simp_all
 
 lemma [simp]: "lookup as x = Some a \<Longrightarrow> lookup (as @ bs) x = Some a"
   by (induction as x rule: lookup.induct) simp_all
+
+lemma [simp]: "x < length as \<Longrightarrow> lookup (as @ bs) x = lookup as x"
+  by (induction as x rule: lookup.induct) simp_all
+
+lemma [simp]: "lookup (as @ bs) (length as) = lookup bs 0"
+  by (induction as) simp_all
+
+lemma lookup_append [simp]: "lookup (as @ bs) (length as + n) = lookup bs n"
+  by (induction as) simp_all
 
 lemma [simp]: "x \<le> length as \<Longrightarrow> insert_at x a as @ bs = insert_at x a (as @ bs)"
 proof (induction x a as rule: insert_at.induct)
@@ -193,5 +208,48 @@ next
   case (4 x a' a as)
   thus ?case by (induction bs) simp_all
 qed simp_all
+
+lemma [simp]: "lookup as x = Some a \<Longrightarrow> as ! x = a"
+  by (induction as x rule: lookup.induct) simp_all
+
+(* some numeral simplification rules *)
+
+lemma [simp]: "lookup (a # b # c # d # e) 3 = Some d" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f) 4 = Some e" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g) 5 = Some f" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h) 6 = Some g" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i) 7 = Some h" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j) 8 = Some i" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k) 9 = Some j" 
+  by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l) 10 = Some k" 
+  by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m) 11 = Some l" 
+  by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n) 12 = Some m" 
+  by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p) 13 = Some n" 
+  by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q) 14 = Some p" 
+  by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q # r) 15 = 
+  Some q" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q # r # s) 16 = 
+  Some r" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q # r # s # t) 
+  17 = Some s" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q # r # s # t # 
+  u) 18 = Some t" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q # r # s # t # 
+  u # v) 19 = Some u" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q # r # s # t # 
+  u # v # w) 20 = Some v" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q # r # s # t # 
+  u # v # w # x) 21 = Some w" by (simp add: numeral_def)
+
+lemma [simp]: "lookup (a # b # c # d # e # f) (5 + x) = lookup f x" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f) (6 + x) = lookup f (Suc x)" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f) (7 + x) = lookup f (Suc (Suc x))" 
+  by (simp add: numeral_def)
 
 end

@@ -10,18 +10,18 @@ datatype heap_state =
   HS "hclosure heap" "ptr list" "(ptr list \<times> nat) list"
 
 inductive evalh :: "byte_code list \<Rightarrow> heap_state \<Rightarrow> heap_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>h" 50) where
-  evh_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> lookup env x = Some v \<Longrightarrow> 
+  evh_lookup [simp]: "lookup cd pc = Some (BLookup x) \<Longrightarrow> lookup env x = Some v \<Longrightarrow> 
     cd \<tturnstile> HS h vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>h HS h (v # vs) ((env, pc) # sfs)"
-| evh_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> halloc h (HConst k) = (h', v) \<Longrightarrow>
+| evh_pushcon [simp]: "lookup cd pc = Some (BPushCon k) \<Longrightarrow> halloc h (HConst k) = (h', v) \<Longrightarrow>
     cd \<tturnstile> HS h vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>h HS h' (v # vs) ((env, pc) # sfs)"
-| evh_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> halloc h (HLam env pc') = (h', v) \<Longrightarrow>
+| evh_pushlam [simp]: "lookup cd pc = Some (BPushLam pc') \<Longrightarrow> halloc h (HLam env pc') = (h', v) \<Longrightarrow>
     cd \<tturnstile> HS h vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>h HS h' (v # vs) ((env, pc) # sfs)"
-| evh_apply [simp]: "cd ! pc = BApply \<Longrightarrow> hlookup h v2 = HLam env' pc' \<Longrightarrow>
+| evh_apply [simp]: "lookup cd pc = Some BApply \<Longrightarrow> hlookup h v2 = HLam env' pc' \<Longrightarrow>
     cd \<tturnstile> HS h (v1 # v2 # vs) ((env, Suc pc) # sfs) \<leadsto>\<^sub>h
       HS h vs ((v1 # env', pc') # (env, pc) # sfs)"
-| evh_return [simp]: "cd ! pc = BReturn \<Longrightarrow> 
+| evh_return [simp]: "lookup cd pc = Some BReturn \<Longrightarrow> 
     cd \<tturnstile> HS h vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>h HS h vs sfs"
-| evh_jump [simp]: "cd ! pc = BJump \<Longrightarrow> hlookup h v2 = HLam env' pc' \<Longrightarrow>
+| evh_jump [simp]: "lookup cd pc = Some BJump \<Longrightarrow> hlookup h v2 = HLam env' pc' \<Longrightarrow>
     cd \<tturnstile> HS h (v1 # v2 # vs) ((env, Suc pc) # sfs) \<leadsto>\<^sub>h HS h vs ((v1 # env', pc') # sfs)"
 
 theorem determinismh: "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>h \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>h \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"

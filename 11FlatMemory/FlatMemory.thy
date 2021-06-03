@@ -17,18 +17,20 @@ fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonu
 | "flat_lookup h (Suc (Suc p)) (Suc x) = flat_lookup h (hlookup h (Suc p)) x"
 
 inductive evalf :: "byte_code list \<Rightarrow> flat_state \<Rightarrow> flat_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>f" 50) where
-  evf_lookup [simp]: "cd ! pc = BLookup x \<Longrightarrow> flat_lookup env p x = Some v \<Longrightarrow> 
+  evf_lookup [simp]: "lookup cd pc = Some (BLookup x) \<Longrightarrow> flat_lookup env p x = Some v \<Longrightarrow> 
     cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env (v # vs) (pc # p # sfs)"
-| evf_pushcon [simp]: "cd ! pc = BPushCon k \<Longrightarrow> halloc_list h [1, k, 0] = (h', v) \<Longrightarrow>
+| evf_pushcon [simp]: "lookup cd pc = Some (BPushCon k) \<Longrightarrow> halloc_list h [1, k, 0] = (h', v) \<Longrightarrow>
     cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs)"
-| evf_pushlam [simp]: "cd ! pc = BPushLam pc' \<Longrightarrow> halloc_list h [0, p, pc'] = (h', v) \<Longrightarrow> 
-    cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs)"
-| evf_apply [simp]: "cd ! pc = BApply \<Longrightarrow> get_closure h v2 = CELam p' pc' \<Longrightarrow>
+| evf_pushlam [simp]: "lookup cd pc = Some (BPushLam pc') \<Longrightarrow> 
+    halloc_list h [0, p, pc'] = (h', v) \<Longrightarrow> 
+      cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs)"
+| evf_apply [simp]: "lookup cd pc = Some BApply \<Longrightarrow> get_closure h v2 = CELam p' pc' \<Longrightarrow>
     halloc_list env [v1, p'] = (env', p2) \<Longrightarrow> 
       cd \<tturnstile> FS h env (v1 # v2 # vs) (Suc pc # p # sfs) \<leadsto>\<^sub>f 
         FS h env' vs (pc' # Suc (Suc p2) # pc # p # sfs)"
-| evf_return [simp]: "cd ! pc = BReturn \<Longrightarrow> cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env vs sfs"
-| evf_jump [simp]: "cd ! pc = BJump \<Longrightarrow> get_closure h v2 = CELam p' pc' \<Longrightarrow>
+| evf_return [simp]: "lookup cd pc = Some BReturn \<Longrightarrow> 
+    cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env vs sfs"
+| evf_jump [simp]: "lookup cd pc = Some BJump \<Longrightarrow> get_closure h v2 = CELam p' pc' \<Longrightarrow>
     halloc_list env [v1, p'] = (env', p2) \<Longrightarrow> 
       cd \<tturnstile> FS h env (v1 # v2 # vs) (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env' vs (pc' # Suc (Suc p2) # sfs)"
 
