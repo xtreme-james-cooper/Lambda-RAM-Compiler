@@ -202,6 +202,10 @@ lemma [simp]: "lookup (assemble_op mp op @ cd) (assemble_op_len op) =
     Some (last (assemble_op mp op))"
   by (induction op) simp_all
 
+(*
+
+TODO
+
 theorem completea [simp]: "assemble_code cd\<^sub>b \<tturnstile>\<^sub>a assm_state cd\<^sub>b \<Sigma>\<^sub>u = Some \<Sigma>\<^sub>a' \<Longrightarrow> 
   restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow>
     \<exists>n \<Sigma>\<^sub>u'. iter_evala (assemble_code cd\<^sub>b) n \<Sigma>\<^sub>a' = Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u') \<and> cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u'"
@@ -225,6 +229,8 @@ proof (induction \<Sigma>\<^sub>u)
       cd\<^sub>b \<tturnstile> US h hp e ep vs vp sh sp (Suc pc\<^sub>b') \<leadsto>\<^sub>u \<Sigma>\<^sub>u'" by simp
   with PCB show ?case by fastforce
 qed
+
+*)
 
 lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 
   assembly_map cd (Suc pc) = Suc (assemble_op_len op + assembly_map cd pc)"

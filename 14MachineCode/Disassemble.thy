@@ -93,40 +93,20 @@ lemma [simp]: "unmap_mem' p = (a, b) \<Longrightarrow> unmap_mem' (4 + p) = (a, 
 lemma [simp]: "length (disassemble cd) = length cd"
   by (simp add: disassemble_def)
 
+(*
+
+TODO
+
 theorem completem [simp]: "cd\<^sub>m \<tturnstile> \<Sigma>\<^sub>m \<leadsto>\<^sub>m \<Sigma>\<^sub>m' \<Longrightarrow> 
   \<exists>cd\<^sub>a \<Sigma>\<^sub>a \<Sigma>\<^sub>a'. cd\<^sub>m = disassemble cd\<^sub>a \<and> disassemble_state \<Sigma>\<^sub>a = \<Sigma>\<^sub>m \<and> 
     disassemble_state \<Sigma>\<^sub>a' = \<Sigma>\<^sub>m' \<and> cd\<^sub>a \<tturnstile> \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a'"
-proof (induction cd\<^sub>m \<Sigma>\<^sub>m \<Sigma>\<^sub>m' rule: evalm.induct)
-case (evm_ldi cd pc r k rs mem)
-  thus ?case by simp
-next
-case (evm_lod cd pc r ptr rs mem)
-  thus ?case by simp
-next
-case (evm_sto cd pc ptr r rs mem)
-  thus ?case by simp
-next
-case (evm_sti cd pc ptr k rs mem)
-  thus ?case by simp
-next
-case (evm_mov cd pc r1 r2 rs mem)
-  thus ?case by simp
-next
-  case (evm_mvp cd pc r rs mem)
-  thus ?case by simp
-next
-  case (evm_add cd pc r k rs mem)
-  thus ?case by simp
-next
-  case (evm_sub cd pc r k rs mem)
-  thus ?case by simp
-next
-  case (evm_jmp cd pc r rs mem)
-  thus ?case by simp
-qed
+  by simp
 
-lemma inv_reg_map_reg: "(inv_register_map ps a act)(R5 := inv_register_map ps a act (register_map r)) = 
-  inv_register_map ps (ps r) (Reg r)"
+*)
+
+lemma inv_reg_map_reg: "
+  (inv_register_map ps a act)(R5 := inv_register_map ps a act (register_map r)) = 
+    inv_register_map ps (ps r) (Reg r)"
 proof
   fix x
   show "((inv_register_map ps a act)(R5 := inv_register_map ps a act (register_map r))) x = 
