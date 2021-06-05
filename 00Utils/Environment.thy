@@ -108,6 +108,9 @@ lemma [simp]: "x < length as \<Longrightarrow> lookup as x \<noteq> None"
 lemma [simp]: "lookup as x = Some a \<Longrightarrow> x < length as"
   by (induction as x rule: lookup.induct) simp_all
 
+lemma [simp]: "lookup as x = Some a \<Longrightarrow> \<exists>b as'. as = b # as'"
+  by (induction as x rule: lookup.induct) simp_all
+
 lemma [simp]: "lookup as (Suc x) = Some a \<Longrightarrow> x < length as"
   by (induction as x rule: lookup.induct) simp_all
 

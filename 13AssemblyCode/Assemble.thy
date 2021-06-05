@@ -3,12 +3,12 @@ theory Assemble
 begin
 
 primrec assemble_op_len :: "byte_code \<Rightarrow> nat" where
-  "assemble_op_len (BLookup x) = 8 + 2 * x"
-| "assemble_op_len (BPushCon k) = 8"
-| "assemble_op_len (BPushLam pc) = 12"
-| "assemble_op_len BApply = 22"
-| "assemble_op_len BReturn = 4"
-| "assemble_op_len BJump = 19"
+  "assemble_op_len (BLookup x) = 7 + 2 * x"
+| "assemble_op_len (BPushCon k) = 7"
+| "assemble_op_len (BPushLam pc) = 11"
+| "assemble_op_len BApply = 21"
+| "assemble_op_len BReturn = 3"
+| "assemble_op_len BJump = 18"
 
 primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Rightarrow> assm list" where
   "assemble_op mp (BLookup x) = [
@@ -94,13 +94,10 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Righta
     AGet Vals (Reg Env),
     ASub Vals 1]"
 
-abbreviation assemble_extend_map :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat" where
-  "assemble_extend_map mp b lop x \<equiv> (if x < b then mp x else mp x + lop - 1)"
-
 fun assembly_map :: "byte_code list \<Rightarrow> nat \<Rightarrow> nat" where
   "assembly_map [] x = 0"
 | "assembly_map (op # cd) 0 = 0"
-| "assembly_map (op # cd) (Suc x) = assemble_op_len op + assembly_map cd x"
+| "assembly_map (op # cd) (Suc x) = Suc (assemble_op_len op + assembly_map cd x)"
 
 definition assemble_code :: "byte_code list \<Rightarrow> assm list" where
   "assemble_code cd = concat (map (assemble_op (assembly_map cd)) cd)"
@@ -125,36 +122,118 @@ abbreviation assm_stk :: "nat \<Rightarrow> byte_code list \<Rightarrow> (nat \<
 abbreviation assm_state :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> assm_state" where
   "assm_state cd \<equiv> assemble_state (assembly_map cd)"
 
-lemma [simp]: "length (assemble_op mp op) = assemble_op_len op"
+lemma [simp]: "length (assemble_op mp op) = Suc (assemble_op_len op)"
   by (induction op) simp_all
 
-lemma [simp]: "length \<circ> assemble_op mp = assemble_op_len"
+lemma [simp]: "length \<circ> assemble_op mp = Suc \<circ> assemble_op_len"
   by auto
-
-lemma assemble_op_len_Succ: " 0 < assemble_op_len op"
-  by (induction op) simp_all
 
 lemma [simp]: "assemble_code [] \<tturnstile>\<^sub>a \<Sigma> = None"
   by (induction \<Sigma>) (simp_all add: assemble_code_def split: nat.splits)
 
+lemma [simp]: "assembly_map cd 0 = 0"
+  by (induction cd) simp_all
+
+lemma assm_map_to_suc' [simp]: "assembly_map cd\<^sub>b pc\<^sub>b = Suc pc\<^sub>a \<Longrightarrow> pc\<^sub>b \<le> length cd\<^sub>b \<Longrightarrow> 
+  \<exists>pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a''. pc\<^sub>b = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
+    pc\<^sub>a = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and> 
+      concat (map (assemble_op (assembly_map (cd\<^sub>b' @ cd\<^sub>b))) cd\<^sub>b) = 
+        cd\<^sub>a' @ assemble_op (assembly_map (cd\<^sub>b' @ cd\<^sub>b)) op\<^sub>b @ cd\<^sub>a''"
+proof (induction cd\<^sub>b pc\<^sub>b arbitrary: pc\<^sub>a cd\<^sub>b' rule: assembly_map.induct)
+  case (3 op\<^sub>b cd\<^sub>b pc\<^sub>b)
+  thus ?case
+  proof (induction pc\<^sub>b)
+    case (Suc pc\<^sub>b)
+    then obtain op\<^sub>b' cd\<^sub>b'' where C: "cd\<^sub>b = op\<^sub>b' # cd\<^sub>b''" by (cases cd\<^sub>b) simp_all
+    hence A: "assembly_map cd\<^sub>b (Suc pc\<^sub>b) = Suc (assemble_op_len op\<^sub>b' + assembly_map cd\<^sub>b'' pc\<^sub>b)"
+      by simp
+    from Suc have "Suc pc\<^sub>b \<le> length cd\<^sub>b" by simp
+    with Suc(2) A obtain op\<^sub>b'' cd\<^sub>a' cd\<^sub>a'' where O: "lookup cd\<^sub>b pc\<^sub>b = Some op\<^sub>b'' \<and>
+      assemble_op_len op\<^sub>b' + assembly_map cd\<^sub>b'' pc\<^sub>b = length cd\<^sub>a' + assemble_op_len op\<^sub>b'' \<and>
+        concat (map (assemble_op (assembly_map ((cd\<^sub>b' @ [op\<^sub>b]) @ cd\<^sub>b))) cd\<^sub>b) =
+          cd\<^sub>a' @ assemble_op (assembly_map ((cd\<^sub>b' @ [op\<^sub>b]) @ cd\<^sub>b)) op\<^sub>b'' @ cd\<^sub>a''" by blast
+    hence X: "lookup (op\<^sub>b # cd\<^sub>b) (Suc pc\<^sub>b) = Some op\<^sub>b''" by simp
+    let ?mp = "assembly_map (cd\<^sub>b' @ op\<^sub>b # cd\<^sub>b)"
+    from Suc have "pc\<^sub>a = assemble_op_len op\<^sub>b + assembly_map cd\<^sub>b (Suc pc\<^sub>b)" by simp
+    with C O have Y: "pc\<^sub>a = length (assemble_op ?mp op\<^sub>b @ cd\<^sub>a') + assemble_op_len op\<^sub>b''" by simp
+    from O have "concat (map (assemble_op ?mp) (op\<^sub>b # cd\<^sub>b)) = 
+      (assemble_op ?mp op\<^sub>b @ cd\<^sub>a') @ assemble_op ?mp op\<^sub>b'' @ cd\<^sub>a''" by simp
+    with X Y show ?case by blast
+  qed simp_all
+qed simp_all
+
+lemma assm_map_to_suc [simp]: "assembly_map cd\<^sub>b pc\<^sub>b = Suc pc\<^sub>a \<Longrightarrow> pc\<^sub>b \<le> length cd\<^sub>b \<Longrightarrow> 
+  \<exists>pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a''. pc\<^sub>b = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
+    pc\<^sub>a = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and>
+      assemble_code cd\<^sub>b = cd\<^sub>a' @ assemble_op (assembly_map cd\<^sub>b) op\<^sub>b @ cd\<^sub>a''"
+proof (unfold assemble_code_def)
+  assume "assembly_map cd\<^sub>b pc\<^sub>b = Suc pc\<^sub>a" and "pc\<^sub>b \<le> length cd\<^sub>b"
+  hence "\<exists>pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a''. pc\<^sub>b = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
+    pc\<^sub>a = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and> 
+      concat (map (assemble_op (assembly_map ([] @ cd\<^sub>b))) cd\<^sub>b) = 
+        cd\<^sub>a' @ assemble_op (assembly_map ([] @ cd\<^sub>b)) op\<^sub>b @ cd\<^sub>a''" by (metis assm_map_to_suc')
+  thus "\<exists>pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a''. pc\<^sub>b = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
+    pc\<^sub>a = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and> concat (map (assemble_op (assembly_map cd\<^sub>b)) cd\<^sub>b) = 
+      cd\<^sub>a' @ assemble_op (assembly_map cd\<^sub>b) op\<^sub>b @ cd\<^sub>a''" by simp
+qed
+
+lemma [simp]: "Suc x \<le> y \<Longrightarrow> lookup (concat (replicate y [a, b])) (2 * x) = Some a"
+proof (induction y arbitrary: x)
+  case (Suc y)
+  thus ?case by (induction x) simp_all
+qed simp_all
+
+lemma [simp]: "Suc x \<le> y \<Longrightarrow> lookup (concat (replicate y [a, b])) (Suc (2 * x)) = Some b"
+proof (induction y arbitrary: x)
+  case (Suc y)
+  thus ?case by (induction x) simp_all
+qed simp_all
+
+lemma [simp]: "lookup (concat (replicate x [a, b]) @ bs) (2 * x) = lookup bs 0"
+  by (induction x) simp_all
+
+lemma [simp]: "lookup (concat (replicate x [a, b]) @ bs) (Suc (2 * x)) = lookup bs 1"
+  by (induction x) simp_all
+
+lemma [simp]: "lookup (concat (replicate x [a, b]) @ bs) (Suc (Suc (2 * x))) = lookup bs (Suc 1)"
+  by (induction x) simp_all
+
+lemma [simp]: "lookup (assemble_op mp op @ cd) (assemble_op_len op) = 
+    Some (last (assemble_op mp op))"
+  by (induction op) simp_all
+
 theorem completea [simp]: "assemble_code cd\<^sub>b \<tturnstile>\<^sub>a assm_state cd\<^sub>b \<Sigma>\<^sub>u = Some \<Sigma>\<^sub>a' \<Longrightarrow> 
+  restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow>
     \<exists>n \<Sigma>\<^sub>u'. iter_evala (assemble_code cd\<^sub>b) n \<Sigma>\<^sub>a' = Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u') \<and> cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u'"
 proof (induction \<Sigma>\<^sub>u)
   case (US h hp e ep vs vp sh sp pc)
-  thus ?case by simp
+  from US(1) obtain pc' where PCA: "assembly_map cd\<^sub>b pc = Suc pc'" by (simp split: nat.splits)
+  moreover from US have "pc \<le> length cd\<^sub>b" by simp
+  ultimately obtain pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a'' where PCB: "pc = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
+    pc' = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and>
+      assemble_code cd\<^sub>b = cd\<^sub>a' @ assemble_op (assembly_map cd\<^sub>b) op\<^sub>b @ cd\<^sub>a''" 
+        by (metis assm_map_to_suc)
+
+
+  from US PCA PCB have "Option.bind (lookup (assemble_op (assembly_map cd\<^sub>b) op\<^sub>b @ cd\<^sub>a'') (assemble_op_len op\<^sub>b))
+          (assm_step (case_register (assm_hp hp cd\<^sub>b h) e vs (assm_stk sp cd\<^sub>b sh)) (case_register hp ep vp sp) 0
+            (Con 0) pc') = Some \<Sigma>\<^sub>a'" by simp
+
+
+  have "iter_evala (cd\<^sub>a' @ assemble_op (assembly_map cd\<^sub>b) op\<^sub>b @ cd\<^sub>a'') (assemble_op_len op\<^sub>b) \<Sigma>\<^sub>a' = 
+    Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u') \<and>
+      cd\<^sub>b \<tturnstile> US h hp e ep vs vp sh sp (Suc pc\<^sub>b') \<leadsto>\<^sub>u \<Sigma>\<^sub>u'" by simp
+  with PCB show ?case by fastforce
 qed
 
-lemma [simp]: "assembly_map mp 0 = 0"
-  by (induction mp) simp_all
-
 lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 
-  assembly_map cd (Suc pc) = assemble_op_len op + assembly_map cd pc"
+  assembly_map cd (Suc pc) = Suc (assemble_op_len op + assembly_map cd pc)"
 proof (induction cd pc rule: assembly_map.induct)
   case (2 op' cd)
   thus ?case by (cases cd) simp_all
 qed simp_all
 
-lemma [simp]: "length (assemble_code cd) = list_sum (map assemble_op_len cd)"
+lemma [simp]: "length (assemble_code cd) = list_sum (map (Suc \<circ> assemble_op_len) cd)"
   by (induction cd) (simp_all add: assemble_code_def)
 
 lemma [simp]: "assembly_map cd (length cd) = length (assemble_code cd)"
@@ -166,14 +245,14 @@ lemma [simp]: "assm_hp hp cd nmem = nmem"
 lemma [simp]: "assm_stk 0 cd m = m"
   by (auto simp add: assemble_stack_def)
 
-lemma [simp]: "lookup (assemble_op mp op @ cd) (assemble_op_len op + x) = lookup cd x"
+lemma [simp]: "lookup (assemble_op mp op @ cd) (Suc (assemble_op_len op + x)) = lookup cd x"
 proof -
   have "lookup (assemble_op mp op @ cd) (length (assemble_op mp op) + x) = lookup cd x" 
     by (metis lookup_append)
   thus ?thesis by simp
 qed
 
-lemma assemble_code_lookup' [simp]: "lookup cd pc = Some op \<Longrightarrow> x < assemble_op_len op \<Longrightarrow> 
+lemma assemble_code_lookup' [simp]: "lookup cd pc = Some op \<Longrightarrow> x \<le> assemble_op_len op \<Longrightarrow> 
   lookup (concat (map (assemble_op (assembly_map (cd' @ cd))) cd)) (x + assembly_map cd pc) = 
     lookup (assemble_op (assembly_map (cd' @ cd)) op) x"
 proof (induction cd pc arbitrary: cd' rule: assembly_map.induct)
@@ -183,26 +262,26 @@ proof (induction cd pc arbitrary: cd' rule: assembly_map.induct)
       by fastforce
   hence "lookup (assemble_op (assembly_map (cd' @ op' # cd)) op' @ 
     concat (map (assemble_op (assembly_map (cd' @ op' # cd))) cd))
-      (assemble_op_len op' + (x + assembly_map cd y)) =
+      (Suc (assemble_op_len op' + (x + assembly_map cd y))) =
         lookup (assemble_op (assembly_map (cd' @ op' # cd)) op) x" by simp
   hence "lookup (assemble_op (assembly_map (cd' @ op' # cd)) op' @ 
     concat (map (assemble_op (assembly_map (cd' @ op' # cd))) cd))
-      (x + (assemble_op_len op' + assembly_map cd y)) =
+      (Suc (x + (assemble_op_len op' + assembly_map cd y))) =
         lookup (assemble_op (assembly_map (cd' @ op' # cd)) op) x" by (metis add.assoc add.commute)
   thus ?case by simp
 qed simp_all
 
 lemma assemble_code_lookup [simp]: "lookup cd pc = Some op \<Longrightarrow> 
-  x < assemble_op_len op \<Longrightarrow> lookup (assemble_code cd) (x + assembly_map cd pc) = 
+  x \<le> assemble_op_len op \<Longrightarrow> lookup (assemble_code cd) (x + assembly_map cd pc) = 
     lookup (assemble_op (assembly_map cd) op) x"
   by (metis assemble_code_lookup' append_Nil assemble_code_def)
 
-lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 1 < assemble_op_len op \<Longrightarrow> 
+lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 1 \<le> assemble_op_len op \<Longrightarrow> 
   lookup (assemble_code cd) (Suc (assembly_map cd pc)) = 
     lookup (assemble_op (assembly_map cd) op) 1"
   using assemble_code_lookup by fastforce
 
-lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 0 < assemble_op_len op \<Longrightarrow> 
+lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 
     lookup (assemble_code cd) (assembly_map cd pc) = lookup (assemble_op (assembly_map cd) op) 0"
   using assemble_code_lookup by fastforce
 
@@ -350,27 +429,6 @@ lemma [simp]: "even (Suc (Suc sp)) \<Longrightarrow> assm_stk (Suc (Suc sp)) cd 
 lemma [simp]: "assm_stk 2 cd (sh(0 := 0, Suc 0 := 0)) = (sh(0 := 0, Suc 0 := 0))"
   by (auto simp add: assemble_stack_def)
 
-lemma [simp]: "Suc x \<le> y \<Longrightarrow> lookup (concat (replicate y [a, b])) (2 * x) = Some a"
-proof (induction y arbitrary: x)
-  case (Suc y)
-  thus ?case by (induction x) simp_all
-qed simp_all
-
-lemma [simp]: "Suc x \<le> y \<Longrightarrow> lookup (concat (replicate y [a, b])) (Suc (2 * x)) = Some b"
-proof (induction y arbitrary: x)
-  case (Suc y)
-  thus ?case by (induction x) simp_all
-qed simp_all
-
-lemma [simp]: "lookup (concat (replicate x [a, b]) @ bs) (2 * x) = lookup bs 0"
-  by (induction x) simp_all
-
-lemma [simp]: "lookup (concat (replicate x [a, b]) @ bs) (Suc (2 * x)) = lookup bs 1"
-  by (induction x) simp_all
-
-lemma [simp]: "lookup (concat (replicate x [a, b]) @ bs) (Suc (Suc (2 * x))) = lookup bs (Suc 1)"
-  by (induction x) simp_all
-
 lemma [simp]: "unstr_lookup e a x = Some v \<Longrightarrow> lookup cd pc = Some (BLookup y) \<Longrightarrow> x \<le> y \<Longrightarrow> 
   pc < length cd \<Longrightarrow> iter_evala (assemble_code cd) (5 + 2 * x) 
     (AS (case_register h e vs sh) (case_register hp ep vp sp) a (Reg Env)
@@ -436,6 +494,12 @@ proof (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induc
         Some (AS (case_register (assm_hp hp cd h) e (vs(vp := y)) (assm_stk (Suc sp) cd sh)) 
           (case_register hp ep (Suc vp) (Suc sp)) 0 (Con 0) (assembly_map cd pc))" 
     using iter_evala_combine by blast
+  hence "iter_evala (assemble_code cd) (3 + (5 + 2 * x)) 
+    (AS (case_register (assm_hp hp cd h) e vs (assm_stk (Suc sp) cd sh)) 
+      (case_register hp ep vp (Suc sp)) 0 (Con 0) (8 + (2 * x + assembly_map cd pc))) = 
+        Some (AS (case_register (assm_hp hp cd h) e (vs(vp := y)) (assm_stk (Suc sp) cd sh)) 
+          (case_register hp ep (Suc vp) (Suc sp)) 0 (Con 0) (assembly_map cd pc))"
+    by (metis add.assoc)
   with evu_lookup show ?case by auto
 next
   case (evu_pushcon cd pc k h hp e ep vs vp sh sp)
