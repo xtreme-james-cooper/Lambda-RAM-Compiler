@@ -2,7 +2,7 @@ A simple verified compiler, from the (simple typed, call-by-value) lambda calcul
 
 Goals:
 
-Complete missing steps
+Complete missing steps (currently in Assemble and disassemble)
 Figure out use for other direction of correctness proofs?
 Modularize code with classes
 Remove tags

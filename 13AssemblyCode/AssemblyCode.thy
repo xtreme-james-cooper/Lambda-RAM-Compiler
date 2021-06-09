@@ -35,7 +35,7 @@ fun assm_step :: "(register \<Rightarrow> nat \<Rightarrow> nat) \<Rightarrow> (
 | "assm_step mem ps a act pc (APutA r) = Some (AS (mem_upd mem r (ps r) a) ps a act pc)"
 | "assm_step mem ps a act pc (APut r (Reg r')) = 
     Some (AS (mem_upd mem r (ps r) (ps r')) ps a act pc)"
-| "assm_step mem ps a act pc (APut r PC) = Some (AS (mem_upd mem r (ps r) pc) ps a act pc)"
+| "assm_step mem ps a act pc (APut r PC) = None"
 | "assm_step mem ps a act pc (APut r (Con k)) = Some (AS (mem_upd mem r (ps r) k) ps a act pc)"
 | "assm_step mem ps a act pc (ASubA k t) =
     (if t = act then Some (AS mem ps (a - k) act pc) else None)"
@@ -70,8 +70,6 @@ inductive evala :: "assm list \<Rightarrow> assm_state \<Rightarrow> assm_state 
     cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) a) ps a act pc"
 | eva_putr [simp]: "lookup cd pc = Some (APut r (Reg r')) \<Longrightarrow>
     cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) (ps r')) ps a act pc"
-| eva_putp [simp]: "lookup cd pc = Some (APut r PC) \<Longrightarrow>
-    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) pc) ps a act pc"
 | eva_putk [simp]: "lookup cd pc = Some (APut r (Con k)) \<Longrightarrow>
     cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) k) ps a act pc"
 | eva_suba [simp]: "lookup cd pc = Some (ASubA k act) \<Longrightarrow>
