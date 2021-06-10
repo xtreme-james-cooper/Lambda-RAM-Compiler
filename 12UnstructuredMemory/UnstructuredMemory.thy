@@ -8,8 +8,8 @@ datatype unstr_state =
 fun unstr_lookup :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<rightharpoonup> nat" where
   "unstr_lookup h 0 x = None"
 | "unstr_lookup h (Suc 0) x = None"
-| "unstr_lookup h (Suc (Suc p)) 0 = Some (h p)"
-| "unstr_lookup h (Suc (Suc p)) (Suc x) = unstr_lookup h (h (Suc p)) x"
+| "unstr_lookup h (Suc (Suc p)) 0 = (if even p then Some (h p) else None)"
+| "unstr_lookup h (Suc (Suc p)) (Suc x) = (if even p then unstr_lookup h (h (Suc p)) x else None)"
 
 inductive evalu :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> unstr_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>u" 50) where
   evu_lookup [simp]: "lookup cd pc = Some (BLookup x) \<Longrightarrow> unstr_lookup e (sh sp) x = Some y \<Longrightarrow>
@@ -29,7 +29,7 @@ inductive evalu :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> unstr
         (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (2 + Suc sp) (h (Suc (Suc (vs vp))))"
 | evu_return [simp]: "lookup cd pc = Some BReturn \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-      US h hp e ep vs vp (sh(sp := 0)) sp (sh sp)"
+      US h hp e ep vs vp sh sp (sh sp)"
 | evu_jump [simp]: "lookup cd pc = Some BJump \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
@@ -295,6 +295,9 @@ qed
 lemma [simp]: "h (vs vp) = 0 \<Longrightarrow> restructurable_heap h hp ep (length cd) \<Longrightarrow> 
     restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> h (Suc (Suc (vs vp))) \<noteq> 0"
   by simp
+
+lemma [elim]: "restructurable_stack sh (Suc (Suc sp)) ep lcd \<Longrightarrow> restructurable_stack sh sp ep lcd"
+  by (unfold restructurable_stack_def, rule) simp
 
 lemma preserve_restructure [simp]: "cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd \<Longrightarrow> 
     restructurable \<Sigma>\<^sub>u' cd"

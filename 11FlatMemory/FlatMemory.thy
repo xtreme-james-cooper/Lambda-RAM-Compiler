@@ -13,8 +13,9 @@ fun get_closure :: "nat heap \<Rightarrow> nat \<Rightarrow> ceclosure" where
 fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonup> ptr" where
   "flat_lookup h 0 x = None"
 | "flat_lookup h (Suc 0) x = None"
-| "flat_lookup h (Suc (Suc p)) 0 = Some (hlookup h p)"
-| "flat_lookup h (Suc (Suc p)) (Suc x) = flat_lookup h (hlookup h (Suc p)) x"
+| "flat_lookup h (Suc (Suc p)) 0 = (if even p then Some (hlookup h p) else None)"
+| "flat_lookup h (Suc (Suc p)) (Suc x) = (
+    if even p then flat_lookup h (hlookup h (Suc p)) x else None)"
 
 inductive evalf :: "byte_code list \<Rightarrow> flat_state \<Rightarrow> flat_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>f" 50) where
   evf_lookup [simp]: "lookup cd pc = Some (BLookup x) \<Longrightarrow> flat_lookup env p x = Some v \<Longrightarrow> 

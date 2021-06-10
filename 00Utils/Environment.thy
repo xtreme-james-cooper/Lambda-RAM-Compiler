@@ -217,6 +217,7 @@ lemma [simp]: "lookup as x = Some a \<Longrightarrow> as ! x = a"
 
 (* some numeral simplification rules *)
 
+lemma [simp]: "lookup (a # b # c # d) 2 = Some c" by (simp add: numeral_def)
 lemma [simp]: "lookup (a # b # c # d # e) 3 = Some d" by (simp add: numeral_def)
 lemma [simp]: "lookup (a # b # c # d # e # f) 4 = Some e" by (simp add: numeral_def)
 lemma [simp]: "lookup (a # b # c # d # e # f # g) 5 = Some f" by (simp add: numeral_def)

@@ -96,7 +96,7 @@ proof (induction as arbitrary: bs)
   thus ?case by (induction bs) auto
 qed simp_all
 
-abbreviation nmem :: "nat \<Rightarrow> nat" where
+abbreviation nmem :: "nat \<Rightarrow> 'a" where
   "nmem x \<equiv> undefined"
 
 lemma [simp]: "(a # as @ bs) ! length as = (a # as) ! length as"
