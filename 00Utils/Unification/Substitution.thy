@@ -31,6 +31,16 @@ definition combine_subst :: "subst \<Rightarrow> subst \<Rightarrow> subst" wher
 definition ordered_subst :: "subst \<Rightarrow> bool" where
   "ordered_subst s = (dom s \<inter> subst_vars s = {})"
 
+definition subst_extends :: "subst \<Rightarrow> subst \<Rightarrow> bool" (infix "extends" 50) where
+  "subst_extends s t = (\<exists>u. subst s = subst u \<circ> subst t)"
+
+lemma [simp]: "subst Map.empty = id"
+proof
+  fix e
+  show "subst Map.empty e = id e" by (induction e) (auto simp add: map_idI)
+qed
+  
+
 lemma [simp]: "x \<notin> vars e \<Longrightarrow> subst [x \<mapsto> e'] e = e"
   and [simp]: "x \<notin> varss es \<Longrightarrow> map (subst [x \<mapsto> e']) es = es"
   by (induction e and es rule: vars_varss.induct) simp_all
@@ -309,5 +319,36 @@ lemma [simp]: "subst (combine_subst s t) e = subst s (subst t e)"
 
 lemma [simp]: "subst (combine_subst s t) = subst s \<circ> subst t"
   by auto
+
+lemma [elim]: "s extends t \<Longrightarrow> t extends u \<Longrightarrow> s extends u"
+proof (unfold subst_extends_def)
+  assume "\<exists>w. subst s = subst w \<circ> subst t"
+  then obtain w where W: "subst s = subst w \<circ> subst t" by fastforce
+  assume "\<exists>v. subst t = subst v \<circ> subst u" 
+  then obtain v where V: "subst t = subst v \<circ> subst u" by fastforce
+  have "subst w \<circ> (subst v \<circ> subst u) = subst (combine_subst w v) \<circ> subst u" by fastforce
+  with W V show "\<exists>r. subst s = subst r \<circ> subst u" by metis
+qed
+
+lemma [simp]: "s extends Map.empty"
+  by (auto simp add: subst_extends_def)
+
+lemma [simp]: "s extends t \<Longrightarrow> extend_subst x e s extends extend_subst x e t"
+proof (unfold subst_extends_def)
+  assume "\<exists>u. subst s = subst u \<circ> subst t"
+  then obtain u where U: "subst s = subst u \<circ> subst t" by blast
+  moreover hence "subst (extend_subst x e s) = subst u \<circ> subst (extend_subst x e t)" 
+    by (simp add: expand_extend_subst) auto
+  ultimately show "\<exists>u. subst (extend_subst x e s) = subst u \<circ> subst (extend_subst x e t)" by auto
+qed
+
+lemma extends_refl [simp]: "s extends s"
+proof (unfold subst_extends_def)
+  have "subst s = subst Map.empty \<circ> subst s" by simp
+  thus "\<exists>u. subst s = subst u \<circ> subst s" by blast
+qed
+
+lemma [elim]: "s unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> t extends s \<Longrightarrow> t unifies e\<^sub>1 and e\<^sub>2"
+  by (auto simp add: subst_extends_def)
 
 end

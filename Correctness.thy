@@ -100,7 +100,7 @@ proof -
         (disassemble_state (AS ?mem ?rs 0 (Con 0) 0))" by (metis correctm_iter)
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0)
     (unmap_mem (case_register (assm_hp 0 ?cd nmem) nmem nmem (nmem(0 := 0, Suc 0 := 0)))) 
-      (list_sum (map (Suc \<circ> assemble_op_len) ?cd)))
+      (sum_list (map (Suc \<circ> assemble_op_len) ?cd)))
         (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" 
     by simp
   with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) (nmem(3 := 0, 7 := 0)) (length cd)) 

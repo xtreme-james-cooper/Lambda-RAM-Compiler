@@ -247,7 +247,7 @@ proof (induction cd pc rule: assembly_map.induct)
   thus ?case by (cases cd) simp_all
 qed simp_all
 
-lemma [simp]: "length (assemble_code cd) = list_sum (map (Suc \<circ> assemble_op_len) cd)"
+lemma [simp]: "length (assemble_code cd) = sum_list (map (Suc \<circ> assemble_op_len) cd)"
   by (induction cd) (simp_all add: assemble_code_def)
 
 lemma [simp]: "assembly_map cd (length cd) = length (assemble_code cd)"

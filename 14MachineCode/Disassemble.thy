@@ -225,15 +225,14 @@ proof
     by (induction x) simp_all
 qed
 
-lemma [simp]: "mem m a = (t, b) \<Longrightarrow> 
-  (inv_register_map ps a (Reg m))(R5 := pseudoreg_map (mem m (ps m))) = inv_register_map ps b t"
+lemma [simp]: "(unmap_mem mem)(inv_register_map ps a act (register_map r) := k) = 
+  unmap_mem (mem_upd mem r (ps r) (Con 0, k))"
 proof
   fix x
-  assume "mem m a = (t, b)"
-  thus "((inv_register_map ps a (Reg m))(R5 := pseudoreg_map (mem m (ps m)))) x = 
-    inv_register_map ps b t x"
-    apply (induction ps b t x rule: inv_register_map.induct) 
-    apply simp_all
+  show "((unmap_mem mem)(inv_register_map ps a act (register_map r) := k)) x =
+      unmap_mem (mem_upd mem r (ps r) (Con 0, k)) x"
+    by (induction r) (auto simp add: unmap_mem_def split: prod.splits)
+qed
 
 lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> disassemble cd ! pc = disassemble' op"
 proof (induction cd)
@@ -265,7 +264,7 @@ next
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps a (Reg m)) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
     MS ((inv_register_map ps a (Reg m))(R5 := (unmap_mem mem) ((inv_register_map ps a (Reg m)) 
       (register_map m)))) (unmap_mem mem) pc" by (metis evm_lod)
-  thus ?case by simp
+  with eva_geta show ?case by simp
 next
   case (eva_get cd pc r t mem ps a act)
   hence "disassemble cd ! pc = LOD R5 (register_map r)" by simp

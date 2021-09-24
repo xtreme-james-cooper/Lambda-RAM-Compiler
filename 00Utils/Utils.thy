@@ -40,11 +40,7 @@ proof (induction ab arbitrary: s)
   qed
 qed simp_all
 
-primrec list_sum :: "nat list \<Rightarrow> nat" where
-  "list_sum [] = 0"
-| "list_sum (n # ns) = n + list_sum ns"
-
-lemma [simp]: "length (concat (map f as)) = list_sum (map (length \<circ> f) as)"
+lemma [simp]: "length (concat (map f as)) = sum_list (map (length \<circ> f) as)"
   by (induction as) simp_all
 
 lemma [simp]: "length as \<noteq> length bs \<Longrightarrow> map f as \<noteq> map f bs"

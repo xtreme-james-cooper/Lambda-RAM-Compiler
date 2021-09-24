@@ -15,7 +15,7 @@ and varss :: "uexpr list \<Rightarrow> var set" where
 
 primrec ctor_count :: "uexpr \<Rightarrow> nat" where
   "ctor_count (Var x) = 0"
-| "ctor_count (Ctor k es) = Suc (list_sum (map ctor_count es))"
+| "ctor_count (Ctor k es) = Suc (sum_list (map ctor_count es))"
 
 fun list_vars :: "(uexpr \<times> uexpr) list \<Rightarrow> var set" where
   "list_vars [] = {}"
@@ -48,7 +48,7 @@ lemma [simp]: "list_ctor_count (ess\<^sub>1 @ ess\<^sub>2) = list_ctor_count ess
   by (induction ess\<^sub>1 rule: list_ctor_count.induct) simp_all
 
 lemma [simp]: "length es\<^sub>1 = length es\<^sub>2 \<Longrightarrow> 
-  list_ctor_count (zip es\<^sub>1 es\<^sub>2) = list_sum (map ctor_count es\<^sub>1)"
+  list_ctor_count (zip es\<^sub>1 es\<^sub>2) = sum_list (map ctor_count es\<^sub>1)"
 proof (induction es\<^sub>1 arbitrary: es\<^sub>2)
   case (Cons e\<^sub>1 es\<^sub>1)
   thus ?case by (induction es\<^sub>2) simp_all

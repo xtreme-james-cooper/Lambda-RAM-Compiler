@@ -193,18 +193,30 @@ next
   qed
 qed simp_all
 
-lemma [simp]: "unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> t unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> ordered_subst t \<Longrightarrow> 
-  \<exists>u. subst t = subst u \<circ> subst s \<and> ordered_subst u"
+lemma [simp]: "unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> t unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> ordered_subst t \<Longrightarrow> t extends s"
 proof (unfold unify_def)
   assume "t unifies e\<^sub>1 and e\<^sub>2"
   hence "t unifies\<^sub>l [(e\<^sub>1, e\<^sub>2)]" by simp
   moreover assume "unify' [(e\<^sub>1, e\<^sub>2)] = Some s"
   moreover assume "ordered_subst t"
-  ultimately show ?thesis by simp
+  ultimately have "\<exists>u. subst t = subst u \<circ> subst s \<and> ordered_subst u" by simp
+  thus ?thesis by (auto simp add: subst_extends_def)
 qed
 
-lemma [elim]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s \<Longrightarrow> \<exists>s\<^sub>1. unify' ess\<^sub>1 = Some s\<^sub>1"
+lemma unify_append_fst [simp]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s \<Longrightarrow> 
+    \<exists>s\<^sub>1. unify' ess\<^sub>1 = Some s\<^sub>1 \<and> s extends s\<^sub>1"
   by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct) auto
+
+lemma unify_append_snd [simp]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s \<Longrightarrow> 
+    \<exists>s\<^sub>2. unify' ess\<^sub>2 = Some s\<^sub>2 \<and> s extends s\<^sub>2"
+  by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct) auto
+
+lemma [simp]: "unify' (es # ess) = Some s \<Longrightarrow> \<exists>s\<^sub>2. unify' ess = Some s\<^sub>2 \<and> s extends s\<^sub>2"
+proof -
+  assume "unify' (es # ess) = Some s" 
+  hence "unify' ([es] @ ess) = Some s" by simp
+  thus "\<exists>s\<^sub>2. unify' ess = Some s\<^sub>2 \<and> s extends s\<^sub>2" by (metis unify_append_snd)
+qed
 
 lemma unify'_props: "unify' ess = Some s \<Longrightarrow> structural P \<Longrightarrow> 
   list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess \<Longrightarrow> \<forall>x\<in>ran s. P x"
