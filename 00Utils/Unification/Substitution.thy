@@ -40,7 +40,6 @@ proof
   show "subst Map.empty e = id e" by (induction e) (auto simp add: map_idI)
 qed
   
-
 lemma [simp]: "x \<notin> vars e \<Longrightarrow> subst [x \<mapsto> e'] e = e"
   and [simp]: "x \<notin> varss es \<Longrightarrow> map (subst [x \<mapsto> e']) es = es"
   by (induction e and es rule: vars_varss.induct) simp_all
@@ -56,6 +55,13 @@ qed simp_all
 lemma [simp]: "vars (subst [x \<mapsto> e'] e) = vars e - {x} \<union> (if x \<in> vars e then vars e' else {})"
   by simp
 
+lemma [dest]: "[] = list_subst x e ess \<Longrightarrow> ess = []"
+  by (induction x e ess rule: list_subst.induct) simp_all
+
+lemma [dest]: "(e\<^sub>1, e\<^sub>2) # ess' = list_subst x e' ess \<Longrightarrow> \<exists>ee\<^sub>1 ee\<^sub>2 eess. ess = (ee\<^sub>1, ee\<^sub>2) # eess \<and> 
+    e\<^sub>1 = subst [x \<mapsto> e'] ee\<^sub>1 \<and> e\<^sub>2 = subst [x \<mapsto> e'] ee\<^sub>2 \<and> ess' = list_subst x e' eess"
+  by (induction x e' ess rule: list_subst.induct) simp_all
+
 lemma [simp]: "list_subst x e (es\<^sub>1 @ es\<^sub>2) = list_subst x e es\<^sub>1 @ list_subst x e es\<^sub>2"
   by (induction es\<^sub>1 rule: list_subst.induct) simp_all
 
@@ -65,6 +71,9 @@ proof (induction es\<^sub>1 arbitrary: es\<^sub>2)
   case (Cons e\<^sub>1 es\<^sub>1)
   thus ?case by (induction es\<^sub>2) simp_all
 qed simp_all
+
+lemma [simp]: "map prod.swap (list_subst x e ess) = list_subst x e (map prod.swap ess)"
+  by (induction ess rule: list_subst.induct) simp_all
 
 lemma [simp]: "x \<notin> list_vars ess \<Longrightarrow> list_vars (list_subst x e ess) = list_vars ess"
   by (induction ess rule: list_vars.induct) simp_all
@@ -201,6 +210,29 @@ proof -
   ultimately show ?thesis by simp
 qed
 
+lemma occurs_check2' [simp]: "x \<in> vars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> 
+    size (subst s e') < size (subst s (subst [x \<mapsto> e'] e))"
+  and [simp]: "x \<in> varss es \<Longrightarrow> size (subst s e') < size_list (size \<circ> subst s \<circ> subst [x \<mapsto> e']) es"
+proof (induction e and es rule: vars_varss.induct)
+  case (2 k es)
+  hence "size (subst s e') < size_list (size \<circ> subst s \<circ> subst [x \<mapsto> e']) es" by fastforce
+  hence "size (subst s e') < size (subst s (subst [x \<mapsto> e'] (Ctor k es)))" 
+    by (simp add: fun.map_comp)
+  thus ?case by blast
+next
+  case (4 e es)
+  thus ?case by force
+qed simp_all
+
+lemma occurs_check2 [simp]: "x \<in> vars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> s unifies e' and subst [x \<mapsto> e'] e \<Longrightarrow> 
+  False"
+proof -
+  assume "x \<in> vars e" and "e \<noteq> Var x" 
+  hence "size (subst s e') < size (subst s (subst [x \<mapsto> e'] e))" by (metis occurs_check2')
+  moreover assume "s unifies e' and subst [x \<mapsto> e'] e"
+  ultimately show ?thesis by simp
+qed
+
 lemma [simp]: "x \<in> varss es \<Longrightarrow> s x \<noteq> Some (Ctor k (map (subst s) es))"
 proof
   assume "x \<in> varss es"
@@ -240,7 +272,19 @@ lemma [simp]: "s y = Some (Var x) \<Longrightarrow> s x = None \<Longrightarrow>
 
 lemma [dest]: "subst s e = Var x \<Longrightarrow> 
     (e = Var x \<and> s x = None) \<or> (\<exists>y. e = Var y \<and> s y = Some (Var x))"
-  by (induction e) (simp_all split: option.splits)
+  by (induction e) (auto split: option.splits)
+
+lemma [dest]: "Var x = subst s e \<Longrightarrow> 
+    (e = Var x \<and> s x = None) \<or> (\<exists>y. e = Var y \<and> s y = Some (Var x))"
+  by (induction e) (auto split: option.splits)
+
+lemma [dest]: "subst s e = Ctor k es \<Longrightarrow> 
+    (\<exists>es'. e = Ctor k es' \<and> es = map (subst s) es') \<or> (\<exists>x. e = Var x \<and> s x = Some (Ctor k es))"
+  by (induction e) (auto split: option.splits)
+
+lemma [dest]: "Ctor k es = subst s e \<Longrightarrow>
+    (\<exists>es'. e = Ctor k es' \<and> es = map (subst s) es') \<or> (\<exists>x. e = Var x \<and> s x = Some (Ctor k es))"
+  by (induction e) (auto split: option.splits)
 
 lemma subst_subst_var [dest, consumes 1, case_names Eq FstOnly SndOnly Both]: 
   "(subst s \<circ> subst t) (Var x) = Var y \<Longrightarrow> (x = y \<Longrightarrow> P) \<Longrightarrow> 

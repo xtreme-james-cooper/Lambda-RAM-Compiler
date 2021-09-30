@@ -17,7 +17,8 @@ termination
   by (relation "measures [card \<circ> list_vars, list_ctor_count, length]") 
      (simp_all add: card_insert_if)
 
-lemma unify'_induct: "P [] \<Longrightarrow>
+lemma unify'_induct [case_names Nil CtorCtorYes CtorCtorNo CtorVar VarSame Occurs VarNo VarYes]: "
+    P [] \<Longrightarrow>
     (\<And>k es\<^sub>1 es\<^sub>2 ess. length es\<^sub>1 = length es\<^sub>2 \<Longrightarrow> P (zip es\<^sub>1 es\<^sub>2 @ ess) \<Longrightarrow> 
       P ((Ctor k es\<^sub>1, Ctor k es\<^sub>2) # ess)) \<Longrightarrow>
     (\<And>k\<^sub>1 k\<^sub>2 es\<^sub>1 es\<^sub>2 ess. k\<^sub>1 \<noteq> k\<^sub>2 \<or> length es\<^sub>1 \<noteq> length es\<^sub>2 \<Longrightarrow> 
@@ -47,39 +48,39 @@ definition fail :: "(uexpr \<times> uexpr) list" where
 
 lemma unify_dom [simp]: "unify' ess = Some s \<Longrightarrow> dom s \<subseteq> list_vars ess"
 proof (induction ess arbitrary: s rule: unify'_induct)
-  case (8 x e ess s')
+  case (VarYes x e ess s')
   hence "dom s' \<subseteq> list_vars (list_subst x e ess)" by simp
   hence "dom (extend_subst x e s') \<subseteq> insert x (vars e \<union> list_vars ess)" by (auto split: if_splits)
-  with 8 show ?case by simp
+  with VarYes show ?case by simp
 qed auto
 
 lemma unify_ran [simp]: "unify' ess = Some s \<Longrightarrow> subst_vars s \<subseteq> list_vars ess"
 proof (induction ess arbitrary: s rule: unify'_induct)
-  case (8 x e ess s')
+  case (VarYes x e ess s')
   hence X: "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by simp
-  from 8 have "dom s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_dom)
-  with 8 have "x \<notin> dom s'" by (auto split: if_splits)
+  from VarYes have "dom s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_dom)
+  with VarYes have "x \<notin> dom s'" by (auto split: if_splits)
   hence D: "subst_vars (extend_subst x e s') = vars (subst s' e) \<union> subst_vars s'" by simp
   from X have "vars e - dom s' \<union> subst_vars s' \<subseteq> insert x (vars e \<union> list_vars ess)" 
     by (auto split: if_splits)
   moreover have "vars (subst s' e) \<subseteq> vars e - dom s' \<union> subst_vars s'" by simp
   ultimately have Y: "vars (subst s' e) \<subseteq> insert x (vars e \<union> list_vars ess)" by blast
   from X have "subst_vars s' \<subseteq> insert x (vars e \<union> list_vars ess)" by (auto split: if_splits)
-  with 8 D Y show ?case by simp
+  with VarYes D Y show ?case by simp
 qed auto
 
 lemma [simp]: "unify' ess = Some s \<Longrightarrow> ordered_subst s"
 proof (induction ess arbitrary: s rule: unify'_induct)
-  case (8 x e ess s')
+  case (VarYes x e ess s')
   hence "dom s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_dom)
   hence D: "dom s' \<subseteq> list_vars ess - {x} \<union> (if x \<in> list_vars ess then vars e else {})" by simp
-  from 8 have A: "ordered_subst s'" by simp
-  from 8 have B: "x \<notin> vars e" by simp
-  from 8 D have C: "x \<notin> dom s'" by (auto split: if_splits)
-  from 8 have "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_ran) 
-  with 8 have "x \<notin> subst_vars s'" by (auto split: if_splits)
+  from VarYes have A: "ordered_subst s'" by simp
+  from VarYes have B: "x \<notin> vars e" by simp
+  from VarYes D have C: "x \<notin> dom s'" by (auto split: if_splits)
+  from VarYes have "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_ran) 
+  with VarYes have "x \<notin> subst_vars s'" by (auto split: if_splits)
   with A B C have "ordered_subst (extend_subst x e s')" by simp
-  with 8 show ?case by simp
+  with VarYes show ?case by simp
 qed auto
 
 lemma [simp]: "unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> ordered_subst s"
@@ -87,11 +88,11 @@ lemma [simp]: "unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> ordered_subs
 
 lemma unify_none [simp]: "unify' ess = None \<Longrightarrow> \<nexists>s'. s' unifies\<^sub>l ess"
 proof (induction ess rule: unify'_induct)
-  case (6 x e ess)
+  case (Occurs x e ess)
   hence "\<And>s'. \<not> s' unifies Var x and e" by (metis occurs_check)
   thus ?case by simp
 next
-  case (7 x e ess)
+  case (VarNo x e ess)
   have "\<And>s. s unifies Var x and e \<Longrightarrow> \<not> s unifies\<^sub>l ess" 
   proof -
     fix s
@@ -100,14 +101,14 @@ next
     proof (cases "s x")
       case None
       with U have "subst s e = Var x" by simp
-      with 7 obtain y where Y: "e = Var y \<and> s y = Some (Var x)" by auto
-      with 7 have "\<not> extend_subst x (Var y) s unifies\<^sub>l ess" by simp
+      with VarNo obtain y where Y: "e = Var y \<and> s y = Some (Var x)" by auto
+      with VarNo have "\<not> extend_subst x (Var y) s unifies\<^sub>l ess" by simp
       with None Y show ?thesis by simp
     next
       case (Some e')
       hence S: "s(x \<mapsto> e') = s" by auto
-      from 7 have "\<not> extend_subst x e (s(x := None)) unifies\<^sub>l ess" by simp
-      with 7(2) U Some S show ?thesis by auto
+      from VarNo have "\<not> extend_subst x e (s(x := None)) unifies\<^sub>l ess" by simp
+      with VarNo(2) U Some S show ?thesis by auto
     qed
   qed
   thus ?case by simp
@@ -133,34 +134,34 @@ qed
 lemma [simp]: "unify' ess = Some s \<Longrightarrow> t unifies\<^sub>l ess \<Longrightarrow> ordered_subst t \<Longrightarrow>
   \<exists>u. subst t = subst u \<circ> subst s \<and> ordered_subst u"
 proof (induction ess arbitrary: s t rule: unify'_induct)
-  case 1
-  then show ?case by auto
+  case Nil
+  thus ?case by auto
 next
-  case (8 x e ess s')
+  case (VarYes x e ess s')
   hence "dom s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_dom)
-  with 8 have D: "x \<notin> dom s'" by (auto split: if_splits)
-  from 8 have "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_ran)
-  with 8 have R: "x \<notin> subst_vars s'" by (auto split: if_splits)
+  with VarYes have D: "x \<notin> dom s'" by (auto split: if_splits)
+  from VarYes have "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_ran)
+  with VarYes have R: "x \<notin> subst_vars s'" by (auto split: if_splits)
   thus ?case
   proof (cases "t x")
     case None
-    with 8 have T: "subst t e = Var x \<and> t unifies\<^sub>l ess" by simp
-    with 8 obtain y where Y: "e = Var y \<and> t y = Some (Var x)" by blast
+    with VarYes have T: "subst t e = Var x \<and> t unifies\<^sub>l ess" by simp
+    with VarYes obtain y where Y: "e = Var y \<and> t y = Some (Var x)" by fastforce
     with None T have "t unifies\<^sub>l list_subst x (Var y) ess" by simp
-    with 8 Y obtain u where U: "subst t = subst u \<circ> subst s' \<and> ordered_subst u" by fastforce
+    with VarYes Y obtain u where U: "subst t = subst u \<circ> subst s' \<and> ordered_subst u" by fastforce
     from None have "x \<notin> dom t" by auto
     with D U have X: "x \<notin> dom u" by (metis split_not_in_domain)
     from T Y U have "(subst u \<circ> subst s') (Var y) = Var x" by simp
     thus ?thesis
     proof (induction rule: subst_subst_var)
       case Eq
-      with 8 Y show ?case by simp
+      with VarYes Y show ?case by simp
     next
       case FstOnly
       have "subst u \<circ> subst s' = subst u \<circ> subst [x \<mapsto> Var x] \<circ> subst s'" by simp
       with D R Y U FstOnly have "subst t = subst u \<circ> subst s' \<circ> subst [x \<mapsto> e] \<and> ordered_subst u"
         using comp_assoc by blast
-      with 8 show ?case by auto
+      with VarYes show ?case by auto
     next
       case SndOnly
       with X have "subst u \<circ> subst s' = subst u \<circ> subst [y \<mapsto> Var x] \<circ> subst s'" by simp
@@ -170,8 +171,8 @@ next
         subst (extend_subst y (Var x) u) \<circ> subst s' \<circ> subst [x \<mapsto> e]" by (simp add: comp_assoc)
       from SndOnly X have "u y = Some (case u x of None \<Rightarrow> Var x | Some e \<Rightarrow> e)" 
         by (auto split: option.splits)
-      with 8 U have "ordered_subst (extend_subst y (Var x) u)" by simp
-      with 8 S show ?case by auto
+      with VarYes U have "ordered_subst (extend_subst y (Var x) u)" by simp
+      with VarYes S show ?case by auto
     next
       case (Both z)
       with X have "subst u \<circ> subst s' = subst (extend_subst x (Var z) u) \<circ> subst s'" by auto
@@ -181,15 +182,15 @@ next
       with U Z have "subst t = subst u \<circ> subst s' \<circ> subst [x \<mapsto> Var y]" by (metis comp_assoc)
       with Y have S: "subst t = subst u \<circ> subst s' \<circ> subst [x \<mapsto> e]" by simp
       from U have "ordered_subst u" by simp
-      with 8 S show ?case by auto
+      with VarYes S show ?case by auto
   qed
   next
     case (Some e')
-    with 8 have "e' = subst t e \<and> t unifies\<^sub>l ess" by simp
-    with 8 Some obtain t' where T: "t = extend_subst x e t' \<and> t' unifies\<^sub>l list_subst x e ess \<and> 
+    with VarYes have "e' = subst t e \<and> t unifies\<^sub>l ess" by simp
+    with VarYes Some obtain t' where T: "t = extend_subst x e t' \<and> t' unifies\<^sub>l list_subst x e ess \<and> 
       ordered_subst t'" by (metis dissect_subst)
-    with 8 obtain u where "subst t' = subst u \<circ> subst s' \<and> ordered_subst u" by fastforce
-    with 8 T show ?thesis by (auto simp add: expand_extend_subst)
+    with VarYes obtain u where "subst t' = subst u \<circ> subst s' \<and> ordered_subst u" by fastforce
+    with VarYes T show ?thesis by (auto simp add: expand_extend_subst)
   qed
 qed simp_all
 
@@ -207,9 +208,113 @@ lemma unify_append_fst [simp]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s \<Lo
     \<exists>s\<^sub>1. unify' ess\<^sub>1 = Some s\<^sub>1 \<and> s extends s\<^sub>1"
   by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct) auto
 
+lemma [simp]: "unify' ess\<^sub>1 = None \<Longrightarrow> unify' (ess\<^sub>1 @ ess\<^sub>2) = None"
+  by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 rule: unify'_induct) auto
+
+lemma [simp]: "unify' ((e, e) # ess) = unify' ess"
+  and [simp]: "unify' (zip es es @ ess) = unify' ess"
+  by (induction e and es arbitrary: ess and ess rule: vars_varss.induct)  simp_all
+
+lemma [simp]: "e \<noteq> Var x \<Longrightarrow> x \<in> vars e \<Longrightarrow> unify' ((e', subst [x \<mapsto> e'] e) # ess) = None"
+proof (cases "unify' ((e', subst [x \<mapsto> e'] e) # ess)")
+  case (Some s)
+  moreover assume "e \<noteq> Var x" and "x \<in> vars e"
+  ultimately show ?thesis by (metis unify_some list_unifier.simps(2) occurs_check2)
+qed simp_all
+
+lemma unify_subst_back [simp]: "unify' (list_subst x e' ess) = Some s \<Longrightarrow> x \<notin> vars e' \<Longrightarrow>
+  \<exists>s'. unify' ess = Some s' \<and> (\<forall>t. t extends s \<longrightarrow> extend_subst x e' t extends s')"
+proof (induction "list_subst x e' ess" arbitrary: ess s rule: unify'_induct)
+  case (CtorCtorYes k es\<^sub>1 es\<^sub>2 ess')
+  then obtain ee\<^sub>1 ee\<^sub>2 eess where ES: "ess = (ee\<^sub>1, ee\<^sub>2) # eess \<and> Ctor k es\<^sub>1 = subst [x \<mapsto> e'] ee\<^sub>1 \<and> 
+    Ctor k es\<^sub>2 = subst [x \<mapsto> e'] ee\<^sub>2 \<and> ess' = list_subst x e' eess" by blast
+  from ES have ES1: "(\<exists>es\<^sub>1'. ee\<^sub>1 = Ctor k es\<^sub>1' \<and> es\<^sub>1 = map (subst [x \<mapsto> e']) es\<^sub>1') \<or> 
+    (ee\<^sub>1 = Var x \<and> e' = Ctor k es\<^sub>1)" by force
+  from ES have ES2: "(\<exists>es\<^sub>2'. ee\<^sub>2 = Ctor k es\<^sub>2' \<and> es\<^sub>2 = map (subst [x \<mapsto> e']) es\<^sub>2') \<or> 
+    (ee\<^sub>2 = Var x \<and> e' = Ctor k es\<^sub>2)" by force
+  thus ?case
+  proof (cases ee\<^sub>1)
+    case (Var y) note V1 = Var
+    thus ?thesis 
+    proof (cases ee\<^sub>2)
+      case (Var y)
+      from CtorCtorYes ES ES1 V1 have "x \<notin> varss es\<^sub>1" by auto
+      hence X: "zip es\<^sub>1 es\<^sub>1 @ list_subst x (Ctor k es\<^sub>1) eess = 
+        list_subst x (Ctor k es\<^sub>1) (zip es\<^sub>1 es\<^sub>1 @ eess)" by simp
+      from CtorCtorYes ES ES1 ES2 V1 Var have "
+        unify' (list_subst x (Ctor k es\<^sub>1) (zip es\<^sub>1 es\<^sub>1 @ eess)) = Some s" by simp
+      with CtorCtorYes ES ES1 ES2 V1 Var X obtain s' where "unify' (zip es\<^sub>1 es\<^sub>1 @ eess) = Some s' \<and> 
+        (\<forall>t. t extends s \<longrightarrow> extend_subst x (Ctor k es\<^sub>1) t extends s')" by blast
+      with CtorCtorYes ES ES1 ES2 V1 Var show ?thesis by simp
+    next
+      case (Ctor k' es\<^sub>2')
+      from CtorCtorYes ES ES1 ES2 V1 Ctor have "length es\<^sub>1 = length es\<^sub>2'" by simp
+      from CtorCtorYes ES ES1 ES2 V1 Ctor have "unify' (list_subst x (Ctor k es\<^sub>1) ((Var x, Ctor k' es\<^sub>2') # eess)) = Some s" by simp
+      from CtorCtorYes ES ES1 V1 have "x \<notin> varss es\<^sub>1" by auto
+
+
+      have A: "zip es\<^sub>1 (map (subst [x \<mapsto> Ctor k es\<^sub>1]) es\<^sub>2') @ list_subst x (Ctor k es\<^sub>1) eess = list_subst x (Ctor k es\<^sub>1) xess" by simp
+      
+      have "unify' (list_subst x (Ctor k es\<^sub>1) xess) = Some xs" by simp
+      with CtorCtorYes ES ES1 ES2 V1 Ctor A have "\<exists>s'. unify' xess = Some s' \<and> 
+        (\<forall>t. t extends xs \<longrightarrow> extend_subst x (Ctor k es\<^sub>1) t extends s')" by simp
+
+      have X: "x \<notin> varss es\<^sub>2'" by simp
+
+
+    
+      have "unify' (list_subst x (Ctor k' es\<^sub>2') eess) = Some s' \<and> 
+        (\<forall>t. t extends s \<longrightarrow> extend_subst x (Ctor k es\<^sub>1) t extends extend_subst x (Ctor k es\<^sub>2') s')" 
+          by simp
+      with ES ES1 ES2 V1 Ctor X show ?thesis by auto
+    qed
+  next
+    case (Ctor k' es\<^sub>1')
+    with CtorCtorYes ES ES2 show ?thesis 
+    proof (cases ee\<^sub>2)
+      case (Var y)
+      from CtorCtorYes ES Ctor have "length es\<^sub>1' = length es\<^sub>2" by simp
+      from CtorCtorYes ES ES2 Ctor Var have "zip (map (subst [x \<mapsto> Ctor k es\<^sub>2]) es\<^sub>1') es\<^sub>2 @ list_subst x (Ctor k es\<^sub>2) eess = list_subst x (Ctor k es\<^sub>2) xess \<Longrightarrow>
+        unify' (list_subst x (Ctor k es\<^sub>2) xess) = Some xs \<Longrightarrow>
+        \<exists>s'. unify' xess = Some s' \<and> (\<forall>t. t extends xs \<longrightarrow> extend_subst x (Ctor k es\<^sub>2) t extends s')" by simp
+      from CtorCtorYes ES ES2 Ctor Var have "unify' (list_subst x (Ctor k es\<^sub>2) ((Ctor k es\<^sub>1', Var x) # eess)) = Some s" by simp
+      from CtorCtorYes ES2 Var have "x \<notin> varss es\<^sub>2" by simp
+  
+    
+    
+    
+      have "\<exists>s'. unify' ((Ctor k es\<^sub>1', Var x) # eess) = Some s' \<and> (\<forall>t. t extends s \<longrightarrow> extend_subst x (Ctor k es\<^sub>2) t extends s')" by simp
+      with ES ES2 Ctor Var show ?thesis by simp
+    qed simp_all
+  qed
+next
+  case (CtorVar x es k ess)
+  thus ?case by simp
+next
+  case (VarSame x ess)
+  thus ?case by simp
+next
+  case (VarYes x e ess s')
+  thus ?case by simp
+qed fastforce+
+  
 lemma unify_append_snd [simp]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s \<Longrightarrow> 
     \<exists>s\<^sub>2. unify' ess\<^sub>2 = Some s\<^sub>2 \<and> s extends s\<^sub>2"
-  by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct) auto
+proof (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct)
+  case (VarNo x e ess)
+  then obtain t where "unify' (list_subst x e ess @ list_subst x e ess\<^sub>2) = Some t \<and> 
+    extend_subst x e t = s" by fastforce
+  then obtain s\<^sub>1 where "unify' (list_subst x e ess) = Some s\<^sub>1 \<and> t extends s\<^sub>1" by fastforce
+  with VarNo show ?case by simp
+next
+  case (VarYes x e ess s')
+  then obtain t where T: "unify' (list_subst x e ess @ list_subst x e ess\<^sub>2) = Some t \<and> 
+    extend_subst x e t = s" by fastforce
+  with VarYes obtain s\<^sub>2 where "unify' (list_subst x e ess\<^sub>2) = Some s\<^sub>2 \<and> t extends s\<^sub>2" by fastforce
+  then obtain s' where "unify' ess\<^sub>2 = Some s' \<and> extend_subst x e t extends s'" 
+    by (metis unify_subst_back)
+  with T show ?case by blast
+qed fastforce+
 
 lemma [simp]: "unify' (es # ess) = Some s \<Longrightarrow> \<exists>s\<^sub>2. unify' ess = Some s\<^sub>2 \<and> s extends s\<^sub>2"
 proof -
@@ -221,30 +326,30 @@ qed
 lemma unify'_props: "unify' ess = Some s \<Longrightarrow> structural P \<Longrightarrow> 
   list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess \<Longrightarrow> \<forall>x\<in>ran s. P x"
 proof (induction ess arbitrary: s rule: unify'_induct)
-  case (2 k es\<^sub>1 es\<^sub>2 ess)
-  from 2(1, 3) have X: "unify' (zip es\<^sub>1 es\<^sub>2 @ ess) = Some s" by simp
-  from 2(1) have "length es\<^sub>1 = length es\<^sub>2" by simp
-  moreover from 2(5) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess" by simp
-  moreover from 2(4, 5) have "list_all P es\<^sub>1" by (auto simp add: structural_def)
-  moreover from 2(4, 5) have "list_all P es\<^sub>2" by (auto simp add: structural_def)
+  case (CtorCtorYes k es\<^sub>1 es\<^sub>2 ess)
+  from CtorCtorYes(1, 3) have X: "unify' (zip es\<^sub>1 es\<^sub>2 @ ess) = Some s" by simp
+  from CtorCtorYes(1) have "length es\<^sub>1 = length es\<^sub>2" by simp
+  moreover from CtorCtorYes(5) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess" by simp
+  moreover from CtorCtorYes(4, 5) have "list_all P es\<^sub>1" by (auto simp add: structural_def)
+  moreover from CtorCtorYes(4, 5) have "list_all P es\<^sub>2" by (auto simp add: structural_def)
   ultimately have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) (zip es\<^sub>1 es\<^sub>2 @ ess)" by simp
-  with 2(2, 4) X show ?case by blast
+  with CtorCtorYes(2, 4) X show ?case by blast
 next
-  case (4 x es k ess)
-  from 4(2) have X: "unify' ((Var x, Ctor k es) # ess) = Some s" by simp
-  from 4(4) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ((Var x, Ctor k es) # ess)" by simp
-  with 4(1, 3) X show ?case by blast
+  case (CtorVar x es k ess)
+  from CtorVar(2) have X: "unify' ((Var x, Ctor k es) # ess) = Some s" by simp
+  from CtorVar(4) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ((Var x, Ctor k es) # ess)" by simp
+  with CtorVar(1, 3) X show ?case by blast
 next
-  case (5 x ess)
-  from 5(2) have X: "unify' ess = Some s" by simp
-  from 5(4) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess" by simp
-  with 5(1, 3) X show ?case by blast
+  case (VarSame x ess)
+  from VarSame(2) have X: "unify' ess = Some s" by simp
+  from VarSame(4) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess" by simp
+  with VarSame(1, 3) X show ?case by blast
 next
-  case (8 x e ess s')
-  from 8(6, 7) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) (list_subst x e ess)" by simp
-  with 8(3, 4, 6) have S: "\<forall>a\<in>ran s'. P a" by blast
+  case (VarYes x e ess s')
+  from VarYes(6, 7) have "list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) (list_subst x e ess)" by simp
+  with VarYes(3, 4, 6) have S: "\<forall>a\<in>ran s'. P a" by blast
   hence "\<forall>x\<in>ran (s'(x := None)). P x" by (auto simp add: ran_def)
-  with S 8(1, 2, 3, 5, 6, 7) S show ?case by auto
+  with S VarYes(1, 2, 3, 5, 6, 7) S show ?case by auto
 qed fastforce+
 
 lemma unify_props: "unify e\<^sub>1 e\<^sub>2 = Some s \<Longrightarrow> P e\<^sub>1 \<Longrightarrow> P e\<^sub>2 \<Longrightarrow> structural P \<Longrightarrow> \<forall>x \<in> ran s. P x"
