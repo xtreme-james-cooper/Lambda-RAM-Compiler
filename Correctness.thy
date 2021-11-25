@@ -5,7 +5,8 @@ begin
 lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
   by (induction e) simp_all
 
-theorem tc_failure: "compile e = None \<Longrightarrow> \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> e = erase e\<^sub>t"
+theorem tc_failure: "compile e = None \<Longrightarrow> 
+  \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t"
 proof -
   assume "compile e = None"
   hence "typecheck e = None" by simp
@@ -86,21 +87,22 @@ proof -
     (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   let ?cd' = "assemble_code ?cd"
   let ?mp = "assembly_map ?cd"
-  let ?mem = "case_register (assm_hp hp\<^sub>u ?cd h\<^sub>u) e\<^sub>u vs\<^sub>u sh\<^sub>u"
+  let ?mem = "case_register (assm_hp ?cd h\<^sub>u) (assemble_env e\<^sub>u) (assemble_vals vs\<^sub>u) 
+    (assm_stk ?cd sh\<^sub>u)"
   let ?rs = "case_register hp\<^sub>u ep\<^sub>u (Suc 0) 0"
   from R EU have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
     (assemble_state ?mp (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0, 1 := 0)) 2 (length ?cd))) 
       (assemble_state ?mp (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correcta_iter)
-  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (AS (case_register (assm_hp 0 ?cd nmem) nmem nmem 
-    (nmem(0 := 0, 1 := 0))) (case_register 0 0 0 2) 0 (Con 0) (length ?cd')) 
-      (AS ?mem ?rs 0 (Con 0) 0)" by simp 
+  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (AS (case_register (assm_hp ?cd nmem) (assemble_env nmem)
+    (assemble_vals nmem) (assm_stk ?cd (nmem(0 := 0, 1 := 0)))) (case_register 0 0 0 2) 0 (Con 0)
+      (length ?cd')) (AS ?mem ?rs 0 (Con 0) 0)" by simp
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) 
-    (disassemble_state (AS (case_register (assm_hp 0 ?cd nmem) nmem nmem 
-      (nmem(0 := 0, 1 := 0))) (case_register 0 0 0 2) 0 (Con 0) (length ?cd')))
-        (disassemble_state (AS ?mem ?rs 0 (Con 0) 0))" by (metis correctm_iter)
+    (disassemble_state (AS (case_register (assm_hp ?cd nmem) (assemble_env nmem)
+      (assemble_vals nmem) (assm_stk ?cd (nmem(0 := 0, 1 := 0)))) (case_register 0 0 0 2) 0 (Con 0)
+        (length ?cd'))) (disassemble_state (AS ?mem ?rs 0 (Con 0) 0))" by (metis correctm_iter)
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0)
-    (unmap_mem (case_register (assm_hp 0 ?cd nmem) nmem nmem (nmem(0 := 0, Suc 0 := 0)))) 
-      (sum_list (map (Suc \<circ> assemble_op_len) ?cd)))
+    (unmap_mem (case_register (assm_hp ?cd nmem) (assemble_env nmem) (assemble_vals nmem) 
+      (assm_stk ?cd (nmem(0 := 0, Suc 0 := 0))))) (length ?cd'))
         (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" 
     by simp
   with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) (nmem(3 := 0, 7 := 0)) (length cd)) 
@@ -112,14 +114,24 @@ proof -
   with VCE VH have "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by (metis print_ce)
   with VH have "print_ceclosure (get_closure (flatten_values h\<^sub>c\<^sub>e) (3 * v\<^sub>h)) = print_nexpr (erase v\<^sub>t)" 
     by (simp del: get_closure.simps)
-  with VU VSU have "print_uval h\<^sub>u (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
-  with VSU have PA: "print_uval (?mem Hp) (?mem Vals 0) = print_nexpr (erase v\<^sub>t)" 
-    using print_a by simp
-  have "unmap_mem' (4 * ?mem Vals 0) = (Hp, ?mem Vals 0)" by simp
-  hence "unmap_mem' (4 * unmap_mem ?mem 2) = (Hp, ?mem Vals 0)" 
+  with VU VSU have PU': "print_uval h\<^sub>u (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
+
+
+
+  have "print_uval (pseudoreg_map \<circ> assemble_heap ?mp h\<^sub>u) (4 * vs\<^sub>u 0) = print_uval h\<^sub>u (vs\<^sub>u 0)" 
+    by (simp add: assemble_heap_def)
+  with PU' have PU: "print_uval (pseudoreg_map \<circ> ?mem Hp) (4 * vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" 
     by simp
-  with PA have PM: "print_mval (unmap_mem ?mem) (4 * (unmap_mem ?mem) 2) = 
-    print_nexpr (erase v\<^sub>t)" using print_m by presburger
+  have "unmap_mem' (4 * unmap_mem ?mem 2) = (Hp, 4 * vs\<^sub>u 0)" 
+  proof (induction "vs\<^sub>u 0")
+    case (Suc x)
+    hence "vs\<^sub>u 0 = Suc x" by simp
+    thus ?case by (auto simp add: unmap_mem_def assemble_vals_def split: prod.splits)
+  qed (simp add: unmap_mem_def assemble_vals_def)
+  hence "print_mval (unmap_mem ?mem) (4 * unmap_mem ?mem 2) = 
+    print_uval (pseudoreg_map \<circ> ?mem Hp) (4 * vs\<^sub>u 0)" using print_m by blast
+  with PU have PM: "print_mval (unmap_mem ?mem) (4 * (unmap_mem ?mem) 2) = 
+    print_nexpr (erase v\<^sub>t)" by simp
   have "(case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) R3 = 6 \<and> 
     (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) R4 = 3" by simp
   with VN TN EN EM PM show ?thesis by blast

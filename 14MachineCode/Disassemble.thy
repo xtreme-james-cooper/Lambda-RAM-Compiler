@@ -82,7 +82,7 @@ lemma [dest]: "R4 = register_map r \<Longrightarrow> r = Stk"
 lemma [dest]: "R5 = register_map r \<Longrightarrow> False"
   by (induction r) simp_all
 
-lemma [simp]: "unmap_mem' (4 * k) = (Hp, k)"
+lemma unmap_times_4 [simp]: "unmap_mem' (4 * k) = (Hp, k)"
   by (induction k) (simp_all add: numeral_def)
 
 lemma [simp]: "unmap_mem' p = (a, b) \<Longrightarrow> unmap_mem' (4 + p) = (a, Suc b)"
@@ -102,6 +102,15 @@ lemma [dest]: "unmap_mem' x = (Vals, ps Vals) \<Longrightarrow> x = Suc (Suc (ps
 
 lemma [dest]: "unmap_mem' x = (Stk, ps Stk) \<Longrightarrow> x = Suc (Suc (Suc (ps Stk * 4)))"
   by (induction x arbitrary: ps rule: unmap_mem'.induct) (auto split: prod.splits)
+
+lemma [simp]: "unmap_mem' 2 = (Vals, 0)"
+  by (simp add: numeral_def)
+
+lemma [simp]: "unmap_mem' (16 + 16 * x) = (Hp, 4 + 4 * x)"
+proof -
+  have "unmap_mem' (4 * (4 * Suc x)) = (Hp, 4 * Suc x)" by (metis unmap_times_4)
+  thus ?thesis by simp
+qed
 
 (*
 
