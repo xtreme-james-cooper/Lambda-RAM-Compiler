@@ -28,7 +28,7 @@ fun disassemble' :: "assm \<Rightarrow> mach" where
   "disassemble' (AMov (Reg r)) = MOV R5 (register_map r)"
 | "disassemble' (AMov PC) = MVP R5"
 | "disassemble' (AMov (Con k)) = LDI R5 k"
-| "disassemble' (AGetA r t) = LOD R5 (register_map r)"
+| "disassemble' (AGetA r m) = LOD R5 R5"
 | "disassemble' (AGet r t) = LOD R5 (register_map r)"
 | "disassemble' (APutA r) = STO (register_map r) R5"
 | "disassemble' (APutPC r k) = STI (register_map r) k"
@@ -54,14 +54,12 @@ fun unmap_mem' :: "nat \<Rightarrow> register \<times> nat" where
 definition unmap_mem :: "(register \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat) \<Rightarrow> nat \<Rightarrow> nat" where
   "unmap_mem m x = (case unmap_mem' x of (r, p) \<Rightarrow> pseudoreg_map (m r p))"
 
-fun inv_register_map :: "(register \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> pseudoreg \<Rightarrow> reg \<Rightarrow> nat" where
+primrec inv_register_map :: "(register \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> pseudoreg \<Rightarrow> reg \<Rightarrow> nat" where
   "inv_register_map rs a t R1 = rs Hp * 4"
 | "inv_register_map rs a t R2 = rs Env * 4 + 1"
 | "inv_register_map rs a t R3 = rs Vals * 4 + 2"
 | "inv_register_map rs a t R4 = rs Stk * 4 + 3"
-| "inv_register_map rs a (Reg r) R5 = a * 4 + register_offset r"
-| "inv_register_map rs a PC R5 = a"
-| "inv_register_map rs a (Con k) R5 = a"
+| "inv_register_map rs a t R5 = pseudoreg_map (t, a)"
 
 primrec disassemble_state :: "assm_state \<Rightarrow> mach_state" where
   "disassemble_state (AS mem rs a t pc) = MS (inv_register_map rs a t) (unmap_mem mem) pc"
@@ -155,7 +153,7 @@ lemma [simp]: "unmap_mem' (Suc (Suc (k * 4))) = (Vals, k)"
 lemma [simp]: "unmap_mem' (k * 4 + 3) = (Stk, k)"
   by (induction k) (simp_all add: numeral_def)
 
-lemma [simp]: "unmap_mem' (k * 4 + register_offset m) = (m, k)"
+lemma [simp]: "unmap_mem' (4 * k + register_offset m) = (m, k)"
 proof (induction k)
   case 0
   thus ?case by (induction m) (simp_all add: numeral_def)
@@ -172,45 +170,45 @@ proof
   show "inv_register_map (ps(r := ps r + k)) a act x =
     ((inv_register_map ps a act)
       (register_map r := inv_register_map ps a act (register_map r) + 4 * k)) x" 
-    by (induction ps a act x rule: inv_register_map.induct) auto
+    by (induction x) auto
 qed
 
-lemma [simp]: "(inv_register_map ps a act)
-  (R5 := inv_register_map ps a act R5 + pseudoreg_size act * k) = 
-    inv_register_map ps (a + k) act"
+lemma [simp]: "(inv_register_map ps a act) (R5 := pseudoreg_map (act, a) + pseudoreg_size act * k) = 
+  inv_register_map ps (a + k) act"
 proof
   fix x
-  show "((inv_register_map ps a act)
-    (R5 := inv_register_map ps a act R5 + pseudoreg_size act * k)) x =
-      inv_register_map ps (a + k) act x" 
-  proof (induction ps a act x rule: inv_register_map.induct)
-    case (5 rs a r)
-    thus ?case by (induction r) simp_all
+  show "((inv_register_map ps a act) (R5 := pseudoreg_map (act, a) + pseudoreg_size act * k)) x =
+    inv_register_map ps (a + k) act x" 
+  proof (induction x)
+    case R5
+    thus ?case by (induction act) simp_all
   qed simp_all
 qed
 
-lemma [simp]: "inv_register_map (ps(r := ps r - k)) a act = 
-  ((inv_register_map ps a act)
+lemma [simp]: "ps r \<ge> k \<Longrightarrow>
+  inv_register_map (ps(r := ps r - k)) a act = ((inv_register_map ps a act)
     (register_map r := inv_register_map ps a act (register_map r) - 4 * k))"
 proof
   fix x
-  show "inv_register_map (ps(r := ps r - k)) a act x =
-    ((inv_register_map ps a act)
+  assume "ps r \<ge> k"
+  thus "inv_register_map (ps(r := ps r - k)) a act x =
+    ((inv_register_map ps a act) 
       (register_map r := inv_register_map ps a act (register_map r) - 4 * k)) x" 
-    by (induction ps a act x rule: inv_register_map.induct) auto
+    by (induction x) auto
 qed
 
-lemma [simp]: "(inv_register_map ps a act)
-  (R5 := inv_register_map ps a act R5 - pseudoreg_size act * k) = 
+lemma [simp]: "a \<ge> k \<Longrightarrow> 
+  (inv_register_map ps a act) (R5 := pseudoreg_map (act, a) - pseudoreg_size act * k) = 
     inv_register_map ps (a - k) act"
 proof
   fix x
-  show "((inv_register_map ps a act)
-    (R5 := inv_register_map ps a act R5 - pseudoreg_size act * k)) x =
+  assume "a \<ge> k"
+  thus "((inv_register_map ps a act)
+    (R5 := pseudoreg_map (act, a) - pseudoreg_size act * k)) x =
       inv_register_map ps (a - k) act x" 
-  proof (induction ps a act x rule: inv_register_map.induct)
-    case (5 rs a r)
-    thus ?case by (induction r) simp_all
+  proof (induction x)
+    case R5
+    thus ?case by (induction act) simp_all
   qed simp_all
 qed
 
@@ -225,13 +223,79 @@ proof
     by (induction x) simp_all
 qed
 
-lemma [simp]: "(unmap_mem mem)(inv_register_map ps a act (register_map r) := k) = 
+lemma [simp]: "mem r (ps r) = (t, b) \<Longrightarrow> 
+  (inv_register_map ps a act)(R5 := unmap_mem mem (inv_register_map ps a act (register_map r))) = 
+    inv_register_map ps b t"
+proof
+  fix x
+  assume "mem r (ps r) = (t, b)"
+  thus "((inv_register_map ps a act)(R5 := 
+    unmap_mem mem (inv_register_map ps a act (register_map r)))) x = inv_register_map ps b t x"
+  proof (induction x)
+    case R5
+    thus ?case by (induction r) (simp_all add: unmap_mem_def)
+  qed simp_all
+qed
+
+lemma unmap_upd_k: "(unmap_mem mem)(inv_register_map ps a act (register_map r) := k) = 
   unmap_mem (mem_upd mem r (ps r) (Con 0, k))"
 proof
   fix x
   show "((unmap_mem mem)(inv_register_map ps a act (register_map r) := k)) x =
       unmap_mem (mem_upd mem r (ps r) (Con 0, k)) x"
     by (induction r) (auto simp add: unmap_mem_def split: prod.splits)
+qed
+
+lemma unmap_upd_pc: "(unmap_mem mem)(inv_register_map ps a act (register_map r) := k) = 
+  unmap_mem (mem_upd mem r (ps r) (PC, k))"
+proof
+  fix x
+  show "((unmap_mem mem)(inv_register_map ps a act (register_map r) := k)) x =
+      unmap_mem (mem_upd mem r (ps r) (PC, k)) x"
+    by (induction r) (auto simp add: unmap_mem_def split: prod.splits)
+qed
+
+lemma [simp]: "((unmap_mem mem)
+  (inv_register_map ps a act (register_map r) := inv_register_map ps a act (register_map r'))) = 
+    unmap_mem (mem_upd mem r (ps r) (Reg r', ps r'))"
+proof
+  fix x
+  show "((unmap_mem mem)
+    (inv_register_map ps a act (register_map r) := inv_register_map ps a act (register_map r'))) x = 
+      unmap_mem (mem_upd mem r (ps r) (Reg r', ps r')) x"
+  proof (induction r)
+    case Hp
+    thus ?case by (induction r') (auto simp add: unmap_mem_def split: prod.splits)
+  next
+    case Env
+    thus ?case by (induction r') (auto simp add: unmap_mem_def split: prod.splits)
+  next
+    case Vals
+    thus ?case by (induction r') (auto simp add: unmap_mem_def split: prod.splits)
+  next
+    case Stk
+    thus ?case by (induction r') (auto simp add: unmap_mem_def split: prod.splits)
+  qed
+qed
+
+lemma [simp]: "((unmap_mem mem)(inv_register_map ps a act (register_map r) := 
+    pseudoreg_map (act, a))) = unmap_mem (mem_upd mem r (ps r) (act, a))"
+proof
+  fix x
+  show "((unmap_mem mem)(inv_register_map ps a act (register_map r) := 
+    pseudoreg_map (act, a))) x = unmap_mem (mem_upd mem r (ps r) (act, a)) x"
+      by (induction r) (auto simp add: unmap_mem_def split: prod.splits)
+qed
+
+lemma [simp]: "mem m a = (t, b) \<Longrightarrow>  
+  ((inv_register_map ps a (Reg m))(R5 := unmap_mem mem (4 * a + register_offset m))) = 
+    inv_register_map ps b t"
+proof 
+  fix x
+  assume "mem m a = (t, b)"
+  thus "((inv_register_map ps a (Reg m))(R5 := unmap_mem mem (4 * a + register_offset m))) 
+    x = inv_register_map ps b t x"
+      by (induction x) (auto simp add: unmap_mem_def)
 qed
 
 lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> disassemble cd ! pc = disassemble' op"
@@ -259,37 +323,39 @@ next
     MS ((inv_register_map ps a act)(R5 := k)) (unmap_mem mem) pc" by simp
   thus ?case by (simp add: inv_reg_map_con)
 next
-  case (eva_geta cd pc m t mem a b ps)  
-  hence "disassemble cd ! pc = LOD R5 (register_map m)" by simp
-  hence "disassemble cd \<tturnstile> MS (inv_register_map ps a (Reg m)) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
-    MS ((inv_register_map ps a (Reg m))(R5 := (unmap_mem mem) ((inv_register_map ps a (Reg m)) 
-      (register_map m)))) (unmap_mem mem) pc" by (metis evm_lod)
-  with eva_geta show ?case by simp
+  case (eva_geta cd pc m t mem a b ps) 
+  hence "disassemble cd ! pc = LOD R5 R5" by simp
+  hence "disassemble cd \<tturnstile> MS (inv_register_map ps a (Reg m)) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m 
+    MS ((inv_register_map ps a (Reg m))(R5 := unmap_mem mem (inv_register_map ps a (Reg m) R5))) 
+      (unmap_mem mem) pc" by (metis evm_lod)
+  with eva_geta(2) show ?case by simp
 next
-  case (eva_get cd pc r t mem ps a act)
+  case (eva_get cd pc r t mem ps b a act)
   hence "disassemble cd ! pc = LOD R5 (register_map r)" by simp
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps a act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
     MS ((inv_register_map ps a act)(R5 := (unmap_mem mem) ((inv_register_map ps a act) 
       (register_map r)))) (unmap_mem mem) pc" by (metis evm_lod)
-  thus ?case by simp
+  with eva_get(2) show ?case by simp
 next
   case (eva_puta cd pc r mem ps a act)
   hence "disassemble cd ! pc = STO (register_map r) R5" by simp
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps a act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
     MS (inv_register_map ps a act) ((unmap_mem mem)(inv_register_map ps a act (register_map r) := 
       inv_register_map ps a act R5)) pc" by (metis evm_sto)
-
   thus ?case by simp
 next
   case (eva_putp cd pc r k mem ps a act)
-  thus ?case by simp
+  hence "disassemble cd ! pc = STI (register_map r) k" by simp
+  hence "disassemble cd \<tturnstile> MS (inv_register_map ps a act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m 
+    MS (inv_register_map ps a act) ((unmap_mem mem)((inv_register_map ps a act) (register_map r) := 
+      k)) pc" by (metis evm_sti)
+  thus ?case by (simp add: unmap_upd_pc)
 next
   case (eva_putr cd pc r r' mem ps a act)
   hence "disassemble cd ! pc = STO (register_map r) (register_map r')" by simp
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps a act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
     MS (inv_register_map ps a act) ((unmap_mem mem)(inv_register_map ps a act (register_map r) := 
       inv_register_map ps a act (register_map r'))) pc" by (metis evm_sto)
-
   thus ?case by simp
 next
   case (eva_putk cd pc r k mem ps a act)
@@ -297,14 +363,14 @@ next
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps a act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m
     MS (inv_register_map ps a act) 
       ((unmap_mem mem)(inv_register_map ps a act (register_map r) := k)) pc" by (metis evm_sti)
-  thus ?case by simp
+  thus ?case by (simp add: unmap_upd_k)
 next
-  case (eva_suba cd pc k act mem ps a)
+  case (eva_suba cd pc k act a mem ps)
   hence "disassemble cd ! pc = SUB R5 (pseudoreg_size act * k)" by simp
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps a act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m 
     MS ((inv_register_map ps a act)(R5 := inv_register_map ps a act R5 - pseudoreg_size act * k)) 
       (unmap_mem mem) pc" by (metis evm_sub)
-  thus ?case by simp
+  with eva_suba show ?case by simp
 next
   case (eva_adda cd pc k act mem ps a)
   hence "disassemble cd ! pc = ADD R5 (pseudoreg_size act * k)" by simp
@@ -343,12 +409,5 @@ lemma [simp]: "unmap_mem' 7 = (Stk, 1)"
 
 lemma [dest]: "unmap_mem' x = (Stk, Suc 0) \<Longrightarrow> x = 7"
   by (induction x rule: unmap_mem'.induct) (auto split: prod.splits)
-
-lemma [simp]: "unmap_mem (case_register nmem nmem nmem 
-    (nmem(0 := (undefined, 0), Suc 0 := (undefined, 0)))) = (nmem(3 := 0, 7 := 0))"
-  by rule (autox simp add: unmap_mem_def split: prod.splits register.splits)
-
-lemma [simp]: "unmap_mem (case_register h e v s) 2 = v 0"
-  by (simp add: unmap_mem_def numeral_def)
 
 end

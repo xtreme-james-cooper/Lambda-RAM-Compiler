@@ -5,7 +5,7 @@ begin
 datatype reg = R1 | R2 | R3 | R4 | R5
 
 datatype mach = 
-  LDI reg nat (* $R := k *)
+  LDI reg nat   (* $R := k *)
   | LOD reg reg (* $R\<^sub>1 := M[$R\<^sub>2] *)
   | STO reg reg (* M[$R\<^sub>1] := $R\<^sub>2 *)
   | STI reg nat (* M[$R] := k *)
