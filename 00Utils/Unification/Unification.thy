@@ -215,73 +215,102 @@ lemma [simp]: "unify' ((e, e) # ess) = unify' ess"
   and [simp]: "unify' (zip es es @ ess) = unify' ess"
   by (induction e and es arbitrary: ess and ess rule: vars_varss.induct)  simp_all
 
-lemma [simp]: "e \<noteq> Var x \<Longrightarrow> x \<in> vars e \<Longrightarrow> unify' ((e', subst [x \<mapsto> e'] e) # ess) = None"
+lemma unify_occurs' [simp]: "e \<noteq> Var x \<Longrightarrow> x \<in> vars e \<Longrightarrow> 
+  unify' ((e', subst [x \<mapsto> e'] e) # ess) = None"
 proof (cases "unify' ((e', subst [x \<mapsto> e'] e) # ess)")
   case (Some s)
   moreover assume "e \<noteq> Var x" and "x \<in> vars e"
   ultimately show ?thesis by (metis unify_some list_unifier.simps(2) occurs_check2)
 qed simp_all
 
-lemma unify_subst_back [simp]: "unify' (list_subst x e' ess) = Some s \<Longrightarrow> x \<notin> vars e' \<Longrightarrow>
-  \<exists>s'. unify' ess = Some s' \<and> (\<forall>t. t extends s \<longrightarrow> extend_subst x e' t extends s')"
-proof (induction ess arbitrary: s rule: unify'_induct)
-  case (CtorVar y es k ess)
-  thus ?case 
-  proof (cases "x = y")
-    case True
-    with CtorVar show ?thesis
-    proof (cases e')
-      case (Ctor k' es')
-      from CtorVar True Ctor have K: "k = k' \<and> length es = length es' \<and> 
-        unify' (zip (map (subst [x \<mapsto> Ctor k' es']) es) es' @ list_subst x (Ctor k' es') ess) = 
-          Some s" by (simp split: if_splits)
+lemma unify_occurs: "unify' ((e, Ctor k (map (subst [x \<mapsto> e]) es)) # ess) = Some s \<Longrightarrow> x \<notin> varss es"
+proof 
+  assume "x \<in> varss es"
+  hence "unify' ((e, subst [x \<mapsto> e] (Ctor k es)) # ess) = None" using unify_occurs' by fastforce
+  moreover assume "unify' ((e, Ctor k (map (subst [x \<mapsto> e]) es)) # ess) = Some s"
+  ultimately show False by simp
+qed
 
-
-
-      have "unify' (zip es' (map (subst [x \<mapsto> Ctor k es']) es) @ list_subst x (Ctor k es') ess) = Some xs" by simp
-      with CtorVar True Ctor K obtain s' where "unify' ((Var x, Ctor k es) # ess) = Some s' \<and> 
-        (\<forall>t. t extends xs \<longrightarrow> extend_subst x (Ctor k es') t extends s')" by fastforce
-      then obtain s'' where X: "x \<notin> varss es \<and> unify' (list_subst x (Ctor k es) ess) = Some s'' \<and>
-        s' = extend_subst x (Ctor k es) s'' \<and> (\<forall>t. t extends xs \<longrightarrow> 
-          extend_subst x (Ctor k es') t extends extend_subst x (Ctor k es) s'')" 
-            by (auto split: if_splits)
-
-
-
-      from CtorVar have "x \<notin> varss es'" by simp
-   
-    
-      have "\<forall>t. t extends s \<longrightarrow> extend_subst x (Ctor k es') t extends extend_subst x (Ctor k es) s''" by simp
-      with True Ctor K X show ?thesis by fastforce
-    qed simp_all
-  qed simp_all
-next
-  case (Occurs y e ess)
+lemma [simp]: "unify' (list_subst x e ess) = Some s \<Longrightarrow> t extends s \<Longrightarrow> x \<notin> vars e \<Longrightarrow> 
+  \<exists>s'. unify' ess = Some s' \<and> extend_subst x e t extends s'"
+proof (induction "list_subst x e ess" arbitrary: ess s rule: unify'_induct)
+  case (CtorCtorYes k es\<^sub>1 es\<^sub>2 ess')
+  then obtain ee\<^sub>1 ee\<^sub>2 eess where E: "ess = (ee\<^sub>1, ee\<^sub>2) # eess \<and> 
+    ((\<exists>es\<^sub>1'. ee\<^sub>1 = Ctor k es\<^sub>1' \<and> es\<^sub>1 = map (subst [x \<mapsto> e]) es\<^sub>1') \<or> 
+      (\<exists>y. ee\<^sub>1 = Var y \<and> [x \<mapsto> e] y = Some (Ctor k es\<^sub>1))) \<and> 
+        ((\<exists>es\<^sub>2'. ee\<^sub>2 = Ctor k es\<^sub>2' \<and> es\<^sub>2 = map (subst [x \<mapsto> e]) es\<^sub>2') \<or> 
+          (\<exists>y. ee\<^sub>2 = Var y \<and> [x \<mapsto> e] y = Some (Ctor k es\<^sub>2))) \<and> ess' = list_subst x e eess"
+    by fastforce
   thus ?case
-  proof (cases "x = y")
-    case True
-    with Occurs have "unify' ((e', subst [x \<mapsto> e'] e) # list_subst x e' ess) = Some s" by simp
-    with Occurs True show ?thesis by (metis occurs_check2 list_unifier.simps(2) unify_some)
-  qed (auto split: if_splits)
+  proof (cases ee\<^sub>1)
+    case (Var y) note V = Var
+    with E have X: "x = y \<and> e = Ctor k es\<^sub>1" by (simp split: if_splits)
+    thus ?thesis
+    proof (cases ee\<^sub>2)
+      case (Var y)
+      with E have X2: "x = y \<and> e = Ctor k es\<^sub>2" by (simp split: if_splits)
+      with X have ES: "es\<^sub>1 = es\<^sub>2" by simp
+      from CtorCtorYes E X have Z: "zip es\<^sub>1 es\<^sub>1 @ ess' = list_subst x e (zip es\<^sub>1 es\<^sub>1 @ eess)" by simp
+      from CtorCtorYes E V Var X X2 have "unify' (list_subst x e (zip es\<^sub>1 es\<^sub>1 @ eess)) = Some s" 
+        by simp
+      with CtorCtorYes ES Z obtain s' where "unify' (zip es\<^sub>1 es\<^sub>1 @ eess) = Some s' \<and> 
+        extend_subst x e t extends s'" by blast
+      with E V Var X X2 show ?thesis by simp
+    next
+      case (Ctor k' es\<^sub>2')
+      with E X have K: "k' = k \<and> es\<^sub>2 = map (subst [x \<mapsto> Ctor k es\<^sub>1]) es\<^sub>2'" by simp 
+      from E V X Ctor have ES: "ess = (Var x, Ctor k es\<^sub>2') # eess \<and> 
+        ess' = list_subst x (Ctor k es\<^sub>1) eess" by simp
+
+
+      from CtorCtorYes K have "length es\<^sub>1 = length es\<^sub>2'" by simp
+      from CtorCtorYes have "t extends s" by simp
+      from CtorCtorYes X have "x \<notin> varss es\<^sub>1" by simp
+      from CtorCtorYes X K ES have "unify' (zip es\<^sub>1 (map (subst [x \<mapsto> Ctor k es\<^sub>1]) es\<^sub>2') @ 
+        list_subst x (Ctor k es\<^sub>1) eess) = Some s" by simp
+      from CtorCtorYes K E X ES obtain s' where "unify' (zip es\<^sub>1 es\<^sub>2' @ eess) = Some s' \<and> 
+        extend_subst x (Ctor k es\<^sub>1) t extends s'" by fastforce
+
+
+
+      have "unify' ((Var x, Ctor k es\<^sub>2') # eess) = (
+        if x \<notin> varss es\<^sub>2' then map_option (extend_subst x (Ctor k es\<^sub>2')) (unify' (list_subst x (Ctor k es\<^sub>2') eess))
+        else None)" by simp
+    
+    
+    
+      have "unify' ((Var x, Ctor k es\<^sub>2') # eess) = Some xs' \<and> extend_subst x (Ctor k es\<^sub>1) t extends xs'" by simp
+      with E X V Ctor K show ?thesis by simp
+    qed
+  next
+    case (Ctor k' es\<^sub>1')
+    from CtorCtorYes have "length es\<^sub>1 = length es\<^sub>2" by simp
+    from CtorCtorYes E have "zip es\<^sub>1 es\<^sub>2 @ list_subst x e eess = list_subst x e xess \<Longrightarrow>
+      unify' (list_subst x e xess) = Some ss \<Longrightarrow>
+      t extends ss \<Longrightarrow> \<exists>s'. unify' xess = Some s' \<and> extend_subst x e t extends s'" by simp
+      from CtorCtorYes E have "unify' (list_subst x e ((ee\<^sub>1, ee\<^sub>2) # eess)) = Some s" by simp
+    from CtorCtorYes have "t extends s" by simp
+    from CtorCtorYes have "x \<notin> vars e" by simp
+  
+  
+  
+    have "unify' ((ee\<^sub>1, ee\<^sub>2) # eess) = Some s' \<and> extend_subst x e t extends s'" by simp
+    with E show ?thesis by simp
+  qed
 next
-  case (VarNo y e ess)
-  from VarNo have "e \<noteq> Var y" by simp
-  from VarNo have "y \<notin> vars e" by simp
-  from VarNo have "unify' (list_subst y e ess) = None" by simp
-  from VarNo have "unify' (list_subst x e' ((Var y, e) # ess)) = Some s" by simp
-  from VarNo have "x \<notin> vars e'" by simp
-
-
-  have "False" by simp
+  case (CtorVar y es k ess')
   thus ?case by simp
 next
-  case (VarYes y e ess s')
+  case (VarSame y ess')
+  thus ?case by simp
+next
+  case (VarYes y e' ess' s')
   thus ?case by simp
 qed fastforce+
-  
-lemma unify_append_snd [simp]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s \<Longrightarrow> 
+
+lemma unify_append_snd: "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s \<Longrightarrow> 
     \<exists>s\<^sub>2. unify' ess\<^sub>2 = Some s\<^sub>2 \<and> s extends s\<^sub>2"
-  using unify_subst_back by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct) fastforce+
+  by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct) (auto split: if_splits, fastforce)
 
 lemma [simp]: "unify' (es # ess) = Some s \<Longrightarrow> \<exists>s\<^sub>2. unify' ess = Some s\<^sub>2 \<and> s extends s\<^sub>2"
 proof -

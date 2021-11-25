@@ -233,6 +233,9 @@ proof -
   ultimately show ?thesis by simp
 qed
 
+lemma [elim]: "y \<notin> varss (map (subst [x \<mapsto> Var y]) es) \<Longrightarrow> x \<notin> varss es"
+  by (induction es) fastforce+
+
 lemma [simp]: "x \<in> varss es \<Longrightarrow> s x \<noteq> Some (Ctor k (map (subst s) es))"
 proof
   assume "x \<in> varss es"
@@ -297,6 +300,15 @@ lemma [simp]: "s x = Some (subst s e) \<Longrightarrow> x \<notin> vars e \<Long
 
 lemma [simp]: "subst_vars (s(x := None)) \<subseteq> subst_vars s"
   by (auto simp add: subst_vars_def) (metis ranI ran_restrictD restrict_complement_singleton_eq)
+
+lemma [simp]: "subst_vars (s(x \<mapsto> e)) = (subst_vars (s(x := None)) \<union> vars e)"
+  by (auto simp add: subst_vars_def ran_def)
+
+lemma [simp]: "y \<in> subst_vars (\<Gamma>(x := None)) = (\<exists>z e. z \<noteq> x \<and> \<Gamma> z = Some e \<and> y \<in> vars e)"
+  by (auto simp add: subst_vars_def ran_def split: if_splits)
+
+lemma [simp]: "subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> x \<notin> vs \<Longrightarrow> \<Gamma> z = Some e \<Longrightarrow> x \<in> vars e \<Longrightarrow> False"
+  by (auto simp add: subst_vars_def ran_def)
 
 lemma [simp]: "ordered_subst s \<Longrightarrow> ordered_subst (s(x := None))"
 proof (unfold ordered_subst_def)

@@ -120,6 +120,9 @@ lemma [simp]: "typeify (untypify t) = t"
 lemma [simp]: "vars (untypify t) = tvars t"
   by (induction t) simp_all
 
+lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> tvars (typeify t) = vars t"
+  by (induction t rule: typeify.induct) simp_all
+
 lemma [simp]: "tsubsts Map.empty e = e"
   by (induction e) simp_all
 
@@ -344,9 +347,125 @@ lemma vars_expand: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarro
   by (induction e arbitrary: \<Gamma> vs e' t vs' con) 
      (simp_all add: Let_def split: option.splits prod.splits, fastforce+)
 
+lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> finite vs' = finite vs"
+  by (induction e arbitrary: \<Gamma> vs e' t vs' con) 
+     (simp_all add: Let_def split: option.splits prod.splits)
+
+lemma [simp]: "typecheck' (\<Gamma>(x \<mapsto> Var v)) vs e = (e', t, vs', con) \<Longrightarrow> 
+  unify' con = None \<Longrightarrow> \<exists>xe' xt xvs' xcon. typecheck' (\<Gamma>(x \<mapsto> t')) vs e = 
+    (xe', xt, xvs', xcon) \<and> unify' xcon = None"
+proof (induction e arbitrary: \<Gamma> vs e' t vs' con)
+  case (NLam y e)
+  let ?v = "fresh vs"
+  from NLam have "typecheck' (\<Gamma>(x \<mapsto> Var v)) vs (NLam y e) = (e', t, vs', con)" by blast
+  then obtain xe' xt where T: "typecheck' (\<Gamma>(x \<mapsto> Var v, y \<mapsto> Var ?v)) (insert ?v vs) e = 
+    (xe', xt, vs', con) \<and> e' = HLam y (Var ?v) xe' \<and> t = Ctor ''Arrow'' [Var ?v, xt]" 
+      by (auto simp add: Let_def split: prod.splits)
+  thus ?case
+  proof (cases "x = y")
+    case True
+    with T have "typecheck' (\<Gamma>(x \<mapsto> t')) vs (NLam y e) = 
+      (HLam y (Var ?v) xe', Ctor ''Arrow'' [Var ?v, xt], vs', con)" 
+        by (simp add: Let_def split: prod.splits)
+    with NLam show ?thesis by blast
+  next
+    case False
+    with T have "typecheck' (\<Gamma>(y \<mapsto> Var ?v, x \<mapsto> Var v)) (insert ?v vs) e = (xe', xt, vs', con)"
+      by (simp add: fun_upd_twist)
+    with NLam obtain e'' t'' vs'' con' where "unify' con' = None \<and>
+      typecheck' (\<Gamma>(y \<mapsto> Var ?v, x \<mapsto> t')) (insert ?v vs) e = (e'', t'', vs'', con')" by blast
+    with False have "typecheck' (\<Gamma>(x \<mapsto> t')) vs (NLam y e) = 
+      (HLam y (Var ?v) e'', Ctor ''Arrow'' [Var ?v, t''], vs'', con') \<and> unify' con' = None" 
+        by (simp add: Let_def fun_upd_twist split: prod.splits)
+    thus ?thesis by blast
+  qed
+next
+  case (NApp e1 e2)
+  from NApp have "typecheck' (w\<Gamma>(x \<mapsto> Var v)) wvs e1 = (we', wt, wvs', wcon) \<Longrightarrow>
+    unify' wcon = None \<Longrightarrow>
+    \<exists>xe' xt xvs' xcon. typecheck' (w\<Gamma>(x \<mapsto> t')) wvs e1 = (xe', xt, xvs', xcon) \<and> unify' xcon = None" by blast
+  from NApp have "typecheck' (w\<Gamma>(x \<mapsto> Var v)) wvs e2 = (we', wt, wvs', wcon) \<Longrightarrow>
+    unify' wcon = None \<Longrightarrow>
+    \<exists>xe' xt xvs' xcon. typecheck' (w\<Gamma>(x \<mapsto> t')) wvs e2 = (xe', xt, xvs', xcon) \<and> unify' xcon = None" by blast
+  from NApp have "typecheck' (\<Gamma>(x \<mapsto> Var v)) vs (NApp e1 e2) = (e', t, vs', con)" by blast
+  from NApp have "unify' con = None" by simp
+
+
+
+  have "typecheck' \<Gamma> vs (NApp e\<^sub>1 e\<^sub>2) = (
+    let v = fresh vs
+    in let (e\<^sub>1', t\<^sub>1, vs', con\<^sub>1) = typecheck' \<Gamma> (insert v vs) e\<^sub>1 
+    in let (e\<^sub>2', t\<^sub>2, vs'', con\<^sub>2) = typecheck' \<Gamma> vs' e\<^sub>2 
+    in (HApp e\<^sub>1' e\<^sub>2', Var v, vs'', (t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v]) # con\<^sub>1 @ con\<^sub>2))" by simp
+
+  have "typecheck' (\<Gamma>(x \<mapsto> t')) vs (NApp e1 e2) = (xe', xt, xvs', xcon) \<and> unify' xcon = None" by simp
+  thus ?case by blast
+qed auto
+
+lemma [simp]: "(map_option typeify \<circ> \<Gamma>)(x \<mapsto> t') \<turnstile>\<^sub>n e : t \<Longrightarrow> subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> v \<in> vs \<Longrightarrow>
+  tvarst e \<subseteq> vs \<Longrightarrow> typecheck' (\<Gamma>(x \<mapsto> Var v)) vs (erase e) = (e', tt, vs', con) \<Longrightarrow> 
+    unify' con = None \<Longrightarrow> False"
+proof (induction "(map_option typeify \<circ> \<Gamma>)(x \<mapsto> t')" e t arbitrary: \<Gamma> vs e' tt vs' con 
+       rule: typecheckn.induct)
+  case (tcn_lam y t\<^sub>1 e t\<^sub>2)
+  let ?v = "fresh vs"
+  from tcn_lam obtain e'' tt' where T: "
+      typecheck' (\<Gamma>(x \<mapsto> Var v, y \<mapsto> Var ?v)) (insert ?v vs) (erase e) = (e'', tt', vs', con) \<and> 
+        e' = HLam y (Var ?v) e'' \<and> tt = Ctor ''Arrow'' [Var ?v, tt']" 
+    by (auto simp add: Let_def split: prod.splits)
+  thus ?case 
+  proof (cases "x = y")
+    case True
+    from tcn_lam have "(map_option typeify \<circ> \<Gamma>)(x \<mapsto> t', y \<mapsto> t\<^sub>1) \<turnstile>\<^sub>n e : t\<^sub>2" by simp 
+    from tcn_lam have "subst_vars \<Gamma> \<subseteq> vs" by simp 
+    from tcn_lam have "v \<in> vs" by simp 
+    from tcn_lam have "unify' con = None" by simp 
+    from tcn_lam have "tvars t\<^sub>1 \<subseteq> vs" by simp
+    from tcn_lam have "tvarst e \<subseteq> vs" by simp
+
+
+    then show ?thesis by simp
+  next
+    case False
+    hence X: "(map_option typeify \<circ> \<Gamma>)(x \<mapsto> t', y \<mapsto> t\<^sub>1) = 
+      (map_option typeify \<circ> (\<Gamma>(y \<mapsto> untypify t\<^sub>1)))(x \<mapsto> t')" by (simp add: fun_upd_twist)
+    from tcn_lam(3, 5) have Y: "subst_vars (\<Gamma>(y \<mapsto> untypify t\<^sub>1)) \<subseteq> insert ?v vs" 
+      by (auto simp add: subst_vars_def ran_def)
+    from tcn_lam have Z: "v \<in> insert ?v vs" by simp
+    from tcn_lam have "tvarst e \<subseteq> insert ?v vs" by auto
+
+
+    with tcn_lam X Y Z have "typecheck' (\<Gamma>(y \<mapsto> untypify t\<^sub>1, x \<mapsto> Var v)) (insert ?v vs) (erase e) = 
+      (xe', xtt, xvs', xcon) \<Longrightarrow> 
+      unify' xcon = None \<Longrightarrow> False" by blast 
+
+
+    from T have "
+      typecheck' (\<Gamma>(x \<mapsto> Var v, y \<mapsto> Var ?v)) (insert ?v vs) (erase e) = (e'', tt', vs', con) \<and> 
+        e' = HLam y (Var ?v) e'' \<and> tt = Ctor ''Arrow'' [Var ?v, tt']" by simp
+
+    from tcn_lam have "(map_option typeify \<circ> \<Gamma>)(x \<mapsto> t', y \<mapsto> t\<^sub>1) \<turnstile>\<^sub>n e : t\<^sub>2" by simp 
+    from tcn_lam have "subst_vars \<Gamma> \<subseteq> vs" by simp 
+    from tcn_lam have "v \<in> vs" by simp 
+    from tcn_lam have "unify' con = None" by simp 
+    from tcn_lam have "tvars t\<^sub>1 \<subseteq> vs" by simp
+    from tcn_lam have "tvarst e \<subseteq> vs" by simp
+
+
+    then show ?thesis by simp
+  qed
+next
+  case (tcn_app e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
+  thus ?case by (simp add: Let_def split: prod.splits)
+qed (simp_all split: if_splits option.splits)
+
+lemma [simp]: "subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> t \<in> ran (map_option typeify \<circ> \<Gamma>) \<Longrightarrow> 
+    finite vs \<Longrightarrow> fresh vs \<notin> tvars t"
+  by (unfold subst_vars_def valid_ty_subst_def ran_def) fastforce
+
 lemma typecheck_fails' [simp]: "typecheck' \<Gamma> vs e = (e', tt, vs', con) \<Longrightarrow> unify' con = None \<Longrightarrow> 
-  subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> tvarst e\<^sub>t \<subseteq> vs \<Longrightarrow> map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>t : t \<Longrightarrow> erase e\<^sub>t = e \<Longrightarrow> 
-    False"
+  finite vs \<Longrightarrow> subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> tvarst e\<^sub>t \<subseteq> vs \<Longrightarrow> map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>t : t \<Longrightarrow> 
+    erase e\<^sub>t = e \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> False"
 proof (induction arbitrary: e\<^sub>t t rule: typecheck_induct)
   case (NLam \<Gamma> vs vs' con x e\<^sub>1 e\<^sub>1' t' v)
   then obtain t\<^sub>1 e\<^sub>t' where E: "e\<^sub>t = TLam x t\<^sub>1 e\<^sub>t' \<and> e\<^sub>1 = erase e\<^sub>t'" by auto
@@ -355,31 +474,50 @@ proof (induction arbitrary: e\<^sub>t t rule: typecheck_induct)
   from NLam have "subst_vars \<Gamma> \<subseteq> vs" by simp
   hence X: "subst_vars (\<Gamma>(x \<mapsto> Var (fresh vs))) \<subseteq> insert (fresh vs) vs" 
     by (auto simp add: subst_vars_def ran_def)
+  with NLam E show ?case
+  proof (cases "\<exists>tt. (map_option typeify \<circ> \<Gamma>)(x \<mapsto> TyVar (fresh vs)) \<turnstile>\<^sub>n e\<^sub>t' : tt")
+    case False
+
+    from False have "\<forall>tt. \<not> (map_option typeify \<circ> \<Gamma>)(x \<mapsto> TyVar (fresh vs)) \<turnstile>\<^sub>n e\<^sub>t' : tt" by simp
+    from NLam E have "typecheck' (\<Gamma>(x \<mapsto> Var (fresh vs))) (insert (fresh vs) vs) (erase e\<^sub>t') = 
+      (e\<^sub>1', t', vs', con)" by simp
+    from NLam have "unify' con = None" by simp
+    from NLam have "finite vs" by simp
+    from NLam have "subst_vars \<Gamma> \<subseteq> vs" by simp
+    from NLam E have "tvars t\<^sub>1 \<subseteq> vs" by simp
+    from NLam E have "tvarst e\<^sub>t' \<subseteq> vs" by simp
+    from NLam have "valid_ty_subst \<Gamma>" by simp
+    from T have "(map_option typeify \<circ> \<Gamma>)(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>n e\<^sub>t' : t\<^sub>2" by simp
 
 
-  have "(map_option typeify \<circ> \<Gamma>)(x \<mapsto> TyVar v) \<turnstile>\<^sub>n e\<^sub>t' : ttt" by simp
-  with NLam E X show ?case by fastforce
+    have False by simp
+    thus ?thesis by blast
+  qed fastforce+
 next
   case (NApp \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 e\<^sub>2' t\<^sub>2 con\<^sub>2)
   then obtain e\<^sub>1\<^sub>t e\<^sub>2\<^sub>t where E: "e\<^sub>t = TApp e\<^sub>1\<^sub>t e\<^sub>2\<^sub>t \<and> e\<^sub>1 = erase e\<^sub>1\<^sub>t \<and> e\<^sub>2 = erase e\<^sub>2\<^sub>t" by auto
   with NApp obtain t\<^sub>1' where T: "(map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>1\<^sub>t : Arrow t\<^sub>1' t) \<and> 
     (map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>2\<^sub>t : t\<^sub>1')" by blast
 
+  let ?v = "fresh vs"
 
-  from NApp E have X: "tvarst e\<^sub>1\<^sub>t \<subseteq> insert v vs" by auto
-
-  from NApp have Y: "insert v vs \<subseteq> vs''" by (metis vars_expand)
-  with NApp E have Z: "tvarst e\<^sub>2\<^sub>t \<subseteq> vs''" by auto
-
-  from NApp have "v = fresh vs" by simp
-  from NApp have "typecheck' \<Gamma> (insert v vs) e\<^sub>1 = (e\<^sub>1', t\<^sub>1, vs'', con\<^sub>1)" by simp
+  from NApp have "typecheck' \<Gamma> (insert ?v vs) e\<^sub>1 = (e\<^sub>1', t\<^sub>1, vs'', con\<^sub>1)" by simp
   from NApp have "typecheck' \<Gamma> vs'' e\<^sub>2 = (e\<^sub>2', t\<^sub>2, vs', con\<^sub>2)" by simp
-  from NApp E T X have "unify' con\<^sub>1 = None \<Longrightarrow> False" by blast
-  from NApp E T Y Z have "unify' con\<^sub>2 = None \<Longrightarrow> False" by blast
-  from NApp have "unify' ((t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v]) # con\<^sub>1 @ con\<^sub>2) = None" by simp
+  from NApp have "unify' con\<^sub>1 = None \<Longrightarrow>
+    finite (insert ?v vs) \<Longrightarrow>
+    subst_vars \<Gamma> \<subseteq> insert ?v vs \<Longrightarrow>
+    tvarst xe\<^sub>t \<subseteq> insert ?v vs \<Longrightarrow>
+    map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n xe\<^sub>t : xt \<Longrightarrow> erase xe\<^sub>t = e\<^sub>1 \<Longrightarrow> False" by blast
+  from NApp have "unify' con\<^sub>2 = None \<Longrightarrow>
+    finite vs'' \<Longrightarrow>
+    subst_vars \<Gamma> \<subseteq> vs'' \<Longrightarrow>
+    tvarst xe\<^sub>t \<subseteq> vs'' \<Longrightarrow> map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n xe\<^sub>t : xt \<Longrightarrow> erase xe\<^sub>t = e\<^sub>2 \<Longrightarrow> False" by blast
+  from NApp have "unify' ((t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var ?v]) # con\<^sub>1 @ con\<^sub>2) = None" by simp
+  from NApp have "finite vs" by simp
   from NApp have "subst_vars \<Gamma> \<subseteq> vs" by simp
   from NApp E have "tvarst e\<^sub>1\<^sub>t \<subseteq> vs" by simp
   from NApp E have "tvarst e\<^sub>2\<^sub>t \<subseteq> vs" by simp
+  from NApp have "valid_ty_subst \<Gamma>" by simp
 
 
   have False by simp
@@ -396,8 +534,9 @@ proof
   then obtain e\<^sub>t t where Y: "(map_option typeify \<circ> Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> 
     e = erase e\<^sub>t" by fastforce
   hence Z: "tvarst e\<^sub>t \<subseteq> {}" by simp
-  have "subst_vars Map.empty \<subseteq> {}" by simp
-  with X Y Z show "False" by (metis typecheck_fails')
+  have W: "subst_vars Map.empty \<subseteq> {}" by simp
+  have "valid_ty_subst Map.empty" by simp
+  with X Y Z W show "False" by (metis typecheck_fails' finite.emptyI)
 qed
 
 lemma [simp]: "valn (erase e) = valt e"

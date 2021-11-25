@@ -101,6 +101,13 @@ lemma free_vars_subs [simp]: "\<Gamma> \<turnstile>\<^sub>n e : t \<Longrightarr
 lemma [simp]: "Map.empty \<turnstile>\<^sub>n e : t \<Longrightarrow> free_varst e = {}"
   using free_vars_subs by fastforce
 
+lemma [simp]: "\<Gamma> \<turnstile>\<^sub>n e : t \<Longrightarrow> v \<notin> \<Union> (tvars ` ran \<Gamma>) \<Longrightarrow> v \<notin> tvarst e \<Longrightarrow> v \<notin> tvars t"
+proof (induction \<Gamma> e t rule: typecheckn.induct)
+  case (tcn_lam \<Gamma> x t\<^sub>1 e t\<^sub>2)
+  hence "v \<notin> \<Union> (tvars ` ran (\<Gamma>(x \<mapsto> t\<^sub>1)))" by (auto simp add: ran_def)
+  with tcn_lam show ?case by fastforce
+qed (auto simp add: ran_def)
+
 lemma canonical_basen [dest]: "\<Gamma> \<turnstile>\<^sub>n e : Base \<Longrightarrow> valt e \<Longrightarrow> \<exists>k. e = TConst k"
   by (induction \<Gamma> e Base rule: typecheckn.induct) simp_all
 
