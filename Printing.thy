@@ -95,11 +95,12 @@ lemma print_ce [simp]: "hcontains h x \<Longrightarrow>
 lemma [simp]: "print_ceclosure (flatten_closure' c) = print_ceclosure c"
   by (induction c) simp_all
 
-lemma print_a [simp]: "3 dvd x \<Longrightarrow> print_uval (snd \<circ> assm_hp cd h) x = print_uval h x"
+lemma print_a [simp]: "3 dvd x \<Longrightarrow> Suc x < hp \<Longrightarrow> 
+  print_uval (snd \<circ> assm_hp cd h hp) x = print_uval h x"
 proof (induction "h x")
   case (Suc nat)
   hence "h x = Suc nat" by simp
-  moreover from Suc have "3 dvd x" by simp
+  moreover from Suc have "3 dvd x" and "Suc x < hp" by simp_all
   moreover from Suc have "Suc x mod 3 = 1" by presburger
   ultimately show ?case by (simp add: assm_hp_lemma1 assm_hp_lemma2 split: nat.splits)
 qed (simp_all add: assemble_heap_def)

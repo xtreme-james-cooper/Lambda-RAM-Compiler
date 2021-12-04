@@ -419,4 +419,8 @@ lemma [simp]: "unmap_mem' 7 = (Stk, 1)"
 lemma [dest]: "unmap_mem' x = (Stk, Suc 0) \<Longrightarrow> x = 7"
   by (induction x rule: unmap_mem'.induct) (auto split: prod.splits)
 
+lemma [simp]: "unmap_mem (case_register nmem nmem nmem 
+  (nmem(0 := (PC, 0), Suc 0 := (Reg Env, 0)))) = nmem(3 := 0, 7 := 0)"
+  apply rule apply (simp add: unmap_mem_def split: prod.splits register.splits)
+
 end

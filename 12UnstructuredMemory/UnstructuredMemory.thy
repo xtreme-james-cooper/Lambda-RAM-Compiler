@@ -68,14 +68,14 @@ qed
 
 definition restructurable_heap :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
   "restructurable_heap h hp ep lcd = (3 dvd hp \<and> (\<forall>x < hp. 3 dvd x \<longrightarrow> h x = 0 \<longrightarrow> 
-    (even (h (Suc x)) \<and> (h (Suc x)) \<le> ep \<and> h (Suc (Suc x)) \<noteq> 0 \<and> h (Suc (Suc x)) \<le> lcd)))"
+    (even (h (Suc x)) \<and> h (Suc x) \<le> ep \<and> h (Suc (Suc x)) \<noteq> 0 \<and> h (Suc (Suc x)) \<le> lcd)))"
 
 definition restructurable_env :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
   "restructurable_env e ep hp = (even ep \<and>
-    (\<forall>x < ep. if even x then 3 dvd e x \<and> e x < hp else even (e x) \<and> e x \<le> ep))"
+    (\<forall>x < ep. if even x then 3 dvd e x \<and> e x < hp else even (e x) \<and> e x < ep))"
 
 definition restructurable_vals :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
-  "restructurable_vals vs vp hp = (\<forall>x < vp. 3 dvd vs x \<and> vs x < hp)"
+  "restructurable_vals vs vp hp = (3 dvd hp \<and> (\<forall>x < vp. 3 dvd vs x \<and> vs x < hp))"
 
 definition restructurable_stack :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
   "restructurable_stack sh sp ep lcd = (\<forall>x < sp. 
@@ -151,6 +151,9 @@ lemma [simp]: "restructurable_heap h hp ep lcd \<Longrightarrow> restructurable_
 lemma [simp]: "restructurable_env e ep hp \<Longrightarrow> restructurable_env e ep (3 + hp)"
   by (auto simp add: restructurable_env_def)
 
+lemma [elim]: "p < ep \<Longrightarrow> odd p \<Longrightarrow> restructurable_env e ep hp \<Longrightarrow> e p < ep"
+  by (simp add: restructurable_env_def)
+
 lemma [simp]: "restructurable_env e ep hp \<Longrightarrow> restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> 
   restructurable_heap h hp ep lcd \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow>
     restructurable_env (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (Suc (Suc ep)) hp"
@@ -159,24 +162,24 @@ proof (unfold restructurable_env_def restructurable_vals_def restructurable_heap
   fix y 
   assume "3 dvd hp \<and> (\<forall>x < hp. 3 dvd x \<longrightarrow> h x = 0 \<longrightarrow> 
     even (h (Suc x)) \<and> h (Suc x) \<le> ep \<and> h (Suc (Suc x)) \<noteq> 0 \<and> h (Suc (Suc x)) \<le> lcd)"
-     and "h (vs vp) = 0" and "\<forall>x < Suc (Suc vp). 3 dvd vs x \<and> vs x < hp"
+     and "h (vs vp) = 0" and "3 dvd hp \<and> (\<forall>x < Suc (Suc vp). 3 dvd vs x \<and> vs x < hp)"
   hence "even (h (Suc (vs vp))) \<and> h (Suc (vs vp)) \<le> ep" by simp
   moreover assume "even ep \<and> 
-    (\<forall>x < ep. if even x then 3 dvd e x \<and> e x < hp else even (e x) \<and> e x \<le> ep)"
-              and "y < Suc (Suc ep)" and "\<forall>x < Suc (Suc vp). 3 dvd vs x \<and> vs x < hp"
+    (\<forall>x < ep. if even x then 3 dvd e x \<and> e x < hp else even (e x) \<and> e x < ep)"
+              and "y < Suc (Suc ep)" and "3 dvd hp \<and> (\<forall>x < Suc (Suc vp). 3 dvd vs x \<and> vs x < hp)"
   ultimately show "if even y
         then 3 dvd (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) y \<and> 
           (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) y < hp
         else even ((e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) y) \<and>
-          (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) y \<le> Suc (Suc ep)" by auto
+          (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) y < Suc (Suc ep)" by auto
 qed
 
 lemma [simp]: "restructurable_vals vs vp hp \<Longrightarrow> 
-    restructurable_vals (vs(vp := k)) (Suc vp) hp = (k < hp \<and> 3 dvd k)"
+    restructurable_vals (vs(vp := k)) (Suc vp) hp = (3 dvd hp \<and> k < hp \<and> 3 dvd k)"
   by (auto simp add: restructurable_vals_def)
 
 lemma [simp]: "restructurable_vals vs vp hp \<Longrightarrow> 
-    restructurable_vals (vs(vp := k)) (Suc vp) (3 + hp) = (k < 3 + hp \<and> 3 dvd k)"
+    restructurable_vals (vs(vp := k)) (Suc vp) (3 + hp) = (3 dvd hp \<and> k < 3 + hp \<and> 3 dvd k)"
   by (auto simp add: restructurable_vals_def)
 
 lemma [elim]: "restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> restructurable_vals vs vp hp"
@@ -256,7 +259,7 @@ lemma [elim]: "unstr_lookup e p x = Some y \<Longrightarrow> p \<le> ep \<Longri
     y < hp"
 proof (induction e p x rule: unstr_lookup.induct)
   case (4 e p x)
-  moreover hence "even (e (Suc p)) \<and> e (Suc p) \<le> ep" by (simp add: restructurable_env_def)
+  moreover hence "even (e (Suc p)) \<and> e (Suc p) < ep" by (simp add: restructurable_env_def)
   ultimately show ?case by simp
 qed (auto simp add: restructurable_env_def)
 
@@ -264,7 +267,7 @@ lemma [elim]: "unstr_lookup e p x = Some y \<Longrightarrow> p \<le> ep \<Longri
     3 dvd y"
 proof (induction e p x rule: unstr_lookup.induct) 
   case (4 e p x)
-  moreover hence "even (e (Suc p)) \<and> e (Suc p) \<le> ep" by (simp add: restructurable_env_def)
+  moreover hence "even (e (Suc p)) \<and> e (Suc p) < ep" by (simp add: restructurable_env_def)
   ultimately show ?case by simp
 qed (auto simp add: restructurable_env_def)
 
