@@ -256,7 +256,7 @@ lemma [simp]: "h (vs vp) = 0 \<Longrightarrow> restructurable_heap h hp ep lcd \
   by (simp add: restructurable_heap_def restructurable_vals_def)
 
 lemma [elim]: "unstr_lookup e p x = Some y \<Longrightarrow> p \<le> ep \<Longrightarrow> even p \<Longrightarrow> restructurable_env e ep hp \<Longrightarrow> 
-    y < hp"
+  y < hp"
 proof (induction e p x rule: unstr_lookup.induct)
   case (4 e p x)
   moreover hence "even (e (Suc p)) \<and> e (Suc p) < ep" by (simp add: restructurable_env_def)
@@ -264,7 +264,7 @@ proof (induction e p x rule: unstr_lookup.induct)
 qed (auto simp add: restructurable_env_def)
 
 lemma [elim]: "unstr_lookup e p x = Some y \<Longrightarrow> p \<le> ep \<Longrightarrow> even p \<Longrightarrow> restructurable_env e ep hp \<Longrightarrow> 
-    3 dvd y"
+  3 dvd y"
 proof (induction e p x rule: unstr_lookup.induct) 
   case (4 e p x)
   moreover hence "even (e (Suc p)) \<and> e (Suc p) < ep" by (simp add: restructurable_env_def)

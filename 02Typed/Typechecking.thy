@@ -307,7 +307,8 @@ next
     by (metis unify_some) 
   hence "sub' unifies t\<^sub>1 and Ctor ''Arrow'' [t\<^sub>2, Var v]" by simp
   with NApp have X: "sub unifies t\<^sub>1 and Ctor ''Arrow'' [t\<^sub>2, Var v]" by fastforce
-  from S2 obtain s\<^sub>4 where S4: "unify' con\<^sub>2 = Some s\<^sub>4 \<and> s\<^sub>2 extends s\<^sub>4" by fastforce
+  from S2 obtain s\<^sub>4 where S4: "unify' con\<^sub>2 = Some s\<^sub>4 \<and> s\<^sub>2 extends s\<^sub>4" 
+    using unify_append_snd by blast
   with NApp S2 have "sub extends s\<^sub>4" by auto
   with NApp S4 have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>2') : 
     typeify (subst sub t\<^sub>2)" by blast
@@ -381,24 +382,39 @@ proof (induction e arbitrary: \<Gamma> vs e' t vs' con)
   qed
 next
   case (NApp e1 e2)
-  from NApp have "typecheck' (w\<Gamma>(x \<mapsto> Var v)) wvs e1 = (we', wt, wvs', wcon) \<Longrightarrow>
-    unify' wcon = None \<Longrightarrow>
-    \<exists>xe' xt xvs' xcon. typecheck' (w\<Gamma>(x \<mapsto> t')) wvs e1 = (xe', xt, xvs', xcon) \<and> unify' xcon = None" by blast
+  let ?v = "fresh vs"
+  obtain e\<^sub>1' t\<^sub>1 vs\<^sub>1 con\<^sub>1 where T1: "(e\<^sub>1', t\<^sub>1, vs\<^sub>1, con\<^sub>1) = 
+    typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert ?v vs) e1" 
+      by (cases "typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert ?v vs) e1") simp_all
+  obtain e\<^sub>2' t\<^sub>2 vs\<^sub>2 con\<^sub>2 where T2: "(e\<^sub>2', t\<^sub>2, vs\<^sub>2, con\<^sub>2) = typecheck' (\<Gamma>(x \<mapsto> Var v)) vs\<^sub>1 e2" 
+    by (cases "typecheck' (\<Gamma>(x \<mapsto> Var v)) vs\<^sub>1 e2") simp_all
+  from NApp have "typecheck' (\<Gamma>(x \<mapsto> Var v)) vs (NApp e1 e2) = (e', t, vs', con)" by blast
+  with T1 T2 have X: "e' = HApp e\<^sub>1' e\<^sub>2' \<and> t = Var ?v \<and> vs' = vs\<^sub>2 \<and> 
+    con = (t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var ?v]) # con\<^sub>1 @ con\<^sub>2" 
+      by (auto simp add: Let_def split: prod.splits)
+
+  from NApp T1 have "unify' con\<^sub>1 = None \<Longrightarrow>
+    \<exists>xe' xt xvs' xcon. typecheck' (\<Gamma>(x \<mapsto> t')) (insert ?v vs) e1 = (xe', xt, xvs', xcon) \<and> unify' xcon = None" by metis
   from NApp have "typecheck' (w\<Gamma>(x \<mapsto> Var v)) wvs e2 = (we', wt, wvs', wcon) \<Longrightarrow>
     unify' wcon = None \<Longrightarrow>
     \<exists>xe' xt xvs' xcon. typecheck' (w\<Gamma>(x \<mapsto> t')) wvs e2 = (xe', xt, xvs', xcon) \<and> unify' xcon = None" by blast
-  from NApp have "typecheck' (\<Gamma>(x \<mapsto> Var v)) vs (NApp e1 e2) = (e', t, vs', con)" by blast
   from NApp have "unify' con = None" by simp
 
 
 
-  have "typecheck' \<Gamma> vs (NApp e\<^sub>1 e\<^sub>2) = (
-    let v = fresh vs
-    in let (e\<^sub>1', t\<^sub>1, vs', con\<^sub>1) = typecheck' \<Gamma> (insert v vs) e\<^sub>1 
-    in let (e\<^sub>2', t\<^sub>2, vs'', con\<^sub>2) = typecheck' \<Gamma> vs' e\<^sub>2 
-    in (HApp e\<^sub>1' e\<^sub>2', Var v, vs'', (t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v]) # con\<^sub>1 @ con\<^sub>2))" by simp
 
-  have "typecheck' (\<Gamma>(x \<mapsto> t')) vs (NApp e1 e2) = (xe', xt, xvs', xcon) \<and> unify' xcon = None" by simp
+
+
+
+  have "(case typecheck' (\<Gamma>(x \<mapsto> t')) (insert ?v vs) e1 of
+        (e\<^sub>1', t\<^sub>1, vs', con\<^sub>1) \<Rightarrow>
+          case typecheck' (\<Gamma>(x \<mapsto> t')) vs' e2 of
+          (e\<^sub>2', t\<^sub>2, vs'', con\<^sub>2) \<Rightarrow>
+            (HApp e\<^sub>1' e\<^sub>2', Var ?v, vs'', (t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var ?v]) # con\<^sub>1 @ con\<^sub>2)) =
+    (xe', xt, xvs', xcon) \<and>
+    unify' xcon = None" by simp
+  hence "typecheck' (\<Gamma>(x \<mapsto> t')) vs (NApp e1 e2) = (xe', xt, xvs', xcon) \<and> unify' xcon = None" 
+    by simp
   thus ?case by blast
 qed auto
 
@@ -456,7 +472,7 @@ proof (induction "(map_option typeify \<circ> \<Gamma>)(x \<mapsto> t')" e t arb
   qed
 next
   case (tcn_app e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
-  thus ?case by (simp add: Let_def split: prod.splits)
+  thus ?case by simp
 qed (simp_all split: if_splits option.splits)
 
 lemma [simp]: "subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> t \<in> ran (map_option typeify \<circ> \<Gamma>) \<Longrightarrow> 
@@ -503,15 +519,13 @@ next
 
   from NApp have "typecheck' \<Gamma> (insert ?v vs) e\<^sub>1 = (e\<^sub>1', t\<^sub>1, vs'', con\<^sub>1)" by simp
   from NApp have "typecheck' \<Gamma> vs'' e\<^sub>2 = (e\<^sub>2', t\<^sub>2, vs', con\<^sub>2)" by simp
-  from NApp have "unify' con\<^sub>1 = None \<Longrightarrow>
-    finite (insert ?v vs) \<Longrightarrow>
-    subst_vars \<Gamma> \<subseteq> insert ?v vs \<Longrightarrow>
-    tvarst xe\<^sub>t \<subseteq> insert ?v vs \<Longrightarrow>
-    map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n xe\<^sub>t : xt \<Longrightarrow> erase xe\<^sub>t = e\<^sub>1 \<Longrightarrow> False" by blast
-  from NApp have "unify' con\<^sub>2 = None \<Longrightarrow>
+  from NApp E have "unify' con\<^sub>1 = None \<Longrightarrow>
+    tvarst e\<^sub>1\<^sub>t \<subseteq> insert ?v vs \<Longrightarrow>
+    map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>1\<^sub>t : xt \<Longrightarrow> False" by blast
+  from NApp E have "unify' con\<^sub>2 = None \<Longrightarrow>
     finite vs'' \<Longrightarrow>
     subst_vars \<Gamma> \<subseteq> vs'' \<Longrightarrow>
-    tvarst xe\<^sub>t \<subseteq> vs'' \<Longrightarrow> map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n xe\<^sub>t : xt \<Longrightarrow> erase xe\<^sub>t = e\<^sub>2 \<Longrightarrow> False" by blast
+    tvarst e\<^sub>2\<^sub>t \<subseteq> vs'' \<Longrightarrow> map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>2\<^sub>t : xt \<Longrightarrow> False" by blast
   from NApp have "unify' ((t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var ?v]) # con\<^sub>1 @ con\<^sub>2) = None" by simp
   from NApp have "finite vs" by simp
   from NApp have "subst_vars \<Gamma> \<subseteq> vs" by simp
@@ -573,6 +587,7 @@ lemma correctness' [simp]: "e \<Down> v \<Longrightarrow> typecheck' \<Gamma> vs
 proof (induction e v arbitrary: vs e\<^sub>t t1 vs1 uni1 sub1 v\<^sub>t t2 vs2 uni2 sub2 rule: evaln.induct)
   case (evn_app e\<^sub>1 x e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
   let ?v = "fresh vs"
+  let ?v2 = "fresh (insert ?v vs)"
   obtain e\<^sub>1\<^sub>t t\<^sub>1 vs' con\<^sub>1 where E1: "typecheck' \<Gamma> (insert ?v vs) e\<^sub>1 = (e\<^sub>1\<^sub>t, t\<^sub>1, vs', con\<^sub>1)" 
     by (cases "typecheck' \<Gamma> (insert ?v vs) e\<^sub>1") 
   obtain e\<^sub>2\<^sub>t t\<^sub>2 vs'' con\<^sub>2 where E2: "typecheck' \<Gamma> vs' e\<^sub>2 = (e\<^sub>2\<^sub>t, t\<^sub>2, vs'', con\<^sub>2)" 
@@ -609,11 +624,16 @@ proof (induction e v arbitrary: vs e\<^sub>t t1 vs1 uni1 sub1 v\<^sub>t t2 vs2 u
   have X: "tsubsts sub1 (typeify (Var ?v)) = tsubsts sub2 (typeify t2)" by simp
 
 
-  from evn_app E1 have "typecheck' \<Gamma> (insert ?v vs) (NLam x e\<^sub>1') = (xv\<^sub>t, xt20, xvs20, xuni2) \<Longrightarrow>
-    unify' con\<^sub>1 = Some xsub10 \<Longrightarrow>
-    unify' xuni2 = Some xsub20 \<Longrightarrow>
-    tsubsts xsub10 (typeify t\<^sub>1) = tsubsts xsub20 (typeify xt20) \<and>
-    tsubstt xsub10 (solidify e\<^sub>1\<^sub>t) \<Down>\<^sub>t tsubstt xsub20 (solidify xv\<^sub>t)" by simp
+  obtain e\<^sub>1\<^sub>t' t\<^sub>1' vsx' con\<^sub>1' where "(e\<^sub>1\<^sub>t', t\<^sub>1', vsx', con\<^sub>1') = 
+    typecheck' (\<Gamma>(x \<mapsto> Var ?v2)) (insert ?v2 (insert ?v vs)) e\<^sub>1'" 
+      by (cases "typecheck' (\<Gamma>(x \<mapsto> Var ?v2)) (insert ?v2 (insert ?v vs)) e\<^sub>1'") simp_all 
+  hence "typecheck' \<Gamma> (insert ?v vs) (NLam x e\<^sub>1') = 
+    (HLam x (Var ?v2) e\<^sub>1\<^sub>t', Ctor ''Arrow'' [Var ?v2, t\<^sub>1'], vsx', con\<^sub>1')" 
+      by (auto simp add: Let_def split: prod.splits)
+  with evn_app E1 have "unify' con\<^sub>1 = Some xsub10 \<Longrightarrow>
+    unify' con\<^sub>1' = Some xsub20 \<Longrightarrow>
+    tsubsts xsub10 (typeify t\<^sub>1) = tsubsts xsub20 (typeify (Ctor ''Arrow'' [Var ?v2, t\<^sub>1'])) \<and>
+    tsubstt xsub10 (solidify e\<^sub>1\<^sub>t) \<Down>\<^sub>t tsubstt xsub20 (solidify (HLam x (Var ?v2) e\<^sub>1\<^sub>t'))" by blast
 
 
   have "tsubstt sub1 (solidify e\<^sub>1\<^sub>t) \<Down>\<^sub>t TLam x t xe\<^sub>1' \<Longrightarrow> 

@@ -531,7 +531,7 @@ proof (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induc
           (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp))) 
             (case_register hp ep vp (Suc sp)) (sh sp) (Reg Env) (5 + 2 * x + assembly_map cd pc))" 
     by (simp add: numeral_def)
-  from evu_lookup have "sh sp < ep" by simp
+  from evu_lookup have "sh sp \<le> ep" by auto
   with evu_lookup have "iter_evala (assemble_code cd) (5 + 2 * x) 
     (AS (case_register (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
       (assm_stk cd sh (Suc sp))) (case_register hp ep vp (Suc sp)) (sh sp) (Reg Env) 
@@ -657,7 +657,7 @@ next
             (assm_stk cd (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (Suc (Suc (Suc sp))))) 
               (case_register hp (Suc (Suc ep)) vp (Suc (Suc (Suc sp)))) 0 (Con 0) 
                 (assembly_map cd (h (Suc (Suc (vs vp))))))"
-    by (autox simp add: numeral_def assemble_vals_def)
+    by (auto simp add: numeral_def assemble_vals_def)
   thus ?case by auto
 next
   case (evu_return cd pc h hp e ep vs vp sh sp)
@@ -668,7 +668,7 @@ next
       (case_register hp ep vp (Suc (Suc sp))) 0 (Con 0) (assembly_map cd (Suc pc))) = 
         Some (AS (case_register (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
           (assm_stk cd sh sp)) (case_register hp ep vp sp) 0 (Con 0) (assembly_map cd (sh sp)))"
-    by (simpx add: numeral_def split: prod.splits)
+    by (simp add: numeral_def split: prod.splits)
   thus ?case by auto
 next
   case (evu_jump cd pc h vs vp hp e ep sh sp)
@@ -714,7 +714,7 @@ next
           Suc ep := h (Suc (vs vp)))) (Suc (Suc ep))) (assemble_vals vs vp) 
             (assm_stk cd (sh(sp := Suc (Suc ep))) (Suc sp))) (case_register hp 
               (Suc (Suc ep)) vp (Suc sp)) 0 (Con 0) (assembly_map cd (h (Suc (Suc (vs vp))))))" 
-    by (autox simp add: numeral_def assemble_vals_def)
+    by (auto simp add: numeral_def assemble_vals_def)
   thus ?case by auto
 qed
 
