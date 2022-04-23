@@ -55,6 +55,9 @@ qed simp_all
 lemma [simp]: "vars (subst [x \<mapsto> e'] e) = vars e - {x} \<union> (if x \<in> vars e then vars e' else {})"
   by simp
 
+lemma [simp]: "subst [x \<mapsto> e'] (subst [x \<mapsto> e''] e) = subst [x \<mapsto> subst [x \<mapsto> e'] e''] e"
+  by (induction e) simp_all
+
 lemma [dest]: "[] = list_subst x e ess \<Longrightarrow> ess = []"
   by (induction x e ess rule: list_subst.induct) simp_all
 
@@ -88,6 +91,15 @@ lemma [simp]: "list_vars (list_subst x e ess) =
     list_vars ess - {x} \<union> (if x \<in> list_vars ess then vars e else {})"
   by simp
 
+lemma [simp]: "list_subst x e' (list_subst x e ess) = list_subst x (subst [x \<mapsto> e'] e) ess"
+proof (induction x e ess rule: list_subst.induct)
+  case (2 x e e\<^sub>1 e\<^sub>2 ess)
+  hence "list_subst x e' (list_subst x e ess) = list_subst x (subst [x \<mapsto> e'] e) ess" by blast
+  hence "list_subst x e' (list_subst x e ((e\<^sub>1, e\<^sub>2) # ess)) = 
+    list_subst x (subst [x \<mapsto> e'] e) ((e\<^sub>1, e\<^sub>2) # ess)" by simp
+  thus ?case by blast
+qed simp_all
+
 lemma [simp]: "vars (subst s e) \<subseteq> vars e - dom s \<union> subst_vars s"
   and [simp]: "varss (map (subst s) es) \<subseteq> varss es - dom s \<union> subst_vars s"
   by (induction e and es rule: vars_varss.induct) 
@@ -95,6 +107,9 @@ lemma [simp]: "vars (subst s e) \<subseteq> vars e - dom s \<union> subst_vars s
 
 lemma [simp]: "subst_vars Map.empty = {}"
   by (simp add: subst_vars_def)
+
+lemma [simp]: "s x = Some e \<Longrightarrow> y \<in> vars e \<Longrightarrow> y \<in> subst_vars s"
+  by (auto simp add: subst_vars_def ran_def)
 
 lemma [simp]: "dom (extend_subst x e s) = insert x (dom s)"
   by (auto simp add: extend_subst_def)
@@ -304,6 +319,13 @@ lemma [simp]: "subst_vars (s(x := None)) \<subseteq> subst_vars s"
 lemma [simp]: "subst_vars (s(x \<mapsto> e)) = (subst_vars (s(x := None)) \<union> vars e)"
   by (auto simp add: subst_vars_def ran_def)
 
+lemma [simp]: "subst_vars (\<lambda>a. if a = x then Some e else s a) = 
+    (subst_vars (s(x := None)) \<union> vars e)"
+  by (auto simp add: subst_vars_def ran_def)
+
+lemma [simp]: "y \<in> subst_vars (s(x := None)) \<Longrightarrow> y \<in> subst_vars s"
+  by (auto simp add: subst_vars_def ran_def split: if_splits)
+
 lemma [simp]: "y \<in> subst_vars (\<Gamma>(x := None)) = (\<exists>z e. z \<noteq> x \<and> \<Gamma> z = Some e \<and> y \<in> vars e)"
   by (auto simp add: subst_vars_def ran_def split: if_splits)
 
@@ -376,7 +398,7 @@ lemma [simp]: "subst (combine_subst s t) e = subst s (subst t e)"
 lemma [simp]: "subst (combine_subst s t) = subst s \<circ> subst t"
   by auto
 
-lemma [elim]: "s extends t \<Longrightarrow> t extends u \<Longrightarrow> s extends u"
+lemma extends_trans [elim]: "s extends t \<Longrightarrow> t extends u \<Longrightarrow> s extends u"
 proof (unfold subst_extends_def)
   assume "\<exists>w. subst s = subst w \<circ> subst t"
   then obtain w where W: "subst s = subst w \<circ> subst t" by fastforce
@@ -402,6 +424,18 @@ lemma extends_refl [simp]: "s extends s"
 proof (unfold subst_extends_def)
   have "subst s = subst Map.empty \<circ> subst s" by simp
   thus "\<exists>u. subst s = subst u \<circ> subst s" by blast
+qed
+
+lemma [simp]: "t extends u \<Longrightarrow> extend_subst x e u extends s \<Longrightarrow> extend_subst x e t extends s"
+proof (unfold subst_extends_def)
+  assume "\<exists>b. subst t = subst b \<circ> subst u"
+  then obtain b where B: "subst t = subst b \<circ> subst u" by fastforce
+  assume "\<exists>c. subst (extend_subst x e u) = subst c \<circ> subst s"
+  then obtain c where "subst (extend_subst x e u) = subst c \<circ> subst s" by fastforce
+  hence "subst u \<circ> subst [x \<mapsto> e] = subst c \<circ> subst s" by (metis expand_extend_subst)
+  hence "subst b \<circ> subst u \<circ> subst [x \<mapsto> e] = subst (combine_subst b c) \<circ> subst s" 
+    by (simp add: comp_assoc)
+  with B show "\<exists>a. subst (extend_subst x e t) = subst a \<circ> subst s" by (metis expand_extend_subst)
 qed
 
 lemma [elim]: "s unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> t extends s \<Longrightarrow> t unifies e\<^sub>1 and e\<^sub>2"
