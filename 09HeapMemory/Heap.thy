@@ -1,5 +1,5 @@
 theory Heap
-  imports "../00Utils/Environment"
+  imports "../00Utils/Environment" "../00Utils/Utils"
 begin
 
 type_synonym ptr = nat
@@ -214,6 +214,18 @@ proof (induction h)
   moreover from H HH have "hp' = 0 + k * (p - 0)" by (metis hsplay'_index)
   ultimately show ?case by fastforce
 qed
+
+lemma [simp]: "hsplay' f h hp m mp n = (h', hp') \<Longrightarrow> mp = k * n \<Longrightarrow> (\<And>a. length (f a) = k) \<Longrightarrow> 
+    n \<le> hp \<Longrightarrow> hp' = k * hp"
+  by (induction f h hp m mp n rule: hsplay'.induct) simp_all
+
+lemma [simp]: "hcontains h x \<Longrightarrow> hsplay f h = H h' hp' \<Longrightarrow> (\<And>a. length (f a) = k) \<Longrightarrow> 
+  1 < k \<Longrightarrow> Suc (k * x) < hp'"
+proof (induction h)
+  case (H h hp)
+  moreover hence "hp' = k * hp" by (simp split: prod.splits)
+  ultimately show ?case by simp
+qed 
 
 primrec listify' :: "(nat \<Rightarrow> 'a) \<Rightarrow> nat \<Rightarrow> 'a list" where
   "listify' h 0 = []"

@@ -67,6 +67,9 @@ primrec disassemble_state :: "assm_state \<Rightarrow> mach_state" where
 primrec dissassembleable :: "assm_state \<Rightarrow> nat \<Rightarrow> bool" where
   "dissassembleable (AS mem rs a t pc) lcd = (pc < lcd)"
 
+abbreviation empty_mem :: "'a \<Rightarrow> nat" where
+  "empty_mem x \<equiv> pseudoreg_map undefined"
+
 lemma [dest]: "R1 = register_map r \<Longrightarrow> r = Hp"
   by (induction r) simp_all
 
@@ -407,20 +410,21 @@ lemma [simp]: "inv_register_map (case_register hp ep (Suc 0) 0) 0 (Con 0) =
     case_reg (4 * hp) (Suc (4 * ep)) 6 3 0"
   by (auto split: reg.splits)
 
-lemma [simp]: "unmap_mem' 3 = (Stk, 0)"
-  by (simp add: numeral_def)
-
-lemma [dest]: "unmap_mem' x = (Stk, 0) \<Longrightarrow> x = 3"
-  by (induction x rule: unmap_mem'.induct) (simp_all split: prod.splits)
-
-lemma [simp]: "unmap_mem' 7 = (Stk, 1)"
-  by (simp add: numeral_def)
-
-lemma [dest]: "unmap_mem' x = (Stk, Suc 0) \<Longrightarrow> x = 7"
-  by (induction x rule: unmap_mem'.induct) (auto split: prod.splits)
+lemma [dest]: "unmap_mem' x = (r, y) \<Longrightarrow> x = 4 * y + register_offset r"
+  by (induction x arbitrary: y rule: unmap_mem'.induct) (simp_all split: prod.splits)
 
 lemma [simp]: "unmap_mem (case_register nmem nmem nmem 
-  (nmem(0 := (PC, 0), Suc 0 := (Reg Env, 0)))) = nmem(3 := 0, 7 := 0)"
-  apply rule apply (simp add: unmap_mem_def split: prod.splits register.splits)
+  (nmem(0 := (PC, 0), Suc 0 := (Reg Env, 0)))) = empty_mem(3 := 0, 7 := 1)"
+proof (rule, unfold unmap_mem_def)
+  fix x
+  obtain r p where R: "unmap_mem' x = (r, p)" by fastforce
+  moreover hence "x = 4 * p + register_offset r" by auto
+  ultimately have "pseudoreg_map ((case r of Stk \<Rightarrow> nmem(0 := (PC, 0), Suc 0 := (Reg Env, 0)) 
+      | _ \<Rightarrow> nmem) p) = (empty_mem(3 := 0, 7 := 1)) x" 
+    by (induction r) (simp_all, presburger+)
+  with R show "(case unmap_mem' x of (r, p) \<Rightarrow> 
+    pseudoreg_map ((case r of Stk \<Rightarrow> nmem(0 := (PC, 0), Suc 0 := (Reg Env, 0)) | _ \<Rightarrow> nmem) p)) =
+      (empty_mem(3 := 0, 7 := 1)) x" by simp
+qed
 
 end

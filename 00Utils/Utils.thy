@@ -117,4 +117,8 @@ proof (induction as arbitrary: bs)
   thus ?case by (induction bs) simp_all
 qed simp_all
 
+lemma [simp]: "x < y \<Longrightarrow> 1 < k \<Longrightarrow> Suc (k * x) < k * y"
+  by (metis One_nat_def Suc_lessE Suc_lessI Suc_mult_less_cancel1 Suc_times_mod_eq 
+            mod_mult_self1_is_0 nat.simps(3))
+
 end

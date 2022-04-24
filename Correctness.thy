@@ -16,7 +16,8 @@ qed
 theorem tc_terminationn: "compile e = Some cd \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>rs mem. rs R3 = 6 \<and> rs R4 = 3 \<and> 
     print_mval mem (4 * mem 2) = print_nexpr v \<and> 
-      iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) (nmem(3 := 0, 7 := 0)) (length cd)) (MS rs mem 0))"
+      iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) (empty_mem(3 := 0, 7 := 1)) 
+        (length cd)) (MS rs mem 0))"
 proof -
   assume C: "compile e = Some cd"
   then obtain e\<^sub>t t where T: "typecheck e = Some (e\<^sub>t, t)" by fastforce
@@ -105,10 +106,8 @@ proof -
     (unmap_mem (case_register nmem nmem nmem (nmem(0 := (PC, 0), Suc 0 := (Reg Env, 0))))) 
       (length ?cd')) (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" 
     by simp
-
-
-  with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) (nmem(3 := 0, 7 := 0)) (length cd)) 
-    (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" by auto
+  with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) (empty_mem(3 := 0, 7 := 1)) 
+    (length cd)) (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" by auto
   from EC VT have "print_closure c = print_nexpr (erase v\<^sub>t)" by simp
   moreover from EB have "print_bclosure v\<^sub>b = print_tco_closure (tco_val (encode_closure c))" by simp
   ultimately have "print_bclosure v\<^sub>b = print_nexpr (erase v\<^sub>t)" by simp
@@ -116,14 +115,14 @@ proof -
   with VCE VH have "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by (metis print_ce)
   with VH have "print_ceclosure (get_closure (flatten_values h\<^sub>c\<^sub>e) (3 * v\<^sub>h)) = print_nexpr (erase v\<^sub>t)" 
     by (simp del: get_closure.simps)
-  with VU VSU have PU': "print_uval h\<^sub>u (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
+  with VU VSU have "print_uval h\<^sub>u (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
+  from VH VU VSU have SH: "Suc (vs\<^sub>u 0) < hp\<^sub>u" by (metis flatten_lt_3)
+  from VSU have "3 dvd vs\<^sub>u 0" by simp
+  with SH have "print_uval (snd \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = print_uval h\<^sub>u (vs\<^sub>u 0)" 
+    by (metis print_a)
+                                    
 
-
-
-  have "print_uval (pseudoreg_map \<circ> assemble_heap ?mp h\<^sub>u hp\<^sub>u) (4 * vs\<^sub>u 0) = print_uval h\<^sub>u (vs\<^sub>u 0)" 
-    by (simp add: assemble_heap_def)
-  with PU' have PU: "print_uval (pseudoreg_map \<circ> ?mem Hp) (4 * vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" 
-    by simp
+  hence PU: "print_uval (pseudoreg_map \<circ> ?mem Hp) (4 * vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by simp
   have "unmap_mem' (4 * unmap_mem ?mem 2) = (Hp, 4 * vs\<^sub>u 0)" 
   proof (induction "vs\<^sub>u 0")
     case (Suc x)
