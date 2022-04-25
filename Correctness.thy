@@ -15,7 +15,7 @@ qed
 
 theorem tc_terminationn: "compile e = Some cd \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>rs mem. rs R3 = 6 \<and> rs R4 = 3 \<and> 
-    print_mval mem (4 * mem 2) = print_nexpr v \<and> 
+    print_mval mem (mem 2) = print_nexpr v \<and> 
       iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) ((\<lambda>x. 0)(7 := 1)) (length cd)) (MS rs mem 0))"
 proof -
   assume C: "compile e = Some cd"
@@ -115,24 +115,21 @@ proof -
   with VCE VH have "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by (metis print_ce)
   with VH have "print_ceclosure (get_closure (flatten_values h\<^sub>c\<^sub>e) (3 * v\<^sub>h)) = print_nexpr (erase v\<^sub>t)" 
     by (simp del: get_closure.simps)
-  with VU VSU have "print_uval h\<^sub>u (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
+  with VU VSU have PU: "print_uval h\<^sub>u (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
   from VH VU VSU have SH: "Suc (vs\<^sub>u 0) < hp\<^sub>u" by (metis flatten_lt_3)
-  from VSU have "3 dvd vs\<^sub>u 0" by simp
-  with SH have "print_uval (snd \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = print_uval h\<^sub>u (vs\<^sub>u 0)" 
+  from VSU have V3: "3 dvd vs\<^sub>u 0" by simp
+  with SH have PU2: "print_uval (pseudoreg_map \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = print_uval h\<^sub>u (vs\<^sub>u 0)" 
     by (metis print_a)
-                                    
-
-  hence PU: "print_uval (pseudoreg_map \<circ> ?mem Hp) (4 * vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by simp
-  have "unmap_mem' (4 * unmap_mem ?mem 2) = (Hp, 4 * vs\<^sub>u 0)" 
+  have "unmap_mem' (unmap_mem ?mem 2) = (Hp, vs\<^sub>u 0)" 
   proof (induction "vs\<^sub>u 0")
     case (Suc x)
     hence "vs\<^sub>u 0 = Suc x" by simp
     thus ?case by (auto simp add: unmap_mem_def assemble_vals_def split: prod.splits)
   qed (simp add: unmap_mem_def assemble_vals_def)
-  hence "print_mval (unmap_mem ?mem) (4 * unmap_mem ?mem 2) = 
-    print_uval (pseudoreg_map \<circ> ?mem Hp) (4 * vs\<^sub>u 0)" using print_m by blast
-  with PU have PM: "print_mval (unmap_mem ?mem) (4 * (unmap_mem ?mem) 2) = 
-    print_nexpr (erase v\<^sub>t)" by simp
+  hence "print_mval (unmap_mem ?mem) (unmap_mem ?mem 2) = 
+    print_uval (pseudoreg_map \<circ> ?mem Hp) (vs\<^sub>u 0)" using print_m by blast
+  with PU PU2 have PM: "print_mval (unmap_mem ?mem) (unmap_mem ?mem 2) = print_nexpr (erase v\<^sub>t)" 
+    by simp
   have "(case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) R3 = 6 \<and> 
     (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) R4 = 3" by simp
   with VN TN EN EM PM show ?thesis by blast
