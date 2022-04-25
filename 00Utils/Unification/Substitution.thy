@@ -329,6 +329,9 @@ lemma [simp]: "y \<in> subst_vars (s(x := None)) \<Longrightarrow> y \<in> subst
 lemma [simp]: "y \<in> subst_vars (\<Gamma>(x := None)) = (\<exists>z e. z \<noteq> x \<and> \<Gamma> z = Some e \<and> y \<in> vars e)"
   by (auto simp add: subst_vars_def ran_def split: if_splits)
 
+lemma [simp]: "subst_vars s \<subseteq> as \<Longrightarrow> subst_vars (s(x := None)) \<subseteq> as"
+  by (auto simp add: subst_vars_def ran_def)
+
 lemma [simp]: "subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> x \<notin> vs \<Longrightarrow> \<Gamma> z = Some e \<Longrightarrow> x \<in> vars e \<Longrightarrow> False"
   by (auto simp add: subst_vars_def ran_def)
 
