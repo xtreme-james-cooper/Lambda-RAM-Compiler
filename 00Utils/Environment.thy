@@ -250,6 +250,10 @@ lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p
   u # v # w) 20 = Some v" by (simp add: numeral_def)
 lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q # r # s # t # 
   u # v # w # x) 21 = Some w" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q # r # s # t # 
+  u # v # w # x # y) 22 = Some x" by (simp add: numeral_def)
+lemma [simp]: "lookup (a # b # c # d # e # f # g # h # i # j # k # l # m # n # p # q # r # s # t # 
+  u # v # w # x # y # z) 23 = Some y" by (simp add: numeral_def)
 
 lemma [simp]: "lookup (a # b # c # d # e # f) (5 + x) = lookup f x" by (simp add: numeral_def)
 lemma [simp]: "lookup (a # b # c # d # e # f) (6 + x) = lookup f (Suc x)" by (simp add: numeral_def)

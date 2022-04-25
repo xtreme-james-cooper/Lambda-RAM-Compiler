@@ -16,8 +16,7 @@ qed
 theorem tc_terminationn: "compile e = Some cd \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>rs mem. rs R3 = 6 \<and> rs R4 = 3 \<and> 
     print_mval mem (4 * mem 2) = print_nexpr v \<and> 
-      iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) (empty_mem(3 := 0, 7 := 1)) 
-        (length cd)) (MS rs mem 0))"
+      iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) ((\<lambda>x. 0)(7 := 1)) (length cd)) (MS rs mem 0))"
 proof -
   assume C: "compile e = Some cd"
   then obtain e\<^sub>t t where T: "typecheck e = Some (e\<^sub>t, t)" by fastforce
@@ -103,10 +102,11 @@ proof -
         (Con 0) (length ?cd'))) (disassemble_state (AS ?mem ?rs 0 (Con 0) 0))" 
     by (metis correctm_iter)
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0)
-    (unmap_mem (case_register nmem nmem nmem (nmem(0 := (PC, 0), Suc 0 := (Reg Env, 0))))) 
-      (length ?cd')) (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" 
+    (unmap_mem (case_register (\<lambda>x. (Con 0, 0)) (\<lambda>x. (Con 0, 0)) (\<lambda>x. (Con 0, 0)) 
+      ((\<lambda>x. (Con 0, 0))(0 := (PC, 0), Suc 0 := (Reg Env, 0))))) (length ?cd')) 
+        (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" 
     by simp
-  with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) (empty_mem(3 := 0, 7 := 1)) 
+  with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) ((\<lambda>x. 0)(7 := 1)) 
     (length cd)) (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" by auto
   from EC VT have "print_closure c = print_nexpr (erase v\<^sub>t)" by simp
   moreover from EB have "print_bclosure v\<^sub>b = print_tco_closure (tco_val (encode_closure c))" by simp

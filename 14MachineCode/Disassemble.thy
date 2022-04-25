@@ -67,9 +67,6 @@ primrec disassemble_state :: "assm_state \<Rightarrow> mach_state" where
 primrec dissassembleable :: "assm_state \<Rightarrow> nat \<Rightarrow> bool" where
   "dissassembleable (AS mem rs a t pc) lcd = (pc < lcd)"
 
-abbreviation empty_mem :: "'a \<Rightarrow> nat" where
-  "empty_mem x \<equiv> pseudoreg_map undefined"
-
 lemma [dest]: "R1 = register_map r \<Longrightarrow> r = Hp"
   by (induction r) simp_all
 
@@ -413,18 +410,20 @@ lemma [simp]: "inv_register_map (case_register hp ep (Suc 0) 0) 0 (Con 0) =
 lemma [dest]: "unmap_mem' x = (r, y) \<Longrightarrow> x = 4 * y + register_offset r"
   by (induction x arbitrary: y rule: unmap_mem'.induct) (simp_all split: prod.splits)
 
-lemma [simp]: "unmap_mem (case_register nmem nmem nmem 
-  (nmem(0 := (PC, 0), Suc 0 := (Reg Env, 0)))) = empty_mem(3 := 0, 7 := 1)"
+lemma [simp]: "unmap_mem (case_register (\<lambda>x. (Con 0, 0)) (\<lambda>x. (Con 0, 0)) (\<lambda>x. (Con 0, 0)) 
+  ((\<lambda>x. (Con 0, 0))(0 := (PC, 0), Suc 0 := (Reg Env, 0)))) = (\<lambda>x. 0)(7 := 1)"
 proof (rule, unfold unmap_mem_def)
   fix x
   obtain r p where R: "unmap_mem' x = (r, p)" by fastforce
   moreover hence "x = 4 * p + register_offset r" by auto
-  ultimately have "pseudoreg_map ((case r of Stk \<Rightarrow> nmem(0 := (PC, 0), Suc 0 := (Reg Env, 0)) 
-      | _ \<Rightarrow> nmem) p) = (empty_mem(3 := 0, 7 := 1)) x" 
+  ultimately have "pseudoreg_map ((case r of 
+        Stk \<Rightarrow> (\<lambda>x. (Con 0, 0))(0 := (PC, 0), Suc 0 := (Reg Env, 0)) 
+      | _ \<Rightarrow> (\<lambda>x. (Con 0, 0))) p) = ((\<lambda>x. 0)(3 := 0, 7 := 1)) x" 
     by (induction r) (simp_all, presburger+)
   with R show "(case unmap_mem' x of (r, p) \<Rightarrow> 
-    pseudoreg_map ((case r of Stk \<Rightarrow> nmem(0 := (PC, 0), Suc 0 := (Reg Env, 0)) | _ \<Rightarrow> nmem) p)) =
-      (empty_mem(3 := 0, 7 := 1)) x" by simp
+    pseudoreg_map ((case r of 
+      Stk \<Rightarrow> (\<lambda>x. (Con 0, 0))(0 := (PC, 0), Suc 0 := (Reg Env, 0)) | _ \<Rightarrow> (\<lambda>x. (Con 0, 0))) p)) =
+        ((\<lambda>x. 0)(7 := 1)) x" by simp
 qed
 
 end
