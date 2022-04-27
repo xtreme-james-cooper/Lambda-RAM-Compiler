@@ -44,6 +44,15 @@ lemma [simp]: "x \<notin> vars e \<Longrightarrow> subst [x \<mapsto> e'] e = e"
   and [simp]: "x \<notin> varss es \<Longrightarrow> map (subst [x \<mapsto> e']) es = es"
   by (induction e and es rule: vars_varss.induct) simp_all
 
+lemma [simp]: "vars e \<subseteq> vs \<Longrightarrow> finite vs \<Longrightarrow> subst [fresh vs \<mapsto> e'] e = e"
+proof -
+  assume "finite vs"
+  hence "fresh vs \<notin> vs" by simp
+  moreover assume "vars e \<subseteq> vs" 
+  ultimately have "fresh vs \<notin> vars e" by auto
+  thus ?thesis by simp
+qed
+
 lemma [simp]: "x \<in> vars e \<Longrightarrow> vars (subst [x \<mapsto> e'] e) = vars e - {x} \<union> vars e'"
   and [simp]: "x \<in> varss es \<Longrightarrow> varss (map (subst [x \<mapsto> e']) es) = varss es - {x} \<union> vars e'"
 proof (induction e and es rule: vars_varss.induct)
@@ -100,6 +109,9 @@ proof (induction x e ess rule: list_subst.induct)
   thus ?case by blast
 qed simp_all
 
+lemma list_subst_no_var [simp]: "x \<notin> list_vars ess \<Longrightarrow> list_subst x e ess = ess"
+  by (induction x e ess rule: list_subst.induct) simp_all
+
 lemma [simp]: "vars (subst s e) \<subseteq> vars e - dom s \<union> subst_vars s"
   and [simp]: "varss (map (subst s) es) \<subseteq> varss es - dom s \<union> subst_vars s"
   by (induction e and es rule: vars_varss.induct) 
@@ -107,6 +119,9 @@ lemma [simp]: "vars (subst s e) \<subseteq> vars e - dom s \<union> subst_vars s
 
 lemma [simp]: "subst_vars Map.empty = {}"
   by (simp add: subst_vars_def)
+
+lemma [simp]: "s x = Some e \<Longrightarrow> subst_vars s \<subseteq> vs \<Longrightarrow> vars e \<subseteq> vs"
+  by (auto simp add: subst_vars_def ran_def)
 
 lemma [simp]: "s x = Some e \<Longrightarrow> y \<in> vars e \<Longrightarrow> y \<in> subst_vars s"
   by (auto simp add: subst_vars_def ran_def)
@@ -130,6 +145,10 @@ lemma [simp]: "subst [y \<mapsto> Var x] (subst [x \<mapsto> Var y] e) = subst [
 
 lemma [simp]: "subst [y \<mapsto> Var x] \<circ> subst [x \<mapsto> Var y] = subst [y \<mapsto> Var x]"
   by auto
+
+lemma [dest]: "subst [x \<mapsto> e'] e = Var y \<Longrightarrow> 
+    (e = Var y \<and> (y = x \<longrightarrow> e' = Var y)) \<or> (y \<noteq> x \<and> e = Var x \<and> e' = Var y)"
+  by (induction e) (auto split: if_splits)
 
 lemma expand_extend_subst: "subst (extend_subst x e s) = subst s \<circ> subst [x \<mapsto> e]"
 proof

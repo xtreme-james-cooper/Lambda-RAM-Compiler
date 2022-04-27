@@ -1,6 +1,6 @@
 theory Unification
   imports Substitution
-begin
+begin        
 
 function unify' :: "(uexpr \<times> uexpr) list \<rightharpoonup> subst" where
   "unify' [] = Some Map.empty"
@@ -59,7 +59,7 @@ proof (induction ess arbitrary: s rule: unify'_induct)
   case (VarYes x e ess s')
   hence X: "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by simp
   from VarYes have "dom s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_dom)
-  with VarYes have "x \<notin> dom s'" by (auto split: if_splits)
+  with VarYes have "x \<notin> dom s'" by (auto simp del: list_subst_no_var split: if_splits)
   hence D: "subst_vars (extend_subst x e s') = vars (subst s' e) \<union> subst_vars s'" by simp
   from X have "vars e - dom s' \<union> subst_vars s' \<subseteq> insert x (vars e \<union> list_vars ess)" 
     by (auto split: if_splits)
@@ -76,9 +76,9 @@ proof (induction ess arbitrary: s rule: unify'_induct)
   hence D: "dom s' \<subseteq> list_vars ess - {x} \<union> (if x \<in> list_vars ess then vars e else {})" by simp
   from VarYes have A: "ordered_subst s'" by simp
   from VarYes have B: "x \<notin> vars e" by simp
-  from VarYes D have C: "x \<notin> dom s'" by (auto split: if_splits)
+  from VarYes D have C: "x \<notin> dom s'" by (auto simp del: list_subst_no_var split: if_splits)
   from VarYes have "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_ran) 
-  with VarYes have "x \<notin> subst_vars s'" by (auto split: if_splits)
+  with VarYes have "x \<notin> subst_vars s'" by (auto simp del: list_subst_no_var split: if_splits)
   with A B C have "ordered_subst (extend_subst x e s')" by simp
   with VarYes show ?case by simp
 qed auto
@@ -139,9 +139,9 @@ proof (induction ess arbitrary: s t rule: unify'_induct)
 next
   case (VarYes x e ess s')
   hence "dom s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_dom)
-  with VarYes have D: "x \<notin> dom s'" by (auto split: if_splits)
+  with VarYes have D: "x \<notin> dom s'" by (auto simp del: list_subst_no_var split: if_splits)
   from VarYes have "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_ran)
-  with VarYes have R: "x \<notin> subst_vars s'" by (auto split: if_splits)
+  with VarYes have R: "x \<notin> subst_vars s'" by (auto simp del: list_subst_no_var split: if_splits)
   thus ?case
   proof (cases "t x")
     case None
@@ -368,6 +368,9 @@ lemma [simp]: "unify' fail = None"
   by (simp add: fail_def)
 
 lemma [simp]: "list_vars fail = {}"
+  by (simp add: fail_def)
+
+lemma [simp]: "list_subst x e fail = fail"
   by (simp add: fail_def)
 
 end
