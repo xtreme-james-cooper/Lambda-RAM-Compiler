@@ -111,6 +111,9 @@ qed simp_all
 lemma [simp]: "length (concat (replicate x as)) = length as * x"
   by (induction x) simp_all
 
+lemma [simp]: "map f (concat (replicate x as)) = concat (replicate x (map f as))"
+  by (induction x) simp_all
+
 lemma [simp]: "map prod.swap (zip as bs) = zip bs as"
 proof (induction as arbitrary: bs)
   case (Cons a as)

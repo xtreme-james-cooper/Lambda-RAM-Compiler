@@ -5,20 +5,20 @@ begin
 lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
   by (induction e) simp_all
 
-theorem tc_failure: "compile e = None \<Longrightarrow> 
+theorem tc_failure: "alg_compile e = None \<Longrightarrow> 
   \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t"
 proof -
-  assume "compile e = None"
+  assume "alg_compile e = None"
   hence "typecheck e = None" by simp
   thus ?thesis by (metis typecheck_fails)
 qed
 
-theorem tc_terminationn: "compile e = Some cd \<Longrightarrow> 
+theorem tc_terminationn: "alg_compile e = Some cd \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>rs mem. rs R3 = 6 \<and> rs R4 = 3 \<and> 
     print_mval mem (mem 2) = print_nexpr v \<and> 
       iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) ((\<lambda>x. 0)(7 := 1)) (length cd)) (MS rs mem 0))"
 proof -
-  assume C: "compile e = Some cd"
+  assume C: "alg_compile e = Some cd"
   then obtain e\<^sub>t t where T: "typecheck e = Some (e\<^sub>t, t)" by fastforce
   hence TN: "(Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> e = erase e\<^sub>t" by simp
   then obtain v\<^sub>t where ET: "e\<^sub>t \<Down>\<^sub>t v\<^sub>t" by fastforce

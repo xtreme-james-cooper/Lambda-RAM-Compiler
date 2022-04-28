@@ -43,7 +43,7 @@ primrec typecheck' :: "subst \<Rightarrow> var set \<Rightarrow> nexpr \<Rightar
     let v = fresh vs
     in let (e\<^sub>1', t\<^sub>1, vs', con\<^sub>1) = typecheck' \<Gamma> (insert v vs) e\<^sub>1 
     in let (e\<^sub>2', t\<^sub>2, vs'', con\<^sub>2) = typecheck' \<Gamma> vs' e\<^sub>2 
-    in (HApp e\<^sub>1' e\<^sub>2', Var v, vs'', (t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v]) # con\<^sub>1 @ con\<^sub>2))"
+    in (HApp e\<^sub>1' e\<^sub>2', Var v, vs'', con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v])]))"
 
 fun typeify :: "uexpr \<Rightarrow> ty" where
   "typeify (Var v) = TyVar v"
@@ -115,7 +115,7 @@ lemma typecheck_induct [consumes 1, case_names NVarS NVarN NConst NLam NApp]: "
     typecheck' \<Gamma> (insert v vs) e\<^sub>1 = (e\<^sub>1', t\<^sub>1, vs'', con\<^sub>1) \<Longrightarrow> 
       typecheck' \<Gamma> vs'' e\<^sub>2 = (e\<^sub>2', t\<^sub>2, vs', con\<^sub>2) \<Longrightarrow> P \<Gamma> (insert v vs) e\<^sub>1 e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 \<Longrightarrow> 
         P \<Gamma> vs'' e\<^sub>2 e\<^sub>2' t\<^sub>2 vs' con\<^sub>2 \<Longrightarrow> P \<Gamma> vs (NApp e\<^sub>1 e\<^sub>2) (HApp e\<^sub>1' e\<^sub>2') (Var v) vs' 
-          ((t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v]) # con\<^sub>1 @ con\<^sub>2)) \<Longrightarrow> 
+          (con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v])])) \<Longrightarrow> 
     P \<Gamma> vs e e' t vs' con"
   by (induction e arbitrary: \<Gamma> vs e' t vs' con) 
      (auto simp add: Let_def split: option.splits prod.splits)
@@ -310,13 +310,12 @@ next
   thus ?case by blast
 next
   case (NApp \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 e\<^sub>2' t\<^sub>2 con\<^sub>2)
-  then obtain s\<^sub>2 where S2: "unify' (con\<^sub>1 @ con\<^sub>2) = Some s\<^sub>2 \<and> sub' extends s\<^sub>2"
-    by (metis append_Cons append_Nil unify_append_snd)
+  then obtain s\<^sub>2 where S2: "unify' (con\<^sub>1 @ con\<^sub>2) = Some s\<^sub>2 \<and> sub' extends s\<^sub>2" by fastforce
   then obtain s\<^sub>3 where S3: "unify' con\<^sub>1 = Some s\<^sub>3 \<and> s\<^sub>2 extends s\<^sub>3" by fastforce
   with NApp S2 have "sub extends s\<^sub>3" by auto
   with NApp S2 S3 have T: "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>1') : 
     typeify (subst sub t\<^sub>1)" by blast
-  from NApp have "sub' unifies\<^sub>l ((t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v]) # con\<^sub>1 @ con\<^sub>2)" 
+  from NApp have "sub' unifies\<^sub>l (con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v])])" 
     by (metis unify_some) 
   hence "sub' unifies t\<^sub>1 and Ctor ''Arrow'' [t\<^sub>2, Var v]" by simp
   with NApp have X: "sub unifies t\<^sub>1 and Ctor ''Arrow'' [t\<^sub>2, Var v]" by fastforce
@@ -341,6 +340,35 @@ proof -
   moreover from T have "valid_ty_uexpr tt" and "valid_ty_hexpr e'" by auto
   ultimately show "Map.empty \<turnstile>\<^sub>n e\<^sub>t : t" by simp
 qed
+
+lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> 
+  valid_ty_subst \<Gamma> \<Longrightarrow> unify' con = Some sub' \<Longrightarrow> 
+    map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e') : typeify (subst sub t) \<Longrightarrow>
+      sub extends sub'"
+proof (induction arbitrary: sub' rule: typecheck_induct)
+  case (NLam \<Gamma> vs vs' con x e\<^sub>1 e\<^sub>1' t' v)
+  moreover hence "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n 
+    solidify (hsubst sub (HLam x (Var v) e\<^sub>1')) : typeify (subst sub (Ctor ''Arrow'' [Var v, t']))" 
+      by blast
+  ultimately show ?case by fastforce
+next
+  case (NApp \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 e\<^sub>2' t\<^sub>2 con\<^sub>2)
+  from NApp have "v = fresh vs" by simp
+  from NApp have "typecheck' \<Gamma> (insert v vs) e\<^sub>1 = (e\<^sub>1', t\<^sub>1, vs'', con\<^sub>1)" by simp
+  from NApp have "typecheck' \<Gamma> vs'' e\<^sub>2 = (e\<^sub>2', t\<^sub>2, vs', con\<^sub>2)" by simp
+  from NApp have "unify' con\<^sub>1 = Some xsub' \<Longrightarrow>
+    map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>1') : typeify (subst sub t\<^sub>1) \<Longrightarrow> sub extends xsub'" by blast
+  from NApp have "unify' con\<^sub>2 = Some xsub' \<Longrightarrow>
+    map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>2') : typeify (subst sub t\<^sub>2) \<Longrightarrow> sub extends xsub'" by blast
+  from NApp have "valid_ty_subst \<Gamma>" by simp
+  from NApp have "unify' (con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v])]) = Some sub'" by simp
+  from NApp have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub (HApp e\<^sub>1' e\<^sub>2')) : typeify (subst sub (Var v))" by blast
+
+
+
+  have "sub extends sub'" by simp
+  thus ?case by simp
+qed auto
 
 lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> e = erase (solidify e')"
   by (induction rule: typecheck_induct) auto
@@ -462,7 +490,7 @@ next
     (e\<^sub>2', t\<^sub>2, vs''', con\<^sub>2)" by (metis prod_cases4)
   moreover from NApp have "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs (NApp e1 e2) = (e', tt, vs', con)" by blast
   ultimately have E: "e' = HApp e\<^sub>1' e\<^sub>2' \<and> tt = Var ?v \<and> vs''' = vs' \<and> 
-    con = (t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var ?v]) # con\<^sub>1 @ con\<^sub>2" by (auto simp add: Let_def)
+    con = con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var ?v])]" by (auto simp add: Let_def)
   from T1 have V: "vs \<subseteq> vs''" using vars_expand by blast
   from NApp V have A: "y \<in> vs''" by auto
   from NApp V have B: "subst_vars \<Gamma> \<subseteq> vs'' - {y}" by auto
@@ -505,16 +533,33 @@ next
   obtain e\<^sub>2' tt\<^sub>2 vs''' con\<^sub>2 where T2: "typecheck' \<Gamma> vs'' (erase e\<^sub>2) = (e\<^sub>2', tt\<^sub>2, vs''', con\<^sub>2)"
     by (metis prod_cases4)
   from tcn_app T1 T2 have E: "e' = HApp e\<^sub>1' e\<^sub>2' \<and> tt = Var ?v \<and> vs''' = vs' \<and> 
-    con = (tt\<^sub>1, Ctor ''Arrow'' [tt\<^sub>2, Var ?v]) # con\<^sub>1 @ con\<^sub>2" by (auto simp add: Let_def)
+    con = con\<^sub>1 @ con\<^sub>2 @ [(tt\<^sub>1, Ctor ''Arrow'' [tt\<^sub>2, Var ?v])]" by (auto simp add: Let_def)
+
+
+  from tcn_app T1 have VH: "valid_ty_hexpr e\<^sub>1'" by auto
+  from tcn_app T1 have VT: "valid_ty_uexpr tt\<^sub>1" by auto
+
 
   from tcn_app have "tvarst e\<^sub>1 \<subseteq> extend_set vs" by auto
-  with tcn_app T1 have "unify' con\<^sub>1 = None \<Longrightarrow> False" by blast
+  with tcn_app T1 obtain s\<^sub>1 where "unify' con\<^sub>1 = Some s\<^sub>1" by blast
+  with tcn_app T1 have "sub extends s\<^sub>1 \<Longrightarrow>
+    map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>1') : typeify (subst sub tt\<^sub>1)" 
+      by (metis typecheck_succeeds)
+  with tcn_app VH VT have "sub extends s\<^sub>1 \<Longrightarrow> map_option (tsubsts sub) \<circ> map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n 
+    tsubstt sub (solidify e\<^sub>1') : tsubsts sub (typeify tt\<^sub>1)" by simp
+
+  from tcn_app have "map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2" by simp
+
 
   from T1 have "extend_set vs \<subseteq> vs''" by (metis vars_expand)
   with tcn_app T1 have "finite vs'' \<and> subst_vars \<Gamma> \<subseteq> vs'' \<and> tvarst e\<^sub>2 \<subseteq> vs''" by auto
-  with tcn_app T2 have "unify' con\<^sub>2 = None \<Longrightarrow> False" by blast
+  with tcn_app T2 obtain s\<^sub>2 where "unify' con\<^sub>2 = Some s\<^sub>2" by fastforce
+  with tcn_app T2 have "sub extends s\<^sub>2 \<Longrightarrow>
+    map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>2') : typeify (subst sub tt\<^sub>2)" 
+      by (metis typecheck_succeeds)
 
-  from tcn_app have "map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2" by simp
+
+
   from tcn_app have "map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>2 : t\<^sub>1" by simp
   from tcn_app have "finite vs" by simp
   from tcn_app have "subst_vars \<Gamma> \<subseteq> vs" by simp
@@ -522,7 +567,7 @@ next
   from tcn_app have "valid_ty_subst \<Gamma>" by simp
 
 
-  from tcn_app E have "unify' ((tt\<^sub>1, Ctor ''Arrow'' [tt\<^sub>2, Var ?v]) # con\<^sub>1 @ con\<^sub>2) = None" by simp
+  from tcn_app E have "unify' (con\<^sub>1 @ con\<^sub>2 @ [(tt\<^sub>1, Ctor ''Arrow'' [tt\<^sub>2, Var ?v])]) = None" by simp
 
 
 

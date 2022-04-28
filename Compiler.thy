@@ -35,7 +35,7 @@ primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> nexpr 
     let v = fresh vs
     in let (t\<^sub>1, vs', con\<^sub>1) = collect_constraints \<Gamma> (insert v vs) e\<^sub>1 
     in let (t\<^sub>2, vs'', con\<^sub>2) = collect_constraints \<Gamma> vs' e\<^sub>2 
-    in (Var v, vs'', (t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v]) # con\<^sub>1 @ con\<^sub>2))"
+    in (Var v, vs'', con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v])]))"
 
 primrec tree_code_size :: "tree_code \<Rightarrow> nat"
     and tree_code_size_list :: "tree_code list \<Rightarrow> nat" where
@@ -67,10 +67,53 @@ function alg_compile2 :: "nat \<Rightarrow> tree_code list \<Rightarrow> byte_co
 termination
   by (relation "measure (tree_code_size_list \<circ> fst \<circ> snd)") simp_all
 
-definition alg_compile :: "nexpr \<rightharpoonup> byte_code list" where
+fun assembly_mapb :: "byte_code list \<Rightarrow> nat \<Rightarrow> nat" where
+  "assembly_mapb [] x = 0"
+| "assembly_mapb (op # cd) 0 = 0"
+| "assembly_mapb (BLookup k # cd) (Suc x) = 8 + 2 * k + assembly_mapb cd x"
+| "assembly_mapb (BPushCon k # cd) (Suc x) = 8 + assembly_mapb cd x"
+| "assembly_mapb (BPushLam pc # cd) (Suc x) = 12 + assembly_mapb cd x"
+| "assembly_mapb (BApply # cd) (Suc x) = 24 + assembly_mapb cd x"
+| "assembly_mapb (BReturn # cd) (Suc x) = 6 + assembly_mapb cd x"
+| "assembly_mapb (BJump # cd) (Suc x) = 21 + assembly_mapb cd x"
+
+fun alg_assemble :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code list \<Rightarrow> mach list" where
+  "alg_assemble mp [] = []"
+| "alg_assemble mp (BLookup x # cd) = 
+    [LDI R5 0, ADD R3 4, STO R3 R5, LOD R5 R5, SUB R5 8] @ 
+      concat (replicate x [LOD R5 R5, SUB R5 4]) @ 
+      [LOD R5 R5, SUB R5 4, MOV R5 R4] @ 
+      alg_assemble mp cd"
+| "alg_assemble mp (BPushCon k # cd) = 
+    [ADD R1 4, STO R1 R5, ADD R1 4, STI R1 k, ADD R1 4, STI R1 1, ADD R3 4, STO R3 R1] @ 
+      alg_assemble mp cd"
+| "alg_assemble mp (BPushLam pc # cd) = 
+    [ADD R1 4, STI R1 (mp pc), LDI R5 0, ADD R1 4, 
+      STO R1 R5, ADD R1 4, STI R1 0, LOD R5 R5, SUB R5 4, MOV R5 R4, ADD R3 4, STO R3 R1] @ 
+      alg_assemble mp cd"
+| "alg_assemble mp (BApply # cd) = 
+    [JMP R5, LOD R5 R5, ADD R5 8, STI R3 0, LOD R5 R3, ADD R2 4, STO R2 R5, LOD R5 R5, ADD R5 4, 
+      LOD R5 R3, SUB R3 4, ADD R4 4, STO R4 R5, ADD R5 4, MOV R5 R2, ADD R4 4, STO R4 R5, SUB R5 18, 
+      MVP R5, ADD R2 4, STO R2 R5, STI R3 0, LOD R5 R3, SUB R3 4] @ 
+      alg_assemble mp cd"
+| "alg_assemble mp (BReturn # cd) = 
+    [JMP R5, STI R4 0, LOD R5 R4, SUB R4 4, STI R4 0, SUB R4 4] @ 
+      alg_assemble mp cd"
+| "alg_assemble mp (BJump # cd) = 
+    [JMP R5, LOD R5 R5, ADD R5 8, STI R3 0, LOD R5 R3, ADD R2 4, STO R2 R5, LOD R5 R5, ADD R5 4, 
+      LOD R5 R3, SUB R3 4, ADD R4 4, STO R4 R5, SUB R4 4, ADD R5 4, MOV R5 R2, ADD R2 4, STO R2 R5, 
+      STI R3 0, LOD R5 R3, SUB R3 4] @ 
+      alg_assemble mp cd"
+
+definition alg_compile3 :: "byte_code list \<Rightarrow> mach list" where
+  "alg_compile3 cd = alg_assemble (assembly_mapb cd) cd"
+
+definition alg_compile :: "nexpr \<rightharpoonup> mach list" where
   "alg_compile e = (
     let (t, vs, con) = collect_constraints Map.empty {} e
-    in if unify' con \<noteq> None then Some (alg_compile2 0 (alg_compile1 [] e []) []) else None)"
+    in if unify' con \<noteq> None 
+       then Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e []) [])) 
+       else None)"
 
 lemma [simp]: "encode (convert' \<Phi> (tsubstt sub e)) = encode (convert' \<Phi> e)"
   by (induction e arbitrary: \<Phi>) simp_all
@@ -100,10 +143,22 @@ lemma [simp]: "tree_code_size_list cd = code_list_size (tco_cd cd)"
 lemma [simp]: "alg_compile2 lib cd acc = flatten_code' lib (tco_cd cd) (tco_r cd) @ acc"
   by (induction lib cd acc rule: alg_compile2.induct) simp_all
 
+lemma [simp]: "alg_assemble mp cd = disassemble (concat (map (assemble_op mp) cd))"
+  by (induction mp cd rule: alg_assemble.induct) (simp_all add: disassemble_def)
+
+lemma [simp]: "assembly_mapb cd x = assembly_map cd x"
+  by (induction cd x rule: assembly_mapb.induct) simp_all
+
+lemma [simp]: "assembly_mapb cd = assembly_map cd"
+  by rule simp
+
+lemma [simp]: "alg_compile3 cd = disassemble (assemble_code cd)"
+  by (simp_all add: alg_compile3_def assemble_code_def)
+
 lemma [simp]: "collect_constraints \<Gamma> vs e = snd (typecheck' \<Gamma> vs e)"
   by (induction e arbitrary: \<Gamma> vs) (simp_all add: Let_def split: option.splits prod.splits)
 
-lemma [simp]: "alg_compile = map_option (flatten_code \<circ> tco \<circ> encode \<circ> convert \<circ> fst) \<circ> typecheck"
-  by rule (auto simp add: alg_compile_def convert_def tco_def split: prod.splits option.splits)
+lemma [simp]: "alg_compile = compile"
+  by (auto simp add: alg_compile_def Let_def tco_def convert_def split: prod.splits option.splits)
 
 end

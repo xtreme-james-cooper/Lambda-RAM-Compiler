@@ -11,4 +11,3 @@ Add Parser?
 Add pairs, sums, unit, void, nats, primrec? sructured types?
 Make printing part of the code
 Make initializagtion part of the code
-Use aegbraic compiler
