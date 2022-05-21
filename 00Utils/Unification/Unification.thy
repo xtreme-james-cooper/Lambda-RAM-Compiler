@@ -327,6 +327,16 @@ proof (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct)
   with T show ?case by fastforce
 qed (simp_all split: if_splits)
 
+lemma unify_append_none [simp]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = None \<Longrightarrow> unify' ess\<^sub>1 = None \<or> 
+  (\<exists>s. unify' ess\<^sub>1 = Some s \<and> unify' (map (pair_subst s) ess\<^sub>2) = None)"
+proof (induction ess\<^sub>1 arbitrary: ess\<^sub>2 rule: unify'_induct)
+  case (VarYes x e ess s')
+  hence "unify' (list_subst x e ess @ list_subst x e ess\<^sub>2) = None" by simp
+  with VarYes have "unify' (list_subst x e ess) = None \<or> (\<exists>s. unify' (list_subst x e ess) = Some s \<and> 
+    unify' (map (pair_subst s) (list_subst x e ess\<^sub>2)) = None)" by blast
+  with VarYes show ?case by simp
+qed auto
+
 lemma unify'_props: "unify' ess = Some s \<Longrightarrow> structural P \<Longrightarrow> 
   list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess \<Longrightarrow> \<forall>x\<in>ran s. P x"
 proof (induction ess arbitrary: s rule: unify'_induct)

@@ -11,6 +11,9 @@ fun subst :: "subst \<Rightarrow> uexpr \<Rightarrow> uexpr" where
 definition subst_vars :: "subst \<Rightarrow> var set" where
   "subst_vars s = \<Union> (vars ` ran s)"
 
+fun pair_subst :: "subst \<Rightarrow> (uexpr \<times> uexpr) \<Rightarrow> (uexpr \<times> uexpr)" where
+  "pair_subst s (e\<^sub>1, e\<^sub>2) = (subst s e\<^sub>1, subst s e\<^sub>2)"
+
 fun list_subst :: "var \<Rightarrow> uexpr \<Rightarrow> (uexpr \<times> uexpr) list \<Rightarrow> (uexpr \<times> uexpr) list" where
   "list_subst x e' [] = []"
 | "list_subst x e' ((e\<^sub>1, e\<^sub>2) # ess) = (subst [x \<mapsto> e'] e\<^sub>1, subst [x \<mapsto> e'] e\<^sub>2) # list_subst x e' ess"
@@ -111,6 +114,25 @@ qed simp_all
 
 lemma list_subst_no_var [simp]: "x \<notin> list_vars ess \<Longrightarrow> list_subst x e ess = ess"
   by (induction x e ess rule: list_subst.induct) simp_all
+
+lemma subst_merge: "subst s (subst [x \<mapsto> e'] e) = subst (extend_subst x e' s) e"
+  by (induction e) (simp_all add: extend_subst_def)
+
+lemma [simp]: "pair_subst Map.empty = id"
+proof
+  fix x
+  show "pair_subst Map.empty x = id x" by (cases x) simp_all
+qed
+
+lemma [simp]: "map (pair_subst s) (list_subst x e ess) = 
+    map (pair_subst (extend_subst x e s)) ess"
+  by (induction x e ess rule: list_subst.induct) (simp_all add: subst_merge)
+
+lemma [simp]: "map (pair_subst s) (zip es\<^sub>1 es\<^sub>2) = zip (map (subst s) es\<^sub>1) (map (subst s) es\<^sub>2)"
+proof (induction es\<^sub>1 arbitrary: es\<^sub>2)
+  case (Cons e\<^sub>1 es\<^sub>1)
+  thus ?case by (induction es\<^sub>2) simp_all
+qed simp_all
 
 lemma [simp]: "vars (subst s e) \<subseteq> vars e - dom s \<union> subst_vars s"
   and [simp]: "varss (map (subst s) es) \<subseteq> varss es - dom s \<union> subst_vars s"
