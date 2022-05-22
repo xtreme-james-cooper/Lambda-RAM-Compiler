@@ -108,12 +108,13 @@ fun alg_assemble :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code list \<Righ
 definition alg_compile3 :: "byte_code list \<Rightarrow> mach list" where
   "alg_compile3 cd = alg_assemble (assembly_mapb cd) cd"
 
-definition alg_compile :: "nexpr \<rightharpoonup> mach list" where
+definition alg_compile :: "nexpr \<rightharpoonup> mach list \<times> ty" where
   "alg_compile e = (
     let (t, vs, con) = collect_constraints Map.empty {} e
-    in if unify' con \<noteq> None 
-       then Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e []) [])) 
-       else None)"
+    in case unify' con of
+        None \<Rightarrow> None
+      | Some s \<Rightarrow> 
+          Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e []) []), tsubsts s (typeify t)))"
 
 lemma [simp]: "encode (convert' \<Phi> (tsubstt sub e)) = encode (convert' \<Phi> e)"
   by (induction e arbitrary: \<Phi>) simp_all
@@ -158,7 +159,7 @@ lemma [simp]: "alg_compile3 cd = disassemble (assemble_code cd)"
 lemma [simp]: "collect_constraints \<Gamma> vs e = snd (typecheck' \<Gamma> vs e)"
   by (induction e arbitrary: \<Gamma> vs) (simp_all add: Let_def split: option.splits prod.splits)
 
-lemma [simp]: "alg_compile = compile"
+lemma [simp]: "alg_compile = opt_pair compile (map_option snd \<circ> typecheck)"
   by (auto simp add: alg_compile_def Let_def tco_def convert_def split: prod.splits option.splits)
 
 end

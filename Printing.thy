@@ -5,64 +5,59 @@ theory Printing
     "13AssemblyCode/Assemble" "14MachineCode/Disassemble" 
 begin
 
-function string_of_nat :: "nat \<Rightarrow> string" where
-  "n < 10 \<Longrightarrow> string_of_nat n = [char_of (48 + n)]"
-| "n \<ge> 10 \<Longrightarrow> string_of_nat n = string_of_nat (n div 10) @ [char_of (48 + (n mod 10))]"
-  by fastforce+
-termination
-  by (relation "measure id") simp_all
+datatype print = Number nat | Fun
 
-primrec print_nexpr :: "nexpr \<Rightarrow> string" where
+primrec print_nexpr :: "nexpr \<Rightarrow> print" where
   "print_nexpr (NVar x) = undefined"
-| "print_nexpr (NConst k) = string_of_nat k"
-| "print_nexpr (NLam x e) = ''<fun>''"
+| "print_nexpr (NConst k) = Number k"
+| "print_nexpr (NLam x e) = Fun"
 | "print_nexpr (NApp e\<^sub>1 e\<^sub>2) = undefined"
 
-primrec print_texpr :: "texpr \<Rightarrow> string" where
+primrec print_texpr :: "texpr \<Rightarrow> print" where
   "print_texpr (texpr.TVar x) = undefined"
-| "print_texpr (texpr.TConst k) = string_of_nat k"
-| "print_texpr (texpr.TLam x t e) = ''<fun>''"
+| "print_texpr (texpr.TConst k) = Number k"
+| "print_texpr (texpr.TLam x t e) = Fun"
 | "print_texpr (texpr.TApp e\<^sub>1 e\<^sub>2) = undefined"
 
-primrec print_dexpr :: "dexpr \<Rightarrow> string" where
+primrec print_dexpr :: "dexpr \<Rightarrow> print" where
   "print_dexpr (DVar x) = undefined"
-| "print_dexpr (DConst k) = string_of_nat k"
-| "print_dexpr (DLam t e) = ''<fun>''"
+| "print_dexpr (DConst k) = Number k"
+| "print_dexpr (DLam t e) = Fun"
 | "print_dexpr (DApp e\<^sub>1 e\<^sub>2) = undefined"
 
-primrec print_closure :: "closure \<Rightarrow> string" where
-  "print_closure (CConst k) = string_of_nat k"
-| "print_closure (CLam t cs e) = ''<fun>''"
+primrec print_closure :: "closure \<Rightarrow> print" where
+  "print_closure (CConst k) = Number k"
+| "print_closure (CLam t cs e) = Fun"
 
-primrec print_tclosure :: "tclosure \<Rightarrow> string" where
-  "print_tclosure (TConst k) = string_of_nat k"
-| "print_tclosure (TLam cs cd) = ''<fun>''"
+primrec print_tclosure :: "tclosure \<Rightarrow> print" where
+  "print_tclosure (TConst k) = Number k"
+| "print_tclosure (TLam cs cd) = Fun"
 
-primrec print_tco_closure :: "tco_closure \<Rightarrow> string" where
-  "print_tco_closure (TCOConst k) = string_of_nat k"
-| "print_tco_closure (TCOLam cs cd r) = ''<fun>''"
+primrec print_tco_closure :: "tco_closure \<Rightarrow> print" where
+  "print_tco_closure (TCOConst k) = Number k"
+| "print_tco_closure (TCOLam cs cd r) = Fun"
 
-primrec print_bclosure :: "bclosure \<Rightarrow> string" where
-  "print_bclosure (BConst k) = string_of_nat k"
-| "print_bclosure (BLam cs pc) = ''<fun>''"
+primrec print_bclosure :: "bclosure \<Rightarrow> print" where
+  "print_bclosure (BConst k) = Number k"
+| "print_bclosure (BLam cs pc) = Fun"
 
-primrec print_hclosure :: "hclosure \<Rightarrow> string" where
-  "print_hclosure (HConst k) = string_of_nat k"
-| "print_hclosure (HLam cs pc) = ''<fun>''"
+primrec print_hclosure :: "hclosure \<Rightarrow> print" where
+  "print_hclosure (HConst k) = Number k"
+| "print_hclosure (HLam cs pc) = Fun"
 
-primrec print_ceclosure :: "ceclosure \<Rightarrow> string" where
-  "print_ceclosure (CEConst k) = string_of_nat k"
-| "print_ceclosure (CELam cs pc) = ''<fun>''"
+primrec print_ceclosure :: "ceclosure \<Rightarrow> print" where
+  "print_ceclosure (CEConst k) = Number k"
+| "print_ceclosure (CELam cs pc) = Fun"
 
-fun print_uval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> string" where
+fun print_uval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print" where
   "print_uval h p = (case h p of
-      0 \<Rightarrow> ''<fun>''
-    | Suc x \<Rightarrow> string_of_nat (h (Suc p)))"
+      0 \<Rightarrow> Fun
+    | Suc x \<Rightarrow> Number (h (Suc p)))"
 
-fun print_mval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> string" where
+fun print_mval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print" where
   "print_mval m p = (case m p of
-      0 \<Rightarrow> ''<fun>'' 
-    | Suc x \<Rightarrow> string_of_nat (m (4 + p)))"
+      0 \<Rightarrow> Fun
+    | Suc x \<Rightarrow> Number (m (4 + p)))"
 
 lemma [simp]: "valt e \<Longrightarrow> print_texpr e = print_nexpr (erase e)" 
   by (induction e) (simp_all add: convert_def)

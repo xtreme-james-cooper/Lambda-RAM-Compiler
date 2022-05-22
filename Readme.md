@@ -6,8 +6,7 @@ Complete missing steps (currently in typechecking)
 Figure out use for other direction of correctness proofs?
 Modularize code with classes
 Remove runtime tags
-User types for printing
 Add Parser?
 Add pairs, sums, unit, void, nats, primrec? sructured types?
 Make printing part of the code
-Make initializagtion part of the code
+Make initialization part of the code
