@@ -103,7 +103,7 @@ proof -
     by (metis correctm_iter)
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0)
     (unmap_mem (case_register (\<lambda>x. (Con 0, 0)) (\<lambda>x. (Con 0, 0)) (\<lambda>x. (Con 0, 0)) 
-      ((\<lambda>x. (Con 0, 0))(0 := (PC, 0), Suc 0 := (Reg Env, 0))))) (length ?cd')) 
+      ((\<lambda>x. (Con 0, 0))(0 := (PC 0, 0), Suc 0 := (Reg Env, 0))))) (length ?cd')) 
         (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" 
     by simp
   with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) ((\<lambda>x. 0)(7 := 1)) 
