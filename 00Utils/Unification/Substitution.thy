@@ -115,7 +115,7 @@ qed simp_all
 lemma list_subst_no_var [simp]: "x \<notin> list_vars ess \<Longrightarrow> list_subst x e ess = ess"
   by (induction x e ess rule: list_subst.induct) simp_all
 
-lemma subst_merge: "subst s (subst [x \<mapsto> e'] e) = subst (extend_subst x e' s) e"
+lemma subst_merge: "subst (extend_subst x e' s) e = subst s (subst [x \<mapsto> e'] e)"
   by (induction e) (simp_all add: extend_subst_def)
 
 lemma [simp]: "pair_subst Map.empty = id"
@@ -134,13 +134,16 @@ proof (induction es\<^sub>1 arbitrary: es\<^sub>2)
   thus ?case by (induction es\<^sub>2) simp_all
 qed simp_all
 
-lemma [simp]: "vars (subst s e) \<subseteq> vars e - dom s \<union> subst_vars s"
+lemma vars_subst [simp]: "vars (subst s e) \<subseteq> vars e - dom s \<union> subst_vars s"
   and [simp]: "varss (map (subst s) es) \<subseteq> varss es - dom s \<union> subst_vars s"
   by (induction e and es rule: vars_varss.induct) 
      (auto simp add: subst_vars_def ranI split: option.splits)
 
 lemma [simp]: "subst_vars Map.empty = {}"
   by (simp add: subst_vars_def)
+
+lemma [simp]: "subst_vars s \<subseteq> vs \<Longrightarrow> subst_vars (s(x := None)) \<subseteq> vs"
+  by (auto simp add: subst_vars_def ran_def)
 
 lemma [simp]: "s x = Some e \<Longrightarrow> subst_vars s \<subseteq> vs \<Longrightarrow> vars e \<subseteq> vs"
   by (auto simp add: subst_vars_def ran_def)
@@ -171,6 +174,10 @@ lemma [simp]: "subst [y \<mapsto> Var x] \<circ> subst [x \<mapsto> Var y] = sub
 lemma [dest]: "subst [x \<mapsto> e'] e = Var y \<Longrightarrow> 
     (e = Var y \<and> (y = x \<longrightarrow> e' = Var y)) \<or> (y \<noteq> x \<and> e = Var x \<and> e' = Var y)"
   by (induction e) (auto split: if_splits)
+
+lemma [dest]: "subst s e = Ctor k es \<Longrightarrow> (\<exists>x. e = Var x \<and> s x = Some (Ctor k es)) \<or> 
+    (\<exists>es'. e = Ctor k es' \<and> map (subst s) es' = es)"
+  by (induction e) (simp_all split: option.splits)
 
 lemma expand_extend_subst: "subst (extend_subst x e s) = subst s \<circ> subst [x \<mapsto> e]"
 proof
@@ -215,6 +222,11 @@ lemma [simp]: "extend_subst x e s x = Some (subst s e)"
 
 lemma [simp]: "ordered_subst Map.empty"
   by (simp add: ordered_subst_def)
+
+lemma [simp]: "\<exists>s. dom s \<inter> xs = {} \<and> subst_vars s = {} \<and> ordered_subst s"
+proof 
+  show "dom Map.empty \<inter> xs = {} \<and> subst_vars Map.empty = {} \<and> ordered_subst Map.empty" by simp
+qed
 
 lemma [simp]: "ordered_subst s \<Longrightarrow> x \<notin> vars e \<Longrightarrow> x \<notin> dom s \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow>
   ordered_subst (extend_subst x e s)"
@@ -302,11 +314,8 @@ proof
   with X Y show False by (metis occurs_check)
 qed
 
-lemma [simp]: "subst s (subst [x \<mapsto> e'] e) = subst (extend_subst x e' s) e"
-  by (induction e) (simp_all add: extend_subst_def split: option.splits)
-
 lemma [simp]: "s unifies\<^sub>l list_subst x e ess = (extend_subst x e s unifies\<^sub>l ess)"
-  by (induction s ess rule: list_unifier.induct) simp_all
+  by (induction s ess rule: list_unifier.induct) (simp_all add: subst_merge)
 
 lemma [simp]: "subst Map.empty e = e"
   and [simp]: "map (subst Map.empty) es = es"
@@ -436,10 +445,25 @@ lemma [simp]: "P e \<Longrightarrow> structural P \<Longrightarrow> list_all (\<
     list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) (list_subst x e ess)"
   by (induction ess rule: list_subst.induct) simp_all
 
+lemma [simp]: "combine_subst Map.empty s = s"
+  by rule (simp add: combine_subst_def split: option.splits)
+
+lemma [simp]: "combine_subst s Map.empty = s"
+  by rule (simp add: combine_subst_def split: option.splits)
+
+lemma [simp]: "dom (combine_subst s t) = dom s \<union> dom t"
+  by (auto simp add: dom_def combine_subst_def split: option.splits)
+
 lemma [simp]: "subst (combine_subst s t) e = subst s (subst t e)"
   by (induction e) (simp_all add: combine_subst_def split: option.splits)
 
 lemma [simp]: "subst (combine_subst s t) = subst s \<circ> subst t"
+  by auto
+
+lemma [simp]: "combine_subst s (extend_subst x e t) y = extend_subst x e (combine_subst s t) y"
+  by (simp add: combine_subst_def extend_subst_def)
+
+lemma [simp]: "combine_subst s (extend_subst x e t) = extend_subst x e (combine_subst s t)"
   by auto
 
 lemma extends_trans [elim]: "s extends t \<Longrightarrow> t extends u \<Longrightarrow> s extends u"
@@ -484,5 +508,8 @@ qed
 
 lemma [elim]: "s unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> t extends s \<Longrightarrow> t unifies e\<^sub>1 and e\<^sub>2"
   by (auto simp add: subst_extends_def)
+
+lemma [simp]: "t unifies\<^sub>l ess \<Longrightarrow> combine_subst s t unifies\<^sub>l ess"
+  by (induction t ess rule: list_unifier.induct) simp_all
 
 end

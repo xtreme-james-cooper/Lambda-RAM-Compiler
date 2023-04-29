@@ -161,7 +161,7 @@ next
       have "subst u \<circ> subst s' = subst u \<circ> subst [x \<mapsto> Var x] \<circ> subst s'" by simp
       with D R Y U FstOnly have "subst t = subst u \<circ> subst s' \<circ> subst [x \<mapsto> e] \<and> ordered_subst u"
         using comp_assoc by blast
-      with VarYes show ?case by auto
+      with VarYes show ?case by (auto simp add: subst_merge)
     next
       case SndOnly
       with X have "subst u \<circ> subst s' = subst u \<circ> subst [y \<mapsto> Var x] \<circ> subst s'" by simp
@@ -172,7 +172,9 @@ next
       from SndOnly X have "u y = Some (case u x of None \<Rightarrow> Var x | Some e \<Rightarrow> e)" 
         by (auto split: option.splits)
       with VarYes U have "ordered_subst (extend_subst y (Var x) u)" by simp
-      with VarYes S show ?case by auto
+      moreover from VarYes S have "subst t = subst (extend_subst y (Var x) u) \<circ> subst s" 
+        by (auto simp add: subst_merge)
+      ultimately show ?case by blast
     next
       case (Both z)
       with X have "subst u \<circ> subst s' = subst (extend_subst x (Var z) u) \<circ> subst s'" by auto
@@ -182,7 +184,7 @@ next
       with U Z have "subst t = subst u \<circ> subst s' \<circ> subst [x \<mapsto> Var y]" by (metis comp_assoc)
       with Y have S: "subst t = subst u \<circ> subst s' \<circ> subst [x \<mapsto> e]" by simp
       from U have "ordered_subst u" by simp
-      with VarYes S show ?case by auto
+      with VarYes S show ?case by (auto simp add: subst_merge)
   qed
   next
     case (Some e')
@@ -327,6 +329,19 @@ proof (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct)
   with T show ?case by fastforce
 qed (simp_all split: if_splits)
 
+lemma unify_append_some [simp]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s \<Longrightarrow> \<exists>s\<^sub>1 s\<^sub>2. unify' ess\<^sub>1 = Some s\<^sub>1 \<and> 
+  unify' (map (pair_subst s\<^sub>1) ess\<^sub>2) = Some s\<^sub>2 \<and> s = combine_subst s\<^sub>2 s\<^sub>1"
+proof (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s rule: unify'_induct)
+  case (VarYes x e ess s\<^sub>1)
+  moreover then obtain s' where S: "unify' (list_subst x e ess @ list_subst x e ess\<^sub>2) = Some s' \<and> 
+    s = extend_subst x e s'" by auto
+  ultimately obtain s\<^sub>2 where "unify' (map (pair_subst s\<^sub>1) (list_subst x e ess\<^sub>2)) = Some s\<^sub>2 \<and> 
+    s' = combine_subst s\<^sub>2 s\<^sub>1" by fastforce
+  with VarYes S have "unify' (map (pair_subst (extend_subst x e s\<^sub>1)) ess\<^sub>2) = Some s\<^sub>2 \<and> 
+    s = combine_subst s\<^sub>2 (extend_subst x e s\<^sub>1)" by simp
+  with VarYes show ?case by simp
+qed (simp_all split: if_splits)
+
 lemma unify_append_none [simp]: "unify' (ess\<^sub>1 @ ess\<^sub>2) = None \<Longrightarrow> unify' ess\<^sub>1 = None \<or> 
   (\<exists>s. unify' ess\<^sub>1 = Some s \<and> unify' (map (pair_subst s) ess\<^sub>2) = None)"
 proof (induction ess\<^sub>1 arbitrary: ess\<^sub>2 rule: unify'_induct)
@@ -336,6 +351,18 @@ proof (induction ess\<^sub>1 arbitrary: ess\<^sub>2 rule: unify'_induct)
     unify' (map (pair_subst s) (list_subst x e ess\<^sub>2)) = None)" by blast
   with VarYes show ?case by simp
 qed auto
+
+lemma unify_append_def: "(unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s) = (\<exists>s\<^sub>1 s\<^sub>2. unify' ess\<^sub>1 = Some s\<^sub>1 \<and>
+  unify' (map (pair_subst s\<^sub>1) ess\<^sub>2) = Some s\<^sub>2 \<and> s = combine_subst s\<^sub>2 s\<^sub>1)"
+proof
+  assume "\<exists>s\<^sub>1 s\<^sub>2. unify' ess\<^sub>1 = Some s\<^sub>1 \<and> unify' (map (pair_subst s\<^sub>1) ess\<^sub>2) = Some s\<^sub>2 \<and> 
+    s = combine_subst s\<^sub>2 s\<^sub>1" 
+  then obtain s\<^sub>1 s\<^sub>2 where S: "s = combine_subst s\<^sub>2 s\<^sub>1" and U: "unify' ess\<^sub>1 = Some s\<^sub>1 \<and> 
+    unify' (map (pair_subst s\<^sub>1) ess\<^sub>2) = Some s\<^sub>2" by blast
+  from U have "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some (combine_subst s\<^sub>2 s\<^sub>1)" 
+    by (induction ess\<^sub>1 arbitrary: ess\<^sub>2 s\<^sub>1 rule: unify'_induct) auto
+  with S show "unify' (ess\<^sub>1 @ ess\<^sub>2) = Some s" by simp
+qed (metis unify_append_some)
 
 lemma unify'_props: "unify' ess = Some s \<Longrightarrow> structural P \<Longrightarrow> 
   list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess \<Longrightarrow> \<forall>x\<in>ran s. P x"
