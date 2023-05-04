@@ -59,6 +59,9 @@ fun print_mval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print
       0 \<Rightarrow> Fun
     | Suc x \<Rightarrow> Number (m (4 + p)))"
 
+primrec print_mach_state :: "mach_state \<Rightarrow> print" where
+  "print_mach_state (MS rs mem pc) = print_mval mem (mem 2)"
+
 lemma [simp]: "valt e \<Longrightarrow> print_texpr e = print_nexpr (erase e)" 
   by (induction e) (simp_all add: convert_def)
 

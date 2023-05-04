@@ -20,6 +20,9 @@ lemma [simp]: "dom (\<lambda>a. if a = x then Some y else f a) = insert x (dom f
 lemma [simp]: "ran (f(x \<mapsto> z)) \<subseteq> insert z (ran f)"
   by (auto simp add: ran_def)
 
+lemma [simp]: "ran (map_option f \<circ> g) = f ` ran g"
+  by (auto simp add: ran_def)
+
 lemma [simp]: "map_option Suc opt \<noteq> Some 0"
   by (induction opt) simp_all
 

@@ -108,6 +108,14 @@ proof (induction \<Gamma> e t rule: typecheckn.induct)
   with tcn_lam show ?case by fastforce
 qed (auto simp add: ran_def)
 
+lemma tcn_tvars [simp]: "\<Gamma> \<turnstile>\<^sub>n e : t \<Longrightarrow> tvars t \<subseteq> tvarst e \<union> \<Union> (tvars ` ran \<Gamma>)"
+proof (induction \<Gamma> e t rule: typecheckn.induct)
+  case (tcn_lam \<Gamma> x t\<^sub>1 e t\<^sub>2)
+  moreover have "\<Union> (tvars ` ran (\<Gamma>(x \<mapsto> t\<^sub>1))) \<subseteq> tvars t\<^sub>1 \<union> \<Union> (tvars ` ran \<Gamma>)" 
+    by (auto simp add: ran_def)
+  ultimately show ?case by (auto simp add: ran_def)
+qed (auto simp add: ran_def)
+
 lemma canonical_basen [dest]: "\<Gamma> \<turnstile>\<^sub>n e : Base \<Longrightarrow> valt e \<Longrightarrow> \<exists>k. e = TConst k"
   by (induction \<Gamma> e Base rule: typecheckn.induct) simp_all
 

@@ -139,6 +139,10 @@ lemma vars_subst [simp]: "vars (subst s e) \<subseteq> vars e - dom s \<union> s
   by (induction e and es rule: vars_varss.induct) 
      (auto simp add: subst_vars_def ranI split: option.splits)
 
+lemma [simp]: "x \<in> vars e \<Longrightarrow> s x = None \<Longrightarrow> x \<in> vars (subst s e)"
+  and [simp]: "x \<in> varss es \<Longrightarrow> s x = None \<Longrightarrow> x \<in> varss (map (subst s) es)"
+  by (induction e and es rule: vars_varss.induct) auto
+
 lemma [simp]: "subst_vars Map.empty = {}"
   by (simp add: subst_vars_def)
 
@@ -156,6 +160,10 @@ lemma [simp]: "dom (extend_subst x e s) = insert x (dom s)"
 
 lemma [simp]: "ran (extend_subst x e s) = insert (subst s e) (ran (s(x := None)))"
   by (auto simp add: extend_subst_def ran_def)
+
+lemma [simp]: "dom s \<inter> vars e = {} \<Longrightarrow> subst s e = e"
+  and [simp]: "dom s \<inter> varss es = {} \<Longrightarrow> map (subst s) es = es"
+  by (induction e and es rule: vars_varss.induct) (auto split: option.splits)
 
 lemma [simp]: "subst [x \<mapsto> Var x] e = e"
   and [simp]: "map (subst [x \<mapsto> Var x]) es = es"
@@ -204,6 +212,10 @@ proof -
   moreover assume "x \<notin> subst_vars s" 
   ultimately show ?thesis by (simp add: subst_vars_def)
 qed
+
+lemma [simp]: "x \<notin> dom s \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow> 
+    subst (extend_subst x e' s) e = subst [x \<mapsto> subst s e'] (subst s e)"
+  by (induction e) (auto simp add: extend_subst_def split: option.splits)
 
 lemma [simp]: "x \<notin> dom s \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow> 
   subst s \<circ> subst [x \<mapsto> e] = subst [x \<mapsto> subst s e] \<circ> subst s"
@@ -454,6 +466,48 @@ lemma [simp]: "combine_subst s Map.empty = s"
 lemma [simp]: "dom (combine_subst s t) = dom s \<union> dom t"
   by (auto simp add: dom_def combine_subst_def split: option.splits)
 
+lemma [simp]: "dom s \<inter> dom t = {} \<Longrightarrow> 
+  subst_vars (combine_subst s t) = subst_vars s \<union> (subst_vars t - dom s)"
+proof 
+  assume "dom s \<inter> dom t = {}"
+  hence D: "\<And>y e. s y = Some e \<Longrightarrow> t y = None" by auto
+  show "subst_vars (combine_subst s t) \<subseteq> subst_vars s \<union> (subst_vars t - dom s)" 
+  proof
+    fix x
+    assume "x \<in> subst_vars (combine_subst s t)"
+    then obtain e y where E: "(case t y of None \<Rightarrow> s y | Some e' \<Rightarrow> Some (subst s e')) = Some e \<and> 
+      x \<in> vars e" by (auto simp add: subst_vars_def ran_def combine_subst_def)
+    thus "x \<in> subst_vars s \<union> (subst_vars t - dom s)"
+    proof (cases "t y")
+      case (Some e')
+      with E have "x \<in> vars (subst s e')" by simp
+      hence "x \<in> vars e' - dom s \<union> subst_vars s" using vars_subst by blast
+      with Some show ?thesis by (auto simp add: subst_vars_def ran_def dom_def)
+    qed (auto simp add: subst_vars_def ran_def)
+  qed
+  show "subst_vars s \<union> (subst_vars t - dom s) \<subseteq> subst_vars (combine_subst s t)" 
+  proof
+    fix x
+    assume X: "x \<in> subst_vars s \<union> (subst_vars t - dom s)"
+    thus "x \<in> subst_vars (combine_subst s t)" 
+    proof (cases "\<exists>e y. s y = Some e \<and> x \<in> vars e")
+      case True
+      then obtain e y where Y: "s y = Some e \<and> x \<in> vars e" by auto
+      with D have "t y = None" by simp
+      with Y have "(case t y of None \<Rightarrow> s y | Some e' \<Rightarrow> Some (subst s e')) = Some e \<and> 
+        x \<in> vars e" by simp
+      thus ?thesis by (auto simp add: subst_vars_def ran_def combine_subst_def)
+    next
+      case False
+      with X obtain e y where "t y = Some e \<and> x \<in> vars e \<and> s x = None" 
+        by (auto simp add: subst_vars_def ran_def dom_def)
+      hence "(case t y of None \<Rightarrow> s y | Some e' \<Rightarrow> Some (subst s e')) = Some (subst s e) \<and> 
+        x \<in> vars (subst s e)" by simp
+      thus ?thesis by (auto simp add: subst_vars_def ran_def combine_subst_def)
+    qed
+  qed
+qed
+
 lemma [simp]: "subst (combine_subst s t) e = subst s (subst t e)"
   by (induction e) (simp_all add: combine_subst_def split: option.splits)
 
@@ -508,6 +562,38 @@ qed
 
 lemma [elim]: "s unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> t extends s \<Longrightarrow> t unifies e\<^sub>1 and e\<^sub>2"
   by (auto simp add: subst_extends_def)
+
+lemma [simp]: "xs \<inter> subst_vars s = {} \<Longrightarrow> s x = Some e \<Longrightarrow> xs \<inter> vars e = {}"
+  by (auto simp add: subst_vars_def ran_def)
+
+lemma [simp]: "dom s \<inter> dom t = {} \<Longrightarrow> dom t \<inter> subst_vars s = {} \<Longrightarrow> 
+    subst s (subst t e) = subst (map_option (subst s) \<circ> t) (subst s e)"
+proof (induction e)
+  case (Var x)
+  thus ?case
+  proof (cases "t x")
+    case None note N = None
+    thus ?thesis
+    proof (cases "s x")
+      case (Some e)
+      with Var have "dom t \<inter> vars e = {}" by simp
+      with N Some have "subst s (subst t (Var x)) = 
+        subst (map_option (subst s) \<circ> t) (subst s (Var x))" by simp
+      thus ?thesis by blast
+    qed simp_all
+  next
+    case (Some e)
+    with Var have "s x = None" by auto
+    with Some show ?thesis by simp
+  qed
+qed simp_all
+
+lemma [simp]: "x \<notin> dom s \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow> s unifies\<^sub>l ess \<Longrightarrow> extend_subst x e s unifies\<^sub>l ess"
+  by (induction s ess rule: list_unifier.induct) simp_all
+
+lemma [simp]: "dom s \<inter> dom t = {} \<Longrightarrow> dom t \<inter> subst_vars s = {} \<Longrightarrow> s unifies\<^sub>l ess \<Longrightarrow> 
+    combine_subst s t unifies\<^sub>l ess"
+  by (induction s ess rule: list_unifier.induct) simp_all
 
 lemma [simp]: "t unifies\<^sub>l ess \<Longrightarrow> combine_subst s t unifies\<^sub>l ess"
   by (induction t ess rule: list_unifier.induct) simp_all

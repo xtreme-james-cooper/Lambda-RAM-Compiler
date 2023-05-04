@@ -2,6 +2,12 @@ theory Correctness
   imports Compiler
 begin
 
+abbreviation initial_state :: "mach list \<Rightarrow> mach_state" where
+  "initial_state cd \<equiv> MS (case_reg 0 1 2 11 0) ((\<lambda>x. 0)(7 := 1)) (length cd)"
+
+primrec final_state :: "mach_state \<Rightarrow> bool" where
+  "final_state (MS rs mem pc) = (pc = 0 \<and> rs R3 = 6 \<and> rs R4 = 3)"
+
 lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
   by (induction e) simp_all
 
@@ -14,9 +20,8 @@ proof -
 qed
 
 theorem tc_terminationn: "alg_compile e = Some (cd, t) \<Longrightarrow> 
-  \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>rs mem. rs R3 = 6 \<and> rs R4 = 3 \<and> 
-    print_mval mem (mem 2) = print_nexpr v \<and> 
-      iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) ((\<lambda>x. 0)(7 := 1)) (length cd)) (MS rs mem 0))"
+  \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
+    print_mach_state \<Sigma> = print_nexpr v)"
 proof -
   assume C: "alg_compile e = Some (cd, t)"
   then obtain e\<^sub>t where T: "typecheck e = Some (e\<^sub>t, t)" by (auto split: option.splits prod.splits)
@@ -128,10 +133,9 @@ proof -
   qed (simp add: unmap_mem_def assemble_vals_def)
   hence "print_mval (unmap_mem ?mem) (unmap_mem ?mem 2) = 
     print_uval (pseudoreg_map \<circ> ?mem Hp) (vs\<^sub>u 0)" using print_m by blast
-  with PU PU2 have PM: "print_mval (unmap_mem ?mem) (unmap_mem ?mem 2) = print_nexpr (erase v\<^sub>t)" 
-    by simp
-  have "(case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) R3 = 6 \<and> 
-    (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) R4 = 3" by simp
+  with PU PU2 have PM: "print_mach_state (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) 
+    (unmap_mem ?mem) 0) = print_nexpr (erase v\<^sub>t)" by simp
+  have "final_state (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" by simp
   with VN TN EN EM PM show ?thesis by blast
 qed
 
