@@ -508,6 +508,10 @@ proof
   qed
 qed
 
+lemma [simp]: "dom s \<inter> dom t = {} \<Longrightarrow> dom t \<inter> subst_vars s = {} \<Longrightarrow> ordered_subst s \<Longrightarrow> 
+    ordered_subst t \<Longrightarrow> ordered_subst (combine_subst s t)"
+  by (auto simp add: ordered_subst_def)
+
 lemma [simp]: "subst (combine_subst s t) e = subst s (subst t e)"
   by (induction e) (simp_all add: combine_subst_def split: option.splits)
 
@@ -597,5 +601,13 @@ lemma [simp]: "dom s \<inter> dom t = {} \<Longrightarrow> dom t \<inter> subst_
 
 lemma [simp]: "t unifies\<^sub>l ess \<Longrightarrow> combine_subst s t unifies\<^sub>l ess"
   by (induction t ess rule: list_unifier.induct) simp_all
+
+lemma [elim]: "x \<notin> vars (subst s e) \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow> x \<notin> dom s \<Longrightarrow> x \<notin> vars e"
+  and [elim]: "x \<notin> varss (map (subst s) es) \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow> x \<notin> dom s \<Longrightarrow> x \<notin> varss es"
+  by (induction e and es rule: vars_varss.induct) (auto split: option.splits)
+
+lemma vars_subst_inv [elim]: "vars (subst s e) \<subseteq> vs \<Longrightarrow> vars e \<subseteq> vs \<union> dom s"
+  and [elim]: "varss (map (subst s) es) \<subseteq> vs \<Longrightarrow> varss es \<subseteq> vs \<union> dom s"
+  by (induction e and es rule: vars_varss.induct) (auto split: option.splits)
 
 end
