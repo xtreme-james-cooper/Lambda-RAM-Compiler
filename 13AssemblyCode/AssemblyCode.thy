@@ -169,4 +169,13 @@ next
   qed
 qed
 
+theorem determinisma: "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
+proof -
+  assume "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>'" 
+  hence X: "cd \<tturnstile>\<^sub>a \<Sigma> = Some \<Sigma>'" by (simp add: alg_evala_equiv)
+  assume "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>''"
+  hence "cd \<tturnstile>\<^sub>a \<Sigma> = Some \<Sigma>''" by (simp add: alg_evala_equiv)
+  with X show "\<Sigma>' = \<Sigma>''" by simp
+qed
+
 end

@@ -4,9 +4,9 @@ begin
 
 primrec restructure :: "unstr_state \<Rightarrow> flat_state" where
   "restructure (US h hp e ep vs vp sh sp pc) = 
-    FS (H h hp) (H e ep) (listify' vs vp) (case sp of 
+    FS (H h hp) (H e ep) (listify_heap vs vp) (case sp of 
       0 \<Rightarrow> []  
-    | Suc sp' \<Rightarrow> pc # listify' (sh \<circ> Suc) sp')"
+    | Suc sp' \<Rightarrow> pc # listify_heap (sh \<circ> Suc) sp')"
 
 lemma [simp]: "flat_lookup (H h hp) p x = unstr_lookup h p x"
   by (induction h p x rule: unstr_lookup.induct) simp_all
@@ -39,7 +39,7 @@ lemma [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sig
 
 lemma [dest]: "FS h env vs (pc # p # sfs) = restructure \<Sigma> \<Longrightarrow> \<exists>h' hp e ep vs' vp sh sp. 
   \<Sigma> = US h' hp e ep vs' vp sh (Suc (Suc sp)) pc \<and> h = H h' hp \<and> env = H e ep \<and> 
-    vs = listify' vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify' (sh \<circ> Suc) sp"
+    vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp"
 proof (induction \<Sigma>)
   case (US h' hp e ep vs' vp sh sp pc')
   thus ?case 
@@ -50,15 +50,15 @@ proof (induction \<Sigma>)
 qed
 
 lemma [dest]: "FS h env vs [] = restructure \<Sigma> \<Longrightarrow> restructurable \<Sigma> cd \<Longrightarrow> \<exists>h' hp e ep vs' vp sh sp. 
-    \<Sigma> = US h' hp e ep vs' vp sh 0 0 \<and> h = H h' hp \<and> env = H e ep \<and> vs = listify' vs' vp"
+    \<Sigma> = US h' hp e ep vs' vp sh 0 0 \<and> h = H h' hp \<and> env = H e ep \<and> vs = listify_heap vs' vp"
   by (induction \<Sigma>) (simp split: nat.splits)
 
 theorem correctu [simp]: "cd \<tturnstile> restructure \<Sigma>\<^sub>u \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd \<Longrightarrow> 
     \<exists>\<Sigma>\<^sub>u'. (cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u') \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>u'"
 proof (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' rule: evalf.induct)
   case (evf_lookup cd pc x env p v h vs sfs)
-  then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> vs = listify' vs' vp \<and> 
-    p = sh (Suc sp) \<and> sfs = listify' (sh \<circ> Suc) sp \<and> 
+  then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> 
+    vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
       \<Sigma>\<^sub>u = US h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   moreover hence "FS h env (v # vs) (pc # p # sfs) = 
     restructure (US h' hp e ep (vs'(vp := v)) (Suc vp) sh (Suc (Suc sp)) pc)" by simp
@@ -67,8 +67,8 @@ proof (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' rule: evalf.in
   ultimately show ?case by blast
 next
   case (evf_pushcon cd pc k h h' v env vs p sfs)
-  then obtain hh hp e ep vs' vp sh sp where S: "h = H hh hp \<and> env = H e ep \<and> vs = listify' vs' vp \<and> 
-    p = sh (Suc sp) \<and> sfs = listify' (sh \<circ> Suc) sp \<and> 
+  then obtain hh hp e ep vs' vp sh sp where S: "h = H hh hp \<and> env = H e ep \<and> 
+    vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
       \<Sigma>\<^sub>u = US hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   with evf_pushcon have "v = hp \<and> 
     h' = H (hh(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (Suc (Suc (Suc hp)))" by fastforce
@@ -81,8 +81,8 @@ next
   with S X show ?case by blast
 next
   case (evf_pushlam cd pc pc' h p h' v env vs sfs)
-  then obtain hh hp e ep vs' vp sh sp where S: "h = H hh hp \<and> env = H e ep \<and> vs = listify' vs' vp \<and> 
-    p = sh (Suc sp) \<and> sfs = listify' (sh \<circ> Suc) sp \<and> 
+  then obtain hh hp e ep vs' vp sh sp where S: "h = H hh hp \<and> env = H e ep \<and> 
+    vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
       \<Sigma>\<^sub>u = US hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   with evf_pushlam have "v = hp \<and> 
     h' = H (hh(hp := 0, Suc hp := sh (Suc sp), Suc (Suc hp) := pc')) (Suc (Suc (Suc hp)))" 
@@ -97,10 +97,10 @@ next
 next
   case (evf_apply cd pc h v2 p' pc' env v1 env' p2 vs p sfs)
   then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> p = sh (Suc sp) \<and> 
-    sfs = listify' (sh \<circ> Suc) sp \<and> listify' vs' vp = v1 # v2 # vs \<and> 
+    sfs = listify_heap (sh \<circ> Suc) sp \<and> listify_heap vs' vp = v1 # v2 # vs \<and> 
       \<Sigma>\<^sub>u = US h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
-    vs = listify' vs' vp'" by fastforce
+    vs = listify_heap vs' vp'" by fastforce
   with evf_apply S have H: "h' (vs' vp') = 0 \<and> p' = h' (Suc (vs' vp')) \<and> 
     pc' = h' (Suc (Suc (vs' vp')))" by (cases "h' (vs' vp')") simp_all
   from evf_apply S have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := p')) (Suc (Suc p2))" by fastforce
@@ -115,8 +115,8 @@ next
   with S X V show ?case by blast
 next
   case (evf_return cd pc h env vs p sfs)
-  then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> vs = listify' vs' vp \<and> 
-    p = sh (Suc sp) \<and> sfs = listify' (sh \<circ> Suc) sp \<and> 
+  then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> 
+    vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
       \<Sigma>\<^sub>u = US h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   moreover with evf_return have "FS h env vs sfs = 
     restructure (US h' hp e ep vs' vp sh sp (sh sp))" by (auto split: nat.splits)
@@ -126,10 +126,10 @@ next
 next
   case (evf_jump cd pc h v2 p' pc' env v1 env' p2 vs p sfs)
   then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> p = sh (Suc sp) \<and> 
-    sfs = listify' (sh \<circ> Suc) sp \<and> listify' vs' vp = v1 # v2 # vs \<and> 
+    sfs = listify_heap (sh \<circ> Suc) sp \<and> listify_heap vs' vp = v1 # v2 # vs \<and> 
       \<Sigma>\<^sub>u = US h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
-    vs = listify' vs' vp'" by fastforce
+    vs = listify_heap vs' vp'" by fastforce
   with evf_jump S have H: "h' (vs' vp') = 0 \<and> p' = h' (Suc (vs' vp')) \<and> 
     pc' = h' (Suc (Suc (vs' vp')))" by (cases "h' (vs' vp')") simp_all
   from evf_jump S have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := p')) (Suc (Suc p2))" by fastforce

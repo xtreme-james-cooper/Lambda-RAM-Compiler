@@ -227,23 +227,20 @@ proof (induction h)
   ultimately show ?case by simp
 qed 
 
-primrec listify' :: "(nat \<Rightarrow> 'a) \<Rightarrow> nat \<Rightarrow> 'a list" where
-  "listify' h 0 = []"
-| "listify' h (Suc x) = h x # listify' h x"
+primrec listify_heap :: "(nat \<Rightarrow> 'a) \<Rightarrow> nat \<Rightarrow> 'a list" where
+  "listify_heap h 0 = []"
+| "listify_heap h (Suc x) = h x # listify_heap h x"
 
-primrec listify :: "'a heap \<Rightarrow> 'a list" where
-  "listify (H h hp) = listify' h hp"
-
-lemma [dest]: "listify' h x = [] \<Longrightarrow> x = 0"
+lemma [dest]: "listify_heap h x = [] \<Longrightarrow> x = 0"
   by (induction x) simp_all
 
-lemma [dest]: "listify' h x = a # as \<Longrightarrow> \<exists>y. x = Suc y \<and> h y = a \<and> listify' h y = as"
+lemma [dest]: "listify_heap h x = a # as \<Longrightarrow> \<exists>y. x = Suc y \<and> h y = a \<and> listify_heap h y = as"
   by (induction x) simp_all
 
-lemma [simp]: "hp \<le> x \<Longrightarrow> listify' (h(x := v)) hp = listify' h hp"
+lemma [simp]: "hp \<le> x \<Longrightarrow> listify_heap (h(x := v)) hp = listify_heap h hp"
   by (induction hp) simp_all
 
-lemma [simp]: "hp \<le> x \<Longrightarrow> listify' (h(Suc x := v) \<circ> Suc) hp = listify' (h \<circ> Suc) hp"
+lemma [simp]: "hp \<le> x \<Longrightarrow> listify_heap (h(Suc x := v) \<circ> Suc) hp = listify_heap (h \<circ> Suc) hp"
   by (induction hp) auto
 
 end

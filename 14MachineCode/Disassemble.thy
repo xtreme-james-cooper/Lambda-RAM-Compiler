@@ -120,17 +120,6 @@ proof -
   thus ?thesis by simp
 qed
 
-(*
-
-TODO
-
-theorem completem [simp]: "cd\<^sub>m \<tturnstile> \<Sigma>\<^sub>m \<leadsto>\<^sub>m \<Sigma>\<^sub>m' \<Longrightarrow> 
-  \<exists>cd\<^sub>a \<Sigma>\<^sub>a \<Sigma>\<^sub>a'. cd\<^sub>m = disassemble cd\<^sub>a \<and> disassemble_state \<Sigma>\<^sub>a = \<Sigma>\<^sub>m \<and> 
-    disassemble_state \<Sigma>\<^sub>a' = \<Sigma>\<^sub>m' \<and> cd\<^sub>a \<tturnstile> \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a'"
-  by simp
-
-*)
-
 lemma inv_reg_map_reg: "
   (inv_register_map ps a act)(R5 := inv_register_map ps a act (register_map r)) = 
     inv_register_map ps (ps r) (Reg r)"

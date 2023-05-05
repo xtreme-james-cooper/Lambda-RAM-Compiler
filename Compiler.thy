@@ -5,8 +5,8 @@ begin
 abbreviation code_compile :: "texpr \<Rightarrow> mach list" where
   "code_compile \<equiv> disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco \<circ> encode \<circ> convert"
 
-abbreviation compile :: "nexpr \<rightharpoonup> mach list" where 
-  "compile \<equiv> map_option (code_compile \<circ> fst) \<circ> typecheck"
+abbreviation compile :: "nexpr \<rightharpoonup> mach list \<times> ty" where 
+  "compile \<equiv> map_option (apfst code_compile) \<circ> typecheck"
 
 primrec quick_convert :: "var set \<Rightarrow> nexpr \<Rightarrow> hexpr \<times> var set" where
   "quick_convert vs (NVar x) = (HVar x, vs)"
@@ -159,10 +159,7 @@ lemma [simp]: "alg_compile3 cd = disassemble (assemble_code cd)"
 lemma [simp]: "collect_constraints \<Gamma> vs e = snd (typecheck' \<Gamma> vs e)"
   by (induction e arbitrary: \<Gamma> vs) (simp_all add: Let_def split: option.splits prod.splits)
 
-fun opt_pair :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'c) \<Rightarrow> 'a \<rightharpoonup> 'b \<times> 'c" where
-  "opt_pair f g a = Option.bind (f a) (\<lambda>b. map_option (Pair b) (g a))"
-
-lemma [simp]: "alg_compile = opt_pair compile (map_option snd \<circ> typecheck)"
-  by (auto simp add: alg_compile_def Let_def tco_def convert_def split: prod.splits option.splits)
+lemma [simp]: "alg_compile = compile"
+  by (auto simp add: alg_compile_def tco_def convert_def split: prod.splits option.splits)
 
 end

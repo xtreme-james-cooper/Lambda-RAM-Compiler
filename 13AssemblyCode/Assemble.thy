@@ -218,36 +218,6 @@ lemma [simp]: "lookup (assemble_op mp op @ cd) (assemble_op_len op) =
     Some (last (assemble_op mp op))"
   by (induction op) simp_all
 
-(*
-
-TODO
-
-theorem completea [simp]: "assemble_code cd\<^sub>b \<tturnstile>\<^sub>a assm_state cd\<^sub>b \<Sigma>\<^sub>u = Some \<Sigma>\<^sub>a' \<Longrightarrow> 
-  restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow>
-    \<exists>n \<Sigma>\<^sub>u'. iter_evala (assemble_code cd\<^sub>b) n \<Sigma>\<^sub>a' = Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u') \<and> cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u'"
-proof (induction \<Sigma>\<^sub>u)
-  case (US h hp e ep vs vp sh sp pc)
-  from US(1) obtain pc' where PCA: "assembly_map cd\<^sub>b pc = Suc pc'" by (simp split: nat.splits)
-  moreover from US have "pc \<le> length cd\<^sub>b" by simp
-  ultimately obtain pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a'' where PCB: "pc = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
-    pc' = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and>
-      assemble_code cd\<^sub>b = cd\<^sub>a' @ assemble_op (assembly_map cd\<^sub>b) op\<^sub>b @ cd\<^sub>a''" 
-        by (metis assm_map_to_suc)
-
-
-  from US PCA PCB have "Option.bind (lookup (assemble_op (assembly_map cd\<^sub>b) op\<^sub>b @ cd\<^sub>a'') (assemble_op_len op\<^sub>b))
-          (assm_step (case_register (assm_hp hp cd\<^sub>b h) e vs (assm_stk sp cd\<^sub>b sh)) (case_register hp ep vp sp) 0
-            (Con 0) pc') = Some \<Sigma>\<^sub>a'" by simp
-
-
-  have "iter_evala (cd\<^sub>a' @ assemble_op (assembly_map cd\<^sub>b) op\<^sub>b @ cd\<^sub>a'') (assemble_op_len op\<^sub>b) \<Sigma>\<^sub>a' = 
-    Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u') \<and>
-      cd\<^sub>b \<tturnstile> US h hp e ep vs vp sh sp (Suc pc\<^sub>b') \<leadsto>\<^sub>u \<Sigma>\<^sub>u'" by simp
-  with PCB show ?case by fastforce
-qed
-
-*)
-
 lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 
   assembly_map cd (Suc pc) = Suc (assemble_op_len op + assembly_map cd pc)"
 proof (induction cd pc rule: assembly_map.induct)
@@ -777,6 +747,9 @@ proof -
   thus "iter (\<tturnstile> assemble_code cd\<^sub>b \<leadsto>\<^sub>a) (assm_state cd\<^sub>b \<Sigma>\<^sub>u) (assm_state cd\<^sub>b \<Sigma>\<^sub>u')" 
     by (simp add: iter_evala_equiv)
 qed
+
+(* We no longer do the reverse (completeness) direction because it's rather complex to even state 
+now *)
 
 lemma [simp]: "assm_hp cd h 0 = (\<lambda>x. (Con 0, 0))"
   by rule (simp add: assemble_heap_def)

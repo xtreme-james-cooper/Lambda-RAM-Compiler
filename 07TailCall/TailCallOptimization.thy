@@ -4,9 +4,7 @@ begin
 
 fun tco_r :: "tree_code list \<Rightarrow> tco_return" where
   "tco_r [] = TCOReturn"
-| "tco_r (TApply # cd) = (case cd of 
-      [] \<Rightarrow> TCOJump
-    | _ \<Rightarrow> tco_r cd)"
+| "tco_r (TApply # cd) = (case cd of [] \<Rightarrow> TCOJump | _ \<Rightarrow> tco_r cd)"
 | "tco_r (op # cd) = tco_r cd"
 
 fun tco_cd :: "tree_code list \<Rightarrow> tco_code list" where
@@ -14,15 +12,7 @@ fun tco_cd :: "tree_code list \<Rightarrow> tco_code list" where
 | "tco_cd (TLookup x # cd) = TCOLookup x # tco_cd cd"
 | "tco_cd (TPushCon k # cd) = TCOPushCon k # tco_cd cd"
 | "tco_cd (TPushLam cd' # cd) = TCOPushLam (tco_cd cd') (tco_r cd') # tco_cd cd"
-| "tco_cd (TApply # cd) = (case cd of 
-      [] \<Rightarrow> []
-    | _ \<Rightarrow> TCOApply # tco_cd cd)"
-
-fun tco_cd_one :: "tree_code \<Rightarrow> tco_code" where
-  "tco_cd_one (TLookup x) = TCOLookup x"
-| "tco_cd_one (TPushCon k) = TCOPushCon k"
-| "tco_cd_one (TPushLam cd') = TCOPushLam (tco_cd cd') (tco_r cd')"
-| "tco_cd_one TApply = TCOApply"
+| "tco_cd (TApply # cd) = (case cd of [] \<Rightarrow> [] | _ \<Rightarrow> TCOApply # tco_cd cd)"
 
 definition tco :: "tree_code list \<Rightarrow> tco_code list \<times> tco_return" where
   "tco cd = (tco_cd cd, tco_r cd)"
@@ -52,12 +42,6 @@ lemma [simp]: "cd \<noteq> [] \<Longrightarrow> tco_r (op # cd) = tco_r cd"
   by (induction op) (simp_all split: list.splits)
 
 lemma tco_r_append [simp]: "cd' \<noteq> [] \<Longrightarrow> tco_r (cd @ cd') = tco_r cd'"
-  by (induction cd) simp_all
-
-lemma [simp]: "cd \<noteq> [] \<Longrightarrow> tco_cd (op # cd) = tco_cd_one op # tco_cd cd"
-  by (induction op) (simp_all split: list.splits)
-
-lemma tco_cd_append [simp]: "cd' \<noteq> [] \<Longrightarrow> tco_cd (cd @ cd') = map tco_cd_one cd @ tco_cd cd'"
   by (induction cd) simp_all
 
 lemma [simp]: "cd \<noteq> [] \<Longrightarrow> cd' \<noteq> [] \<Longrightarrow> tco_cd (cd @ cd') \<noteq> []"
