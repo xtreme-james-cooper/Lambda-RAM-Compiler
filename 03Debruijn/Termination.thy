@@ -11,10 +11,10 @@ primrec stable :: "ty \<Rightarrow> dexpr \<Rightarrow> bool" where
 | "stable (Arrow t\<^sub>1 t\<^sub>2) e = (terminatesd e \<and> ([] \<turnstile>\<^sub>d e : Arrow t\<^sub>1 t\<^sub>2) \<and> 
     (\<forall>e'. stable t\<^sub>1 e' \<longrightarrow> vald e' \<longrightarrow> stable t\<^sub>2 (DApp e e')))"
 
-lemma [simp]: "stable t e \<Longrightarrow> [] \<turnstile>\<^sub>d e : t"
+lemma stable_typechecks: "stable t e \<Longrightarrow> [] \<turnstile>\<^sub>d e : t"
   by (induction t) simp_all
 
-lemma [simp]: "stable t e \<Longrightarrow> terminatesd e"
+lemma stable_terminates: "stable t e \<Longrightarrow> terminatesd e"
   by (induction t) simp_all
 
 lemma [simp]: "terminatesd (DConst k)"
@@ -30,15 +30,15 @@ qed
 lemma [simp]: "stable t e \<Longrightarrow> stable t (multisubst es e)"
 proof (induction es)
   case (Cons e' es)
-  hence "[] \<turnstile>\<^sub>d e : t" by simp
+  hence "[] \<turnstile>\<^sub>d e : t" by (metis stable_typechecks)
   hence "substd 0 e' e = e" by simp
   with Cons show ?case by simp
 qed simp_all
 
-lemma [simp]: "subst_pairs \<Gamma> es \<Longrightarrow> list_all2 stable \<Gamma> es \<Longrightarrow> lookup \<Gamma> x = Some t \<Longrightarrow> 
+lemma [simp]: "tc_pairs \<Gamma> es \<Longrightarrow> list_all2 stable \<Gamma> es \<Longrightarrow> lookup \<Gamma> x = Some t \<Longrightarrow> 
   stable t (multisubst es (DVar x))"
-proof (induction \<Gamma> es arbitrary: x rule: subst_pairs.induct)
-  case (subp_cons t' e \<Gamma> ves)
+proof (induction \<Gamma> es arbitrary: x rule: tc_pairs.induct)
+  case (tcp_cons t' e \<Gamma> ves)
   thus ?case by (induction x) simp_all
 qed simp_all
 
@@ -76,24 +76,20 @@ lemma stable_persists: "iter (\<leadsto>\<^sub>d) e e' \<Longrightarrow> stable 
 
 lemma stable_evald_back: "[] \<turnstile>\<^sub>d e : t \<Longrightarrow> e \<leadsto>\<^sub>d e' \<Longrightarrow> stable t e' \<Longrightarrow> stable t e"
 proof (induction t arbitrary: e e')
-  case Base
-  from Base(3) have "terminatesd e'" by simp
-  with Base(2) have "terminatesd e" by simp
-  with Base(1) show ?case by simp
-next
   case (Arrow t\<^sub>1 t\<^sub>2)
-  from Arrow(5) have "terminatesd e'" by simp
-  with Arrow(4) have X: "terminatesd e" by fastforce
+  from Arrow have "terminatesd e'" by simp
+  with Arrow have X: "terminatesd e" by fastforce
   have "\<And>e\<^sub>2. stable t\<^sub>1 e\<^sub>2 \<Longrightarrow> vald e\<^sub>2 \<Longrightarrow> stable t\<^sub>2 (DApp e e\<^sub>2)" 
   proof -
     fix e\<^sub>2
     assume S: "stable t\<^sub>1 e\<^sub>2" and "vald e\<^sub>2"
-    with Arrow(5) have Y: "stable t\<^sub>2 (DApp e' e\<^sub>2)" by simp
-    from Arrow(3) S have Z: "[] \<turnstile>\<^sub>d DApp e e\<^sub>2 : t\<^sub>2" by simp
-    from Arrow(4) have "DApp e e\<^sub>2 \<leadsto>\<^sub>d DApp e' e\<^sub>2" by simp
-    with Arrow(2) Y Z show "stable t\<^sub>2 (DApp e e\<^sub>2)" by blast
+    with Arrow have Y: "stable t\<^sub>2 (DApp e' e\<^sub>2)" by simp
+    from S have "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1"  by (metis stable_typechecks)
+    with Arrow(3) have Z: "[] \<turnstile>\<^sub>d DApp e e\<^sub>2 : t\<^sub>2" by simp
+    from Arrow have "DApp e e\<^sub>2 \<leadsto>\<^sub>d DApp e' e\<^sub>2" by simp
+    with Arrow Y Z show "stable t\<^sub>2 (DApp e e\<^sub>2)" by blast
   qed
-  with Arrow(3) X show ?case by simp
+  with Arrow X show ?case by simp
 qed simp_all
 
 lemma stable_persists_back: "iter (\<leadsto>\<^sub>d) e e' \<Longrightarrow> [] \<turnstile>\<^sub>d e : t \<Longrightarrow> stable t e' \<Longrightarrow> stable t e"
@@ -102,7 +98,7 @@ proof (induction e e' rule: iter.induct)
   thus ?case using stable_evald_back by fastforce
 qed simp_all
 
-lemma tc_stable [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> subst_pairs \<Gamma> es \<Longrightarrow> list_all2 stable \<Gamma> es \<Longrightarrow> 
+lemma tc_stable [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> tc_pairs \<Gamma> es \<Longrightarrow> list_all2 stable \<Gamma> es \<Longrightarrow> 
   stable t (multisubst es e)"
 proof (induction \<Gamma> e t arbitrary: es rule: typecheckd.induct)
   case (tcd_lam t\<^sub>1 \<Gamma> e t\<^sub>2)
@@ -112,12 +108,12 @@ proof (induction \<Gamma> e t arbitrary: es rule: typecheckd.induct)
   proof -
     fix e\<^sub>2
     assume S: "stable t\<^sub>1 e\<^sub>2" and V: "vald e\<^sub>2"
-    hence E2: "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1" by simp
+    hence E2: "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1" by (metis stable_typechecks)
     hence T: "\<exists>t. [] \<turnstile>\<^sub>d e\<^sub>2 : t" by fastforce
     from tcd_lam S have "list_all2 stable (insert_at 0 t\<^sub>1 \<Gamma>) (insert_at 0 e\<^sub>2 es)" by simp
-    with tcd_lam have "subst_pairs (insert_at 0 t\<^sub>1 \<Gamma>) (insert_at 0 e\<^sub>2 es) \<Longrightarrow> 
+    with tcd_lam have "tc_pairs (insert_at 0 t\<^sub>1 \<Gamma>) (insert_at 0 e\<^sub>2 es) \<Longrightarrow> 
       stable t\<^sub>2 (multisubst (insert_at 0 e\<^sub>2 es) e)" by blast
-    with tcd_lam S V T E have "stable t\<^sub>2 (substd 0 e\<^sub>2 e')" by simp
+    with tcd_lam S V T E have "stable t\<^sub>2 (substd 0 e\<^sub>2 e')" by (simp add: stable_typechecks)
     moreover with V have "DApp (DLam t\<^sub>1 e') e\<^sub>2 \<leadsto>\<^sub>d substd 0 e\<^sub>2 e'" by simp
     moreover from E have "[] \<turnstile>\<^sub>d DLam t\<^sub>1 e' : Arrow t\<^sub>1 t\<^sub>2" by simp
     moreover with E2 have "[] \<turnstile>\<^sub>d DApp (DLam t\<^sub>1 e') e\<^sub>2 : t\<^sub>2" by simp
@@ -126,7 +122,7 @@ proof (induction \<Gamma> e t arbitrary: es rule: typecheckd.induct)
   ultimately show ?case by simp
 next
   case (tcd_app \<Gamma> e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
-  hence "terminatesd (multisubst es e\<^sub>2)" by fastforce
+  hence "terminatesd (multisubst es e\<^sub>2)" by (metis stable_terminates)
   then obtain v\<^sub>2 where V2: "vald v\<^sub>2 \<and> iter (\<leadsto>\<^sub>d) (multisubst es e\<^sub>2) v\<^sub>2" by fastforce
   with tcd_app have V2S: "stable t\<^sub>1 v\<^sub>2" by (metis stable_persists)
   from tcd_app have "terminatesd (multisubst es e\<^sub>1)" by fastforce
@@ -151,8 +147,7 @@ theorem tc_terminationd [simp]: "[] \<turnstile>\<^sub>d e : t \<Longrightarrow>
 proof -
   assume "[] \<turnstile>\<^sub>d e : t" 
   moreover have "list_all2 stable [] []" by simp
-  ultimately have "stable t (multisubst [] e)" by (metis subp_nil tc_stable)
-  thus ?thesis by simp
+  ultimately show ?thesis by (metis stable_terminates multisubst.simps(1) tcp_nil tc_stable)
 qed
 
 end

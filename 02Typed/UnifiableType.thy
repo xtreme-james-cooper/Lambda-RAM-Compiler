@@ -136,8 +136,8 @@ lemma [simp]: "valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_subst sub\<^su
     map_option (tsubsts sub\<^sub>1 \<circ> tsubsts sub\<^sub>2 \<circ> typeify) \<circ> \<Gamma>"
   by auto
 
-lemma [elim]: "valid_ty_uexprs ts \<Longrightarrow> unify' ts = Some sub \<Longrightarrow> valid_ty_subst sub"                                  
-proof (induction ts arbitrary: sub rule: unify'.induct)
+lemma [elim]: "valid_ty_uexprs ts \<Longrightarrow> unify ts = Some sub \<Longrightarrow> valid_ty_subst sub"                                  
+proof (induction ts arbitrary: sub rule: unify.induct)
   case (2 k\<^sub>1 es\<^sub>1 k\<^sub>2 es\<^sub>2 ess)
   moreover hence "list_all valid_ty_uexpr es\<^sub>1" by (auto simp add: valid_ty_uexprs_def)
   moreover from 2 have "list_all valid_ty_uexpr es\<^sub>2" by (auto simp add: valid_ty_uexprs_def)
@@ -150,7 +150,7 @@ next
     with 4 show ?thesis 
     proof (cases "x \<in> vars e")
       case False
-      with 4 F obtain sub' where S: "unify' (list_subst x e ess) = Some sub' \<and> 
+      with 4 F obtain sub' where S: "unify (list_subst x e ess) = Some sub' \<and> 
         sub = extend_subst x e sub'" by auto
       from 4 have "valid_ty_uexpr e \<and> valid_ty_uexprs ess" by (simp add: valid_ty_uexprs_def)
       hence "valid_ty_uexprs (list_subst x e ess)" by simp
@@ -158,15 +158,6 @@ next
     qed simp_all
   qed (simp_all add: valid_ty_uexprs_def)
 qed (auto simp add: valid_ty_uexprs_def)
-
-lemma [elim]: "valid_ty_uexpr t\<^sub>1 \<Longrightarrow> valid_ty_uexpr t\<^sub>2 \<Longrightarrow> unify t\<^sub>1 t\<^sub>2 = Some sub \<Longrightarrow> 
-  valid_ty_subst sub"                                  
-proof (unfold unify_def)
-  assume "valid_ty_uexpr t\<^sub>1" and "valid_ty_uexpr t\<^sub>2" 
-  hence "valid_ty_uexprs [(t\<^sub>1, t\<^sub>2)]" by (simp add: valid_ty_uexprs_def)
-  moreover assume "unify' [(t\<^sub>1, t\<^sub>2)] = Some sub"
-  ultimately show "valid_ty_subst sub" by auto
-qed
 
 lemma valid_ty_uexpr_structrual [simp]: "structural valid_ty_uexpr"
   by (auto simp add: structural_def)

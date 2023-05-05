@@ -6,13 +6,9 @@ fun remove_first :: "('a \<times> 'b) list \<Rightarrow> 'a \<Rightarrow> ('a \<
   "remove_first [] a' = []"
 | "remove_first ((a, b) # ab) a' = (if a = a' then ab else (a, b) # remove_first ab a')"
 
-fun remove_all :: "('a \<times> 'b) list \<Rightarrow> 'a \<Rightarrow> ('a \<times> 'b) list" where
-  "remove_all [] a' = []"
-| "remove_all ((a, b) # ab) a' = (if a = a' then remove_all ab a' else (a, b) # remove_all ab a')"
-
-primrec listify :: "('a \<times> 'b) list \<Rightarrow> 'a list \<Rightarrow> 'b list" where
-  "listify ab [] = []"
-| "listify ab (a # as) = the (map_of ab a) # listify (remove_first ab a) as"
+primrec map_by_assoc_list :: "('a \<times> 'b) list \<Rightarrow> 'a list \<Rightarrow> 'b list" where
+  "map_by_assoc_list ab [] = []"
+| "map_by_assoc_list ab (a # as) = the (map_of ab a) # map_by_assoc_list (remove_first ab a) as"
 
 lemma [simp]: "map fst (remove_first as a) = remove1 a (map fst as)"
   by (induction as a rule: remove_first.induct) simp_all
@@ -20,11 +16,12 @@ lemma [simp]: "map fst (remove_first as a) = remove1 a (map fst as)"
 lemma [simp]: "a \<noteq> b \<Longrightarrow> map_of (remove_first as b) a = map_of as a"
   by (induction as b rule: remove_first.induct) simp_all
 
-lemma [simp]: "listify ((a, b) # ab) (insert_at 0 a as) = insert_at 0 b (listify ab as)"
+lemma [simp]: "map_by_assoc_list ((a, b) # ab) (insert_at 0 a as) = 
+    insert_at 0 b (map_by_assoc_list ab as)"
   by (induction as) simp_all
 
 lemma [simp]: "mset (map fst ab) = mset as \<Longrightarrow> idx_of as a = Some x \<Longrightarrow>
-  lookup (listify ab as) x = map_of ab a" 
+  lookup (map_by_assoc_list ab as) x = map_of ab a" 
 proof (induction as arbitrary: ab x)
   case (Cons a' as)
   thus ?case

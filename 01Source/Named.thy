@@ -47,7 +47,7 @@ lemma [simp]: "finite (all_vars e)"
 
 (* We, obviously, do not have safety here yet. The relevant proofs are in 03Debruijn/NameRemoval. *)
 
-lemma [simp]: "e \<Down> v \<Longrightarrow> valn v"
+lemma eval_to_val [simp]: "e \<Down> v \<Longrightarrow> valn v"
   by (induction e v rule: evaln.induct) simp_all
 
 lemma val_no_evaln: "e \<Down> v \<Longrightarrow> valn e \<Longrightarrow> v = e"

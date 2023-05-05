@@ -15,11 +15,11 @@ theorem tc_failure: "alg_compile e = None \<Longrightarrow>
   \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t"
 proof -
   assume "alg_compile e = None"
-  hence "typecheck e = None" by (simp split: option.splits)
+  hence "typecheck e = None" by (auto split: option.splits prod.splits)
   thus ?thesis by (metis typecheck_fails)
 qed
 
-theorem tc_terminationn: "alg_compile e = Some (cd, t) \<Longrightarrow> 
+theorem tc_success: "alg_compile e = Some (cd, t) \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
     print_mach_state \<Sigma> = print_nexpr v)"
 proof -

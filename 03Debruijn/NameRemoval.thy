@@ -12,12 +12,13 @@ definition convert :: "texpr \<Rightarrow> dexpr" where
   "convert e = convert' [] e"
 
 lemma [simp]: "map_of \<Gamma> \<turnstile>\<^sub>n e : t \<Longrightarrow> mset (map fst \<Gamma>) = mset \<Phi> \<Longrightarrow> 
-  listify \<Gamma> \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e : t"
+  map_by_assoc_list \<Gamma> \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e : t"
 proof (induction \<Phi> e arbitrary: \<Gamma> t rule: convert'.induct)
   case (3 \<Phi> x t\<^sub>1 e)
   then obtain t\<^sub>2 where "t = Arrow t\<^sub>1 t\<^sub>2 \<and> (map_of \<Gamma>)(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>n e : t\<^sub>2" by fastforce
   moreover with 3 have 
-    "listify ((x, t\<^sub>1) # \<Gamma>) (insert_at 0 x \<Phi>) \<turnstile>\<^sub>d convert' (insert_at 0 x \<Phi>) e : t\<^sub>2" by fastforce
+    "map_by_assoc_list ((x, t\<^sub>1) # \<Gamma>) (insert_at 0 x \<Phi>) \<turnstile>\<^sub>d convert' (insert_at 0 x \<Phi>) e : t\<^sub>2" 
+      by fastforce
   ultimately show ?case by simp
 qed fastforce+
 
@@ -29,7 +30,7 @@ proof (unfold convert_def)
   hence "map_of \<Gamma> \<turnstile>\<^sub>n e : t" by (simp add: \<Gamma>_def)
   moreover have "mset (map fst \<Gamma>) = mset \<Phi>" by (simp add: \<Gamma>_def \<Phi>_def)
   moreover have "distinct \<Phi>" by (simp add: \<Phi>_def)
-  ultimately have "listify \<Gamma> \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e : t" by simp
+  ultimately have "map_by_assoc_list \<Gamma> \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e : t" by simp
   thus "[] \<turnstile>\<^sub>d convert' [] e : t" by (simp add: \<Gamma>_def \<Phi>_def)
 qed
 
@@ -155,7 +156,7 @@ next
   with E show ?case by fastforce
 qed
 
-(* Now we can finish the deferred progress lemma from 01Source/Named and 02Typed/Typed *)
+(* Now we can finish the deferred progress lemmas from 01Source/Named and 02Typed/Typed *)
 
 theorem progresst [simp]: "Map.empty \<turnstile>\<^sub>n e : t \<Longrightarrow> \<exists>v. e \<Down>\<^sub>t v"
 proof -

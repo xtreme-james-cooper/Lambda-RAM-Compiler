@@ -111,7 +111,7 @@ definition alg_compile3 :: "byte_code list \<Rightarrow> mach list" where
 definition alg_compile :: "nexpr \<rightharpoonup> mach list \<times> ty" where
   "alg_compile e = (
     let (t, vs, con) = collect_constraints Map.empty {} e
-    in case unify' con of
+    in case unify con of
         None \<Rightarrow> None
       | Some s \<Rightarrow> 
           Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e []) []), tsubsts s (typeify t)))"
@@ -158,6 +158,9 @@ lemma [simp]: "alg_compile3 cd = disassemble (assemble_code cd)"
 
 lemma [simp]: "collect_constraints \<Gamma> vs e = snd (typecheck' \<Gamma> vs e)"
   by (induction e arbitrary: \<Gamma> vs) (simp_all add: Let_def split: option.splits prod.splits)
+
+fun opt_pair :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'c) \<Rightarrow> 'a \<rightharpoonup> 'b \<times> 'c" where
+  "opt_pair f g a = Option.bind (f a) (\<lambda>b. map_option (Pair b) (g a))"
 
 lemma [simp]: "alg_compile = opt_pair compile (map_option snd \<circ> typecheck)"
   by (auto simp add: alg_compile_def Let_def tco_def convert_def split: prod.splits option.splits)

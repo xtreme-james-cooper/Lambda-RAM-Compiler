@@ -2,23 +2,15 @@ theory Utils
   imports "HOL-Library.Multiset"
 begin
 
-lemma [simp]: "(as @ bs) ! length as = bs ! 0"
-  by (induction as) simp_all
+section \<open>Utilities\<close>
 
-definition remove :: "('a \<rightharpoonup> 'b) \<Rightarrow> 'a \<Rightarrow> ('a \<rightharpoonup> 'b)" where
-  "remove f a = f(a := None)"
+text \<open>
+In this section we have a number of miscellaneous functions and lemmas about the standard library 
+that do not fit anywhere else.
+\<close>
 
-lemma [simp]: "x \<noteq> y \<Longrightarrow> remove f y x = f x"
-  by (simp add: remove_def)
-
-lemma [simp]: "dom (remove f y) = dom f - {y}"
-  by (simp add: remove_def)
-
-lemma [simp]: "dom (\<lambda>a. if a = x then Some y else f a) = insert x (dom f)"
+lemma dom_expanded_fun_upd [simp]: "dom (\<lambda>a. if a = x then Some y else f a) = insert x (dom f)"
   by (auto simp add: dom_if)
-
-lemma [simp]: "ran (f(x \<mapsto> z)) \<subseteq> insert z (ran f)"
-  by (auto simp add: ran_def)
 
 lemma [simp]: "ran (map_option f \<circ> g) = f ` ran g"
   by (auto simp add: ran_def)
@@ -126,12 +118,5 @@ qed simp_all
 lemma [simp]: "x < y \<Longrightarrow> 1 < k \<Longrightarrow> Suc (k * x) < k * y"
   by (metis One_nat_def Suc_lessE Suc_lessI Suc_mult_less_cancel1 Suc_times_mod_eq 
             mod_mult_self1_is_0 nat.simps(3))
-
-fun opt_pair :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'c) \<Rightarrow> 'a \<rightharpoonup> 'b \<times> 'c" where
-  "opt_pair f g a = (case f a of
-      None \<Rightarrow> None
-    | Some b \<Rightarrow> (case g a of
-        None \<Rightarrow> None
-      | Some c \<Rightarrow> Some (b, c)))"
 
 end

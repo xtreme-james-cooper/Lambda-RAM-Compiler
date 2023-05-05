@@ -11,9 +11,6 @@ primrec fresh' :: "var set \<Rightarrow> nat \<Rightarrow> nat" where
 definition fresh :: "var set \<Rightarrow> var" where
   "fresh xs = V (fresh' xs (card xs))"
 
-abbreviation extend_set :: "var set \<Rightarrow> var set" where
-  "extend_set vs \<equiv> insert (fresh vs) vs"
-
 lemma [simp]: "finite xs \<Longrightarrow> fresh' xs x < Suc x"
 proof (induction x arbitrary: xs)
   case (Suc x)

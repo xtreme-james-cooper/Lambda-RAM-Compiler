@@ -23,7 +23,7 @@ proof (induction c)
 qed simp_all
 
 lemma [simp]: "c :\<^sub>c\<^sub>l t \<Longrightarrow> [] \<turnstile>\<^sub>d declosure c : t"
-  and [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> subst_pairs ts (map declosure cs)" 
+  and [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> tc_pairs ts (map declosure cs)" 
 proof (induction c t and cs ts rule: typecheck_closure_typecheck_closure_list.inducts)
   case (tcc_lam cs ts t\<^sub>1 e t\<^sub>2)
   then obtain e' where "multisubst (map declosure cs) (DLam t\<^sub>1 e) = DLam t\<^sub>1 e' \<and> ([t\<^sub>1] \<turnstile>\<^sub>d e' : t\<^sub>2) \<and> 
@@ -35,7 +35,7 @@ qed simp_all
 lemma [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> declosure_stack s : t' \<rightarrow> t"
 proof (induction s t' t rule: typecheck_cstack.induct)
   case (tcc_scons_app1 cs ts e t\<^sub>1 s t\<^sub>2 t)
-  hence "subst_pairs ts (map declosure cs)" by simp
+  hence "tc_pairs ts (map declosure cs)" by simp
   moreover from tcc_scons_app1 have "ts \<turnstile>\<^sub>d e : t\<^sub>1" by simp
   ultimately have "[] \<turnstile>\<^sub>d multisubst (map declosure cs) e : t\<^sub>1" by simp
   with tcc_scons_app1 show ?case by simp
@@ -49,7 +49,7 @@ qed simp_all
 theorem typesafec [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> declosure_state \<Sigma> :\<^sub>s t"
 proof (induction \<Sigma> t rule: typecheck_closure_state.induct)
   case (tcc_state_ev s t' t cs ts e)
-  hence "subst_pairs ts (map declosure cs)" by simp
+  hence "tc_pairs ts (map declosure cs)" by simp
   moreover from tcc_state_ev have "ts \<turnstile>\<^sub>d e : t'" by simp
   ultimately have "[] \<turnstile>\<^sub>d multisubst (map declosure cs) e : t'" by simp
   moreover from tcc_state_ev have "declosure_stack s : t' \<rightarrow> t" by simp
@@ -65,7 +65,7 @@ lemma multisubst_closure [simp]: "c :\<^sub>c\<^sub>l t \<Longrightarrow> multis
   and [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> v \<in> set (map declosure cs) \<Longrightarrow> multisubst es v = v"
 proof (induction c t and cs ts rule: typecheck_closure_typecheck_closure_list.inducts)
   case (tcc_lam cs ts t\<^sub>1 e t\<^sub>2)
-  moreover hence "subst_pairs ts (map declosure cs)" by simp
+  moreover hence "tc_pairs ts (map declosure cs)" by simp
   ultimately obtain e' where E: "multisubst (map declosure cs) (DLam t\<^sub>1 e) = DLam t\<^sub>1 e' \<and> 
     ([t\<^sub>1] \<turnstile>\<^sub>d e' : t\<^sub>2) \<and> (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> 
       multisubst (insert_at 0 e\<^sub>2 (map declosure cs)) e = substd 0 e\<^sub>2 e')" by fastforce
@@ -122,7 +122,7 @@ next
   case (retc_app2 t\<^sub>1 cs e\<^sub>1 s c\<^sub>2)
   then obtain ts t\<^sub>2 where T: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2) \<and> (s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> 
     (c\<^sub>2 :\<^sub>c\<^sub>l t\<^sub>1)" by fastforce
-  hence "subst_pairs ts (map declosure cs) \<and> insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2" by simp
+  hence "tc_pairs ts (map declosure cs) \<and> insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2" by simp
   then obtain e' where "multisubst (map declosure cs) (DLam t\<^sub>1 e\<^sub>1) = DLam t\<^sub>1 e' \<and> ([t\<^sub>1] \<turnstile>\<^sub>d e' : t\<^sub>2) \<and>
     (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst (insert_at 0 e\<^sub>2 (map declosure cs)) e\<^sub>1 = substd 0 e\<^sub>2 e')" 
       by fastforce
