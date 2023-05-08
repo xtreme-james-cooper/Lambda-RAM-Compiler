@@ -1,6 +1,6 @@
 theory Printing
   imports "02Typed/Typechecking" "03Debruijn/NameRemoval" "05Closure/ClosureConversion" 
-    "06TreeCode/TreeCodeConversion" "07TailCall/TailCallOptimization" "08FlatCode/CodeFlattening" 
+    "06TreeCode/TreeCodeConversion" "07TailCall/TailCallOptimization" "08ByteCode/CodeFlattening" 
     "09HeapMemory/HeapConversion" "10ChainedEnvironment/Chaining" "11FlatMemory/MemoryFlattening"
     "13AssemblyCode/Assemble" "14MachineCode/Disassemble" 
 begin
