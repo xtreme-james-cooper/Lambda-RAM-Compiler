@@ -138,7 +138,7 @@ abbreviation assm_stk :: "byte_code list \<Rightarrow> (nat \<Rightarrow> nat) \
 abbreviation assm_state :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> assm_state" where
   "assm_state cd \<equiv> assemble_state (assembly_map cd)"
 
-lemma [simp]: "length (assemble_op mp op) = Suc (assemble_op_len op)"
+lemma length_assemble_op [simp]: "length (assemble_op mp op) = Suc (assemble_op_len op)"
   by (induction op) simp_all
 
 lemma [simp]: "length \<circ> assemble_op mp = Suc \<circ> assemble_op_len"
@@ -225,10 +225,11 @@ proof (induction cd pc rule: assembly_map.induct)
   thus ?case by (cases cd) simp_all
 qed simp_all
 
-lemma [simp]: "length (assemble_code cd) = sum_list (map (Suc \<circ> assemble_op_len) cd)"
+lemma length_assemble_code [simp]: "length (assemble_code cd) = 
+    sum_list (map (Suc \<circ> assemble_op_len) cd)"
   by (induction cd) (simp_all add: assemble_code_def)
 
-lemma [simp]: "assembly_map cd (length cd) = length (assemble_code cd)"
+lemma assembly_map_entry_point [simp]: "assembly_map cd (length cd) = length (assemble_code cd)"
   by (induction cd) (simp_all add: assemble_code_def)
 
 lemma [simp]: "lookup (assemble_op mp op @ cd) (Suc (assemble_op_len op + x)) = lookup cd x"
@@ -295,7 +296,7 @@ lemma assm_hp_lemma5: "x mod 3 = 2 \<Longrightarrow> h (x - 2) = 0 \<Longrightar
   by (simp add: assemble_heap_def)
 
 lemma [simp]: "x \<noteq> hp \<Longrightarrow> assm_hp cd (h(hp := a)) (Suc hp) x = assm_hp cd h hp x"
-  by (simp add: assemble_heap_def split: nat.splits)
+  by (induction x rule: x_mod_3_induct) (simp_all add: assemble_heap_def, linarith+)
 
 lemma assemble_heap_update_lemma2 [simp]: "3 dvd hp \<Longrightarrow> x \<noteq> hp \<Longrightarrow> x \<noteq> Suc hp \<Longrightarrow> 
   x \<noteq> Suc (Suc hp) \<Longrightarrow> x mod 3 = 2 \<Longrightarrow> 
@@ -382,7 +383,7 @@ proof (unfold assemble_heap_def restructurable_vals_def)
      | Suc 0 \<Rightarrow> (if h (Suc (vs vp) - 1) = 0 then Reg Env else Con 0, h (Suc (vs vp)))
      | Suc (Suc 0) \<Rightarrow> if h (Suc (vs vp) - 2) = 0 then (PC 0, mp (h (Suc (vs vp)))) 
         else (Con 0, h (Suc (vs vp)))
-     | Suc (Suc (Suc x)) \<Rightarrow> nmem x) = (if h (vs vp) = 0 then Reg Env else Con 0, h (Suc (vs vp)))" 
+     | Suc (Suc (Suc x)) \<Rightarrow> undefined) = (if h (vs vp) = 0 then Reg Env else Con 0, h (Suc (vs vp)))" 
     by simp
 qed
 
@@ -402,7 +403,7 @@ proof (unfold assemble_heap_def restructurable_vals_def)
      | Suc (Suc 0) \<Rightarrow>
          if h (Suc (Suc (vs vp)) - 2) = 0 then (PC 0, mp (h (Suc (Suc (vs vp))))) 
         else (Con 0, h (Suc (Suc (vs vp))))
-     | Suc (Suc (Suc x)) \<Rightarrow> nmem x) = (PC 0, mp (h (Suc (Suc (vs vp)))))" 
+     | Suc (Suc (Suc x)) \<Rightarrow> undefined) = (PC 0, mp (h (Suc (Suc (vs vp)))))" 
     by simp
 qed
 

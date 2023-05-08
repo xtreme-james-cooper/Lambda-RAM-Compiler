@@ -50,8 +50,8 @@ This pass and the metatheoretic proofs in the next lean heavily on [5].
 3) Debruijn Variables. The semantics defined or the first two stages are somewhat complicated by 
 their use of named variables. At this point we switch to a nameless Debruijn representation. This 
 stage is also important because it is at this point that we switch to a small-step semantics, and 
-prove termination; our correctness-completeness theorems allow us to extend this result back to our
-original language.
+prove termination; our correctness and completeness theorems allow us to extend this result back to 
+our original language.
 
 4) Stack Evaluation. The small-step evaluation of the Debruijn stage still requires nested 
 evaluation of subterms. We now eliminate this by introducing an explicit evaluation stack. 
@@ -80,8 +80,9 @@ closure values and stack frames with code-pointers into this.
 9) Heap Memory. Until now values have been copied and stored in lists in our evaluation state. We 
 add a heap and replace our value stack and environments with stacks of pointers into this heap. 
 
-10) Environment Chaining. Our environments are still stacks of pointers. We replace these by 
-linked lists using explicit pointers from cons-cell to cons-cell.
+10) Environment Chaining. Our environments are still stacks of stacks of pointers, which, unlike the
+one-dimensional value and call stacks, cannot easily be replaced by flat arrays. We instead replace 
+them by heap-stored linked lists using explicit pointers from cons-cell to cons-cell.
 
 11) Flat Memory. Our environment-chaining heaps (both the main heap and the heap in which we have 
 just built our environment linked lists) contain structured data. We flatten them out into 
@@ -130,15 +131,15 @@ the reflexive, transitive closure operator `iter` and have our theorem be
 convert \<Sigma>\<^sub>c \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> \<exists>\<Sigma>\<^sub>c'. convert \<Sigma>\<^sub>c' = \<Sigma>\<^sub>a' \<and> iter (\<leadsto>\<^sub>c) \<Sigma>\<^sub>c \<Sigma>\<^sub>c'
 
 . And finally, reversed conversion may not be a total function - looking at our environment-chaining 
-step, there are many, many heaps that do not represent proper linked lists - so we may also need a 
-well-formedness condition:
+step, there are many, many possible heaps that do not represent proper linked lists - so we may also 
+need a well-formedness condition:
 
 well_formed \<Sigma>\<^sub>c \<Longrightarrow> convert \<Sigma>\<^sub>c \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> 
   \<exists>\<Sigma>\<^sub>c'. well_formed \<Sigma>\<^sub>c' \<and> convert \<Sigma>\<^sub>c' = \<Sigma>\<^sub>a' \<and> iter (\<leadsto>\<^sub>c) \<Sigma>\<^sub>c \<Sigma>\<^sub>c'
 
 .
 
-Once this key proof has been completed, the remainder is simple: an easy generalization to iterated 
+Once this key lemma has been completed, the remainder is simple: an easy generalization to iterated 
 evaluation of the abstract state, and then a proof that a final state of the concrete version prints 
 the same value as the final state of the abstract version. (We use "printing" as our standard of 
 behaviour - despite not being able to print function values - both because it adds an element of I/O 
@@ -192,7 +193,8 @@ u : stage 12 (Unstructured memory)
 a : stage 13 (Assembly code)
 m : stage 14 (Machine code)
 
-Thus the full statement of the stack correctness theorem, for instance, is 
+Thus the statement of the stack correctness theorem, for instance, is 
+
 \<Sigma>\<^sub>k :\<^sub>k t \<Longrightarrow> unwind \<Sigma>\<^sub>k \<leadsto>\<^sub>d e\<^sub>d' \<Longrightarrow> \<exists>\<Sigma>\<^sub>k'. iter (\<leadsto>\<^sub>k) \<Sigma>\<^sub>k \<Sigma>\<^sub>k' \<and> e\<^sub>d' = unwind \<Sigma>\<^sub>k'
 
 subsection - Bibliography
@@ -203,7 +205,7 @@ subsection - Bibliography
 [2] Xavier Leroy. 2009. Formal verification of a realistic compiler. _Communications of the ACM_ 
   52, 7 (July 2009), 107-115. DOI: https://doi.org/10.1145/1538788.1538814
 
-[3] Institut National de Recherche en Informatique et en Automatique (INRIA) and AbsInt Angewandte 
+[3] Institut National de Recherche en Informatique et en Automatique and AbsInt Angewandte 
   Informatik GmbH. 2008. _The CompCert formally-verified C compiler_ (May 2003). Retrieved May 8, 
   2003 from https://github.com/AbsInt/CompCert
 

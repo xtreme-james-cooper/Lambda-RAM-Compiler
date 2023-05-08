@@ -106,7 +106,7 @@ lemma flatten_halloc [simp]: "halloc h c = (h', v) \<Longrightarrow>
     halloc_list (flatten_values h) (flatten_closure c) = (flatten_values h', 3 * v)"
   by simp
 
-lemma flatten_lt_3 [simp]: "hcontains h x \<Longrightarrow> flatten_values h = H h' hp \<Longrightarrow> Suc (3 * x) < hp"
+lemma flatten_lt_3: "hcontains h x \<Longrightarrow> flatten_values h = H h' hp \<Longrightarrow> Suc (3 * x) < hp"
   by simp
 
 lemma [dest]: "FS h env vs sfs = flatten \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow> \<exists>h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e. \<Sigma>\<^sub>c\<^sub>e = CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e \<and> 

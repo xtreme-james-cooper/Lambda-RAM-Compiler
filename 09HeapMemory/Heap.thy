@@ -219,8 +219,8 @@ lemma [simp]: "hsplay' f h hp m mp n = (h', hp') \<Longrightarrow> mp = k * n \<
     n \<le> hp \<Longrightarrow> hp' = k * hp"
   by (induction f h hp m mp n rule: hsplay'.induct) simp_all
 
-lemma [simp]: "hcontains h x \<Longrightarrow> hsplay f h = H h' hp' \<Longrightarrow> (\<And>a. length (f a) = k) \<Longrightarrow> 
-  1 < k \<Longrightarrow> Suc (k * x) < hp'"
+lemma hsplay_contains_lemma [simp]: "hcontains h x \<Longrightarrow> hsplay f h = H h' hp' \<Longrightarrow> 
+  (\<And>a. length (f a) = k) \<Longrightarrow> 1 < k \<Longrightarrow> Suc (k * x) < hp'"
 proof (induction h)
   case (H h hp)
   moreover hence "hp' = k * hp" by (simp split: prod.splits)

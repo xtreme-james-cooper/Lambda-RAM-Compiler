@@ -66,29 +66,30 @@ proof -
     (CES hempty hempty [] [(0, length ?cd)]) \<Sigma>\<^sub>c\<^sub>e' \<and> HS h\<^sub>h [v\<^sub>h] [] = unchain_state \<Sigma>\<^sub>c\<^sub>e'" by fastforce
   then obtain h\<^sub>c\<^sub>e env\<^sub>h where VCE: "\<Sigma>\<^sub>c\<^sub>e' = CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] [] \<and> h\<^sub>h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>h" 
     by (metis unchain_state_reverse map_is_Nil_conv unchain_stack_def)
+  let ?nmem = "\<lambda>x. undefined"
   have CS: "chained_state (CES hempty hempty [] [(0, length ?cd)])" by simp
   with ECE VCE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (CES hempty hempty [] [(0, length ?cd)]))
     (flatten (CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis completef_iter)
-  hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (FS (H nmem 0) (H nmem 0) [] [length ?cd, 0])
+  hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (FS (H ?nmem 0) (H ?nmem 0) [] [length ?cd, 0])
      (FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [])" by (simp add: hempty_def)
   with ECE CS have "chained_state \<Sigma>\<^sub>c\<^sub>e'" by (metis preserve_chained)
   with VCE have VH: "hcontains h\<^sub>c\<^sub>e v\<^sub>h" by simp
-  have R: "restructurable (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0, 1 := 0)) 2 (length ?cd)) ?cd" 
+  have R: "restructurable (US ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) ?cd" 
     by simp
   with EF have "\<exists>\<Sigma>\<^sub>u'. 
-    iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and>
+    iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and>
       FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by simp_all
   then obtain \<Sigma>\<^sub>u' where EU:
-    "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
+    "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
       FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by blast
   moreover with R have R': "restructurable \<Sigma>\<^sub>u' ?cd" by fastforce
   moreover with EU obtain h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u where VU:
     "\<Sigma>\<^sub>u' = US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u 0 0 \<and> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<and> 
       flatten_environment env\<^sub>h = H e\<^sub>u ep\<^sub>u \<and> listify_heap vs\<^sub>u vp\<^sub>u = 3 * v\<^sub>h # []" by auto
   moreover hence VSU: "vs\<^sub>u 0 = 3 * v\<^sub>h \<and> vp\<^sub>u = 1" by auto
-  ultimately have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0, 1 := 0)) 2 (length ?cd)) 
-    (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
-  hence EU: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0, 1 := 0)) 2 (length ?cd)) 
+  ultimately have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 
+    (length ?cd)) (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
+  hence EU: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) 
     (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   let ?cd' = "assemble_code ?cd"
   let ?mp = "assembly_map ?cd"
@@ -96,14 +97,14 @@ proof -
     (assm_stk ?cd sh\<^sub>u 0)"
   let ?rs = "case_register hp\<^sub>u ep\<^sub>u (Suc 0) 0"
   from R EU have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
-    (assemble_state ?mp (US nmem 0 nmem 0 nmem 0 (nmem(0 := 0, 1 := 0)) 2 (length ?cd))) 
+    (assemble_state ?mp (US ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd))) 
       (assemble_state ?mp (US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correcta_iter)
-  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (AS (case_register (assm_hp ?cd nmem 0) (assemble_env nmem 0)
-    (assemble_vals nmem 0) (assm_stk ?cd (nmem(0 := 0, 1 := 0)) 2)) (case_register 0 0 0 2) 0 
+  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (AS (case_register (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
+    (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2)) (case_register 0 0 0 2) 0 
       (Con 0) (length ?cd')) (AS ?mem ?rs 0 (Con 0) 0)" by simp
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) 
-    (disassemble_state (AS (case_register (assm_hp ?cd nmem 0) (assemble_env nmem 0)
-      (assemble_vals nmem 0) (assm_stk ?cd (nmem(0 := 0, 1 := 0)) 2)) (case_register 0 0 0 2) 0 
+    (disassemble_state (AS (case_register (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
+      (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2)) (case_register 0 0 0 2) 0 
         (Con 0) (length ?cd'))) (disassemble_state (AS ?mem ?rs 0 (Con 0) 0))" 
     by (metis correctm_iter)
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0)

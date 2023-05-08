@@ -144,7 +144,8 @@ lemma [simp]: "tree_code_size_list cd = code_list_size (tco_cd cd)"
 lemma [simp]: "alg_compile2 lib cd acc = flatten_code' lib (tco_cd cd) (tco_r cd) @ acc"
   by (induction lib cd acc rule: alg_compile2.induct) simp_all
 
-lemma [simp]: "alg_assemble mp cd = disassemble (concat (map (assemble_op mp) cd))"
+lemma alg_assemble_simp [simp]: "alg_assemble mp cd = 
+    disassemble (concat (map (assemble_op mp) cd))"
   by (induction mp cd rule: alg_assemble.induct) (simp_all add: disassemble_def)
 
 lemma [simp]: "assembly_mapb cd x = assembly_map cd x"
@@ -153,13 +154,13 @@ lemma [simp]: "assembly_mapb cd x = assembly_map cd x"
 lemma [simp]: "assembly_mapb cd = assembly_map cd"
   by rule simp
 
-lemma [simp]: "alg_compile3 cd = disassemble (assemble_code cd)"
+lemma alg_compile3_simp [simp]: "alg_compile3 cd = disassemble (assemble_code cd)"
   by (simp_all add: alg_compile3_def assemble_code_def)
 
 lemma [simp]: "collect_constraints \<Gamma> vs e = snd (typecheck' \<Gamma> vs e)"
   by (induction e arbitrary: \<Gamma> vs) (simp_all add: Let_def split: option.splits prod.splits)
 
-lemma [simp]: "alg_compile = compile"
-  by (auto simp add: alg_compile_def tco_def convert_def split: prod.splits option.splits)
+lemma alg_compile_simp [simp]: "alg_compile = compile"
+  by rule (simp add: alg_compile_def tco_def convert_def split: prod.splits option.splits)
 
 end

@@ -20,7 +20,7 @@ lemma [simp]: "map_by_assoc_list ((a, b) # ab) (insert_at 0 a as) =
     insert_at 0 b (map_by_assoc_list ab as)"
   by (induction as) simp_all
 
-lemma [simp]: "mset (map fst ab) = mset as \<Longrightarrow> idx_of as a = Some x \<Longrightarrow>
+lemma lookup_by_assoc_list [simp]: "mset (map fst ab) = mset as \<Longrightarrow> idx_of as a = Some x \<Longrightarrow>
   lookup (map_by_assoc_list ab as) x = map_of ab a" 
 proof (induction as arbitrary: ab x)
   case (Cons a' as)
