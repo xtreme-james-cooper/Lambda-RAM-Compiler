@@ -4,13 +4,12 @@ begin
 
 section \<open>Utilities\<close>
 
-text \<open>We begin with a small collection of utility functions. Most of this can be skimmed on a first 
-read.\<close>
+text \<open>We begin with a small collection of utility functions.\<close>
 
 subsection \<open>Utilities\<close>
 
 text \<open>In this section we have a number of miscellaneous functions and lemmas about the standard 
-library that do not fit anywhere else.\<close>
+library that do not fit anywhere else. This can be skimmed or skipped on a first read.\<close>
 
 lemma dom_expanded_fun_upd [simp]: "dom (\<lambda>a. if a = x then Some y else f a) = insert x (dom f)"
   by (auto simp add: dom_if)

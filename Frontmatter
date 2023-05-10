@@ -9,8 +9,8 @@ section - Introduction
 Proving the correctness of compilers has long been one of the most important applications of 
 computer proof assistants. Compilers are a crucial piece of the computer toolchain, and, looked at 
 from a sufficiently abstract angle, can be considered simply a function from source code to object 
-code. Unlike the more sophisticated properties that must be proved of, say, an operating system, the
-Statement of correctness of a compiler can be as simple as a single theorem asserting that the 
+code. Unlike the more complex properties that must be proved of, say, an operating system, the
+statement of correctness of a compiler can be as simple as a single theorem asserting that the 
 execution of the compiled code exhibits the same behaviour as the evaluation of the source code. It 
 is thus no surprise that the very first paper on structural induction [1] shows, as one of its two 
 demonstrative proofs, the correctness of a simple compiler from arithmetic expressions to a stack 
@@ -28,15 +28,15 @@ Schocken's HACK processor [4], in about 10,000 lines of code.
 
 To keep the size down, a number of sacrifices have been made. In order to keep the concept of 
 "behaviour" simple, the source language is deterministic and terminating. Parsing is skipped 
-entirely (although typechecking of an untyped source AST is implemented). Almost no optimization is 
-performed (tail-call elimination being the one exception). And, in the interest of keeping the 
-equality of behaviour exact, without technicalities about "or a machine limitation is reached", the 
-target machine has both infinite-precision integers and an unbounded memory. Nevertheless, the 
-compiler demonstrates many of the issues in verified compilation, at least in a toy form.
+entirely. Almost no optimization is performed (tail-call elimination being the one exception). 
+And, in the interest of keeping the equality of behaviour exact, without technicalities about "or a 
+machine limitation is reached", the target machine has both infinite-precision integers and an 
+unbounded memory. Nevertheless, the compiler demonstrates many of the issues in compilation, from 
+typechecking to data layout to register allocation, and provides a glossed proof for each.
 
 subsection - Overview of the compiler
 
-Impsired by Leroy [2], the compiler is divided into a number of quite small passes. Each pass 
+Impsired by [2], the compiler is divided into a number of quite small passes. Each pass 
 reduces the complexity of the source language or evaluation state slightly; by composing them all 
 together we move from the big-step lambda calculus evaluation of the source language to code 
 execution in an extremely simple register-RAM machine. The fourteen stages are as follows:
@@ -45,7 +45,8 @@ execution in an extremely simple register-RAM machine. The fourteen stages are a
 and sums. It is evaluated using a big-step natural semantics.
 
 2) Typed Lambda Calculus. We typecheck the source language and decorate it with the types found. 
-This pass and the metatheoretic proofs in the next lean heavily on [5].
+This pass and the next, especially the termination proof there, lean heavily on Pierce's _Types and 
+Programming Languages_ [5].
 
 3) Debruijn Variables. The semantics defined or the first two stages are somewhat complicated by 
 their use of named variables. At this point we switch to a nameless Debruijn representation. This 
@@ -55,7 +56,8 @@ our original language.
 
 4) Stack Evaluation. The small-step evaluation of the Debruijn stage still requires nested 
 evaluation of subterms. We now eliminate this by introducing an explicit evaluation stack. 
-This pass (and many of the features of the source language) come from [6].
+This pass (and many of the features of the source language) come from Harper's _Practical 
+Foundations for Programming Languages_ [6].
 
 5) Closure Conversion. Only one non-atomic operation remains: substitution. By adding an explicit 
 environment to the evaluation, we can eliminate this. As the name suggests, this also involves 
@@ -75,7 +77,7 @@ tail-position.
 
 8) Byte Code Compilation. Real code, of course, is not tree-structured. We flatten out our trees by
 moving each block of code into a single linear sequence of bytecode, and replace the inline code of 
-closure values and stack frames with code-pointers into this.
+closure values and stack frames with code-pointers into this sequence.
 
 9) Heap Memory. Until now values have been copied and stored in lists in our evaluation state. We 
 add a heap and replace our value stack and environments with stacks of pointers into this heap. 
@@ -117,52 +119,49 @@ state:
 
 \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> convert \<Sigma>\<^sub>a \<leadsto>\<^sub>c convert \<Sigma>\<^sub>a'
 
-. But in practice, many concrete states can map to a single abstract state - the same environment 
-list can be represented by any number of heaps, for instance - so we often have a (non-one-to-one) 
-conversion function running the other way. Our correctness theorem then becomes the rather 
-ungainlier 
+But in practice, many concrete states can map to a single abstract state - the same environment 
+stack can be represented by any number of heaps, for instance - so we often have a (non-one-to-one) 
+conversion function running the other way. Our correctness theorem then becomes the rather more 
+ungainly: 
 
 convert \<Sigma>\<^sub>c \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> \<exists>\<Sigma>\<^sub>c'. convert \<Sigma>\<^sub>c' = \<Sigma>\<^sub>a' \<and> \<Sigma>\<^sub>c \<leadsto>\<^sub>c \<Sigma>\<^sub>c'
  
-. Furthermore, a single abstract evaluation step may encompass many concrete ones - the unwinding of 
+Furthermore, a single abstract evaluation step may encompass many concrete ones - the unwinding of 
 the stack or evaluation of a bytecode op's canned assembly sequence, for example - so we must define 
-the reflexive, transitive closure operator `iter` and have our theorem be
+the reflexive, transitive closure operator `iter` and have our theorem be:
 
 convert \<Sigma>\<^sub>c \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> \<exists>\<Sigma>\<^sub>c'. convert \<Sigma>\<^sub>c' = \<Sigma>\<^sub>a' \<and> iter (\<leadsto>\<^sub>c) \<Sigma>\<^sub>c \<Sigma>\<^sub>c'
 
-. And finally, reversed conversion may not be a total function - looking at our environment-chaining 
+And finally, reversed conversion may not be a total function - looking at our environment-chaining 
 step, there are many, many possible heaps that do not represent proper linked lists - so we may also 
 need a well-formedness condition:
 
 well_formed \<Sigma>\<^sub>c \<Longrightarrow> convert \<Sigma>\<^sub>c \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> 
   \<exists>\<Sigma>\<^sub>c'. well_formed \<Sigma>\<^sub>c' \<and> convert \<Sigma>\<^sub>c' = \<Sigma>\<^sub>a' \<and> iter (\<leadsto>\<^sub>c) \<Sigma>\<^sub>c \<Sigma>\<^sub>c'
 
-.
 
 Once this key lemma has been completed, the remainder is simple: an easy generalization to iterated 
 evaluation of the abstract state, and then a proof that a final state of the concrete version prints 
 the same value as the final state of the abstract version. (We use "printing" as our standard of 
 behaviour - despite not being able to print function values - both because it adds an element of I/O 
 to our compiler, and to avoid the issue of "decompiling" a machine state value back into a lambda 
-calculus value, which would run into insuperable difficulties with functions anyways.)
+calculus value, which would run into the same difficulties with functions anyways.)
 
 subsection - The correctness theorems
 
 After each individual pass has been defined and proven, we combine the individual correctness 
-theorems into our final theorem. If compilation fails, then it was because of a typechecking error, 
-and no well-typed version of our source program can exist:
+theorems into our final two theorems. If compilation fails, then it was because of a typechecking 
+error, and no well-typed version of our source program can exist:
 
 alg_compile e = None \<Longrightarrow> \<nexists>e\<^sub>t t. (Map.empty \<turnstile> e : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t
 
-. If compilation succeeds, then there is some value that our source program evaluates to, and the 
+If compilation succeeds, then there is some value that our source program evaluates to, and the 
 compiled machine code will eventually evaluate to a final state, and the printed outputs of that 
 value and that machine state are identical:
 
 alg_compile e = Some (cd, t) \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> 
     (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>) (initial_state cd) \<Sigma> \<and> print_mach_state \<Sigma> = print_nexpr v)
-
-.
 
 subsection - Naming conventions 
 
@@ -185,7 +184,7 @@ k : stage 4 (stacK evaluation)
 c : stage 5 (Closure conversion)
 e : stage 6 (trEE code)
 l : stage 7 (taiL-call elimination)
-b : stage 8 (Byte code
+b : stage 8 (Byte code)
 h : stage 9 (Heap memory)
 v : stage 10 (enVironment chaining)
 f : stage 11 (Flat code)

@@ -49,9 +49,15 @@ next
   ultimately show ?case by simp
 qed simp_all
 
-lemma [simp]: "x' \<notin> all_varst e \<Longrightarrow> a \<le> length \<Phi> \<Longrightarrow> \<not> (a precedes x in \<Phi>) \<Longrightarrow> 
+lemma [simp]: "x' \<notin> all_varst e \<Longrightarrow> a \<le> length \<Phi> \<Longrightarrow> idx_of \<Phi> x = Some y \<Longrightarrow> a > y \<Longrightarrow> 
     convert' (insert_at a x \<Phi>) e = convert' (insert_at a x' \<Phi>) e"
-  by (induction e arbitrary: a \<Phi>) (auto simp add: incr_min split: option.splits)
+  by (induction e arbitrary: a \<Phi> y) (auto simp add: incr_min split: option.splits)
+
+abbreviation precede :: "nat \<Rightarrow> 'a \<Rightarrow> 'a list \<Rightarrow> bool" (infix "precedes _ in" 50) where
+  "x precedes a in as \<equiv> (case idx_of as a of Some y \<Rightarrow> x \<le> y | None \<Rightarrow> True)"
+
+lemma [simp]: "0 precedes a in as"
+  by (simp split: option.splits)
 
 lemma [simp]: "y \<le> length \<Phi> \<Longrightarrow> y precedes x in \<Phi> \<Longrightarrow> y precedes x' in \<Phi> \<Longrightarrow> x' \<notin> all_varst e \<Longrightarrow> 
   free_varst e \<subseteq> insert x (set \<Phi>) \<Longrightarrow> 

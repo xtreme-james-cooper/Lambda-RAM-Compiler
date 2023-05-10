@@ -76,7 +76,7 @@ proof (induction \<Gamma> e t arbitrary: x rule: typecheckd.induct)
 qed simp_all
 
 lemma [simp]: "y \<le> x \<Longrightarrow> incrd y (substd x e' e) = substd (Suc x) (incrd y e') (incrd y e)"
-  by (induction e arbitrary: x y e') (simp_all add: incr_le incr_lemma)
+  by (induction e arbitrary: x y e') (simp_all add: incr_le incr_suc_dest)
 
 lemma [simp]: "substd x e' (incrd x e) = e"
   by (induction e arbitrary: x e') (simp_all, metis incr_not_eq)

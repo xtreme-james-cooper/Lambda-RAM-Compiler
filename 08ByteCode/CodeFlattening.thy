@@ -165,7 +165,7 @@ lemma [simp]: "lookup cd x = Some (BPushLam pc) \<Longrightarrow> orderly cd 0 \
 
 lemma index_into_append [simp]: "lookup (flatten_code' lib cd r @ cd') (code_list_size cd + n) = 
     lookup cd' n"
-  by (metis flatten_length lookup_append)
+  by (metis flatten_length lookup_append_snd)
 
 lemma [simp]: "lookup (flatten_code' lib cd r @ op # acc) (code_list_size cd) = Some op"
 proof -

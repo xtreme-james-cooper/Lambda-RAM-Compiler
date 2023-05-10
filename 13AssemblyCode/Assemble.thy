@@ -235,7 +235,7 @@ lemma assembly_map_entry_point [simp]: "assembly_map cd (length cd) = length (as
 lemma [simp]: "lookup (assemble_op mp op @ cd) (Suc (assemble_op_len op + x)) = lookup cd x"
 proof -
   have "lookup (assemble_op mp op @ cd) (length (assemble_op mp op) + x) = lookup cd x" 
-    by (metis lookup_append)
+    by (metis lookup_append_snd)
   thus ?thesis by simp
 qed
 
