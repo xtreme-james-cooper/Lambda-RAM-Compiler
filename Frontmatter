@@ -169,6 +169,8 @@ We have a number of different conceptual sorts being passed around our program; 
 naming system here to, hopefully, keep the profusion of names clear to the reader.
 
 e : an expression
+x, y, z : a variable
+v : an expression in normal form (a value)
 t : a type
 \<Gamma> : a typing environment
 \<Sigma> : an evaluation state
@@ -228,3 +230,5 @@ Environment
 Variable
 Iteration
 AssocList
+
+Source Language

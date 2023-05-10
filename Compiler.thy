@@ -5,33 +5,33 @@ begin
 abbreviation code_compile :: "texpr \<Rightarrow> mach list" where
   "code_compile \<equiv> disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco \<circ> encode \<circ> convert"
 
-abbreviation compile :: "nexpr \<rightharpoonup> mach list \<times> ty" where 
+abbreviation compile :: "expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where 
   "compile \<equiv> map_option (apfst code_compile) \<circ> typecheck"
 
-primrec quick_convert :: "var set \<Rightarrow> nexpr \<Rightarrow> hexpr \<times> var set" where
-  "quick_convert vs (NVar x) = (HVar x, vs)"
-| "quick_convert vs (NConst k) = (hexpr.HConst k, vs)"
-| "quick_convert vs (NLam x e) = (
+primrec quick_convert :: "var set \<Rightarrow> expr\<^sub>s \<Rightarrow> hexpr \<times> var set" where
+  "quick_convert vs (Var\<^sub>s x) = (HVar x, vs)"
+| "quick_convert vs (Const\<^sub>s k) = (hexpr.HConst k, vs)"
+| "quick_convert vs (Lam\<^sub>s x e) = (
     let v = fresh vs
     in let (e', vs') = quick_convert (insert v vs) e
     in (hexpr.HLam x (Var v) e', vs'))"
-| "quick_convert vs (NApp e\<^sub>1 e\<^sub>2) = (
+| "quick_convert vs (App\<^sub>s e\<^sub>1 e\<^sub>2) = (
     let v = fresh vs
     in let (e\<^sub>1', vs') = quick_convert (insert v vs) e\<^sub>1 
     in let (e\<^sub>2', vs'') = quick_convert vs' e\<^sub>2 
     in (HApp e\<^sub>1' e\<^sub>2', vs''))"
 
-primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> nexpr \<Rightarrow> uexpr \<times> var set \<times> (uexpr \<times> uexpr) list" 
+primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> expr\<^sub>s \<Rightarrow> uexpr \<times> var set \<times> (uexpr \<times> uexpr) list" 
     where
-  "collect_constraints \<Gamma> vs (NVar x) = (case \<Gamma> x of 
+  "collect_constraints \<Gamma> vs (Var\<^sub>s x) = (case \<Gamma> x of 
       Some t \<Rightarrow> (t, vs, []) 
-    | None \<Rightarrow> (Ctor ''Base'' [], vs, fail))"
-| "collect_constraints \<Gamma> vs (NConst k) = (Ctor ''Base'' [], vs, [])"
-| "collect_constraints \<Gamma> vs (NLam x e) = (
+    | None \<Rightarrow> (Ctor ''Num'' [], vs, fail))"
+| "collect_constraints \<Gamma> vs (Const\<^sub>s k) = (Ctor ''Num'' [], vs, [])"
+| "collect_constraints \<Gamma> vs (Lam\<^sub>s x e) = (
     let v = fresh vs
     in let (t, vs', con) = collect_constraints (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e
     in (Ctor ''Arrow'' [Var v, t], vs', con))"
-| "collect_constraints \<Gamma> vs (NApp e\<^sub>1 e\<^sub>2) = (
+| "collect_constraints \<Gamma> vs (App\<^sub>s e\<^sub>1 e\<^sub>2) = (
     let v = fresh vs
     in let (t\<^sub>1, vs', con\<^sub>1) = collect_constraints \<Gamma> (insert v vs) e\<^sub>1 
     in let (t\<^sub>2, vs'', con\<^sub>2) = collect_constraints \<Gamma> vs' e\<^sub>2 
@@ -47,11 +47,11 @@ primrec tree_code_size :: "tree_code \<Rightarrow> nat"
 | "tree_code_size_list (op # cd) = 
       Suc (if op = TApply \<and> cd = [] then 0 else tree_code_size op + tree_code_size_list cd)"
 
-primrec alg_compile1 :: "var list \<Rightarrow> nexpr \<Rightarrow> tree_code list \<Rightarrow> tree_code list" where
-  "alg_compile1 \<Phi> (NVar x) acc = TLookup (the (idx_of \<Phi> x)) # acc"
-| "alg_compile1 \<Phi> (NConst k) acc = TPushCon k # acc"
-| "alg_compile1 \<Phi> (NLam x e) acc = TPushLam (alg_compile1 (insert_at 0 x \<Phi>) e []) # acc"
-| "alg_compile1 \<Phi> (NApp e\<^sub>1 e\<^sub>2) acc = alg_compile1 \<Phi> e\<^sub>1 (alg_compile1 \<Phi> e\<^sub>2 (TApply # acc))"
+primrec alg_compile1 :: "var list \<Rightarrow> expr\<^sub>s \<Rightarrow> tree_code list \<Rightarrow> tree_code list" where
+  "alg_compile1 \<Phi> (Var\<^sub>s x) acc = TLookup (the (idx_of \<Phi> x)) # acc"
+| "alg_compile1 \<Phi> (Const\<^sub>s k) acc = TPushCon k # acc"
+| "alg_compile1 \<Phi> (Lam\<^sub>s x e) acc = TPushLam (alg_compile1 (insert_at 0 x \<Phi>) e []) # acc"
+| "alg_compile1 \<Phi> (App\<^sub>s e\<^sub>1 e\<^sub>2) acc = alg_compile1 \<Phi> e\<^sub>1 (alg_compile1 \<Phi> e\<^sub>2 (TApply # acc))"
 
 function alg_compile2 :: "nat \<Rightarrow> tree_code list \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
   "alg_compile2 lib [] acc = BReturn # acc"
@@ -108,7 +108,7 @@ fun alg_assemble :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code list \<Righ
 definition alg_compile3 :: "byte_code list \<Rightarrow> mach list" where
   "alg_compile3 cd = alg_assemble (assembly_mapb cd) cd"
 
-definition alg_compile :: "nexpr \<rightharpoonup> mach list \<times> ty" where
+definition alg_compile :: "expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where
   "alg_compile e = (
     let (t, vs, con) = collect_constraints Map.empty {} e
     in case unify con of

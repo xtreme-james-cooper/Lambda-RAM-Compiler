@@ -28,7 +28,7 @@ primrec tvarst :: "texpr \<Rightarrow> var set" where
 
 inductive typecheckn :: "(var \<rightharpoonup> ty) \<Rightarrow> texpr \<Rightarrow> ty \<Rightarrow> bool" (infix "\<turnstile>\<^sub>n _ :" 50) where
   tcn_var [simp]: "\<Gamma> x = Some t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>n TVar x : t"
-| tcn_const [simp]: "\<Gamma> \<turnstile>\<^sub>n TConst k : Base"
+| tcn_const [simp]: "\<Gamma> \<turnstile>\<^sub>n TConst k : Num"
 | tcn_lam [simp]: "\<Gamma>(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>n e : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>n TLam x t\<^sub>1 e : Arrow t\<^sub>1 t\<^sub>2"
 | tcn_app [simp]: "\<Gamma> \<turnstile>\<^sub>n e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>n e\<^sub>2 : t\<^sub>1 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>n TApp e\<^sub>1 e\<^sub>2 : t\<^sub>2"
 
@@ -116,8 +116,8 @@ proof (induction \<Gamma> e t rule: typecheckn.induct)
   ultimately show ?case by (auto simp add: ran_def)
 qed (auto simp add: ran_def)
 
-lemma canonical_basen [dest]: "\<Gamma> \<turnstile>\<^sub>n e : Base \<Longrightarrow> valt e \<Longrightarrow> \<exists>k. e = TConst k"
-  by (induction \<Gamma> e Base rule: typecheckn.induct) simp_all
+lemma canonical_basen [dest]: "\<Gamma> \<turnstile>\<^sub>n e : Num \<Longrightarrow> valt e \<Longrightarrow> \<exists>k. e = TConst k"
+  by (induction \<Gamma> e Num rule: typecheckn.induct) simp_all
 
 lemma canonical_arrown [dest]: "\<Gamma> \<turnstile>\<^sub>n e : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> valt e \<Longrightarrow> 
     \<exists>x e'. e = TLam x t\<^sub>1 e' \<and> \<Gamma>(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>n e' : t\<^sub>2"

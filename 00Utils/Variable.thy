@@ -4,9 +4,9 @@ begin
 
 subsection \<open>Named Variables\<close>
 
-text \<open>We represent source variables by an opaque datatype and internally by a nat. The only 
+text \<open>We represent source variables by an opaque datatype and internally by a \<open>nat\<close>. The only 
 operations on variables we need are equality and getting a variable distinct from a finite set of 
-variables. The key lemma, fresh_is_fresh, proves that we in fact have a new variable.\<close>
+variables. The key lemma, \<open>fresh_is_fresh\<close>, proves that we in fact have a new variable.\<close>
 
 datatype var = V nat
 

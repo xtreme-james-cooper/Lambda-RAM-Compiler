@@ -7,11 +7,11 @@ begin
 
 datatype print = Number nat | Fun
 
-primrec print_nexpr :: "nexpr \<Rightarrow> print" where
-  "print_nexpr (NVar x) = undefined"
-| "print_nexpr (NConst k) = Number k"
-| "print_nexpr (NLam x e) = Fun"
-| "print_nexpr (NApp e\<^sub>1 e\<^sub>2) = undefined"
+primrec print_nexpr :: "expr\<^sub>s \<Rightarrow> print" where
+  "print_nexpr (Var\<^sub>s x) = undefined"
+| "print_nexpr (Const\<^sub>s k) = Number k"
+| "print_nexpr (Lam\<^sub>s x e) = Fun"
+| "print_nexpr (App\<^sub>s e\<^sub>1 e\<^sub>2) = undefined"
 
 primrec print_texpr :: "texpr \<Rightarrow> print" where
   "print_texpr (texpr.TVar x) = undefined"

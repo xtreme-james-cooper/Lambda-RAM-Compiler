@@ -6,11 +6,11 @@ subsection \<open>Environments\<close>
 
 text \<open>We represent environments (mostly for typing contexts, but also for evaluation once the 
 concept of an "evaluation environment" becomes relevant) by simple lists. We could be more abstract 
-- wrapping the type in a data constructor - or less so - treating them as a synonym for `nat \<rightharpoonup> 'a` 
+- wrapping the type in a data constructor - or less so - treating them as a synonym for \<open>nat \<rightharpoonup> 'a\<close>
 - but the list representation is a good practical middle option.\<close>
 
-text \<open>The fundamental operation on environments is the indexed lookup. It behaves much like the 
-standard library's !! operation, but is a partial function rather than one with undefined domain 
+text \<open>The fundamental operation on environments is the indexed \<open>lookup\<close>. It behaves much like the 
+standard library's \<open>!!\<close> operation, but is a partial function rather than one with undefined domain 
 elements; this really only moves the proof requirements around, from preconditions to outputs, but
 we found this arrangement convenient.\<close>
 
@@ -46,11 +46,11 @@ lemma lookup_has_prop [elim]: "list_all p as \<Longrightarrow> lookup as x = Som
 lemma lookup_idx_equiv [simp]: "lookup as x = Some a \<Longrightarrow> as ! x = a"
   by (induction as x rule: lookup.induct) simp_all
 
-text \<open>Before we can talk about the other major function on environments, insert_at, we must define 
-some helper functions on nats, incr and decr. If y is an index into an environment and x is the 
-index at which the environment is being expanded (respectively, contracted) at, then incr x y and 
-decr x y represent the modified index which will point to the same element in the environment. 
-Because an element is being eliminated, decr has a side-condition that its two arguments be 
+text \<open>Before we can talk about the other major function on environments, \<open>insert_at\<close>, we must define 
+some helper functions on nats, \<open>incr\<close> and \<open>decr\<close>. If \<open>y\<close> is an index into an environment and \<open>x\<close> is 
+the  index at which the environment is being expanded (respectively, contracted) at, then \<open>incr x y\<close> 
+and \<open>decr x y\<close> represent the modified index which will point to the same element in the environment. 
+Because an element is being eliminated, \<open>decr\<close> has a side-condition that its two arguments be 
 unequal.\<close>
 
 (* 
@@ -133,10 +133,10 @@ proof (induction y z arbitrary: x rule: decr.induct)
 qed simp_all
 
 text \<open>This is also our introduction to swap lemmas: we prove a series of automatic simplification 
-rules that reorder an arbitrary sequence of incrs and decrs into a sequence of incrs ordered by 
-strictly increasing indices, followed by a sequence of decrs with strictly decreasing indices. This 
-canonical form will make later proofs much simpler, and we will freely reuse the concept for later 
-environments.\<close>
+rules that reorder an arbitrary sequence of \<open>incr\<close>s and \<open>decr\<close>s into a sequence of \<open>incr\<close>s ordered 
+by strictly increasing indices, followed by a sequence of \<open>decr\<close>s with strictly decreasing indices. 
+This canonical form will make later proofs much simpler, and we will freely reuse the concept for 
+later environments.\<close>
 
 lemma incr_swap [simp]: "y \<le> x \<Longrightarrow> incr y (incr x z) = incr (Suc x) (incr y z)"
 proof (induction x z arbitrary: y rule: incr.induct)
@@ -162,10 +162,10 @@ proof (induction y z arbitrary: x rule: incr.induct)
   thus ?case by (induction x) simp_all
 qed simp_all
 
-text \<open>We can now define insert_at, which extends an environment at a given index. We treat extending 
-environments in terms of this function, rather than simply by consing elements to the front, because
-moving under binders can rearrange the environment, and the insert_at function can represent this 
-cleanly.\<close>
+text \<open>We can now define \<open>insert_at\<close>, which extends an environment at a given index. We treat 
+extending  environments in terms of this function, rather than simply by consing elements to the 
+front, because moving under binders can rearrange the environment, and the \<open>insert_at\<close> function can 
+represent this cleanly.\<close>
 
 fun insert_at :: "nat \<Rightarrow> 'a \<Rightarrow> 'a list \<Rightarrow> 'a list" where
   "insert_at 0 a' [] = a' # []"
@@ -198,8 +198,8 @@ next
   thus ?case by (induction bs) simp_all
 qed simp_all
 
-text \<open>Note that, although insert_at is not defined in terms of incr and decr, the interaction of 
-lookup and insert_at fundamentally depends on them.\<close>
+text \<open>Note that, although \<open>insert_at\<close> is not defined in terms of \<open>incr\<close> and \<open>decr\<close>, the interaction 
+of  \<open>lookup\<close> and \<open>insert_at\<close> fundamentally depends on them.\<close>
 
 lemma lookup_insert_at_same [simp]: "x \<le> length as \<Longrightarrow> lookup (insert_at x a as) x = Some a"
   by (induction x a as rule: insert_at.induct) simp_all
@@ -224,7 +224,7 @@ next
   then show ?case by (induction y) simp_all
 qed simp_all
 
-text \<open>insert_at gets its own swap lemma: the canonical order is smallest index to largest.\<close>
+text \<open>\<open>insert_at\<close> gets its own swap lemma: the canonical order is from smallest index to largest.\<close>
 
 lemma insert_at_swap [simp]: "x \<le> length as \<Longrightarrow> y \<le> x \<Longrightarrow> 
     insert_at y a (insert_at x b as) = insert_at (Suc x) b (insert_at y a as)"
@@ -233,8 +233,8 @@ proof (induction x b as arbitrary: y rule: insert_at.induct)
   then show ?case by (induction y) simp_all
 qed simp_all
 
-text \<open>We now define idx_of, a partial inverse of lookup that returns the first index of a given item 
-in an environment.\<close>
+text \<open>We now define \<open>idx_of\<close>, a partial inverse of \<open>lookup\<close> that returns the first index of a given 
+item in an environment.\<close>
 
 fun idx_of :: "'a list \<Rightarrow> 'a \<rightharpoonup> nat" where
   "idx_of [] a' = None"

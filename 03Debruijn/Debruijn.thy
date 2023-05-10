@@ -10,7 +10,7 @@ datatype dexpr =
 
 inductive typecheckd :: "ty list \<Rightarrow> dexpr \<Rightarrow> ty \<Rightarrow> bool" (infix "\<turnstile>\<^sub>d _ :" 50) where
   tcd_var [simp]: "lookup \<Gamma> x = Some t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d DVar x : t"
-| tcd_const [simp]: "\<Gamma> \<turnstile>\<^sub>d DConst k : Base"
+| tcd_const [simp]: "\<Gamma> \<turnstile>\<^sub>d DConst k : Num"
 | tcd_lam [simp]: "insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d DLam t\<^sub>1 e : Arrow t\<^sub>1 t\<^sub>2"
 | tcd_app [simp]: "\<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d DApp e\<^sub>1 e\<^sub>2 : t\<^sub>2"
 
@@ -110,8 +110,8 @@ proof (induction e arbitrary: x y e\<^sub>1 e\<^sub>2)
   qed simp_all
 qed simp_all
 
-lemma canonical_based [dest]: "\<Gamma> \<turnstile>\<^sub>d e : Base \<Longrightarrow> vald e \<Longrightarrow> \<exists>k. e = DConst k"
-  by (induction \<Gamma> e Base rule: typecheckd.induct) simp_all
+lemma canonical_based [dest]: "\<Gamma> \<turnstile>\<^sub>d e : Num \<Longrightarrow> vald e \<Longrightarrow> \<exists>k. e = DConst k"
+  by (induction \<Gamma> e Num rule: typecheckd.induct) simp_all
 
 lemma canonical_arrowd [dest]: "\<Gamma> \<turnstile>\<^sub>d e : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> vald e \<Longrightarrow> 
     \<exists>e'. e = DLam t\<^sub>1 e' \<and> insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e' : t\<^sub>2"

@@ -4,17 +4,17 @@ begin
 
 datatype ty = 
   TyVar var
-  | Base 
+  | Num 
   | Arrow ty ty
 
 primrec tvars :: "ty \<Rightarrow> var set" where
   "tvars (TyVar y) = {y}"
-| "tvars Base = {}"
+| "tvars Num = {}"
 | "tvars (Arrow t\<^sub>1 t\<^sub>2) = tvars t\<^sub>1 \<union> tvars t\<^sub>2"
 
 fun tsubst :: "var \<Rightarrow> ty \<Rightarrow> ty \<Rightarrow> ty" where
   "tsubst x t' (TyVar y) = (if x = y then t' else TyVar y)"
-| "tsubst x t' Base = Base"
+| "tsubst x t' Num = Num"
 | "tsubst x t' (Arrow t\<^sub>1 t\<^sub>2) = Arrow (tsubst x t' t\<^sub>1) (tsubst x t' t\<^sub>2)"
 
 lemma [simp]: "x \<notin> tvars t \<Longrightarrow> tsubst x t' t = t"

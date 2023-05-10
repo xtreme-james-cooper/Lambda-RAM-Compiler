@@ -23,7 +23,7 @@ fun latest_environment :: "cframe list \<rightharpoonup> closure list" where
 
 inductive typecheck_closure :: "closure \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>c\<^sub>l" 50)
       and typecheck_closure_list :: "closure list \<Rightarrow> ty list \<Rightarrow> bool" (infix ":\<^sub>c\<^sub>l\<^sub>s" 50) where
-  tcc_const [simp]: "CConst k :\<^sub>c\<^sub>l Base"
+  tcc_const [simp]: "CConst k :\<^sub>c\<^sub>l Num"
 | tcc_lam [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e : t\<^sub>2 \<Longrightarrow> CLam t\<^sub>1 cs e :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2"
 | tcc_nil [simp]: "[] :\<^sub>c\<^sub>l\<^sub>s []"
 | tcc_cons [simp]: "c :\<^sub>c\<^sub>l t \<Longrightarrow> cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> c # cs :\<^sub>c\<^sub>l\<^sub>s t # ts"
@@ -63,8 +63,8 @@ inductive evalc :: "closure_state \<Rightarrow> closure_state \<Rightarrow> bool
 | retc_app2 [simp]: "CSC (CApp2 (CLam t cs e\<^sub>1) # s) c\<^sub>2 \<leadsto>\<^sub>c CSE (CReturn (c\<^sub>2 # cs) # s) (c\<^sub>2 # cs) e\<^sub>1"
 | retc_ret [simp]: "CSC (CReturn cs # s) c \<leadsto>\<^sub>c CSC s c"
 
-lemma canonical_basec [dest]: "c :\<^sub>c\<^sub>l Base \<Longrightarrow> \<exists>k. c = CConst k"
-  by (induction c Base rule: typecheck_closure_typecheck_closure_list.inducts(1)) simp_all
+lemma canonical_basec [dest]: "c :\<^sub>c\<^sub>l Num \<Longrightarrow> \<exists>k. c = CConst k"
+  by (induction c Num rule: typecheck_closure_typecheck_closure_list.inducts(1)) simp_all
 
 lemma canonical_arrowc [dest]: "c :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> 
     \<exists>cs ts e. c = CLam t\<^sub>1 cs e \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e : t\<^sub>2)"

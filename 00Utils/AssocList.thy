@@ -5,9 +5,9 @@ begin
 subsection \<open>Association Lists\<close>
 
 text \<open>Our final utility is an association list method, for use in the name-removal phase.
-The map_by_assoc_list function maps an environment through an association list, but each association 
-can only be used once. We need this flexibility (instead of just using the standard library's map_of
-function) because the source language permits name-shadowing.\<close>
+The \<open>map_by_assoc_list\<close> function maps an environment through an association list, but each association 
+can only be used once. We need this flexibility (instead of just using the standard library's 
+\<open>map_of\<close> function) because the source language permits name-shadowing.\<close>
 
 fun remove_first :: "('a \<times> 'b) list \<Rightarrow> 'a \<Rightarrow> ('a \<times> 'b) list" where
   "remove_first [] a' = []"

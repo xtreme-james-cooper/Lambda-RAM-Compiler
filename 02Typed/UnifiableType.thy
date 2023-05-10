@@ -7,23 +7,23 @@ definition env_subst :: "subst \<Rightarrow> subst \<Rightarrow> subst" where
 
 fun typeify :: "uexpr \<Rightarrow> ty" where
   "typeify (Var v) = TyVar v"
-| "typeify (Ctor k []) = (if k = ''Base'' then Base else undefined)"
+| "typeify (Ctor k []) = (if k = ''Num'' then Num else undefined)"
 | "typeify (Ctor k [t\<^sub>1, t\<^sub>2]) = 
     (if k = ''Arrow'' then Arrow (typeify t\<^sub>1) (typeify t\<^sub>2) else undefined)"
 | "typeify (Ctor k ts) = undefined"
 
 primrec untypeify :: "ty \<Rightarrow> uexpr" where
   "untypeify (TyVar v) = Var v"
-| "untypeify Base = Ctor ''Base'' []"
+| "untypeify Num = Ctor ''Num'' []"
 | "untypeify (Arrow t\<^sub>1 t\<^sub>2) = Ctor ''Arrow'' [untypeify t\<^sub>1, untypeify t\<^sub>2]"
 
 fun tsubsts :: "subst \<Rightarrow> ty \<Rightarrow> ty" where
   "tsubsts sub (TyVar y) = (case sub y of Some t \<Rightarrow> typeify t | None \<Rightarrow> TyVar y)"
-| "tsubsts sub Base = Base"
+| "tsubsts sub Num = Num"
 | "tsubsts sub (Arrow t\<^sub>1 t\<^sub>2) = Arrow (tsubsts sub t\<^sub>1) (tsubsts sub t\<^sub>2)"
 
 fun valid_ty_uexpr' :: "string \<Rightarrow> nat \<Rightarrow> bool" where
-  "valid_ty_uexpr' k 0 = (k = ''Base'')"
+  "valid_ty_uexpr' k 0 = (k = ''Num'')"
 | "valid_ty_uexpr' k (Suc 0) = False"
 | "valid_ty_uexpr' k (Suc (Suc 0)) = (k = ''Arrow'')"
 | "valid_ty_uexpr' k (Suc (Suc (Suc x))) = False"

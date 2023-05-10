@@ -413,7 +413,7 @@ proof (induction \<Sigma> \<Sigma>' rule: evalc.induct)
     with S show ?case by simp
 next
   case (evc_con s cs k)
-  then obtain ts where "(s :\<^sub>c Base \<rightarrow> t) \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = Some cs" 
+  then obtain ts where "(s :\<^sub>c Num \<rightarrow> t) \<and> (cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> latest_environment s = Some cs" 
     by fastforce
   then obtain cd sfs where S: "stack_from_stack s = (map encode_closure cs, cd) # sfs" 
     by (metis lookup_latest)

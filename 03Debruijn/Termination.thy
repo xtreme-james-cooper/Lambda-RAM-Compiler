@@ -7,7 +7,7 @@ abbreviation terminatesd :: "dexpr \<Rightarrow> bool" where
 
 primrec stable :: "ty \<Rightarrow> dexpr \<Rightarrow> bool" where
   "stable (TyVar x) e = False" 
-| "stable Base e = (terminatesd e \<and> [] \<turnstile>\<^sub>d e : Base)"
+| "stable Num e = (terminatesd e \<and> [] \<turnstile>\<^sub>d e : Num)"
 | "stable (Arrow t\<^sub>1 t\<^sub>2) e = (terminatesd e \<and> ([] \<turnstile>\<^sub>d e : Arrow t\<^sub>1 t\<^sub>2) \<and> 
     (\<forall>e'. stable t\<^sub>1 e' \<longrightarrow> vald e' \<longrightarrow> stable t\<^sub>2 (DApp e e')))"
 
