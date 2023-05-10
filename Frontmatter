@@ -215,3 +215,16 @@ subsection - Bibliography
 
 [6] Robert Harper. 2016. _Practical Foundations for Programming Languages_ (2nd ed).
 Cambridge University Press, New York, NY.
+
+
+
+
+
+
+File order: 
+
+Utils
+Environment
+Variable
+Iteration
+AssocList

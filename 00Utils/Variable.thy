@@ -2,6 +2,12 @@ theory Variable
   imports Main
 begin
 
+subsection \<open>Named Variables\<close>
+
+text \<open>We represent source variables by an opaque datatype and internally by a nat. The only 
+operations on variables we need are equality and getting a variable distinct from a finite set of 
+variables. The key lemma, fresh_is_fresh, proves that we in fact have a new variable.\<close>
+
 datatype var = V nat
 
 primrec fresh' :: "var set \<Rightarrow> nat \<Rightarrow> nat" where
@@ -11,21 +17,21 @@ primrec fresh' :: "var set \<Rightarrow> nat \<Rightarrow> nat" where
 definition fresh :: "var set \<Rightarrow> var" where
   "fresh xs = V (fresh' xs (card xs))"
 
-lemma [simp]: "finite xs \<Longrightarrow> fresh' xs x < Suc x"
+lemma fresh_lt_suc [simp]: "finite xs \<Longrightarrow> fresh' xs x < Suc x"
 proof (induction x arbitrary: xs)
   case (Suc x)
   hence "fresh' (xs - {V (Suc x)}) x < Suc x" by simp
   thus ?case by simp
 qed simp_all
 
-lemma [simp]: "finite xs \<Longrightarrow> fresh' xs x \<noteq> Suc x"
+lemma fresh_is_not_suc [simp]: "finite xs \<Longrightarrow> fresh' xs x \<noteq> Suc x"
 proof -
   assume "finite xs"
   hence "fresh' xs x < Suc x" by simp
   thus ?thesis by simp
 qed
 
-lemma [simp]: "finite xs \<Longrightarrow> x = card xs \<Longrightarrow> V (fresh' xs x) \<notin> xs"
+lemma fresh'_is_fresh [simp]: "finite xs \<Longrightarrow> x = card xs \<Longrightarrow> V (fresh' xs x) \<notin> xs"
 proof (induction x arbitrary: xs)
   case (Suc x)
   moreover hence "finite (xs - {V (Suc x)})" by simp

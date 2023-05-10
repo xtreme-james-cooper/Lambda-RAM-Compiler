@@ -262,6 +262,44 @@ proof (induction x a as rule: insert_at.induct)
   thus ?case by (cases "idx_of as b") auto
 qed (simp_all split: option.splits)
 
+lemma idd_of_map_of [simp]: "map_of ab a = Some b \<Longrightarrow> mset (map fst ab) = mset as \<Longrightarrow> 
+  idx_of as a \<noteq> None"
+proof (induction ab arbitrary: as)
+  case (Cons a' ab)
+  thus ?case 
+  proof (induction a')
+    case (Pair a' b')
+    thus ?case
+    proof (induction as)
+      case (Cons a'' as)
+      thus ?case
+      proof (cases "a = a''")
+        case False note F'' = False
+        thus ?thesis
+        proof (cases "a = a'")
+          case True
+          from Cons have "add_mset a' (mset (map fst ab)) - {# a'' #} = 
+            add_mset a'' (mset as) - {# a'' #}" by simp
+          with True False have "add_mset a (mset (map fst ab) - {# a'' #}) = mset as" by simp
+          moreover have "a \<in># add_mset a (mset (map fst ab) - {# a'' #})" by simp
+          ultimately show ?thesis by simp
+        next
+          case False note F' = False
+          with Cons show ?thesis
+          proof (cases "a' = a''")
+            case False
+            from Cons have "add_mset a' (mset (map fst ab)) - {# a' #} = 
+              add_mset a'' (mset as) - {# a' #}" by simp
+            with False have "mset (map fst ab) = mset (a'' # (remove1 a' as))" by simp
+            with Cons F' have "idx_of (a'' # (remove1 a' as)) a \<noteq> None" by fastforce
+            with F'' F' show ?thesis by simp
+          qed simp_all
+        qed
+      qed simp_all
+    qed simp_all
+  qed
+qed simp_all
+
 text \<open>Finally, some numeral simplification rules. These will be used in the assembly code pass, 
 where lookups into long blocks of assembly code are common.\<close>
 

@@ -2,6 +2,11 @@ theory Iteration
   imports Main
 begin
 
+subsection \<open>Reflexive Transitive Closure\<close>
+
+text \<open>We define the reflexive transitive closure of a relation. This will be used for iterating 
+evaluation steps.\<close>
+
 inductive iter :: "('a \<Rightarrow> 'a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> 'a \<Rightarrow> bool" for f where
   iter_refl [simp]: "iter f a a"
 | iter_step [simp]: "f a b \<Longrightarrow> iter f b c \<Longrightarrow> iter f a c"
