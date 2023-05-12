@@ -21,8 +21,7 @@ primrec quick_convert :: "var set \<Rightarrow> expr\<^sub>s \<Rightarrow> hexpr
     in let (e\<^sub>2', vs'') = quick_convert vs' e\<^sub>2 
     in (HApp e\<^sub>1' e\<^sub>2', vs''))"
 
-primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> expr\<^sub>s \<Rightarrow> uexpr \<times> var set \<times> (uexpr \<times> uexpr) list" 
-    where
+primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> expr\<^sub>s \<Rightarrow> uterm \<times> var set \<times> constraint" where
   "collect_constraints \<Gamma> vs (Var\<^sub>s x) = (case \<Gamma> x of 
       Some t \<Rightarrow> (t, vs, []) 
     | None \<Rightarrow> (Ctor ''Num'' [], vs, fail))"

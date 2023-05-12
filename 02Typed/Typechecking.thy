@@ -5,7 +5,7 @@ begin
 datatype hexpr = 
   HVar var
   | HConst nat
-  | HLam var uexpr hexpr
+  | HLam var uterm hexpr
   | HApp hexpr hexpr
 
 primrec hsubst :: "subst \<Rightarrow> hexpr \<Rightarrow> hexpr" where
@@ -23,10 +23,10 @@ primrec erase :: "texpr \<Rightarrow> expr\<^sub>s" where
 primrec htvars :: "hexpr \<Rightarrow> var set" where
   "htvars (HVar x) = {}"
 | "htvars (HConst k) = {}"
-| "htvars (HLam x t e) = vars t \<union> htvars e"
+| "htvars (HLam x t e) = uvars t \<union> htvars e"
 | "htvars (HApp e\<^sub>1 e\<^sub>2) = htvars e\<^sub>1 \<union> htvars e\<^sub>2"
 
-primrec typecheck' :: "subst \<Rightarrow> var set \<Rightarrow> expr\<^sub>s \<Rightarrow> hexpr \<times> uexpr \<times> var set \<times> (uexpr \<times> uexpr) list" 
+primrec typecheck' :: "subst \<Rightarrow> var set \<Rightarrow> expr\<^sub>s \<Rightarrow> hexpr \<times> uterm \<times> var set \<times> constraint" 
     where
   "typecheck' \<Gamma> vs (Var\<^sub>s x) = (case \<Gamma> x of 
       Some t \<Rightarrow> (HVar x, t, vs, []) 
@@ -126,14 +126,14 @@ lemma [simp]: "valid_ty_subst sub \<Longrightarrow> valid_ty_hexpr e \<Longright
 lemma [simp]: "htvars (hsubst sub e) \<subseteq> htvars e - dom sub \<union> subst_vars sub"
 proof (induction e)
   case (HLam x t e)
-  moreover have "vars (subst sub t) \<subseteq> vars t - dom sub \<union> subst_vars sub" by simp
+  moreover have "uvars (subst sub t) \<subseteq> uvars t - dom sub \<union> subst_vars sub" by simp
   ultimately show ?case by fastforce
 qed auto
 
 lemma [simp]: "dom sub \<inter> htvars e = {} \<Longrightarrow> hsubst sub e = e"
 proof (induction e)
   case (HLam x t e)
-  moreover hence "dom sub \<inter> vars t = {}" by auto
+  moreover hence "dom sub \<inter> uvars t = {}" by auto
   ultimately show ?case by auto
 qed auto
 
@@ -255,7 +255,7 @@ proof -
 qed
 
 lemma [simp]: "typecheck' \<Gamma> vs e = (e', t', vs', con) \<Longrightarrow> x \<in> vs \<Longrightarrow> finite vs \<Longrightarrow>
-  x \<notin> subst_vars \<Gamma> \<Longrightarrow> x \<notin> vars t'"
+  x \<notin> subst_vars \<Gamma> \<Longrightarrow> x \<notin> uvars t'"
 proof (induction rule: typecheck_induct)
   case (Lam\<^sub>s \<Gamma> vs vs' con y e\<^sub>1 e\<^sub>1' t' v)
   moreover hence "x \<notin> subst_vars (\<Gamma>(y \<mapsto> Var v))" by (auto simp add: subst_vars_def ran_def)
@@ -263,7 +263,7 @@ proof (induction rule: typecheck_induct)
 qed (auto simp add: subst_vars_def ran_def)
 
 lemma [simp]: "typecheck' \<Gamma> vs e = (e', t', vs', con) \<Longrightarrow> x \<in> vs \<Longrightarrow> finite vs \<Longrightarrow>
-  x \<notin> subst_vars \<Gamma> \<Longrightarrow> x \<notin> list_vars con"
+  x \<notin> subst_vars \<Gamma> \<Longrightarrow> x \<notin> constr_vars con"
 proof (induction rule: typecheck_induct)
   case (App\<^sub>s \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 e\<^sub>2' t\<^sub>2 con\<^sub>2)
   moreover hence "x \<in> vs''" using vars_expand by fastforce
@@ -271,7 +271,7 @@ proof (induction rule: typecheck_induct)
 qed fastforce+
 
 lemma [simp]: "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs e = (e', tt, vs', con) \<Longrightarrow> y \<in> vs \<Longrightarrow>
-  subst_vars \<Gamma> \<subseteq> vs - {y} \<Longrightarrow> vars t' \<subseteq> vs - {y} \<Longrightarrow> finite vs \<Longrightarrow> typecheck' (\<Gamma>(x \<mapsto> t')) vs e = 
+  subst_vars \<Gamma> \<subseteq> vs - {y} \<Longrightarrow> uvars t' \<subseteq> vs - {y} \<Longrightarrow> finite vs \<Longrightarrow> typecheck' (\<Gamma>(x \<mapsto> t')) vs e = 
     (hsubst [y \<mapsto> t'] e', subst [y \<mapsto> t'] tt, vs', list_subst y t' con)"
 proof (induction e arbitrary: \<Gamma> vs e' tt vs' con)
   case (Var\<^sub>s z)
@@ -339,7 +339,7 @@ next
   from T1 have V: "vs \<subseteq> vs''" using vars_expand by blast
   from App\<^sub>s V have A: "y \<in> vs''" by auto
   from App\<^sub>s V have B: "subst_vars \<Gamma> \<subseteq> vs'' - {y}" by auto
-  from App\<^sub>s V have C: "vars t' \<subseteq> vs'' - {y}" by auto
+  from App\<^sub>s V have C: "uvars t' \<subseteq> vs'' - {y}" by auto
   from App\<^sub>s T1 have D: "finite vs''" by simp
   from App\<^sub>s T1 have T1': "typecheck' (\<Gamma>(x \<mapsto> t')) (insert ?v vs) e1 = 
     (hsubst [y \<mapsto> t'] e\<^sub>1', subst [y \<mapsto> t'] t\<^sub>1, vs'', list_subst y t' con\<^sub>1)" by blast
@@ -381,8 +381,8 @@ proof (induction "map_option typeify \<circ> \<Gamma>" e\<^sub>t t arbitrary: \<
   from tcn_lam have "subst_vars (\<Gamma>(x \<mapsto> untypeify t\<^sub>1)) \<subseteq> vs" by simp
   moreover from tcn_lam have "?v \<notin> vs" by simp
   ultimately have "?v \<notin> subst_vars (\<Gamma>(x \<mapsto> untypeify t\<^sub>1))" by blast
-  with tcn_lam TC have "?v \<notin> list_vars (list_subst ?v (untypeify t\<^sub>1) con')" by simp
-  hence "?v \<notin> list_vars con' \<or> ?v \<notin> tvars t\<^sub>1" by (simp split: if_splits)
+  with tcn_lam TC have "?v \<notin> constr_vars (list_subst ?v (untypeify t\<^sub>1) con')" by simp
+  hence "?v \<notin> constr_vars con' \<or> ?v \<notin> tvars t\<^sub>1" by (simp split: if_splits)
   from TV S have DV: "dom s \<inter> tvars t\<^sub>1 = {}" by auto
   with E S have A: "solidify (hsubst (extend_subst ?v (untypeify t\<^sub>1) s) e') = TLam x t\<^sub>1 e" by simp
   from tcn_lam have V: "?v \<notin> tvars t\<^sub>1" by auto
@@ -395,7 +395,7 @@ proof (induction "map_option typeify \<circ> \<Gamma>" e\<^sub>t t arbitrary: \<
   from E TC have "insert ?v vs \<subseteq> vs'" by (metis vars_expand)
   with tcn_lam have "insert ?v (vs' - insert ?v vs) = vs' - vs" by auto
   with S E have D: "dom (extend_subst ?v (untypeify t\<^sub>1) s) = vs' - vs" by simp
-  have VS: "vars (subst s (untypeify t\<^sub>1)) \<subseteq> vars (untypeify t\<^sub>1) - dom s \<union> subst_vars s" 
+  have VS: "uvars (subst s (untypeify t\<^sub>1)) \<subseteq> uvars (untypeify t\<^sub>1) - dom s \<union> subst_vars s" 
     by (metis vars_subst)
   from S have "subst_vars s \<subseteq> tvarst e \<union> subst_vars (\<Gamma>(x := None)) \<union> tvars t\<^sub>1" by auto
   hence "subst_vars s \<subseteq> tvarst e \<union> subst_vars \<Gamma> \<union> tvars t\<^sub>1" by auto
@@ -441,7 +441,7 @@ next
   with tcn_app have TV2: "tvars t\<^sub>1 \<subseteq> tvarst e\<^sub>1 \<union> subst_vars \<Gamma> \<and> tvars t\<^sub>2 \<subseteq> tvarst e\<^sub>1 \<union> subst_vars \<Gamma>" 
     by (simp add: valid_ty_subst_def subst_vars_def)
   with tcn_app have VT: "tvars t\<^sub>1 \<subseteq> vs \<and> tvars t\<^sub>2 \<subseteq> vs" by auto
-  hence VUT: "vars (untypeify t\<^sub>1) \<subseteq> vs \<and> vars (untypeify t\<^sub>2) \<subseteq> vs" by simp
+  hence VUT: "uvars (untypeify t\<^sub>1) \<subseteq> vs \<and> uvars (untypeify t\<^sub>2) \<subseteq> vs" by simp
   let ?s = "extend_subst ?v (untypeify t\<^sub>2) (combine_subst s\<^sub>1 s\<^sub>2)"
   from S1 have D1: "dom s\<^sub>1 = vs'' - insert ?v vs" by simp
   from S2 E have D2: "dom s\<^sub>2 = vs' - vs''" by simp
@@ -473,20 +473,20 @@ next
   with S1 DSS D3 VCS have UC1: "?s unifies\<^sub>l con\<^sub>1" by simp
   from S2 D3 VCS DSS have UC2: "?s unifies\<^sub>l con\<^sub>2" by simp
   from S1 have "tvars (typeify (subst s\<^sub>1 t\<^sub>1')) = tvars t\<^sub>1 \<union> tvars t\<^sub>2" by simp
-  with VTS1 have VST1: "vars (subst s\<^sub>1 t\<^sub>1') = tvars t\<^sub>1 \<union> tvars t\<^sub>2" by simp
-  with FV VT have "?v \<notin> vars (subst s\<^sub>1 t\<^sub>1')" by auto
-  with S1 VCS have VT1': "?v \<notin> vars t\<^sub>1'" by auto
+  with VTS1 have VST1: "uvars (subst s\<^sub>1 t\<^sub>1') = tvars t\<^sub>1 \<union> tvars t\<^sub>2" by simp
+  with FV VT have "?v \<notin> uvars (subst s\<^sub>1 t\<^sub>1')" by auto
+  with S1 VCS have VT1': "?v \<notin> uvars t\<^sub>1'" by auto
   from S2 have "tvars (typeify (subst s\<^sub>2 t\<^sub>2')) = tvars t\<^sub>1" by simp
-  with VTS2 have VST2: "vars (subst s\<^sub>2 t\<^sub>2') = tvars t\<^sub>1" by simp
-  with FV VT have "?v \<notin> vars (subst s\<^sub>2 t\<^sub>2')" by auto
-  with V1 D2 S2 VCS have VT2': "?v \<notin> vars t\<^sub>2'" by auto
-  from VST1 VT have "vars (subst s\<^sub>1 t\<^sub>1') \<subseteq> vs" by simp
-  hence "vars t\<^sub>1' \<subseteq> vs \<union> dom s\<^sub>1" by (metis vars_subst_inv)
+  with VTS2 have VST2: "uvars (subst s\<^sub>2 t\<^sub>2') = tvars t\<^sub>1" by simp
+  with FV VT have "?v \<notin> uvars (subst s\<^sub>2 t\<^sub>2')" by auto
+  with V1 D2 S2 VCS have VT2': "?v \<notin> uvars t\<^sub>2'" by auto
+  from VST1 VT have "uvars (subst s\<^sub>1 t\<^sub>1') \<subseteq> vs" by simp
+  hence "uvars t\<^sub>1' \<subseteq> vs \<union> dom s\<^sub>1" by (metis vars_subst_inv)
   moreover from D2 V1 DSS have "dom s\<^sub>2 \<inter> (vs \<union> dom s\<^sub>1) = {}" by auto
-  ultimately have D2V1: "dom s\<^sub>2 \<inter> vars t\<^sub>1' = {}" by auto
-  from VST2 VT have "vars (subst s\<^sub>2 t\<^sub>2') \<subseteq> vs" by simp
+  ultimately have D2V1: "dom s\<^sub>2 \<inter> uvars t\<^sub>1' = {}" by auto
+  from VST2 VT have "uvars (subst s\<^sub>2 t\<^sub>2') \<subseteq> vs" by simp
   moreover from D1 V2 DSS have "dom s\<^sub>1 \<inter> (vs \<union> dom s\<^sub>2) = {}" by auto
-  ultimately have D1V2: "dom s\<^sub>1 \<inter> vars (subst s\<^sub>2 t\<^sub>2') = {}" by auto
+  ultimately have D1V2: "dom s\<^sub>1 \<inter> uvars (subst s\<^sub>2 t\<^sub>2') = {}" by auto
   from S1 S2 have "untypeify (typeify (subst s\<^sub>1 t\<^sub>1')) = 
     untypeify (typeify (Ctor ''Arrow'' [subst s\<^sub>2 t\<^sub>2', untypeify t\<^sub>2]))" by simp
   with VTS1 VTS2 VT1' VT2' UC1 UC2 VS1 VS2 D2V1 D1V2 have F: 

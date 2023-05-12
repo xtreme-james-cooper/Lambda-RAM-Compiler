@@ -5,14 +5,14 @@ begin
 definition env_subst :: "subst \<Rightarrow> subst \<Rightarrow> subst" where
   "env_subst sub \<Gamma> = map_option (subst sub) \<circ> \<Gamma>"
 
-fun typeify :: "uexpr \<Rightarrow> ty" where
+fun typeify :: "uterm \<Rightarrow> ty" where
   "typeify (Var v) = TyVar v"
 | "typeify (Ctor k []) = (if k = ''Num'' then Num else undefined)"
 | "typeify (Ctor k [t\<^sub>1, t\<^sub>2]) = 
     (if k = ''Arrow'' then Arrow (typeify t\<^sub>1) (typeify t\<^sub>2) else undefined)"
 | "typeify (Ctor k ts) = undefined"
 
-primrec untypeify :: "ty \<Rightarrow> uexpr" where
+primrec untypeify :: "ty \<Rightarrow> uterm" where
   "untypeify (TyVar v) = Var v"
 | "untypeify Num = Ctor ''Num'' []"
 | "untypeify (Arrow t\<^sub>1 t\<^sub>2) = Ctor ''Arrow'' [untypeify t\<^sub>1, untypeify t\<^sub>2]"
@@ -28,11 +28,11 @@ fun valid_ty_uexpr' :: "string \<Rightarrow> nat \<Rightarrow> bool" where
 | "valid_ty_uexpr' k (Suc (Suc 0)) = (k = ''Arrow'')"
 | "valid_ty_uexpr' k (Suc (Suc (Suc x))) = False"
 
-primrec valid_ty_uexpr :: "uexpr \<Rightarrow> bool" where
+primrec valid_ty_uexpr :: "uterm \<Rightarrow> bool" where
   "valid_ty_uexpr (Var v) = True"
 | "valid_ty_uexpr (Ctor k ts) = (valid_ty_uexpr' k (length ts) \<and> list_all valid_ty_uexpr ts)"
 
-definition valid_ty_uexprs :: "(uexpr \<times> uexpr) list \<Rightarrow> bool" where
+definition valid_ty_uexprs :: "constraint \<Rightarrow> bool" where
   "valid_ty_uexprs ts = list_all (\<lambda>(t\<^sub>1, t\<^sub>2). valid_ty_uexpr t\<^sub>1 \<and> valid_ty_uexpr t\<^sub>2) ts"
  
 definition valid_ty_subst :: "subst \<Rightarrow> bool" where
@@ -48,13 +48,13 @@ lemma [dest]: "typeify e = Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> valid_ty_
     e = Ctor ''Arrow'' [untypeify t\<^sub>1, untypeify t\<^sub>2]"
   by (induction e rule: typeify.induct) auto
 
-lemma [simp]: "vars (untypeify t) = tvars t"
+lemma [simp]: "uvars (untypeify t) = tvars t"
   by (induction t) simp_all
 
 lemma [simp]: "valid_ty_uexpr (untypeify t)"
   by (induction t) simp_all
 
-lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> tvars (typeify t) = vars t"
+lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> tvars (typeify t) = uvars t"
   by (induction t rule: typeify.induct) simp_all
 
 lemma [simp]: "tsubsts Map.empty e = e"
@@ -92,7 +92,7 @@ lemma [simp]: "valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_subst \<Gamma>
 lemma [simp]: "valid_ty_uexpr e \<Longrightarrow> valid_ty_uexpr e' \<Longrightarrow> valid_ty_uexpr (subst [x \<mapsto> e'] e)"
   and [simp]: "list_all valid_ty_uexpr es \<Longrightarrow> valid_ty_uexpr e' \<Longrightarrow> 
     list_all valid_ty_uexpr (map (subst [x \<mapsto> e']) es)"
-proof (induction e and es rule: vars_varss.induct)
+proof (induction e and es rule: uvars_uvarss.induct)
   case (2 k es)
   thus ?case 
   proof (induction es)
@@ -111,7 +111,7 @@ lemma [simp]: "valid_ty_uexpr e \<Longrightarrow> valid_ty_uexprs ess \<Longrigh
 lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> valid_ty_subst sub \<Longrightarrow> valid_ty_uexpr (subst sub t)"
   and [simp]: "list_all valid_ty_uexpr ts \<Longrightarrow> valid_ty_subst sub \<Longrightarrow> 
     list_all valid_ty_uexpr (map (subst sub) ts)"
-  by (induction t and ts rule: vars_varss.induct) 
+  by (induction t and ts rule: uvars_uvarss.induct) 
      (auto simp add: valid_ty_subst_def ran_def split: option.splits)
 
 lemma [simp]: "valid_ty_subst s \<Longrightarrow> valid_ty_uexpr e \<Longrightarrow> valid_ty_subst (extend_subst x e s)"
@@ -148,7 +148,7 @@ next
   proof (cases "e = Var x")
     case False note F = False
     with 4 show ?thesis 
-    proof (cases "x \<in> vars e")
+    proof (cases "x \<in> uvars e")
       case False
       with 4 F obtain sub' where S: "unify (list_subst x e ess) = Some sub' \<and> 
         sub = extend_subst x e sub'" by auto

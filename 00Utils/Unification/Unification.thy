@@ -2,7 +2,7 @@ theory Unification
   imports Substitution
 begin        
 
-function unify :: "(uexpr \<times> uexpr) list \<rightharpoonup> subst" where
+function unify :: "constraint \<rightharpoonup> subst" where
   "unify [] = Some Map.empty"
 | "unify ((Ctor k\<^sub>1 es\<^sub>1, Ctor k\<^sub>2 es\<^sub>2) # ess) = (
     if k\<^sub>1 = k\<^sub>2 \<and> length es\<^sub>1 = length es\<^sub>2 then unify (zip es\<^sub>1 es\<^sub>2 @ ess)
@@ -10,11 +10,11 @@ function unify :: "(uexpr \<times> uexpr) list \<rightharpoonup> subst" where
 | "unify ((Ctor k es, Var x) # ess) = unify ((Var x, Ctor k es) # ess)"
 | "unify ((Var x, e) # ess) = (
     if e = Var x then unify ess
-    else if x \<notin> vars e then map_option (extend_subst x e) (unify (list_subst x e ess))
+    else if x \<notin> uvars e then map_option (extend_subst x e) (unify (list_subst x e ess))
     else None)"
   by pat_completeness auto
 termination
-  by (relation "measures [card \<circ> list_vars, list_ctor_count, length]") 
+  by (relation "measures [card \<circ> constr_vars, constr_ctor_count, length]") 
      (simp_all add: card_insert_if)
 
 lemma unify_induct [case_names Nil CtorCtorYes CtorCtorNo CtorVar VarSame Occurs VarNo VarYes]: "
@@ -25,10 +25,10 @@ lemma unify_induct [case_names Nil CtorCtorYes CtorCtorNo CtorVar VarSame Occurs
       P ((Ctor k\<^sub>1 es\<^sub>1, Ctor k\<^sub>2 es\<^sub>2) # ess)) \<Longrightarrow>
     (\<And>x es k ess. P ((Var x, Ctor k es) # ess) \<Longrightarrow> P ((Ctor k es, Var x) # ess)) \<Longrightarrow>
     (\<And>x ess. P ess \<Longrightarrow> P ((Var x, Var x) # ess)) \<Longrightarrow>
-    (\<And>x e ess. e \<noteq> Var x \<Longrightarrow> x \<in> vars e \<Longrightarrow> P ((Var x, e) # ess)) \<Longrightarrow>
-    (\<And>x e ess. e \<noteq> Var x \<Longrightarrow> x \<notin> vars e \<Longrightarrow> P (list_subst x e ess) \<Longrightarrow> 
+    (\<And>x e ess. e \<noteq> Var x \<Longrightarrow> x \<in> uvars e \<Longrightarrow> P ((Var x, e) # ess)) \<Longrightarrow>
+    (\<And>x e ess. e \<noteq> Var x \<Longrightarrow> x \<notin> uvars e \<Longrightarrow> P (list_subst x e ess) \<Longrightarrow> 
       unify (list_subst x e ess) = None \<Longrightarrow> P ((Var x, e) # ess)) \<Longrightarrow> 
-    (\<And>x e ess s'. e \<noteq> Var x \<Longrightarrow> x \<notin> vars e \<Longrightarrow> P (list_subst x e ess) \<Longrightarrow> 
+    (\<And>x e ess s'. e \<noteq> Var x \<Longrightarrow> x \<notin> uvars e \<Longrightarrow> P (list_subst x e ess) \<Longrightarrow> 
       unify (list_subst x e ess) = Some s' \<Longrightarrow> P ((Var x, e) # ess)) \<Longrightarrow> 
     P ts"
 proof (induction ts rule: unify.induct)
@@ -37,44 +37,44 @@ proof (induction ts rule: unify.induct)
 next
   case (4 x e ess)
   thus ?case 
-    by (cases "e \<noteq> Var x") (cases "x \<notin> vars e", cases "unify (list_subst x e ess)", simp_all)
+    by (cases "e \<noteq> Var x") (cases "x \<notin> uvars e", cases "unify (list_subst x e ess)", simp_all)
 qed simp_all
 
-definition fail :: "(uexpr \<times> uexpr) list" where
+definition fail :: constraint where
   "fail = [(Ctor ''a'' [], Ctor ''b'' [])]"
 
-lemma unify_dom [simp]: "unify ess = Some s \<Longrightarrow> dom s \<subseteq> list_vars ess"
+lemma unify_dom [simp]: "unify ess = Some s \<Longrightarrow> dom s \<subseteq> constr_vars ess"
 proof (induction ess arbitrary: s rule: unify_induct)
   case (VarYes x e ess s')
-  hence "dom s' \<subseteq> list_vars (list_subst x e ess)" by simp
-  hence "dom (extend_subst x e s') \<subseteq> insert x (vars e \<union> list_vars ess)" by (auto split: if_splits)
+  hence "dom s' \<subseteq> constr_vars (list_subst x e ess)" by simp
+  hence "dom (extend_subst x e s') \<subseteq> insert x (uvars e \<union> constr_vars ess)" by (auto split: if_splits)
   with VarYes show ?case by simp
 qed auto
 
-lemma unify_ran [simp]: "unify ess = Some s \<Longrightarrow> subst_vars s \<subseteq> list_vars ess"
+lemma unify_ran [simp]: "unify ess = Some s \<Longrightarrow> subst_vars s \<subseteq> constr_vars ess"
 proof (induction ess arbitrary: s rule: unify_induct)
   case (VarYes x e ess s')
-  hence X: "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by simp
-  from VarYes have "dom s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_dom)
+  hence X: "subst_vars s' \<subseteq> constr_vars (list_subst x e ess)" by simp
+  from VarYes have "dom s' \<subseteq> constr_vars (list_subst x e ess)" by (metis unify_dom)
   with VarYes have "x \<notin> dom s'" by (auto simp del: list_subst_no_var split: if_splits)
-  hence D: "subst_vars (extend_subst x e s') = vars (subst s' e) \<union> subst_vars s'" by simp
-  from X have "vars e - dom s' \<union> subst_vars s' \<subseteq> insert x (vars e \<union> list_vars ess)" 
+  hence D: "subst_vars (extend_subst x e s') = uvars (subst s' e) \<union> subst_vars s'" by simp
+  from X have "uvars e - dom s' \<union> subst_vars s' \<subseteq> insert x (uvars e \<union> constr_vars ess)" 
     by (auto split: if_splits)
-  moreover have "vars (subst s' e) \<subseteq> vars e - dom s' \<union> subst_vars s'" by simp
-  ultimately have Y: "vars (subst s' e) \<subseteq> insert x (vars e \<union> list_vars ess)" by blast
-  from X have "subst_vars s' \<subseteq> insert x (vars e \<union> list_vars ess)" by (auto split: if_splits)
+  moreover have "uvars (subst s' e) \<subseteq> uvars e - dom s' \<union> subst_vars s'" by simp
+  ultimately have Y: "uvars (subst s' e) \<subseteq> insert x (uvars e \<union> constr_vars ess)" by blast
+  from X have "subst_vars s' \<subseteq> insert x (uvars e \<union> constr_vars ess)" by (auto split: if_splits)
   with VarYes D Y show ?case by simp
 qed auto
 
 lemma [simp]: "unify ess = Some s \<Longrightarrow> ordered_subst s"
 proof (induction ess arbitrary: s rule: unify_induct)
   case (VarYes x e ess s')
-  hence "dom s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_dom)
-  hence D: "dom s' \<subseteq> list_vars ess - {x} \<union> (if x \<in> list_vars ess then vars e else {})" by simp
+  hence "dom s' \<subseteq> constr_vars (list_subst x e ess)" by (metis unify_dom)
+  hence D: "dom s' \<subseteq> constr_vars ess - {x} \<union> (if x \<in> constr_vars ess then uvars e else {})" by simp
   from VarYes have A: "ordered_subst s'" by simp
-  from VarYes have B: "x \<notin> vars e" by simp
+  from VarYes have B: "x \<notin> uvars e" by simp
   from VarYes D have C: "x \<notin> dom s'" by (auto simp del: list_subst_no_var split: if_splits)
-  from VarYes have "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_ran) 
+  from VarYes have "subst_vars s' \<subseteq> constr_vars (list_subst x e ess)" by (metis unify_ran) 
   with VarYes have "x \<notin> subst_vars s'" by (auto simp del: list_subst_no_var split: if_splits)
   with A B C have "ordered_subst (extend_subst x e s')" by simp
   with VarYes show ?case by simp
@@ -118,9 +118,9 @@ proof (induction ess arbitrary: s t rule: unify_induct)
   thus ?case by auto
 next
   case (VarYes x e ess s')
-  hence "dom s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_dom)
+  hence "dom s' \<subseteq> constr_vars (list_subst x e ess)" by (metis unify_dom)
   with VarYes have D: "x \<notin> dom s'" by (auto simp del: list_subst_no_var split: if_splits)
-  from VarYes have "subst_vars s' \<subseteq> list_vars (list_subst x e ess)" by (metis unify_ran)
+  from VarYes have "subst_vars s' \<subseteq> constr_vars (list_subst x e ess)" by (metis unify_ran)
   with VarYes have R: "x \<notin> subst_vars s'" by (auto simp del: list_subst_no_var split: if_splits)
   thus ?case
   proof (cases "t x")
@@ -185,19 +185,19 @@ lemma [simp]: "unify ess\<^sub>1 = None \<Longrightarrow> unify (ess\<^sub>1 @ e
 
 lemma [simp]: "unify ((e, e) # ess) = unify ess"
   and [simp]: "unify (zip es es @ ess) = unify ess"
-  by (induction e and es arbitrary: ess and ess rule: vars_varss.induct)  simp_all
+  by (induction e and es arbitrary: ess and ess rule: uvars_uvarss.induct)  simp_all
 
-lemma unify_occurs' [simp]: "e \<noteq> Var x \<Longrightarrow> x \<in> vars e \<Longrightarrow> 
+lemma unify_occurs' [simp]: "e \<noteq> Var x \<Longrightarrow> x \<in> uvars e \<Longrightarrow> 
   unify ((e', subst [x \<mapsto> e'] e) # ess) = None"
 proof (cases "unify ((e', subst [x \<mapsto> e'] e) # ess)")
   case (Some s)
-  moreover assume "e \<noteq> Var x" and "x \<in> vars e"
+  moreover assume "e \<noteq> Var x" and "x \<in> uvars e"
   ultimately show ?thesis by (metis unify_some list_unifier.simps(2) occurs_check2)
 qed simp_all
 
-lemma unify_occurs: "unify ((e, Ctor k (map (subst [x \<mapsto> e]) es)) # ess) = Some s \<Longrightarrow> x \<notin> varss es"
+lemma unify_occurs: "unify ((e, Ctor k (map (subst [x \<mapsto> e]) es)) # ess) = Some s \<Longrightarrow> x \<notin> uvarss es"
 proof 
-  assume "x \<in> varss es"
+  assume "x \<in> uvarss es"
   hence "unify ((e, subst [x \<mapsto> e] (Ctor k es)) # ess) = None" using unify_occurs' by fastforce
   moreover assume "unify ((e, Ctor k (map (subst [x \<mapsto> e]) es)) # ess) = Some s"
   ultimately show False by simp
@@ -273,15 +273,15 @@ next
   with Some show ?thesis by fastforce
 qed
 
-lemma [simp]: "unify (list_subst x e' ess) = Some s \<Longrightarrow> x \<notin> vars e' \<Longrightarrow> 
+lemma [simp]: "unify (list_subst x e' ess) = Some s \<Longrightarrow> x \<notin> uvars e' \<Longrightarrow> 
   \<exists>s\<^sub>2. unify ess = Some s\<^sub>2 \<and> extend_subst x e' s extends s\<^sub>2"
 proof -
   assume U: "unify (list_subst x e' ess) = Some s" 
   hence L: "s unifies\<^sub>l list_subst x e' ess" and O: "ordered_subst s" by (metis unify_some, simp)
-  assume X: "x \<notin> vars e'"
-  hence "x \<notin> list_vars ess - {x} \<union> (if x \<in> list_vars ess then vars e' else {})" by simp
-  moreover from U have "dom s \<subseteq> list_vars (list_subst x e' ess)" by (metis unify_dom)
-  moreover from U have "subst_vars s \<subseteq> list_vars (list_subst x e' ess)" by (metis unify_ran)
+  assume X: "x \<notin> uvars e'"
+  hence "x \<notin> constr_vars ess - {x} \<union> (if x \<in> constr_vars ess then uvars e' else {})" by simp
+  moreover from U have "dom s \<subseteq> constr_vars (list_subst x e' ess)" by (metis unify_dom)
+  moreover from U have "subst_vars s \<subseteq> constr_vars (list_subst x e' ess)" by (metis unify_ran)
   ultimately have "x \<notin> dom s" and "x \<notin> subst_vars s" by auto
   with O X L show ?thesis by simp
 qed
@@ -331,7 +331,7 @@ qed fastforce+
 lemma [simp]: "unify fail = None"
   by (simp add: fail_def)
 
-lemma [simp]: "list_vars fail = {}"
+lemma [simp]: "constr_vars fail = {}"
   by (simp add: fail_def)
 
 lemma [simp]: "list_subst x e fail = fail"

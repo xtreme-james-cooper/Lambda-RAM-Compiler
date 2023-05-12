@@ -1,28 +1,28 @@
 theory Substitution
-  imports UnifyExpr
+  imports UnifiableTerm
 begin
 
-type_synonym subst = "var \<rightharpoonup> uexpr"
+type_synonym subst = "var \<rightharpoonup> uterm"
 
-fun subst :: "subst \<Rightarrow> uexpr \<Rightarrow> uexpr" where
+fun subst :: "subst \<Rightarrow> uterm \<Rightarrow> uterm" where
   "subst s (Var y) = (case s y of Some e \<Rightarrow> e | None \<Rightarrow> Var y)"
 | "subst s (Ctor k es) = Ctor k (map (subst s) es)"
 
 definition subst_vars :: "subst \<Rightarrow> var set" where
-  "subst_vars s = \<Union> (vars ` ran s)"
+  "subst_vars s = \<Union> (uvars ` ran s)"
 
-fun list_subst :: "var \<Rightarrow> uexpr \<Rightarrow> (uexpr \<times> uexpr) list \<Rightarrow> (uexpr \<times> uexpr) list" where
+fun list_subst :: "var \<Rightarrow> uterm \<Rightarrow> constraint \<Rightarrow> constraint" where
   "list_subst x e' [] = []"
 | "list_subst x e' ((e\<^sub>1, e\<^sub>2) # ess) = (subst [x \<mapsto> e'] e\<^sub>1, subst [x \<mapsto> e'] e\<^sub>2) # list_subst x e' ess"
 
-abbreviation unifier :: "subst \<Rightarrow> uexpr \<Rightarrow> uexpr \<Rightarrow> bool" (infix "unifies _ and" 50) where 
+abbreviation unifier :: "subst \<Rightarrow> uterm \<Rightarrow> uterm \<Rightarrow> bool" (infix "unifies _ and" 50) where 
   "unifier s e\<^sub>1 e\<^sub>2 \<equiv> subst s e\<^sub>1 = subst s e\<^sub>2"
 
-fun list_unifier :: "subst \<Rightarrow> (uexpr \<times> uexpr) list \<Rightarrow> bool" (infix "unifies\<^sub>l" 50) where 
+fun list_unifier :: "subst \<Rightarrow> constraint \<Rightarrow> bool" (infix "unifies\<^sub>l" 50) where 
   "list_unifier s [] = True"
 | "list_unifier s ((e\<^sub>1, e\<^sub>2) # ess) = ((s unifies e\<^sub>1 and e\<^sub>2) \<and> list_unifier s ess)"
 
-definition extend_subst :: "var \<Rightarrow> uexpr \<Rightarrow> subst \<Rightarrow> subst" where
+definition extend_subst :: "var \<Rightarrow> uterm \<Rightarrow> subst \<Rightarrow> subst" where
   "extend_subst x e s = (s(x \<mapsto> subst s e))"
 
 definition combine_subst :: "subst \<Rightarrow> subst \<Rightarrow> subst" where
@@ -40,28 +40,28 @@ proof
   show "subst Map.empty e = id e" by (induction e) (auto simp add: map_idI)
 qed
   
-lemma [simp]: "x \<notin> vars e \<Longrightarrow> subst [x \<mapsto> e'] e = e"
-  and [simp]: "x \<notin> varss es \<Longrightarrow> map (subst [x \<mapsto> e']) es = es"
-  by (induction e and es rule: vars_varss.induct) simp_all
+lemma [simp]: "x \<notin> uvars e \<Longrightarrow> subst [x \<mapsto> e'] e = e"
+  and [simp]: "x \<notin> uvarss es \<Longrightarrow> map (subst [x \<mapsto> e']) es = es"
+  by (induction e and es rule: uvars_uvarss.induct) simp_all
 
-lemma [simp]: "vars e \<subseteq> vs \<Longrightarrow> finite vs \<Longrightarrow> subst [fresh vs \<mapsto> e'] e = e"
+lemma [simp]: "uvars e \<subseteq> vs \<Longrightarrow> finite vs \<Longrightarrow> subst [fresh vs \<mapsto> e'] e = e"
 proof -
   assume "finite vs"
   hence "fresh vs \<notin> vs" by simp
-  moreover assume "vars e \<subseteq> vs" 
-  ultimately have "fresh vs \<notin> vars e" by auto
+  moreover assume "uvars e \<subseteq> vs" 
+  ultimately have "fresh vs \<notin> uvars e" by auto
   thus ?thesis by simp
 qed
 
-lemma [simp]: "x \<in> vars e \<Longrightarrow> vars (subst [x \<mapsto> e'] e) = vars e - {x} \<union> vars e'"
-  and [simp]: "x \<in> varss es \<Longrightarrow> varss (map (subst [x \<mapsto> e']) es) = varss es - {x} \<union> vars e'"
-proof (induction e and es rule: vars_varss.induct)
+lemma [simp]: "x \<in> uvars e \<Longrightarrow> uvars (subst [x \<mapsto> e'] e) = uvars e - {x} \<union> uvars e'"
+  and [simp]: "x \<in> uvarss es \<Longrightarrow> uvarss (map (subst [x \<mapsto> e']) es) = uvarss es - {x} \<union> uvars e'"
+proof (induction e and es rule: uvars_uvarss.induct)
   case (4 e es)
-  hence "varss (map (subst [x \<mapsto> e']) (e # es)) = varss (e # es) - {x} \<union> vars e'" by fastforce
+  hence "uvarss (map (subst [x \<mapsto> e']) (e # es)) = uvarss (e # es) - {x} \<union> uvars e'" by fastforce
   thus ?case by blast
 qed simp_all
 
-lemma [simp]: "vars (subst [x \<mapsto> e'] e) = vars e - {x} \<union> (if x \<in> vars e then vars e' else {})"
+lemma [simp]: "uvars (subst [x \<mapsto> e'] e) = uvars e - {x} \<union> (if x \<in> uvars e then uvars e' else {})"
   by simp
 
 lemma [simp]: "subst [x \<mapsto> e'] (subst [x \<mapsto> e''] e) = subst [x \<mapsto> subst [x \<mapsto> e'] e''] e"
@@ -87,17 +87,18 @@ qed simp_all
 lemma [simp]: "map prod.swap (list_subst x e ess) = list_subst x e (map prod.swap ess)"
   by (induction ess rule: list_subst.induct) simp_all
 
-lemma [simp]: "x \<notin> list_vars ess \<Longrightarrow> list_vars (list_subst x e ess) = list_vars ess"
-  by (induction ess rule: list_vars.induct) simp_all
+lemma [simp]: "x \<notin> constr_vars ess \<Longrightarrow> constr_vars (list_subst x e ess) = constr_vars ess"
+  by (induction ess rule: constr_vars.induct) simp_all
 
-lemma [simp]: "x \<in> list_vars ess \<Longrightarrow> list_vars (list_subst x e ess) = list_vars ess - {x} \<union> vars e"
-proof (induction ess rule: list_vars.induct)
+lemma [simp]: "x \<in> constr_vars ess \<Longrightarrow> 
+  constr_vars (list_subst x e ess) = constr_vars ess - {x} \<union> uvars e"
+proof (induction ess rule: constr_vars.induct)
   case (2 e\<^sub>1 e\<^sub>2 ess)
-  thus ?case by (cases "x \<in> list_vars ess") auto
+  thus ?case by (cases "x \<in> constr_vars ess") auto
 qed simp_all
 
-lemma [simp]: "list_vars (list_subst x e ess) = 
-    list_vars ess - {x} \<union> (if x \<in> list_vars ess then vars e else {})"
+lemma [simp]: "constr_vars (list_subst x e ess) = 
+    constr_vars ess - {x} \<union> (if x \<in> constr_vars ess then uvars e else {})"
   by simp
 
 lemma [simp]: "list_subst x e' (list_subst x e ess) = list_subst x (subst [x \<mapsto> e'] e) ess"
@@ -109,20 +110,20 @@ proof (induction x e ess rule: list_subst.induct)
   thus ?case by blast
 qed simp_all
 
-lemma list_subst_no_var [simp]: "x \<notin> list_vars ess \<Longrightarrow> list_subst x e ess = ess"
+lemma list_subst_no_var [simp]: "x \<notin> constr_vars ess \<Longrightarrow> list_subst x e ess = ess"
   by (induction x e ess rule: list_subst.induct) simp_all
 
 lemma subst_merge: "subst (extend_subst x e' s) e = subst s (subst [x \<mapsto> e'] e)"
   by (induction e) (simp_all add: extend_subst_def)
 
-lemma vars_subst [simp]: "vars (subst s e) \<subseteq> vars e - dom s \<union> subst_vars s"
-  and [simp]: "varss (map (subst s) es) \<subseteq> varss es - dom s \<union> subst_vars s"
-  by (induction e and es rule: vars_varss.induct) 
+lemma vars_subst [simp]: "uvars (subst s e) \<subseteq> uvars e - dom s \<union> subst_vars s"
+  and [simp]: "uvarss (map (subst s) es) \<subseteq> uvarss es - dom s \<union> subst_vars s"
+  by (induction e and es rule: uvars_uvarss.induct) 
      (auto simp add: subst_vars_def ranI split: option.splits)
 
-lemma [simp]: "x \<in> vars e \<Longrightarrow> s x = None \<Longrightarrow> x \<in> vars (subst s e)"
-  and [simp]: "x \<in> varss es \<Longrightarrow> s x = None \<Longrightarrow> x \<in> varss (map (subst s) es)"
-  by (induction e and es rule: vars_varss.induct) auto
+lemma [simp]: "x \<in> uvars e \<Longrightarrow> s x = None \<Longrightarrow> x \<in> uvars (subst s e)"
+  and [simp]: "x \<in> uvarss es \<Longrightarrow> s x = None \<Longrightarrow> x \<in> uvarss (map (subst s) es)"
+  by (induction e and es rule: uvars_uvarss.induct) auto
 
 lemma [simp]: "subst_vars Map.empty = {}"
   by (simp add: subst_vars_def)
@@ -130,10 +131,10 @@ lemma [simp]: "subst_vars Map.empty = {}"
 lemma [simp]: "subst_vars s \<subseteq> vs \<Longrightarrow> subst_vars (s(x := None)) \<subseteq> vs"
   by (auto simp add: subst_vars_def ran_def)
 
-lemma [simp]: "s x = Some e \<Longrightarrow> subst_vars s \<subseteq> vs \<Longrightarrow> vars e \<subseteq> vs"
+lemma [simp]: "s x = Some e \<Longrightarrow> subst_vars s \<subseteq> vs \<Longrightarrow> uvars e \<subseteq> vs"
   by (auto simp add: subst_vars_def ran_def)
 
-lemma [simp]: "s x = Some e \<Longrightarrow> y \<in> vars e \<Longrightarrow> y \<in> subst_vars s"
+lemma [simp]: "s x = Some e \<Longrightarrow> y \<in> uvars e \<Longrightarrow> y \<in> subst_vars s"
   by (auto simp add: subst_vars_def ran_def)
 
 lemma [simp]: "dom (extend_subst x e s) = insert x (dom s)"
@@ -142,20 +143,20 @@ lemma [simp]: "dom (extend_subst x e s) = insert x (dom s)"
 lemma [simp]: "ran (extend_subst x e s) = insert (subst s e) (ran (s(x := None)))"
   by (auto simp add: extend_subst_def ran_def)
 
-lemma [simp]: "dom s \<inter> vars e = {} \<Longrightarrow> subst s e = e"
-  and [simp]: "dom s \<inter> varss es = {} \<Longrightarrow> map (subst s) es = es"
-  by (induction e and es rule: vars_varss.induct) (auto split: option.splits)
+lemma [simp]: "dom s \<inter> uvars e = {} \<Longrightarrow> subst s e = e"
+  and [simp]: "dom s \<inter> uvarss es = {} \<Longrightarrow> map (subst s) es = es"
+  by (induction e and es rule: uvars_uvarss.induct) (auto split: option.splits)
 
 lemma [simp]: "subst [x \<mapsto> Var x] e = e"
   and [simp]: "map (subst [x \<mapsto> Var x]) es = es"
-  by (induction e and es rule: vars_varss.induct) simp_all
+  by (induction e and es rule: uvars_uvarss.induct) simp_all
 
 lemma [simp]: "subst [x \<mapsto> Var x] = id"
   by auto
 
 lemma [simp]: "subst [y \<mapsto> Var x] (subst [x \<mapsto> Var y] e) = subst [y \<mapsto> Var x] e"
   and [simp]: "map (subst [y \<mapsto> Var x] \<circ> subst [x \<mapsto> Var y]) es = map (subst [y \<mapsto> Var x]) es"
-  by (induction e and es rule: vars_varss.induct) simp_all
+  by (induction e and es rule: uvars_uvarss.induct) simp_all
 
 lemma [simp]: "subst [y \<mapsto> Var x] \<circ> subst [x \<mapsto> Var y] = subst [y \<mapsto> Var x]"
   by auto
@@ -181,7 +182,7 @@ lemma [simp]: "s x = Some (subst s e) \<Longrightarrow> extend_subst x e s = s"
 lemma [simp]: "s x = None \<Longrightarrow> s y = Some (Var x) \<Longrightarrow> subst (extend_subst x (Var y) s) e = subst s e"
   and [simp]: "s x = None \<Longrightarrow> s y = Some (Var x) \<Longrightarrow> 
     map (subst (extend_subst x (Var y) s)) es = map (subst s) es"
-  by (induction e and es rule: vars_varss.induct) (simp_all add: extend_subst_def)
+  by (induction e and es rule: uvars_uvarss.induct) (simp_all add: extend_subst_def)
 
 lemma [simp]: "s x = None \<Longrightarrow> s y = Some (Var x) \<Longrightarrow> subst (extend_subst x (Var y) s) = subst s"
   by auto
@@ -207,7 +208,7 @@ proof
     by (induction ee) (auto split: option.splits)
 qed
 
-lemma [simp]: "x \<notin> dom s \<Longrightarrow> subst_vars (extend_subst x e s) = vars (subst s e) \<union> subst_vars s"
+lemma [simp]: "x \<notin> dom s \<Longrightarrow> subst_vars (extend_subst x e s) = uvars (subst s e) \<union> subst_vars s"
   by (auto simp add: extend_subst_def subst_vars_def)
 
 lemma [simp]: "extend_subst x e s x = Some (subst s e)"
@@ -221,27 +222,27 @@ proof
   show "dom Map.empty \<inter> xs = {} \<and> subst_vars Map.empty = {} \<and> ordered_subst Map.empty" by simp
 qed
 
-lemma [simp]: "ordered_subst s \<Longrightarrow> x \<notin> vars e \<Longrightarrow> x \<notin> dom s \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow>
+lemma [simp]: "ordered_subst s \<Longrightarrow> x \<notin> uvars e \<Longrightarrow> x \<notin> dom s \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow>
   ordered_subst (extend_subst x e s)"
 proof (unfold ordered_subst_def)
   assume D: "dom s \<inter> subst_vars s = {}"
-  assume E: "x \<notin> vars e"
+  assume E: "x \<notin> uvars e"
   assume S: "x \<notin> dom s"
   assume R: "x \<notin> subst_vars s"
-  have V: "vars (subst s e) \<subseteq> vars e - dom s \<union> subst_vars s" by simp
-  with E R have A: "x \<notin> vars (subst s e)" by blast
-  from D V have "dom s \<inter> vars (subst s e) = {}" by blast
+  have V: "uvars (subst s e) \<subseteq> uvars e - dom s \<union> subst_vars s" by simp
+  with E R have A: "x \<notin> uvars (subst s e)" by blast
+  from D V have "dom s \<inter> uvars (subst s e) = {}" by blast
   with A D S R show "dom (extend_subst x e s) \<inter> subst_vars (extend_subst x e s) = {}" by auto
 qed
 
-lemma [simp]: "vars e \<inter> dom s = {} \<Longrightarrow> subst s e = e"
-  and [simp]: "varss es \<inter> dom s = {} \<Longrightarrow> map (subst s) es = es"
-  by (induction e and es rule: vars_varss.induct) (auto split: option.splits)
+lemma [simp]: "uvars e \<inter> dom s = {} \<Longrightarrow> subst s e = e"
+  and [simp]: "uvarss es \<inter> dom s = {} \<Longrightarrow> map (subst s) es = es"
+  by (induction e and es rule: uvars_uvarss.induct) (auto split: option.splits)
 
 lemma [simp]: "y \<notin> dom s \<Longrightarrow> s x = Some (Var y) \<Longrightarrow> subst s (subst [x \<mapsto> Var y] e) = subst s e"
   and [simp]: "y \<notin> dom s \<Longrightarrow> s x = Some (Var y) \<Longrightarrow>
     map (subst s \<circ> subst [x \<mapsto> Var y]) es = map (subst s) es"
-  by (induction e and es rule: vars_varss.induct) (auto split: option.splits)
+  by (induction e and es rule: uvars_uvarss.induct) (auto split: option.splits)
 
 lemma [simp]: "y \<notin> dom s \<Longrightarrow> s x = Some (Var y) \<Longrightarrow> subst s \<circ> subst [x \<mapsto> Var y] = subst s"
   by (rule, simp)
@@ -256,25 +257,26 @@ proof (induction es\<^sub>1 arbitrary: es\<^sub>2)
   thus ?case by (induction es\<^sub>2) simp_all
 qed simp_all
 
-lemma occurs_check' [simp]: "x \<in> vars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> size (subst s (Var x)) < size (subst s e)"
-  and [simp]: "x \<in> varss es \<Longrightarrow> size (subst s (Var x)) < size_list (size \<circ> subst s) es"
-proof (induction e and es rule: vars_varss.induct)
+lemma occurs_check' [simp]: "x \<in> uvars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> 
+    size (subst s (Var x)) < size (subst s e)"
+  and [simp]: "x \<in> uvarss es \<Longrightarrow> size (subst s (Var x)) < size_list (size \<circ> subst s) es"
+proof (induction e and es rule: uvars_uvarss.induct)
   case (4 e es)
   thus ?case by force
 qed fastforce+
 
-lemma occurs_check [simp]: "x \<in> vars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> s unifies Var x and e \<Longrightarrow> False"
+lemma occurs_check [simp]: "x \<in> uvars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> s unifies Var x and e \<Longrightarrow> False"
 proof -
-  assume "x \<in> vars e" and "e \<noteq> Var x" 
+  assume "x \<in> uvars e" and "e \<noteq> Var x" 
   hence "size (subst s (Var x)) < size (subst s e)" by (metis occurs_check')
   moreover assume "s unifies Var x and e"
   ultimately show ?thesis by simp
 qed
 
-lemma occurs_check2' [simp]: "x \<in> vars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> 
+lemma occurs_check2' [simp]: "x \<in> uvars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> 
     size (subst s e') < size (subst s (subst [x \<mapsto> e'] e))"
-  and [simp]: "x \<in> varss es \<Longrightarrow> size (subst s e') < size_list (size \<circ> subst s \<circ> subst [x \<mapsto> e']) es"
-proof (induction e and es rule: vars_varss.induct)
+  and [simp]: "x \<in> uvarss es \<Longrightarrow> size (subst s e') < size_list (size \<circ> subst s \<circ> subst [x \<mapsto> e']) es"
+proof (induction e and es rule: uvars_uvarss.induct)
   case (2 k es)
   hence "size (subst s e') < size_list (size \<circ> subst s \<circ> subst [x \<mapsto> e']) es" by fastforce
   hence "size (subst s e') < size (subst s (subst [x \<mapsto> e'] (Ctor k es)))" 
@@ -285,22 +287,22 @@ next
   thus ?case by force
 qed simp_all
 
-lemma occurs_check2 [simp]: "x \<in> vars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> s unifies e' and subst [x \<mapsto> e'] e \<Longrightarrow> 
+lemma occurs_check2 [simp]: "x \<in> uvars e \<Longrightarrow> e \<noteq> Var x \<Longrightarrow> s unifies e' and subst [x \<mapsto> e'] e \<Longrightarrow> 
   False"
 proof -
-  assume "x \<in> vars e" and "e \<noteq> Var x" 
+  assume "x \<in> uvars e" and "e \<noteq> Var x" 
   hence "size (subst s e') < size (subst s (subst [x \<mapsto> e'] e))" by (metis occurs_check2')
   moreover assume "s unifies e' and subst [x \<mapsto> e'] e"
   ultimately show ?thesis by simp
 qed
 
-lemma [elim]: "y \<notin> varss (map (subst [x \<mapsto> Var y]) es) \<Longrightarrow> x \<notin> varss es"
+lemma [elim]: "y \<notin> uvarss (map (subst [x \<mapsto> Var y]) es) \<Longrightarrow> x \<notin> uvarss es"
   by (induction es) fastforce+
 
-lemma [simp]: "x \<in> varss es \<Longrightarrow> s x \<noteq> Some (Ctor k (map (subst s) es))"
+lemma [simp]: "x \<in> uvarss es \<Longrightarrow> s x \<noteq> Some (Ctor k (map (subst s) es))"
 proof
-  assume "x \<in> varss es"
-  hence X: "x \<in> vars (Ctor k es)" by simp
+  assume "x \<in> uvarss es"
+  hence X: "x \<in> uvars (Ctor k es)" by simp
   have Y: "Ctor k es \<noteq> Var x" by simp
   assume "s x = Some (Ctor k (map (subst s) es))"
   hence "s unifies Var x and Ctor k es" by simp
@@ -312,13 +314,13 @@ lemma [simp]: "s unifies\<^sub>l list_subst x e ess = (extend_subst x e s unifie
 
 lemma [simp]: "subst Map.empty e = e"
   and [simp]: "map (subst Map.empty) es = es"
-  by (induction e and es rule: vars_varss.induct) simp_all
+  by (induction e and es rule: uvars_uvarss.induct) simp_all
 
-lemma [simp]: "x \<notin> vars e \<Longrightarrow> subst (s(x := y)) e = subst s e"
-  and [simp]: "x \<notin> varss es \<Longrightarrow> map (subst (s(x := y))) es = map (subst s) es"
-  by (induction e and es rule: vars_varss.induct) (simp_all split: option.splits)
+lemma [simp]: "x \<notin> uvars e \<Longrightarrow> subst (s(x := y)) e = subst s e"
+  and [simp]: "x \<notin> uvarss es \<Longrightarrow> map (subst (s(x := y))) es = map (subst s) es"
+  by (induction e and es rule: uvars_uvarss.induct) (simp_all split: option.splits)
 
-lemma [simp]: "x \<notin> vars e \<Longrightarrow> subst (extend_subst x e' s) e = subst s e"
+lemma [simp]: "x \<notin> uvars e \<Longrightarrow> subst (extend_subst x e' s) e = subst s e"
   by (simp_all add: extend_subst_def)
 
 lemma [simp]: "s x = None \<Longrightarrow> subst (s(x \<mapsto> Var x)) e = subst s e"
@@ -353,29 +355,29 @@ lemma subst_subst_var [dest, consumes 1, case_names Eq FstOnly SndOnly Both]:
       (\<And>z. s z = Some (Var y) \<Longrightarrow> t x = Some (Var z) \<Longrightarrow> P) \<Longrightarrow> P"
   by (auto split: option.splits)
 
-lemma [simp]: "s x = Some (subst s e) \<Longrightarrow> x \<notin> vars e \<Longrightarrow> extend_subst x e (s(x := None)) = s"
+lemma [simp]: "s x = Some (subst s e) \<Longrightarrow> x \<notin> uvars e \<Longrightarrow> extend_subst x e (s(x := None)) = s"
   by rule (simp add: extend_subst_def)
 
 lemma [simp]: "subst_vars (s(x := None)) \<subseteq> subst_vars s"
   by (auto simp add: subst_vars_def) (metis ranI ran_restrictD restrict_complement_singleton_eq)
 
-lemma [simp]: "subst_vars (s(x \<mapsto> e)) = (subst_vars (s(x := None)) \<union> vars e)"
+lemma [simp]: "subst_vars (s(x \<mapsto> e)) = (subst_vars (s(x := None)) \<union> uvars e)"
   by (auto simp add: subst_vars_def ran_def)
 
 lemma [simp]: "subst_vars (\<lambda>a. if a = x then Some e else s a) = 
-    (subst_vars (s(x := None)) \<union> vars e)"
+    (subst_vars (s(x := None)) \<union> uvars e)"
   by (auto simp add: subst_vars_def ran_def)
 
 lemma [simp]: "y \<in> subst_vars (s(x := None)) \<Longrightarrow> y \<in> subst_vars s"
   by (auto simp add: subst_vars_def ran_def split: if_splits)
 
-lemma [simp]: "y \<in> subst_vars (\<Gamma>(x := None)) = (\<exists>z e. z \<noteq> x \<and> \<Gamma> z = Some e \<and> y \<in> vars e)"
+lemma [simp]: "y \<in> subst_vars (\<Gamma>(x := None)) = (\<exists>z e. z \<noteq> x \<and> \<Gamma> z = Some e \<and> y \<in> uvars e)"
   by (auto simp add: subst_vars_def ran_def split: if_splits)
 
 lemma [simp]: "subst_vars s \<subseteq> as \<Longrightarrow> subst_vars (s(x := None)) \<subseteq> as"
   by (auto simp add: subst_vars_def ran_def)
 
-lemma [simp]: "subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> x \<notin> vs \<Longrightarrow> \<Gamma> z = Some e \<Longrightarrow> x \<in> vars e \<Longrightarrow> False"
+lemma [simp]: "subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> x \<notin> vs \<Longrightarrow> \<Gamma> z = Some e \<Longrightarrow> x \<in> uvars e \<Longrightarrow> False"
   by (auto simp add: subst_vars_def ran_def)
 
 lemma [simp]: "ordered_subst s \<Longrightarrow> ordered_subst (s(x := None))"
@@ -386,11 +388,11 @@ proof (unfold ordered_subst_def)
   thus "dom (s(x := None)) \<inter> subst_vars (s(x := None)) = {}" by auto
 qed 
 
-lemma dissect_subst [simp]: "s x = Some (subst s e) \<Longrightarrow> x \<notin> vars e \<Longrightarrow> s unifies\<^sub>l ess \<Longrightarrow> 
+lemma dissect_subst [simp]: "s x = Some (subst s e) \<Longrightarrow> x \<notin> uvars e \<Longrightarrow> s unifies\<^sub>l ess \<Longrightarrow> 
   ordered_subst s \<Longrightarrow> 
     \<exists>t. s = extend_subst x e t \<and> t unifies\<^sub>l list_subst x e ess \<and> ordered_subst t"
 proof (unfold extend_subst_def)
-  assume "s x = Some (subst s e)" and "x \<notin> vars e" and "s unifies\<^sub>l ess" and "ordered_subst s"
+  assume "s x = Some (subst s e)" and "x \<notin> uvars e" and "s unifies\<^sub>l ess" and "ordered_subst s"
   hence "s = (s(x := None))(x \<mapsto> subst (s(x := None)) e) \<and> 
     (s(x := None)) unifies\<^sub>l list_subst x e ess \<and> ordered_subst (s(x := None))" by auto
   thus "\<exists>t. s = t(x \<mapsto> subst t e) \<and> t unifies\<^sub>l list_subst x e ess  \<and> ordered_subst t" by blast
@@ -399,8 +401,8 @@ qed
 lemma [dest]: "x \<notin> subst_vars s \<Longrightarrow> s y = Some (Var x) \<Longrightarrow> False"
 proof (unfold subst_vars_def)
   assume "s y = Some (Var x)"
-  hence "x \<in> \<Union> (vars ` ran s)" using vars.simps ranI by force
-  moreover assume "x \<notin> \<Union> (vars ` ran s)" 
+  hence "x \<in> \<Union> (uvars ` ran s)" using uvars.simps ranI by force
+  moreover assume "x \<notin> \<Union> (uvars ` ran s)" 
   ultimately show "False" by simp
 qed
 
@@ -411,8 +413,7 @@ lemma [simp]: "s unifies\<^sub>l ess \<Longrightarrow> s x = None \<Longrightarr
 lemma [simp]: "ordered_subst t \<Longrightarrow> t x \<noteq> Some (Var x)"
 proof (rule, unfold ordered_subst_def)
   assume "t x = Some (Var x)"
-  hence "x \<in> dom t \<and> x \<in> subst_vars t"
-    using vars.simps(1) by fastforce
+  hence "x \<in> dom t \<and> x \<in> subst_vars t" using uvars.simps(1) by fastforce
   moreover assume "dom t \<inter> subst_vars t = {}" 
   ultimately show "False" by auto
 qed
@@ -431,7 +432,7 @@ qed
 
 lemma [simp]: "P e \<Longrightarrow> \<forall>x\<in>ran s. P x \<Longrightarrow> structural P \<Longrightarrow> P (subst s e)"
   and [simp]: "list_all P es \<Longrightarrow> \<forall>x\<in>ran s. P x \<Longrightarrow> structural P \<Longrightarrow> list_all P (map (subst s) es)"
-  by (induction e and es rule: vars_varss.induct) 
+  by (induction e and es rule: uvars_uvarss.induct) 
     (auto simp add: structural_def ran_def split: option.splits)
 
 lemma [simp]: "P e \<Longrightarrow> structural P \<Longrightarrow> list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) ess \<Longrightarrow> 
@@ -457,12 +458,12 @@ proof
     fix x
     assume "x \<in> subst_vars (combine_subst s t)"
     then obtain e y where E: "(case t y of None \<Rightarrow> s y | Some e' \<Rightarrow> Some (subst s e')) = Some e \<and> 
-      x \<in> vars e" by (auto simp add: subst_vars_def ran_def combine_subst_def)
+      x \<in> uvars e" by (auto simp add: subst_vars_def ran_def combine_subst_def)
     thus "x \<in> subst_vars s \<union> (subst_vars t - dom s)"
     proof (cases "t y")
       case (Some e')
-      with E have "x \<in> vars (subst s e')" by simp
-      hence "x \<in> vars e' - dom s \<union> subst_vars s" using vars_subst by blast
+      with E have "x \<in> uvars (subst s e')" by simp
+      hence "x \<in> uvars e' - dom s \<union> subst_vars s" using vars_subst by blast
       with Some show ?thesis by (auto simp add: subst_vars_def ran_def dom_def)
     qed (auto simp add: subst_vars_def ran_def)
   qed
@@ -471,19 +472,19 @@ proof
     fix x
     assume X: "x \<in> subst_vars s \<union> (subst_vars t - dom s)"
     thus "x \<in> subst_vars (combine_subst s t)" 
-    proof (cases "\<exists>e y. s y = Some e \<and> x \<in> vars e")
+    proof (cases "\<exists>e y. s y = Some e \<and> x \<in> uvars e")
       case True
-      then obtain e y where Y: "s y = Some e \<and> x \<in> vars e" by auto
+      then obtain e y where Y: "s y = Some e \<and> x \<in> uvars e" by auto
       with D have "t y = None" by simp
       with Y have "(case t y of None \<Rightarrow> s y | Some e' \<Rightarrow> Some (subst s e')) = Some e \<and> 
-        x \<in> vars e" by simp
+        x \<in> uvars e" by simp
       thus ?thesis by (auto simp add: subst_vars_def ran_def combine_subst_def)
     next
       case False
-      with X obtain e y where "t y = Some e \<and> x \<in> vars e \<and> s x = None" 
+      with X obtain e y where "t y = Some e \<and> x \<in> uvars e \<and> s x = None" 
         by (auto simp add: subst_vars_def ran_def dom_def)
       hence "(case t y of None \<Rightarrow> s y | Some e' \<Rightarrow> Some (subst s e')) = Some (subst s e) \<and> 
-        x \<in> vars (subst s e)" by simp
+        x \<in> uvars (subst s e)" by simp
       thus ?thesis by (auto simp add: subst_vars_def ran_def combine_subst_def)
     qed
   qed
@@ -548,7 +549,7 @@ qed
 lemma [elim]: "s unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> t extends s \<Longrightarrow> t unifies e\<^sub>1 and e\<^sub>2"
   by (auto simp add: subst_extends_def)
 
-lemma [simp]: "xs \<inter> subst_vars s = {} \<Longrightarrow> s x = Some e \<Longrightarrow> xs \<inter> vars e = {}"
+lemma [simp]: "xs \<inter> subst_vars s = {} \<Longrightarrow> s x = Some e \<Longrightarrow> xs \<inter> uvars e = {}"
   by (auto simp add: subst_vars_def ran_def)
 
 lemma [simp]: "dom s \<inter> dom t = {} \<Longrightarrow> dom t \<inter> subst_vars s = {} \<Longrightarrow> 
@@ -561,7 +562,7 @@ proof (induction e)
     thus ?thesis
     proof (cases "s x")
       case (Some e)
-      with Var have "dom t \<inter> vars e = {}" by simp
+      with Var have "dom t \<inter> uvars e = {}" by simp
       with N Some have "subst s (subst t (Var x)) = 
         subst (map_option (subst s) \<circ> t) (subst s (Var x))" by simp
       thus ?thesis by blast
@@ -583,12 +584,12 @@ lemma [simp]: "dom s \<inter> dom t = {} \<Longrightarrow> dom t \<inter> subst_
 lemma [simp]: "t unifies\<^sub>l ess \<Longrightarrow> combine_subst s t unifies\<^sub>l ess"
   by (induction t ess rule: list_unifier.induct) simp_all
 
-lemma [elim]: "x \<notin> vars (subst s e) \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow> x \<notin> dom s \<Longrightarrow> x \<notin> vars e"
-  and [elim]: "x \<notin> varss (map (subst s) es) \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow> x \<notin> dom s \<Longrightarrow> x \<notin> varss es"
-  by (induction e and es rule: vars_varss.induct) (auto split: option.splits)
+lemma [elim]: "x \<notin> uvars (subst s e) \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow> x \<notin> dom s \<Longrightarrow> x \<notin> uvars e"
+  and [elim]: "x \<notin> uvarss (map (subst s) es) \<Longrightarrow> x \<notin> subst_vars s \<Longrightarrow> x \<notin> dom s \<Longrightarrow> x \<notin> uvarss es"
+  by (induction e and es rule: uvars_uvarss.induct) (auto split: option.splits)
 
-lemma vars_subst_inv [elim]: "vars (subst s e) \<subseteq> vs \<Longrightarrow> vars e \<subseteq> vs \<union> dom s"
-  and [elim]: "varss (map (subst s) es) \<subseteq> vs \<Longrightarrow> varss es \<subseteq> vs \<union> dom s"
-  by (induction e and es rule: vars_varss.induct) (auto split: option.splits)
+lemma vars_subst_inv [elim]: "uvars (subst s e) \<subseteq> vs \<Longrightarrow> uvars e \<subseteq> vs \<union> dom s"
+  and [elim]: "uvarss (map (subst s) es) \<subseteq> vs \<Longrightarrow> uvarss es \<subseteq> vs \<union> dom s"
+  by (induction e and es rule: uvars_uvarss.induct) (auto split: option.splits)
 
 end

@@ -69,10 +69,10 @@ fun subst\<^sub>s :: "var \<Rightarrow> expr\<^sub>s \<Rightarrow> expr\<^sub>s 
     in Lam\<^sub>s z (subst\<^sub>s x e' (subst_var y z e)))"
 | "subst\<^sub>s x e' (App\<^sub>s e\<^sub>1 e\<^sub>2) = App\<^sub>s (subst\<^sub>s x e' e\<^sub>1) (subst\<^sub>s x e' e\<^sub>2)"
 
-text \<open>Now, we define big-step evaluation. It is represented by an inductive relation rather than an
-evaluation function because, of course, some source expressions do not have a normal form. However, 
-even once we prove termination for later stages, we will mostly use an inductive definition of 
-evaluation simply because it is easier to write and work with.\<close> 
+text \<open>Now, we define big-step applicative-order evaluation. It is represented by an inductive 
+relation rather than an evaluation function because, of course, some source expressions do not have 
+a normal form. However, even once we prove termination for later stages, we will mostly continue to 
+use an inductive definition of evaluation simply because it is easier to write and work with.\<close> 
 
 inductive eval\<^sub>s :: "expr\<^sub>s \<Rightarrow> expr\<^sub>s \<Rightarrow> bool" (infix "\<Down>" 50) where
   ev\<^sub>s_const [simp]: "Const\<^sub>s k \<Down> Const\<^sub>s k"

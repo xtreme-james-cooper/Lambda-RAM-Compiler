@@ -172,9 +172,15 @@ e : an expression
 x, y, z : a variable
 v : an expression in normal form (a value)
 t : a type
-\<Gamma> : a typing environment
+\<Gamma> : a typing context
 \<Sigma> : an evaluation state
+\<tau> : a unification term
+\<sigma> : a unification substitution
+\<kappa> : a system of unification constraints
 TODO add more as I come across them in the write-up
+
+(The pun on types t and unification terms \<tau> is deliberate, since the only things we ever unify are 
+types.)
 
 Where two names of the same sort but different stages of the compiler occur (as frequently happens 
 in the correctness proofs, for instance), we distinguish with subscripts:
@@ -207,8 +213,8 @@ subsection - Bibliography
   52, 7 (July 2009), 107-115. DOI: https://doi.org/10.1145/1538788.1538814
 
 [3] Institut National de Recherche en Informatique et en Automatique and AbsInt Angewandte 
-  Informatik GmbH. 2008. _The CompCert formally-verified C compiler_ (May 2003). Retrieved May 8, 
-  2003 from https://github.com/AbsInt/CompCert
+  Informatik GmbH. 2008. _The CompCert formally-verified C compiler_ (May 2023). Retrieved May 8, 
+  2023 from https://github.com/AbsInt/CompCert
 
 [4] Noam Nisan and Shimon Schocken. 2005. _The Elements of Computing Systems: Building a Modern 
   Computer from First Principles_ (1st ed). The MIT Press, Cambridge, MA.
@@ -232,3 +238,5 @@ Iteration
 AssocList
 
 Source Language
+
+UnifyExpr
