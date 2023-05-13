@@ -155,9 +155,9 @@ error, and no well-typed version of our source program can exist:
 
 alg_compile e = None \<Longrightarrow> \<nexists>e\<^sub>t t. (Map.empty \<turnstile> e : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t
 
-If compilation succeeds, then there is some value that our source program evaluates to, and the 
-compiled machine code will eventually evaluate to a final state, and the printed outputs of that 
-value and that machine state are identical:
+If compilation succeeds, then it has found a type for our program, and there is some value that our 
+source program evaluates to, and the compiled machine code will eventually evaluate to a final 
+state, and the printed outputs of that value and that machine state are identical:
 
 alg_compile e = Some (cd, t) \<Longrightarrow> 
   \<exists>v. valn v \<and> e \<Down> v \<and> 
@@ -170,7 +170,9 @@ naming system here to, hopefully, keep the profusion of names clear to the reade
 
 e : an expression
 x, y, z : a variable
-v : an expression in normal form (a value)
+n : a number
+b : an arithmetic operation
+v : an expression in normal form (i.e. a value)
 t : a type
 \<Gamma> : a typing context
 \<Sigma> : an evaluation state

@@ -124,7 +124,7 @@ directly. The range of a substitution, by contrast, is never really directly rel
 is important is the free variables of the range of a substitution:\<close>
 
 definition subst_vars :: "subst \<Rightarrow> var set" where
-  "subst_vars \<sigma> = \<Union> (uvars ` ran \<sigma>)"
+  "subst_vars \<sigma> \<equiv> \<Union> (uvars ` ran \<sigma>)"
 
 lemma vars_subst [simp]: "uvars (subst \<sigma> \<tau>) \<subseteq> uvars \<tau> - dom \<sigma> \<union> subst_vars \<sigma>"
   and "uvarss (map (subst \<sigma>) \<tau>s) \<subseteq> uvarss \<tau>s - dom \<sigma> \<union> subst_vars \<sigma>"

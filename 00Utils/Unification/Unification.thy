@@ -260,7 +260,7 @@ text \<open>We also define an unsatisfiable constraint. There are any number of 
 assert that \<open>a() =? b ()\<close>\<close>
 
 definition fail :: constraint where
-  "fail = [(Ctor ''a'' [], Ctor ''b'' [])]"
+  "fail \<equiv> [(Ctor ''a'' [], Ctor ''b'' [])]"
 
 lemma cannot_unify_fail [simp]: "unify fail = None"
   by (simp add: fail_def)

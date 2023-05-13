@@ -2,31 +2,31 @@ theory Compiler
   imports Printing "04Stack/StackConversion" "12UnstructuredMemory/Unstructuring" 
 begin
 
-abbreviation code_compile :: "texpr \<Rightarrow> mach list" where
+abbreviation code_compile :: "ty expr\<^sub>s \<Rightarrow> mach list" where
   "code_compile \<equiv> disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco \<circ> encode \<circ> convert"
 
-abbreviation compile :: "expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where 
+abbreviation compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where 
   "compile \<equiv> map_option (apfst code_compile) \<circ> typecheck"
 
-primrec quick_convert :: "var set \<Rightarrow> expr\<^sub>s \<Rightarrow> hexpr \<times> var set" where
-  "quick_convert vs (Var\<^sub>s x) = (HVar x, vs)"
-| "quick_convert vs (Const\<^sub>s k) = (hexpr.HConst k, vs)"
-| "quick_convert vs (Lam\<^sub>s x e) = (
+primrec quick_convert :: "var set \<Rightarrow> unit expr\<^sub>s \<Rightarrow> uterm expr\<^sub>s \<times> var set" where
+  "quick_convert vs (Var\<^sub>s x) = (Var\<^sub>s x, vs)"
+| "quick_convert vs (Const\<^sub>s k) = (Const\<^sub>s k, vs)"
+| "quick_convert vs (Lam\<^sub>s x t e) = (
     let v = fresh vs
     in let (e', vs') = quick_convert (insert v vs) e
-    in (hexpr.HLam x (Var v) e', vs'))"
+    in (Lam\<^sub>s x (Var v) e', vs'))"
 | "quick_convert vs (App\<^sub>s e\<^sub>1 e\<^sub>2) = (
     let v = fresh vs
     in let (e\<^sub>1', vs') = quick_convert (insert v vs) e\<^sub>1 
     in let (e\<^sub>2', vs'') = quick_convert vs' e\<^sub>2 
-    in (HApp e\<^sub>1' e\<^sub>2', vs''))"
+    in (App\<^sub>s e\<^sub>1' e\<^sub>2', vs''))"
 
-primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> expr\<^sub>s \<Rightarrow> uterm \<times> var set \<times> constraint" where
+primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> unit expr\<^sub>s \<Rightarrow> uterm \<times> var set \<times> constraint" where
   "collect_constraints \<Gamma> vs (Var\<^sub>s x) = (case \<Gamma> x of 
       Some t \<Rightarrow> (t, vs, []) 
     | None \<Rightarrow> (Ctor ''Num'' [], vs, fail))"
 | "collect_constraints \<Gamma> vs (Const\<^sub>s k) = (Ctor ''Num'' [], vs, [])"
-| "collect_constraints \<Gamma> vs (Lam\<^sub>s x e) = (
+| "collect_constraints \<Gamma> vs (Lam\<^sub>s x u e) = (
     let v = fresh vs
     in let (t, vs', con) = collect_constraints (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e
     in (Ctor ''Arrow'' [Var v, t], vs', con))"
@@ -46,10 +46,10 @@ primrec tree_code_size :: "tree_code \<Rightarrow> nat"
 | "tree_code_size_list (op # cd) = 
       Suc (if op = TApply \<and> cd = [] then 0 else tree_code_size op + tree_code_size_list cd)"
 
-primrec alg_compile1 :: "var list \<Rightarrow> expr\<^sub>s \<Rightarrow> tree_code list \<Rightarrow> tree_code list" where
+primrec alg_compile1 :: "var list \<Rightarrow> unit expr\<^sub>s \<Rightarrow> tree_code list \<Rightarrow> tree_code list" where
   "alg_compile1 \<Phi> (Var\<^sub>s x) acc = TLookup (the (idx_of \<Phi> x)) # acc"
 | "alg_compile1 \<Phi> (Const\<^sub>s k) acc = TPushCon k # acc"
-| "alg_compile1 \<Phi> (Lam\<^sub>s x e) acc = TPushLam (alg_compile1 (insert_at 0 x \<Phi>) e []) # acc"
+| "alg_compile1 \<Phi> (Lam\<^sub>s x u e) acc = TPushLam (alg_compile1 (insert_at 0 x \<Phi>) e []) # acc"
 | "alg_compile1 \<Phi> (App\<^sub>s e\<^sub>1 e\<^sub>2) acc = alg_compile1 \<Phi> e\<^sub>1 (alg_compile1 \<Phi> e\<^sub>2 (TApply # acc))"
 
 function alg_compile2 :: "nat \<Rightarrow> tree_code list \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
@@ -107,7 +107,7 @@ fun alg_assemble :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code list \<Righ
 definition alg_compile3 :: "byte_code list \<Rightarrow> mach list" where
   "alg_compile3 cd = alg_assemble (assembly_mapb cd) cd"
 
-definition alg_compile :: "expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where
+definition alg_compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where
   "alg_compile e = (
     let (t, vs, con) = collect_constraints Map.empty {} e
     in case unify con of

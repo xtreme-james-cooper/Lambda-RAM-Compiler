@@ -7,17 +7,11 @@ begin
 
 datatype print = Number nat | Fun
 
-primrec print_nexpr :: "expr\<^sub>s \<Rightarrow> print" where
+primrec print_nexpr :: "'a expr\<^sub>s \<Rightarrow> print" where
   "print_nexpr (Var\<^sub>s x) = undefined"
 | "print_nexpr (Const\<^sub>s k) = Number k"
-| "print_nexpr (Lam\<^sub>s x e) = Fun"
+| "print_nexpr (Lam\<^sub>s x t e) = Fun"
 | "print_nexpr (App\<^sub>s e\<^sub>1 e\<^sub>2) = undefined"
-
-primrec print_texpr :: "texpr \<Rightarrow> print" where
-  "print_texpr (texpr.TVar x) = undefined"
-| "print_texpr (texpr.TConst k) = Number k"
-| "print_texpr (texpr.TLam x t e) = Fun"
-| "print_texpr (texpr.TApp e\<^sub>1 e\<^sub>2) = undefined"
 
 primrec print_dexpr :: "dexpr \<Rightarrow> print" where
   "print_dexpr (DVar x) = undefined"
@@ -62,10 +56,10 @@ fun print_mval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print
 primrec print_mach_state :: "mach_state \<Rightarrow> print" where
   "print_mach_state (MS rs mem pc) = print_mval mem (mem 2)"
 
-lemma [simp]: "valt e \<Longrightarrow> print_texpr e = print_nexpr (erase e)" 
+lemma [simp]: "value\<^sub>s e \<Longrightarrow> print_nexpr (erase e) = print_nexpr e" 
   by (induction e) (simp_all add: convert_def)
 
-lemma [simp]: "valt e \<Longrightarrow> print_dexpr (convert e) = print_texpr e" 
+lemma [simp]: "value\<^sub>s e \<Longrightarrow> print_dexpr (convert e) = print_nexpr e" 
   by (induction e) (simp_all add: convert_def)
 
 lemma print_eqiv_declosure [simp]: "print_closure c = print_dexpr (declosure c)" 

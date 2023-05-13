@@ -20,15 +20,15 @@ proof -
 qed
 
 theorem tc_success: "alg_compile e = Some (cd, t) \<Longrightarrow> 
-  \<exists>v. value v \<and> e \<Down> v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
+  \<exists>v. value\<^sub>s v \<and> e \<Down> v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
     print_mach_state \<Sigma> = print_nexpr v)"
 proof -
   assume C: "alg_compile e = Some (cd, t)"
   then obtain e\<^sub>t where T: "typecheck e = Some (e\<^sub>t, t)" by (auto split: option.splits prod.splits)
   hence TN: "(Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> e = erase e\<^sub>t" by simp
-  then obtain v\<^sub>t where ET: "e\<^sub>t \<Down>\<^sub>t v\<^sub>t" by fastforce
-  hence VT: "valt v\<^sub>t" by simp
-  hence VN: "value (erase v\<^sub>t)" by simp
+  then obtain v\<^sub>t where ET: "e\<^sub>t \<Down> v\<^sub>t" by fastforce
+  hence VT: "value\<^sub>s v\<^sub>t" by simp
+  hence VN: "value\<^sub>s (erase v\<^sub>t)" by simp
   from ET have EN: "erase e\<^sub>t \<Down> erase v\<^sub>t" by simp
   from TN have TD: "[] \<turnstile>\<^sub>d convert e\<^sub>t : t" by simp
   from ET TN have ED: "convert e\<^sub>t \<Down>\<^sub>d convert v\<^sub>t" by fastforce
