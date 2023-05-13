@@ -23,10 +23,10 @@ decreases in the third recursive call.\<close>
 
 function unify :: "constraint \<rightharpoonup> subst" where
   "unify [] = Some Map.empty"
-| "unify ((Ctor g\<^sub>1 \<tau>s\<^sub>1, Ctor g\<^sub>2 \<tau>s\<^sub>2) # \<kappa>) = (
-    if g\<^sub>1 = g\<^sub>2 \<and> length \<tau>s\<^sub>1 = length \<tau>s\<^sub>2 then unify (zip \<tau>s\<^sub>1 \<tau>s\<^sub>2 @ \<kappa>)
+| "unify ((Ctor \<gamma>\<^sub>1 \<tau>s\<^sub>1, Ctor \<gamma>\<^sub>2 \<tau>s\<^sub>2) # \<kappa>) = (
+    if \<gamma>\<^sub>1 = \<gamma>\<^sub>2 \<and> length \<tau>s\<^sub>1 = length \<tau>s\<^sub>2 then unify (zip \<tau>s\<^sub>1 \<tau>s\<^sub>2 @ \<kappa>)
     else None)"
-| "unify ((Ctor g \<tau>s, Var x) # \<kappa>) = unify ((Var x, Ctor g \<tau>s) # \<kappa>)"
+| "unify ((Ctor \<gamma> \<tau>s, Var x) # \<kappa>) = unify ((Var x, Ctor \<gamma> \<tau>s) # \<kappa>)"
 | "unify ((Var x, \<tau>) # \<kappa>) = (
     if \<tau> = Var x then unify \<kappa>
     else if x \<notin> uvars \<tau> then map_option (extend_subst x \<tau>) (unify (constr_subst x \<tau> \<kappa>))
@@ -41,11 +41,11 @@ algorithm, to ease proving its properties.\<close>
 
 lemma unify_induct [case_names Nil CtorCtorYes CtorCtorNo CtorVar VarSame Occurs VarNo VarYes]: "
   P [] \<Longrightarrow>
-  (\<And>g \<tau>s\<^sub>1 \<tau>s\<^sub>2 \<kappa>. length \<tau>s\<^sub>1 = length \<tau>s\<^sub>2 \<Longrightarrow> P (zip \<tau>s\<^sub>1 \<tau>s\<^sub>2 @ \<kappa>) \<Longrightarrow> 
-    P ((Ctor g \<tau>s\<^sub>1, Ctor g \<tau>s\<^sub>2) # \<kappa>)) \<Longrightarrow>
-  (\<And>g\<^sub>1 g\<^sub>2 \<tau>s\<^sub>1 \<tau>s\<^sub>2 \<kappa>. g\<^sub>1 \<noteq> g\<^sub>2 \<or> length \<tau>s\<^sub>1 \<noteq> length \<tau>s\<^sub>2 \<Longrightarrow> 
-    P ((Ctor g\<^sub>1 \<tau>s\<^sub>1, Ctor g\<^sub>2 \<tau>s\<^sub>2) # \<kappa>)) \<Longrightarrow>
-  (\<And>x \<tau>s g \<kappa>. P ((Var x, Ctor g \<tau>s) # \<kappa>) \<Longrightarrow> P ((Ctor g \<tau>s, Var x) # \<kappa>)) \<Longrightarrow>
+  (\<And>\<gamma> \<tau>s\<^sub>1 \<tau>s\<^sub>2 \<kappa>. length \<tau>s\<^sub>1 = length \<tau>s\<^sub>2 \<Longrightarrow> P (zip \<tau>s\<^sub>1 \<tau>s\<^sub>2 @ \<kappa>) \<Longrightarrow> 
+    P ((Ctor \<gamma> \<tau>s\<^sub>1, Ctor \<gamma> \<tau>s\<^sub>2) # \<kappa>)) \<Longrightarrow>
+  (\<And>\<gamma>\<^sub>1 \<gamma>\<^sub>2 \<tau>s\<^sub>1 \<tau>s\<^sub>2 \<kappa>. \<gamma>\<^sub>1 \<noteq> \<gamma>\<^sub>2 \<or> length \<tau>s\<^sub>1 \<noteq> length \<tau>s\<^sub>2 \<Longrightarrow> 
+    P ((Ctor \<gamma>\<^sub>1 \<tau>s\<^sub>1, Ctor \<gamma>\<^sub>2 \<tau>s\<^sub>2) # \<kappa>)) \<Longrightarrow>
+  (\<And>x \<tau>s \<gamma> \<kappa>. P ((Var x, Ctor \<gamma> \<tau>s) # \<kappa>) \<Longrightarrow> P ((Ctor \<gamma> \<tau>s, Var x) # \<kappa>)) \<Longrightarrow>
   (\<And>x \<kappa>. P \<kappa> \<Longrightarrow> P ((Var x, Var x) # \<kappa>)) \<Longrightarrow>
   (\<And>x \<tau> \<kappa>. \<tau> \<noteq> Var x \<Longrightarrow> x \<in> uvars \<tau> \<Longrightarrow> P ((Var x, \<tau>) # \<kappa>)) \<Longrightarrow>
   (\<And>x \<tau> \<kappa>. \<tau> \<noteq> Var x \<Longrightarrow> x \<notin> uvars \<tau> \<Longrightarrow> P (constr_subst x \<tau> \<kappa>) \<Longrightarrow> 
@@ -54,8 +54,8 @@ lemma unify_induct [case_names Nil CtorCtorYes CtorCtorNo CtorVar VarSame Occurs
     unify (constr_subst x \<tau> \<kappa>) = Some \<sigma> \<Longrightarrow> P ((Var x, \<tau>) # \<kappa>)) \<Longrightarrow> 
   P \<kappa>"
 proof (induction \<kappa> rule: unify.induct)
-  case (2 g\<^sub>1 \<tau>s\<^sub>1 g\<^sub>2 \<tau>s\<^sub>2 \<kappa>)
-  thus ?case by (cases "g\<^sub>1 = g\<^sub>2 \<and> length \<tau>s\<^sub>1 = length \<tau>s\<^sub>2") simp_all
+  case (2 \<gamma>\<^sub>1 \<tau>s\<^sub>1 \<gamma>\<^sub>2 \<tau>s\<^sub>2 \<kappa>)
+  thus ?case by (cases "\<gamma>\<^sub>1 = \<gamma>\<^sub>2 \<and> length \<tau>s\<^sub>1 = length \<tau>s\<^sub>2") simp_all
 next
   case (4 x \<tau> \<kappa>)
   thus ?case 

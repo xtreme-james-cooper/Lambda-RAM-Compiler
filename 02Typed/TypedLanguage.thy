@@ -8,12 +8,6 @@ text \<open>Our typed language is almost identical to the untyped source, except
 type-annotation on every lambda-abstraction. This small change, of course, produces a great 
 difference in properties, and will take quite a lot of work to establish in the typechecking pass.\<close>
 
-primrec tvarst :: "ty expr\<^sub>s \<Rightarrow> var set" where
-  "tvarst (Var\<^sub>s x) = {}"
-| "tvarst (Const\<^sub>s k) = {}"
-| "tvarst (Lam\<^sub>s x t e) = tvars t \<union> tvarst e"
-| "tvarst (App\<^sub>s e\<^sub>1 e\<^sub>2) = tvarst e\<^sub>1 \<union> tvarst e\<^sub>2"
-
 inductive typecheckn :: "(var \<rightharpoonup> ty) \<Rightarrow> ty expr\<^sub>s \<Rightarrow> ty \<Rightarrow> bool" (infix "\<turnstile>\<^sub>n _ :" 50) where
   tcn_var [simp]: "\<Gamma> x = Some t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>n Var\<^sub>s x : t"
 | tcn_const [simp]: "\<Gamma> \<turnstile>\<^sub>n Const\<^sub>s k : Num"
@@ -30,21 +24,6 @@ lemma free_vars_tc [simp]: "\<Gamma> \<turnstile>\<^sub>n e : t \<Longrightarrow
 
 lemma [simp]: "Map.empty \<turnstile>\<^sub>n e : t \<Longrightarrow> free_vars\<^sub>s e = {}"
   using free_vars_tc by fastforce
-
-lemma [simp]: "\<Gamma> \<turnstile>\<^sub>n e : t \<Longrightarrow> v \<notin> \<Union> (tvars ` ran \<Gamma>) \<Longrightarrow> v \<notin> tvarst e \<Longrightarrow> v \<notin> tvars t"
-proof (induction \<Gamma> e t rule: typecheckn.induct)
-  case (tcn_lam \<Gamma> x t\<^sub>1 e t\<^sub>2)
-  hence "v \<notin> \<Union> (tvars ` ran (\<Gamma>(x \<mapsto> t\<^sub>1)))" by (auto simp add: ran_def)
-  with tcn_lam show ?case by fastforce
-qed (auto simp add: ran_def)
-
-lemma tcn_tvars [simp]: "\<Gamma> \<turnstile>\<^sub>n e : t \<Longrightarrow> tvars t \<subseteq> tvarst e \<union> \<Union> (tvars ` ran \<Gamma>)"
-proof (induction \<Gamma> e t rule: typecheckn.induct)
-  case (tcn_lam \<Gamma> x t\<^sub>1 e t\<^sub>2)
-  moreover have "\<Union> (tvars ` ran (\<Gamma>(x \<mapsto> t\<^sub>1))) \<subseteq> tvars t\<^sub>1 \<union> \<Union> (tvars ` ran \<Gamma>)" 
-    by (auto simp add: ran_def)
-  ultimately show ?case by (auto simp add: ran_def)
-qed (auto simp add: ran_def)
 
 lemma canonical_base\<^sub>s [dest]: "\<Gamma> \<turnstile>\<^sub>n e : Num \<Longrightarrow> value\<^sub>s e \<Longrightarrow> \<exists>k. e = Const\<^sub>s k"
   by (induction \<Gamma> e Num rule: typecheckn.induct) simp_all

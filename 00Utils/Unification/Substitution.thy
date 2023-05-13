@@ -13,7 +13,7 @@ text \<open>Applying a substitution to a term is simply applying the map at each
 
 fun subst :: "subst \<Rightarrow> uterm \<Rightarrow> uterm" where
   "subst \<sigma> (Var x) = (case \<sigma> x of Some \<tau> \<Rightarrow> \<tau> | None \<Rightarrow> Var x)"
-| "subst \<sigma> (Ctor g \<tau>s) = Ctor g (map (subst \<sigma>) \<tau>s)"
+| "subst \<sigma> (Ctor \<gamma> \<tau>s) = Ctor \<gamma> (map (subst \<sigma>) \<tau>s)"
 
 lemma subst_not_in_dom [simp]: "dom \<sigma> \<inter> uvars \<tau> = {} \<Longrightarrow> subst \<sigma> \<tau> = \<tau>"
   and [simp]: "dom \<sigma> \<inter> uvarss \<tau>s = {} \<Longrightarrow> map (subst \<sigma>) \<tau>s = \<tau>s"
@@ -76,6 +76,10 @@ lemma subst_upd_same_var [simp]: "\<sigma> x = None \<Longrightarrow> subst (\<s
 
 lemma subst_to_var [dest]: "subst \<sigma> \<tau> = Var x \<Longrightarrow> 
     (\<tau> = Var x \<and> \<sigma> x = None) \<or> (\<exists>y. \<tau> = Var y \<and> \<sigma> y = Some (Var x))"
+  by (induction \<tau>) (auto split: option.splits)
+
+lemma subst_to_ctor [dest]: "subst \<sigma> \<tau> = Ctor \<gamma> \<tau>s \<Longrightarrow> 
+    (\<exists>x. \<tau> = Var x \<and> \<sigma> x = Some (Ctor \<gamma> \<tau>s)) \<or> (\<exists>\<tau>s'. \<tau> = Ctor \<gamma> \<tau>s' \<and> map (subst \<sigma>) \<tau>s' = \<tau>s)"
   by (induction \<tau>) (auto split: option.splits)
 
 lemma subst_subst_var [consumes 1, case_names Eq FstOnly SndOnly Both]: 
@@ -506,9 +510,9 @@ lemma occurs_check2' [simp]: "x \<in> uvars \<tau> \<Longrightarrow> \<tau> \<no
     size (subst \<sigma> \<tau>') < size (subst \<sigma> (subst [x \<mapsto> \<tau>'] \<tau>))"
   and [simp]: "x \<in> uvarss \<tau>s \<Longrightarrow> size (subst \<sigma> \<tau>') < size_list (size \<circ> subst \<sigma> \<circ> subst [x \<mapsto> \<tau>']) \<tau>s"
 proof (induction \<tau> and \<tau>s rule: uvars_uvarss.induct)
-  case (2 g \<tau>s)
+  case (2 \<gamma> \<tau>s)
   hence "size (subst \<sigma> \<tau>') < size_list (size \<circ> subst \<sigma> \<circ> subst [x \<mapsto> \<tau>']) \<tau>s" by fastforce
-  hence "size (subst \<sigma> \<tau>') < size (subst \<sigma> (subst [x \<mapsto> \<tau>'] (Ctor g \<tau>s)))" 
+  hence "size (subst \<sigma> \<tau>') < size (subst \<sigma> (subst [x \<mapsto> \<tau>'] (Ctor \<gamma> \<tau>s)))" 
     by (simp add: fun.map_comp)
   thus ?case by blast
 next

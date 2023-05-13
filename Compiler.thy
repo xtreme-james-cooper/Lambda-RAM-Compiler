@@ -113,12 +113,12 @@ definition alg_compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times
     in case unify con of
         None \<Rightarrow> None
       | Some s \<Rightarrow> 
-          Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e []) []), tsubsts s (typeify t)))"
+          Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e []) []), typeify (subst s t)))"
 
-lemma [simp]: "encode (convert' \<Phi> (tsubstt sub e)) = encode (convert' \<Phi> e)"
+lemma [simp]: "encode (convert' \<Phi> (solidify (hsubst sub e))) = encode (convert' \<Phi> (solidify e))"
   by (induction e arbitrary: \<Phi>) simp_all
 
-lemma [simp]: "encode \<circ> convert \<circ> tsubstt sub = encode \<circ> convert"
+lemma [simp]: "encode \<circ> convert \<circ> solidify \<circ> hsubst sub = encode \<circ> convert \<circ> solidify"
   by (auto simp add: convert_def)
 
 lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> quick_convert vs e = (e', vs')"

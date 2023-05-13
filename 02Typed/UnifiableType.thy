@@ -6,82 +6,50 @@ definition env_subst :: "subst \<Rightarrow> subst \<Rightarrow> subst" where
   "env_subst sub \<Gamma> = map_option (subst sub) \<circ> \<Gamma>"
 
 fun typeify :: "uterm \<Rightarrow> ty" where
-  "typeify (Var v) = TyVar v"
-| "typeify (Ctor k []) = (if k = ''Num'' then Num else undefined)"
-| "typeify (Ctor k [t\<^sub>1, t\<^sub>2]) = 
-    (if k = ''Arrow'' then Arrow (typeify t\<^sub>1) (typeify t\<^sub>2) else undefined)"
-| "typeify (Ctor k ts) = undefined"
+  "typeify (Var v) = Num"
+| "typeify (Ctor \<gamma> []) = (if \<gamma> = ''Num'' then Num else undefined)"
+| "typeify (Ctor \<gamma> [\<tau>\<^sub>1, \<tau>\<^sub>2]) = 
+    (if \<gamma> = ''Arrow'' then Arrow (typeify \<tau>\<^sub>1) (typeify \<tau>\<^sub>2) else undefined)"
+| "typeify (Ctor \<gamma> \<tau>s) = undefined"
 
 primrec untypeify :: "ty \<Rightarrow> uterm" where
-  "untypeify (TyVar v) = Var v"
-| "untypeify Num = Ctor ''Num'' []"
+  "untypeify Num = Ctor ''Num'' []"
 | "untypeify (Arrow t\<^sub>1 t\<^sub>2) = Ctor ''Arrow'' [untypeify t\<^sub>1, untypeify t\<^sub>2]"
 
-fun tsubsts :: "subst \<Rightarrow> ty \<Rightarrow> ty" where
-  "tsubsts sub (TyVar y) = (case sub y of Some t \<Rightarrow> typeify t | None \<Rightarrow> TyVar y)"
-| "tsubsts sub Num = Num"
-| "tsubsts sub (Arrow t\<^sub>1 t\<^sub>2) = Arrow (tsubsts sub t\<^sub>1) (tsubsts sub t\<^sub>2)"
-
 fun valid_ty_uexpr' :: "string \<Rightarrow> nat \<Rightarrow> bool" where
-  "valid_ty_uexpr' k 0 = (k = ''Num'')"
-| "valid_ty_uexpr' k (Suc 0) = False"
-| "valid_ty_uexpr' k (Suc (Suc 0)) = (k = ''Arrow'')"
-| "valid_ty_uexpr' k (Suc (Suc (Suc x))) = False"
+  "valid_ty_uexpr' \<gamma> 0 = (\<gamma> = ''Num'')"
+| "valid_ty_uexpr' \<gamma> (Suc 0) = False"
+| "valid_ty_uexpr' \<gamma> (Suc (Suc 0)) = (\<gamma> = ''Arrow'')"
+| "valid_ty_uexpr' \<gamma> (Suc (Suc (Suc x))) = False"
 
 primrec valid_ty_uexpr :: "uterm \<Rightarrow> bool" where
   "valid_ty_uexpr (Var v) = True"
-| "valid_ty_uexpr (Ctor k ts) = (valid_ty_uexpr' k (length ts) \<and> list_all valid_ty_uexpr ts)"
+| "valid_ty_uexpr (Ctor \<gamma> \<tau>s) = (valid_ty_uexpr' \<gamma> (length \<tau>s) \<and> list_all valid_ty_uexpr \<tau>s)"
 
 definition valid_ty_uexprs :: "constraint \<Rightarrow> bool" where
-  "valid_ty_uexprs ts = list_all (\<lambda>(t\<^sub>1, t\<^sub>2). valid_ty_uexpr t\<^sub>1 \<and> valid_ty_uexpr t\<^sub>2) ts"
+  "valid_ty_uexprs \<tau>s = list_all (\<lambda>(\<tau>\<^sub>1, \<tau>\<^sub>2). valid_ty_uexpr \<tau>\<^sub>1 \<and> valid_ty_uexpr \<tau>\<^sub>2) \<tau>s"
  
 definition valid_ty_subst :: "subst \<Rightarrow> bool" where
-  "valid_ty_subst \<Gamma> = (\<forall>t \<in> ran \<Gamma>. valid_ty_uexpr t)"
+  "valid_ty_subst \<Gamma> = (\<forall>\<tau> \<in> ran \<Gamma>. valid_ty_uexpr \<tau>)"
 
 lemma [simp]: "typeify (untypeify t) = t"
   by (induction t) simp_all
 
-lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> untypeify (typeify t) = t"
+lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> uvars t = {} \<Longrightarrow> untypeify (typeify t) = t"
   by (induction t rule: typeify.induct) simp_all
 
-lemma [dest]: "typeify e = Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> valid_ty_uexpr e \<Longrightarrow> 
+lemma [dest]: "typeify e = Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> valid_ty_uexpr e \<Longrightarrow> uvars e = {} \<Longrightarrow> 
     e = Ctor ''Arrow'' [untypeify t\<^sub>1, untypeify t\<^sub>2]"
   by (induction e rule: typeify.induct) auto
 
-lemma [simp]: "uvars (untypeify t) = tvars t"
+lemma [simp]: "uvars (untypeify t) = {}"
   by (induction t) simp_all
 
 lemma [simp]: "valid_ty_uexpr (untypeify t)"
   by (induction t) simp_all
 
-lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> tvars (typeify t) = uvars t"
-  by (induction t rule: typeify.induct) simp_all
-
-lemma [simp]: "tsubsts Map.empty e = e"
-  by (induction e) simp_all
-
-lemma [simp]: "dom s \<inter> tvars t = {} \<Longrightarrow> tsubsts s t = t"
-  by (induction t) (auto split: option.splits)
-
-lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> typeify (subst sub t) = tsubsts sub (typeify t)"
-  by (induction t rule: typeify.induct) (simp_all split: option.splits)
-
-lemma [simp]: "valid_ty_subst sub \<Longrightarrow> untypeify (tsubsts sub t) = subst sub (untypeify t)"
-  by (induction t) (auto simp add: valid_ty_subst_def ran_def split: option.splits)
-
 lemma valid_empty [simp]: "valid_ty_subst Map.empty"
   by (simp add: valid_ty_subst_def)
-
-lemma [simp]: "valid_ty_uexpr e \<Longrightarrow> typeify (subst sub e) = tsubsts sub (typeify e)"
-  by (induction e rule: typeify.induct) (auto split: option.splits)
-
-lemma [simp]: "valid_ty_subst \<Gamma> \<Longrightarrow> 
-    map_option (typeify \<circ> subst sub) (\<Gamma> x) = map_option (tsubsts sub \<circ> typeify) (\<Gamma> x)"
-  by (cases "\<Gamma> x") (auto simp add: valid_ty_subst_def ran_def)
-
-lemma [simp]: "valid_ty_subst \<Gamma> \<Longrightarrow> 
-    map_option (typeify \<circ> subst sub) \<circ> \<Gamma> = map_option (tsubsts sub \<circ> typeify) \<circ> \<Gamma>"
-  by auto
 
 lemma [simp]: "valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_uexpr t \<Longrightarrow> valid_ty_subst (\<Gamma>(x \<mapsto> t))"
   by (auto simp add: valid_ty_subst_def ran_def)
@@ -119,22 +87,6 @@ lemma [simp]: "valid_ty_subst s \<Longrightarrow> valid_ty_uexpr e \<Longrightar
 
 lemma [elim]: "valid_ty_subst \<Gamma> \<Longrightarrow> \<Gamma> x = Some t \<Longrightarrow> valid_ty_uexpr t"
   by (auto simp add: valid_ty_subst_def ran_def)
-
-lemma [simp]: "valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_subst sub\<^sub>2 \<Longrightarrow> 
-  map_option (typeify \<circ> subst sub\<^sub>1 \<circ> subst sub\<^sub>2) (\<Gamma> x) = 
-    map_option (tsubsts sub\<^sub>1 \<circ> tsubsts sub\<^sub>2 \<circ> typeify) (\<Gamma> x)"
-proof (cases "\<Gamma> x")
-  case (Some e)
-  moreover assume "valid_ty_subst \<Gamma>"
-  ultimately have E: "valid_ty_uexpr e" by auto
-  assume "valid_ty_subst sub\<^sub>2"
-  with Some E show ?thesis by simp
-qed simp_all
-
-lemma [simp]: "valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_subst sub\<^sub>2 \<Longrightarrow> 
-  map_option (typeify \<circ> subst sub\<^sub>1 \<circ> subst sub\<^sub>2) \<circ> \<Gamma> = 
-    map_option (tsubsts sub\<^sub>1 \<circ> tsubsts sub\<^sub>2 \<circ> typeify) \<circ> \<Gamma>"
-  by auto
 
 lemma [elim]: "valid_ty_uexprs ts \<Longrightarrow> unify ts = Some sub \<Longrightarrow> valid_ty_subst sub"                                  
 proof (induction ts arbitrary: sub rule: unify.induct)
@@ -181,8 +133,8 @@ proof (unfold valid_ty_subst_def combine_subst_def ran_def, rule)
   qed auto
 qed
 
-lemma [simp]: "subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> t \<in> ran (map_option typeify \<circ> \<Gamma>) \<Longrightarrow> 
-    finite vs \<Longrightarrow> fresh vs \<notin> tvars t"
-  by (unfold subst_vars_def valid_ty_subst_def ran_def) fastforce
+lemma [dest]: "typeify \<tau> = Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> valid_ty_uexpr \<tau> \<Longrightarrow>
+    \<exists>\<tau>\<^sub>1 \<tau>\<^sub>2. \<tau> = Ctor ''Arrow'' [\<tau>\<^sub>1, \<tau>\<^sub>2] \<and> typeify \<tau>\<^sub>1 = t\<^sub>1 \<and> typeify \<tau>\<^sub>2 = t\<^sub>2"
+  by (induction \<tau> rule: typeify.induct) simp_all
 
 end

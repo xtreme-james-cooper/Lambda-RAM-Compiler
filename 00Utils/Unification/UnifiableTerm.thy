@@ -26,7 +26,7 @@ datatype uterm =
 fun uvars :: "uterm \<Rightarrow> var set" 
 and uvarss :: "uterm list \<Rightarrow> var set" where
   "uvars (Var x) = {x}"
-| "uvars (Ctor g \<tau>s) = uvarss \<tau>s"
+| "uvars (Ctor \<gamma> \<tau>s) = uvarss \<tau>s"
 | "uvarss [] = {}"
 | "uvarss (\<tau> # \<tau>s) = uvars \<tau> \<union> uvarss \<tau>s"
 
@@ -40,7 +40,7 @@ constructors or variables exist inside of which. We will use this to show that t
 of terms representing types is preserved through substitution.\<close>
 
 definition structural :: "(uterm \<Rightarrow> bool) \<Rightarrow> bool" where
-  "structural P \<equiv> (\<exists>f. \<forall>g es. P (Ctor g es) = (list_all P es \<and> f g (length es)))"
+  "structural P \<equiv> (\<exists>f. \<forall>\<gamma> \<tau>s. P (Ctor \<gamma> \<tau>s) = (list_all P \<tau>s \<and> f \<gamma> (length \<tau>s)))"
 
 text \<open>We also define constraints, pairs of terms which must be unified with each other. Functions on 
 terms extend to constraints in an obvious way.\<close>
@@ -69,7 +69,7 @@ algorithm, hence its slightly odd definition ignoring the right-hand sides of co
 
 primrec ctor_count :: "uterm \<Rightarrow> nat" where
   "ctor_count (Var x) = 0"
-| "ctor_count (Ctor g \<tau>s) = Suc (sum_list (map ctor_count \<tau>s))"
+| "ctor_count (Ctor \<gamma> \<tau>s) = Suc (sum_list (map ctor_count \<tau>s))"
 
 fun constr_ctor_count :: "constraint \<Rightarrow> nat" where
   "constr_ctor_count [] = 0"
