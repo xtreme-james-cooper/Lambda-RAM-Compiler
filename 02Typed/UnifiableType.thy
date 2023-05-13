@@ -105,8 +105,8 @@ proof (induction e and es rule: uvars_uvarss.induct)
   qed simp_all
 qed simp_all
 
-lemma [simp]: "valid_ty_uexpr e \<Longrightarrow> valid_ty_uexprs ess \<Longrightarrow> valid_ty_uexprs (list_subst x e ess)"
-  by (induction ess rule: list_subst.induct) (auto simp add: valid_ty_uexprs_def)
+lemma [simp]: "valid_ty_uexpr e \<Longrightarrow> valid_ty_uexprs ess \<Longrightarrow> valid_ty_uexprs (constr_subst x e ess)"
+  by (induction ess rule: constr_subst.induct) (auto simp add: valid_ty_uexprs_def)
 
 lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> valid_ty_subst sub \<Longrightarrow> valid_ty_uexpr (subst sub t)"
   and [simp]: "list_all valid_ty_uexpr ts \<Longrightarrow> valid_ty_subst sub \<Longrightarrow> 
@@ -150,10 +150,10 @@ next
     with 4 show ?thesis 
     proof (cases "x \<in> uvars e")
       case False
-      with 4 F obtain sub' where S: "unify (list_subst x e ess) = Some sub' \<and> 
+      with 4 F obtain sub' where S: "unify (constr_subst x e ess) = Some sub' \<and> 
         sub = extend_subst x e sub'" by auto
       from 4 have "valid_ty_uexpr e \<and> valid_ty_uexprs ess" by (simp add: valid_ty_uexprs_def)
-      hence "valid_ty_uexprs (list_subst x e ess)" by simp
+      hence "valid_ty_uexprs (constr_subst x e ess)" by simp
       with 4 F False S show ?thesis by (simp add: valid_ty_uexprs_def)
     qed simp_all
   qed (simp_all add: valid_ty_uexprs_def)

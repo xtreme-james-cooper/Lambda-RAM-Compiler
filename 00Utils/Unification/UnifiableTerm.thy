@@ -10,13 +10,14 @@ here is based on Pierce [5].\<close>
 subsection \<open>Unifiable terms\<close>
 
 text \<open>The unification algorithm acts on terms, which for clarity we will always refer to as such (in
-contrast to our compilation languages' "expressions". In theory, we do not need the full generality 
-of the treatment here, since we only ever unify terms representing our limited selection of types. 
-However, specializing the term language would only simplify the (quite straightforward) conversion 
-between types and terms, while complicating the unification algorithm itself, which is where the 
-subtlety already lies anyway. (It would also prevent us from reusing the algorithm if we wished to 
-add unification elsewhere - adding a logic-programming component to the source language, perhaps.) 
-We therefore define unifiable terms in a very general way:\<close>
+contrast to our compilation languages' "expressions". We reuse our variables, since we need to 
+generate fresh names; constructor tags are simply strings. In theory, we do not need the full 
+generality of the treatment here, since we only ever unify terms representing our limited selection 
+of types. However, specializing the term language would only simplify the (quite straightforward) 
+conversion between types and terms, while complicating the unification algorithm itself, which is 
+where the subtlety already lies anyway. (It would also prevent us from reusing the algorithm if we 
+wished to add unification elsewhere - adding a logic-programming component to the source language, 
+perhaps.) We therefore define unifiable terms in a very general way:\<close>
 
 datatype uterm = 
   Var var
@@ -25,7 +26,7 @@ datatype uterm =
 fun uvars :: "uterm \<Rightarrow> var set" 
 and uvarss :: "uterm list \<Rightarrow> var set" where
   "uvars (Var x) = {x}"
-| "uvars (Ctor k \<tau>s) = uvarss \<tau>s"
+| "uvars (Ctor g \<tau>s) = uvarss \<tau>s"
 | "uvarss [] = {}"
 | "uvarss (\<tau> # \<tau>s) = uvars \<tau> \<union> uvarss \<tau>s"
 
@@ -39,7 +40,7 @@ constructors or variables exist inside of which. We will use this to show that t
 of terms representing types is preserved through substitution.\<close>
 
 definition structural :: "(uterm \<Rightarrow> bool) \<Rightarrow> bool" where
-  "structural P = (\<exists>f. \<forall>k es. P (Ctor k es) = (list_all P es \<and> f k (length es)))"
+  "structural P \<equiv> (\<exists>f. \<forall>g es. P (Ctor g es) = (list_all P es \<and> f g (length es)))"
 
 text \<open>We also define constraints, pairs of terms which must be unified with each other. Functions on 
 terms extend to constraints in an obvious way.\<close>
@@ -68,7 +69,7 @@ algorithm, hence its slightly odd definition ignoring the right-hand sides of co
 
 primrec ctor_count :: "uterm \<Rightarrow> nat" where
   "ctor_count (Var x) = 0"
-| "ctor_count (Ctor k \<tau>s) = Suc (sum_list (map ctor_count \<tau>s))"
+| "ctor_count (Ctor g \<tau>s) = Suc (sum_list (map ctor_count \<tau>s))"
 
 fun constr_ctor_count :: "constraint \<Rightarrow> nat" where
   "constr_ctor_count [] = 0"

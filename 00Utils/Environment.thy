@@ -227,7 +227,7 @@ qed simp_all
 text \<open>\<open>insert_at\<close> gets its own swap lemma: the canonical order is from smallest index to largest.\<close>
 
 lemma insert_at_swap [simp]: "x \<le> length as \<Longrightarrow> y \<le> x \<Longrightarrow> 
-    insert_at y a (insert_at x b as) = insert_at (Suc x) b (insert_at y a as)"
+  insert_at y a (insert_at x b as) = insert_at (Suc x) b (insert_at y a as)"
 proof (induction x b as arbitrary: y rule: insert_at.induct)
   case (4 x a' a as)
   then show ?case by (induction y) simp_all

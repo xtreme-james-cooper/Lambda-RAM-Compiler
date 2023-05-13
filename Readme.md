@@ -9,3 +9,8 @@ Goals:
 - Add pairs, sums, unit, void, nats, primrec? sructured types?
 - Make printing part of the code
 - Make initialization part of the code
+
+Refactorings: 
+
+- constr_subst -> full substitution?
+- Make contraint functions use list functions?

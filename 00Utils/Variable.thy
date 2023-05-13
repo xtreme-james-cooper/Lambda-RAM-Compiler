@@ -15,7 +15,7 @@ primrec fresh' :: "var set \<Rightarrow> nat \<Rightarrow> nat" where
 | "fresh' xs (Suc x) = (if V (Suc x) \<in> xs then fresh' (xs - {V (Suc x)}) x else Suc x)"
 
 definition fresh :: "var set \<Rightarrow> var" where
-  "fresh xs = V (fresh' xs (card xs))"
+  "fresh xs \<equiv> V (fresh' xs (card xs))"
 
 lemma fresh_lt_suc [simp]: "finite xs \<Longrightarrow> fresh' xs x < Suc x"
 proof (induction x arbitrary: xs)
