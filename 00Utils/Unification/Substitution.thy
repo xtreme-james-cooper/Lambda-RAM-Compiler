@@ -423,19 +423,19 @@ proof -
   with X Y show "x \<notin> dom \<sigma>'" by (auto split: option.splits)
 qed
 
-text \<open>We now define what it means for one substitution to generalize another. The generalize 
-relation is a preorder, but not a partial order - \<open>generalize_refl\<close>, \<open>generalize_trans\<close>, and 
-\<open>generalize_not_antisym\<close> show this.\<close>
+text \<open>We now define what it means for one substitution to specialize another. The specialize 
+relation is a preorder, but not a partial order - \<open>specialize_refl\<close>, \<open>specialize_trans\<close>, and 
+\<open>specialize_not_antisym\<close> show this.\<close>
 
-definition subst_generalize :: "subst \<Rightarrow> subst \<Rightarrow> bool" (infix "generalizes" 50) where
-  "\<sigma>' generalizes \<sigma> \<equiv> (\<exists>\<sigma>''. subst \<sigma>' = subst \<sigma>'' \<circ> subst \<sigma>)"
+definition subst_specialize :: "subst \<Rightarrow> subst \<Rightarrow> bool" (infix "specializes" 50) where
+  "\<sigma>' specializes \<sigma> \<equiv> (\<exists>\<sigma>''. subst \<sigma>' = subst \<sigma>'' \<circ> subst \<sigma>)"
 
-lemma anything_generalizes_empty [simp]: "\<sigma> generalizes Map.empty"
-  by (auto simp add: subst_generalize_def)
+lemma anything_specializes_empty [simp]: "\<sigma> specializes Map.empty"
+  by (auto simp add: subst_specialize_def)
 
-lemma extend_subst_generalizes [simp]: "\<sigma> generalizes \<sigma>' \<Longrightarrow> 
-  extend_subst x \<tau> \<sigma> generalizes extend_subst x \<tau> \<sigma>'"
-proof (unfold subst_generalize_def)
+lemma extend_subst_specializes [simp]: "\<sigma> specializes \<sigma>' \<Longrightarrow> 
+  extend_subst x \<tau> \<sigma> specializes extend_subst x \<tau> \<sigma>'"
+proof (unfold subst_specialize_def)
   assume "\<exists>\<sigma>''. subst \<sigma> = subst \<sigma>'' \<circ> subst \<sigma>'"
   then obtain \<sigma>'' where "subst \<sigma> = subst \<sigma>'' \<circ> subst \<sigma>'" by blast
   moreover hence "subst (extend_subst x \<tau> \<sigma>) = subst \<sigma>'' \<circ> subst (extend_subst x \<tau> \<sigma>')" 
@@ -444,14 +444,14 @@ proof (unfold subst_generalize_def)
     by auto
 qed
 
-lemma generalizes_refl [simp]: "\<sigma> generalizes \<sigma>"
-proof (unfold subst_generalize_def)
+lemma specializes_refl [simp]: "\<sigma> specializes \<sigma>"
+proof (unfold subst_specialize_def)
   have "subst \<sigma> = subst Map.empty \<circ> subst \<sigma>" by simp
   thus "\<exists>\<sigma>''. subst \<sigma> = subst \<sigma>'' \<circ> subst \<sigma>" by blast
 qed
 
-lemma generalizes_trans [elim]: "\<sigma> generalizes \<sigma>' \<Longrightarrow> \<sigma>' generalizes \<sigma>'' \<Longrightarrow> \<sigma> generalizes \<sigma>''"
-proof (unfold subst_generalize_def)
+lemma specializes_trans [elim]: "\<sigma> specializes \<sigma>' \<Longrightarrow> \<sigma>' specializes \<sigma>'' \<Longrightarrow> \<sigma> specializes \<sigma>''"
+proof (unfold subst_specialize_def)
   assume "\<exists>\<sigma>\<^sub>1. subst \<sigma> = subst \<sigma>\<^sub>1 \<circ> subst \<sigma>'"
   then obtain \<sigma>\<^sub>1 where S1: "subst \<sigma> = subst \<sigma>\<^sub>1 \<circ> subst \<sigma>'" by fastforce
   assume "\<exists>\<sigma>\<^sub>2. subst \<sigma>' = subst \<sigma>\<^sub>2 \<circ> subst \<sigma>''" 
@@ -460,8 +460,8 @@ proof (unfold subst_generalize_def)
   with S1 S2 show "\<exists>\<sigma>\<^sub>3. subst \<sigma> = subst \<sigma>\<^sub>3 \<circ> subst \<sigma>''" by metis
 qed
 
-lemma generalizes_not_antisym: "\<exists>\<sigma> \<sigma>'. \<sigma> generalizes \<sigma>' \<and> \<sigma>' generalizes \<sigma> \<and> \<sigma> \<noteq> \<sigma>'"
-proof (unfold subst_generalize_def)
+lemma specializes_not_antisym: "\<exists>\<sigma> \<sigma>'. \<sigma> specializes \<sigma>' \<and> \<sigma>' specializes \<sigma> \<and> \<sigma> \<noteq> \<sigma>'"
+proof (unfold subst_specialize_def)
   let ?x = "V 0" and ?y = "V 1"
   have "\<exists>z. [?x \<mapsto> Var ?y] z \<noteq> [?y \<mapsto> Var ?x] z" by auto
   hence "[?x \<mapsto> Var ?y] \<noteq> [?y \<mapsto> Var ?x]" by metis
@@ -477,9 +477,9 @@ proof (unfold subst_generalize_def)
     (\<exists>\<sigma>''. subst \<sigma>' = subst \<sigma>'' \<circ> subst \<sigma>) \<and> \<sigma> \<noteq> \<sigma>'" by blast
 qed
 
-lemma generalizes_still_unifies [elim]: "\<sigma> unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> \<sigma>' generalizes \<sigma> \<Longrightarrow> 
+lemma specializes_still_unifies [elim]: "\<sigma> unifies e\<^sub>1 and e\<^sub>2 \<Longrightarrow> \<sigma>' specializes \<sigma> \<Longrightarrow> 
     \<sigma>' unifies e\<^sub>1 and e\<^sub>2"
-  by (auto simp add: subst_generalize_def)
+  by (auto simp add: subst_specialize_def)
 
 text \<open>Finally, we prove some helper lemmas which will be useful for the "occurs check" in the 
 unification algorithm. Essentially, we prove that a variable cannot be unified with a term 

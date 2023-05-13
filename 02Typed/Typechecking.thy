@@ -164,7 +164,7 @@ lemma [elim]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> va
   by (induction rule: typecheck_induct) auto
 
 lemma typecheck_succeeds [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> 
-  valid_ty_subst \<Gamma> \<Longrightarrow> unify con = Some sub' \<Longrightarrow> sub generalizes sub' \<Longrightarrow>
+  valid_ty_subst \<Gamma> \<Longrightarrow> unify con = Some sub' \<Longrightarrow> sub specializes sub' \<Longrightarrow>
     map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e') : typeify (subst sub t)"
 proof (induction arbitrary: sub' rule: typecheck_induct)
   case (Var\<^sub>sS \<Gamma> vs t x)
@@ -179,18 +179,18 @@ next
   thus ?case by blast
 next
   case (App\<^sub>s \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 e\<^sub>2' t\<^sub>2 con\<^sub>2)
-  then obtain s\<^sub>2 where S2: "unify (con\<^sub>1 @ con\<^sub>2) = Some s\<^sub>2 \<and> sub' generalizes s\<^sub>2" by fastforce
-  then obtain s\<^sub>3 where S3: "unify con\<^sub>1 = Some s\<^sub>3 \<and> s\<^sub>2 generalizes s\<^sub>3" by fastforce
-  with App\<^sub>s S2 have "sub generalizes s\<^sub>3" by auto
+  then obtain s\<^sub>2 where S2: "unify (con\<^sub>1 @ con\<^sub>2) = Some s\<^sub>2 \<and> sub' specializes s\<^sub>2" by fastforce
+  then obtain s\<^sub>3 where S3: "unify con\<^sub>1 = Some s\<^sub>3 \<and> s\<^sub>2 specializes s\<^sub>3" by fastforce
+  with App\<^sub>s S2 have "sub specializes s\<^sub>3" by auto
   with App\<^sub>s S2 S3 have T: "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>1') : 
     typeify (subst sub t\<^sub>1)" by blast
   from App\<^sub>s have "sub' unifies\<^sub>\<kappa> (con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v])])" 
     by (metis unify_some) 
   hence "sub' unifies t\<^sub>1 and Ctor ''Arrow'' [t\<^sub>2, Var v]" by simp
   with App\<^sub>s have X: "sub unifies t\<^sub>1 and Ctor ''Arrow'' [t\<^sub>2, Var v]" by fastforce
-  from S2 obtain s\<^sub>4 where S4: "unify con\<^sub>2 = Some s\<^sub>4 \<and> s\<^sub>2 generalizes s\<^sub>4" 
+  from S2 obtain s\<^sub>4 where S4: "unify con\<^sub>2 = Some s\<^sub>4 \<and> s\<^sub>2 specializes s\<^sub>4" 
     using unify_append_snd by blast
-  with App\<^sub>s S2 have "sub generalizes s\<^sub>4" by auto
+  with App\<^sub>s S2 have "sub specializes s\<^sub>4" by auto
   with App\<^sub>s S4 have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>2') : 
     typeify (subst sub t\<^sub>2)" by blast
   with T X have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub (HApp e\<^sub>1' e\<^sub>2')) : 
@@ -205,7 +205,7 @@ proof -
     unify con = Some sub \<and> e\<^sub>t = tsubstt sub (solidify e') \<and> t = tsubsts sub (typeify tt)" 
       by (auto split: option.splits prod.splits)
   moreover hence "map_option (typeify \<circ> subst sub) \<circ> Map.empty \<turnstile>\<^sub>n solidify (hsubst sub e') : 
-    typeify (subst sub tt)" by (metis typecheck_succeeds valid_empty generalizes_refl)
+    typeify (subst sub tt)" by (metis typecheck_succeeds valid_empty specializes_refl)
   moreover from T have "valid_ty_uexpr tt" and "valid_ty_hexpr e'" by auto
   ultimately show "Map.empty \<turnstile>\<^sub>n e\<^sub>t : t" by simp
 qed
@@ -513,7 +513,7 @@ proof
     subst_vars s \<subseteq> tvarst e\<^sub>t \<union> subst_vars Map.empty \<and> s unifies\<^sub>\<kappa> con \<and> valid_ty_subst s \<and> 
       idempotent s" using typecheck_fails' by blast
   then obtain s where "s unifies\<^sub>\<kappa> con \<and> idempotent s" by blast
-  hence "\<exists>s'. unify con = Some s' \<and> s generalizes s'" by simp
+  hence "\<exists>s'. unify con = Some s' \<and> s specializes s'" by simp
   with X show "False" by simp
 qed
 
