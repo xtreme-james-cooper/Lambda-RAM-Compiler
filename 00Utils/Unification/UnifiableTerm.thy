@@ -34,14 +34,6 @@ lemma finite_uvars [simp]: "finite (uvars \<tau>)"
   and "finite (uvarss \<tau>s)"
   by (induction \<tau> and \<tau>s rule: uvars_uvarss.induct) simp_all
 
-text \<open>"Structural" properties are those that relate purely to the constructor well-formedness of 
-terms; that is, the names of constructors and the number of arguments to them, but not which 
-constructors or variables exist inside of which. We will use this to show that the well-formedness 
-of terms representing types is preserved through substitution.\<close>
-
-definition structural :: "(uterm \<Rightarrow> bool) \<Rightarrow> bool" where
-  "structural P \<equiv> (\<exists>f. \<forall>\<gamma> \<tau>s. P (Ctor \<gamma> \<tau>s) = (list_all P \<tau>s \<and> f \<gamma> (length \<tau>s)))"
-
 text \<open>We also define constraints, pairs of terms which must be unified with each other. Functions on 
 terms extend to constraints in an obvious way.\<close>
 

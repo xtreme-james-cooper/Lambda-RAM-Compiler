@@ -15,3 +15,4 @@ Refactorings:
 - constr_subst -> full substitution?
 - Make contraint functions use list functions?
 - Make map functions on expr\s use actual map
+- Make all definitions abstract outside thir file

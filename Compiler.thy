@@ -24,17 +24,17 @@ primrec quick_convert :: "var set \<Rightarrow> unit expr\<^sub>s \<Rightarrow> 
 primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> unit expr\<^sub>s \<Rightarrow> uterm \<times> var set \<times> constraint" where
   "collect_constraints \<Gamma> vs (Var\<^sub>s x) = (case \<Gamma> x of 
       Some t \<Rightarrow> (t, vs, []) 
-    | None \<Rightarrow> (Ctor ''Num'' [], vs, fail))"
-| "collect_constraints \<Gamma> vs (Const\<^sub>s k) = (Ctor ''Num'' [], vs, [])"
+    | None \<Rightarrow> (Num\<^sub>\<tau>, vs, fail))"
+| "collect_constraints \<Gamma> vs (Const\<^sub>s k) = (Num\<^sub>\<tau>, vs, [])"
 | "collect_constraints \<Gamma> vs (Lam\<^sub>s x u e) = (
     let v = fresh vs
     in let (t, vs', con) = collect_constraints (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e
-    in (Ctor ''Arrow'' [Var v, t], vs', con))"
+    in (Arrow\<^sub>\<tau> (Var v) t, vs', con))"
 | "collect_constraints \<Gamma> vs (App\<^sub>s e\<^sub>1 e\<^sub>2) = (
     let v = fresh vs
     in let (t\<^sub>1, vs', con\<^sub>1) = collect_constraints \<Gamma> (insert v vs) e\<^sub>1 
     in let (t\<^sub>2, vs'', con\<^sub>2) = collect_constraints \<Gamma> vs' e\<^sub>2 
-    in (Var v, vs'', con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v])]))"
+    in (Var v, vs'', con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Arrow\<^sub>\<tau> t\<^sub>2 (Var v))]))"
 
 primrec tree_code_size :: "tree_code \<Rightarrow> nat"
     and tree_code_size_list :: "tree_code list \<Rightarrow> nat" where
@@ -113,7 +113,7 @@ definition alg_compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times
     in case unify con of
         None \<Rightarrow> None
       | Some s \<Rightarrow> 
-          Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e []) []), typeify (subst s t)))"
+          Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e []) []), to_type (subst s t)))"
 
 lemma [simp]: "encode (convert' \<Phi> (solidify (hsubst sub e))) = encode (convert' \<Phi> (solidify e))"
   by (induction e arbitrary: \<Phi>) simp_all

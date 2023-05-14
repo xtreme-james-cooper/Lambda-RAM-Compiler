@@ -12,7 +12,7 @@ lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
   by (induction e) simp_all
 
 theorem tc_failure: "alg_compile e = None \<Longrightarrow> 
-  \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t"
+  \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e = erase e\<^sub>t"
 proof -
   assume "alg_compile e = None"
   hence "typecheck e = None" by (auto split: option.splits prod.splits)

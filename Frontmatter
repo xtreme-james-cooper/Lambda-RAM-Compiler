@@ -153,7 +153,7 @@ After each individual pass has been defined and proven, we combine the individua
 theorems into our final two theorems. If compilation fails, then it was because of a typechecking 
 error, and no well-typed version of our source program can exist:
 
-alg_compile e = None \<Longrightarrow> \<nexists>e\<^sub>t t. (Map.empty \<turnstile> e : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t
+alg_compile e = None \<Longrightarrow> \<nexists>e\<^sub>t t. (Map.empty \<turnstile> e : t) \<and> e = erase e\<^sub>t
 
 If compilation succeeds, then it has found a type for our program, and there is some value that our 
 source program evaluates to, and the compiled machine code will eventually evaluate to a final 

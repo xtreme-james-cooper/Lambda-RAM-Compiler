@@ -88,12 +88,6 @@ lemma subst_subst_var [consumes 1, case_names Eq FstOnly SndOnly Both]:
     (\<And>z. \<sigma> z = Some (Var y) \<Longrightarrow> \<sigma>' x = Some (Var z) \<Longrightarrow> P) \<Longrightarrow> P"
   by (auto split: option.splits)
 
-lemma structural_preserved_by_subst [simp]: "P \<tau> \<Longrightarrow> \<forall>x\<in>ran \<sigma>. P x \<Longrightarrow> structural P \<Longrightarrow> 
-    P (subst \<sigma> \<tau>)"
-  and "list_all P \<tau>s \<Longrightarrow> \<forall>x\<in>ran \<sigma>. P x \<Longrightarrow> structural P \<Longrightarrow> list_all P (map (subst \<sigma>) \<tau>s)"
-  by (induction \<tau> and \<tau>s rule: uvars_uvarss.induct) 
-    (auto simp add: structural_def ran_def split: option.splits)
-
 text \<open>Because we only use constraints in the unification algorithm, however, the most common 
 substitution on them is for a single variable at a time:\<close>
 
@@ -118,10 +112,6 @@ qed simp_all
 lemma vars_constr_subst [simp]: "constr_vars (constr_subst x \<tau> \<kappa>) = 
     constr_vars \<kappa> - {x} \<union> (if x \<in> constr_vars \<kappa> then uvars \<tau> else {})"
   by simp
-
-lemma structural_preserved_by_constr_subst [simp]: "P \<tau> \<Longrightarrow> structural P \<Longrightarrow> 
-    list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) \<kappa> \<Longrightarrow> list_all (\<lambda>(e\<^sub>1, e\<^sub>2). P e\<^sub>1 \<and> P e\<^sub>2) (constr_subst x \<tau> \<kappa>)"
-  by (induction \<kappa> rule: constr_subst.induct) simp_all
 
 text \<open>Using Isabelle's partial functions means we can use the library domain \<open>dom\<close> function 
 directly. The range of a substitution, by contrast, is never really directly relevant. Rather, what 
