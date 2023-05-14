@@ -9,32 +9,32 @@ abbreviation compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times> 
   "compile \<equiv> map_option (apfst code_compile) \<circ> typecheck"
 
 primrec quick_convert :: "var set \<Rightarrow> unit expr\<^sub>s \<Rightarrow> uterm expr\<^sub>s \<times> var set" where
-  "quick_convert vs (Var\<^sub>s x) = (Var\<^sub>s x, vs)"
-| "quick_convert vs (Const\<^sub>s k) = (Const\<^sub>s k, vs)"
+  "quick_convert vs (Var\<^sub>s x) = (Var\<^sub>s x, {})"
+| "quick_convert vs (Const\<^sub>s k) = (Const\<^sub>s k, {})"
 | "quick_convert vs (Lam\<^sub>s x t e) = (
     let v = fresh vs
     in let (e', vs') = quick_convert (insert v vs) e
-    in (Lam\<^sub>s x (Var v) e', vs'))"
+    in (Lam\<^sub>s x (Var v) e', insert v vs'))"
 | "quick_convert vs (App\<^sub>s e\<^sub>1 e\<^sub>2) = (
     let v = fresh vs
     in let (e\<^sub>1', vs') = quick_convert (insert v vs) e\<^sub>1 
-    in let (e\<^sub>2', vs'') = quick_convert vs' e\<^sub>2 
-    in (App\<^sub>s e\<^sub>1' e\<^sub>2', vs''))"
+    in let (e\<^sub>2', vs'') = quick_convert (insert v (vs \<union> vs')) e\<^sub>2 
+    in (App\<^sub>s e\<^sub>1' e\<^sub>2', insert v (vs' \<union> vs'')))"
 
 primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> unit expr\<^sub>s \<Rightarrow> uterm \<times> var set \<times> constraint" where
   "collect_constraints \<Gamma> vs (Var\<^sub>s x) = (case \<Gamma> x of 
-      Some t \<Rightarrow> (t, vs, []) 
-    | None \<Rightarrow> (Num\<^sub>\<tau>, vs, fail))"
-| "collect_constraints \<Gamma> vs (Const\<^sub>s k) = (Num\<^sub>\<tau>, vs, [])"
+      Some t \<Rightarrow> (t, {}, []) 
+    | None \<Rightarrow> (Num\<^sub>\<tau>, {}, fail))"
+| "collect_constraints \<Gamma> vs (Const\<^sub>s k) = (Num\<^sub>\<tau>, {}, [])"
 | "collect_constraints \<Gamma> vs (Lam\<^sub>s x u e) = (
     let v = fresh vs
     in let (t, vs', con) = collect_constraints (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e
-    in (Arrow\<^sub>\<tau> (Var v) t, vs', con))"
+    in (Arrow\<^sub>\<tau> (Var v) t, insert v vs', con))"
 | "collect_constraints \<Gamma> vs (App\<^sub>s e\<^sub>1 e\<^sub>2) = (
     let v = fresh vs
     in let (t\<^sub>1, vs', con\<^sub>1) = collect_constraints \<Gamma> (insert v vs) e\<^sub>1 
-    in let (t\<^sub>2, vs'', con\<^sub>2) = collect_constraints \<Gamma> vs' e\<^sub>2 
-    in (Var v, vs'', con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Arrow\<^sub>\<tau> t\<^sub>2 (Var v))]))"
+    in let (t\<^sub>2, vs'', con\<^sub>2) = collect_constraints \<Gamma> (insert v (vs \<union> vs')) e\<^sub>2 
+    in (Var v, insert v (vs' \<union> vs''), con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Arrow\<^sub>\<tau> t\<^sub>2 (Var v))]))"
 
 primrec tree_code_size :: "tree_code \<Rightarrow> nat"
     and tree_code_size_list :: "tree_code list \<Rightarrow> nat" where

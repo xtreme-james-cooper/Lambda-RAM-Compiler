@@ -152,15 +152,11 @@ proof (induction \<tau>)
   qed (simp_all add: eliminate_vars_def)
 qed simp_all
 
-lemma partial_typeify_reduce_subset: "uvars \<tau> \<inter> vs' \<subseteq> vs \<Longrightarrow> vs \<subseteq> vs' \<Longrightarrow>
-    eliminate_vars vs' \<tau> = eliminate_vars vs \<tau>"
-  and "uvarss \<tau>s \<inter> vs' \<subseteq> vs \<Longrightarrow> vs \<subseteq> vs' \<Longrightarrow>
-    map (eliminate_vars vs') \<tau>s = map (eliminate_vars vs) \<tau>s"
-proof (induction \<tau> and \<tau>s rule: uvars_uvarss.induct)
-  case (4 \<tau> \<tau>s)
-  moreover hence "uvars \<tau> \<inter> vs' \<subseteq> vs \<and> uvarss \<tau>s \<inter> vs' \<subseteq> vs" by auto
-  ultimately show ?case by simp
-qed (auto simp add: eliminate_vars_def)
+lemma eliminate_extra_union [simp]: "uvars \<tau> \<inter> vs' \<subseteq> vs \<Longrightarrow> 
+    eliminate_vars (vs \<union> vs') \<tau> = eliminate_vars vs \<tau>"
+  and "uvarss \<tau>s \<inter> vs' \<subseteq> vs \<Longrightarrow> 
+    map (eliminate_vars (vs \<union> vs')) \<tau>s = map (eliminate_vars vs) \<tau>s"
+  by (induction \<tau> and \<tau>s rule: uvars_uvarss.induct) auto
 
 text \<open>Again, we extend in the obvious way to constraints.\<close>
 
@@ -176,12 +172,12 @@ lemma constr_subst_eliminate_vars [simp]: "x \<notin> vs \<Longrightarrow>
     eliminate_vars_constr vs (constr_subst x (to_unifiable \<tau>) \<kappa>)"
   by (induction x "to_unifiable \<tau>" \<kappa> rule: constr_subst.induct) simp_all
 
-lemma partial_typeify_constr_reduce_subset: "constr_vars \<kappa> \<inter> vs' \<subseteq> vs \<Longrightarrow> vs \<subseteq> vs' \<Longrightarrow>
-    eliminate_vars_constr vs' \<kappa> = eliminate_vars_constr vs \<kappa>"
-proof (induction \<kappa> rule: constr_subst.induct)
-  case (2 x \<tau> \<tau>\<^sub>1 \<tau>\<^sub>2 \<kappa>)
-  moreover hence "constr_vars \<kappa> \<inter> vs' \<subseteq> vs \<and> uvars \<tau>\<^sub>1 \<inter> vs' \<subseteq> vs \<and> uvars \<tau>\<^sub>2 \<inter> vs' \<subseteq> vs" by auto
-  ultimately show ?case by (simp add: partial_typeify_reduce_subset)
+lemma eliminate_extra_union_constr [simp]: "constr_vars \<kappa> \<inter> vs' \<subseteq> vs \<Longrightarrow> 
+  eliminate_vars_constr (vs \<union> vs') \<kappa> = eliminate_vars_constr vs \<kappa>"
+proof (induction \<kappa> rule: constr_vars.induct)
+  case (2 \<tau>\<^sub>1 \<tau>\<^sub>2 \<kappa>)
+  moreover hence "uvars \<tau>\<^sub>1 \<inter> vs' \<subseteq> vs \<and> uvars \<tau>\<^sub>2 \<inter> vs' \<subseteq> vs" by auto
+  ultimately show ?case by fastforce
 qed simp_all
 
 end
