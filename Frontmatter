@@ -177,9 +177,9 @@ t : a type
 \<Gamma> : a typing context
 \<Sigma> : an evaluation state
 \<tau> : a unification term
+\<gamma> : a unification constructor tag
 \<sigma> : a unification substitution
 \<kappa> : a system of unification constraints
-\<gamma> : a unification constructor tag
 TODO add more as I come across them in the write-up
 
 (The pun on types t and unification terms \<tau> is deliberate, since the only things we ever unify are 

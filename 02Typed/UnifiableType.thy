@@ -3,7 +3,7 @@ theory UnifiableType
 begin
 
 definition env_subst :: "subst \<Rightarrow> subst \<Rightarrow> subst" where
-  "env_subst sub \<Gamma> = map_option (subst sub) \<circ> \<Gamma>"
+  "env_subst sub \<Gamma> \<equiv> map_option (subst sub) \<circ> \<Gamma>"
 
 fun typeify :: "uterm \<Rightarrow> ty" where
   "typeify (Var v) = Num"
@@ -15,6 +15,12 @@ fun typeify :: "uterm \<Rightarrow> ty" where
 primrec untypeify :: "ty \<Rightarrow> uterm" where
   "untypeify Num = Ctor ''Num'' []"
 | "untypeify (Arrow t\<^sub>1 t\<^sub>2) = Ctor ''Arrow'' [untypeify t\<^sub>1, untypeify t\<^sub>2]"
+
+definition partial_typeify :: "var set \<Rightarrow> uterm \<Rightarrow> uterm" where
+  "partial_typeify vs t \<equiv> subst (\<lambda>x. if x \<in> vs then Some (Ctor ''Num'' []) else None) t"
+
+abbreviation partial_typeify_constr :: "var set \<Rightarrow> constraint \<Rightarrow> constraint" where
+  "partial_typeify_constr vs k \<equiv> map (\<lambda>(e1, e2). (partial_typeify vs e1, partial_typeify vs e2)) k"
 
 fun valid_ty_uexpr' :: "string \<Rightarrow> nat \<Rightarrow> bool" where
   "valid_ty_uexpr' \<gamma> 0 = (\<gamma> = ''Num'')"
@@ -47,6 +53,85 @@ lemma [simp]: "uvars (untypeify t) = {}"
 
 lemma [simp]: "valid_ty_uexpr (untypeify t)"
   by (induction t) simp_all
+
+lemma [simp]: "partial_typeify {} t = t"
+  by (simp add: partial_typeify_def)
+
+lemma [simp]: "x \<notin> uvars t \<Longrightarrow> partial_typeify (insert x vs) t = partial_typeify vs t"
+  and "x \<notin> uvarss ts \<Longrightarrow> map (partial_typeify (insert x vs)) ts = map (partial_typeify vs) ts"
+  by (induction t and ts rule: uvars_uvarss.induct) (simp_all add: partial_typeify_def)
+
+lemma partial_typeify_reduce_subset: "uvars t \<inter> vs' \<subseteq> vs \<Longrightarrow> vs \<subseteq> vs' \<Longrightarrow>
+    partial_typeify vs' t = partial_typeify vs t"
+  and "uvarss ts \<inter> vs' \<subseteq> vs \<Longrightarrow> vs \<subseteq> vs' \<Longrightarrow>
+    map (partial_typeify vs') ts = map (partial_typeify vs) ts"
+proof (induction t and ts rule: uvars_uvarss.induct)
+  case (4 \<tau> \<tau>s)
+  moreover hence "uvars \<tau> \<inter> vs' \<subseteq> vs \<and> uvarss \<tau>s \<inter> vs' \<subseteq> vs" by auto
+  ultimately show ?case by simp
+qed (auto simp add: partial_typeify_def)
+
+lemma [simp]: "partial_typeify vs (untypeify t) = untypeify t"
+  by (induction t) (simp_all add: partial_typeify_def)
+
+lemma [simp]: "partial_typeify vs (Var x) = (if x \<in> vs then Ctor ''Num'' [] else Var x)"
+  by (simp add: partial_typeify_def)
+
+lemma [simp]: "partial_typeify vs (Ctor \<gamma> ts) = Ctor \<gamma> (map (partial_typeify vs) ts)"
+  by (simp add: partial_typeify_def)
+
+lemma [simp]: "uvars t \<subseteq> vs \<Longrightarrow> valid_ty_uexpr t \<Longrightarrow> partial_typeify vs t = untypeify (typeify t)"
+  by (induction t rule: typeify.induct) (simp_all add: partial_typeify_def)
+
+lemma [simp]: "uvars t = {} \<Longrightarrow> partial_typeify vs t = t"
+  and "uvarss ts = {} \<Longrightarrow> map (partial_typeify vs) ts = ts"
+  by (induction t and ts rule: uvars_uvarss.induct) simp_all
+
+lemma [elim]: "valid_ty_subst \<Gamma> \<Longrightarrow> \<Gamma> x = Some t \<Longrightarrow> valid_ty_uexpr t"
+  by (auto simp add: valid_ty_subst_def ran_def)
+
+lemma [simp]: "subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> \<Gamma> x = Some t \<Longrightarrow> 
+    partial_typeify vs t = untypeify (typeify t)"
+proof -
+  assume "valid_ty_subst \<Gamma>" and T: "\<Gamma> x = Some t"
+  hence X: "valid_ty_uexpr t" by auto
+  assume "subst_vars \<Gamma> \<subseteq> vs" 
+  with T have "uvars t \<subseteq> vs" by auto
+  with X show ?thesis by simp
+qed
+
+lemma [dest]: "partial_typeify vs t = Ctor ''Arrow'' [t\<^sub>1, t\<^sub>2] \<Longrightarrow> \<exists>tt1 tt2. 
+    t = Ctor ''Arrow'' [tt1, tt2] \<and> partial_typeify vs tt1 = t\<^sub>1 \<and> partial_typeify vs tt2 = t\<^sub>2"
+  by (induction t) (auto simp add: partial_typeify_def split: if_splits)
+
+lemma [simp]: "dom s \<inter> vs = {} \<Longrightarrow> subst_vars s = {} \<Longrightarrow> 
+  subst s (partial_typeify vs t) = partial_typeify vs (subst s t)"
+proof (induction t)
+  case (Var x)
+  thus ?case
+  proof (cases "s x")
+    case (Some \<tau>)
+    moreover with Var have "uvars \<tau> = {}" by (auto simp add: subst_vars_def ran_def)
+    moreover from Var Some have "x \<notin> vs" by auto
+    ultimately show ?thesis by simp
+  qed (simp_all add: partial_typeify_def)
+qed simp_all
+
+lemma [simp]: "x \<notin> constr_vars k \<Longrightarrow> 
+    partial_typeify_constr (insert x vs) k = partial_typeify_constr vs k"
+  by (induction k rule: constr_vars.induct) simp_all
+
+lemma [simp]: "x \<notin> vs \<Longrightarrow> constr_subst x (untypeify t) (partial_typeify_constr vs con) = 
+    partial_typeify_constr vs (constr_subst x (untypeify t) con)"
+  by (induction x "untypeify t" con rule: constr_subst.induct) simp_all
+
+lemma partial_typeify_constr_reduce_subset: "constr_vars con \<inter> vs' \<subseteq> vs \<Longrightarrow> vs \<subseteq> vs' \<Longrightarrow>
+    partial_typeify_constr vs' con = partial_typeify_constr vs con"
+proof (induction con rule: constr_subst.induct)
+  case (2 x \<tau> \<tau>\<^sub>1 \<tau>\<^sub>2 \<kappa>)
+  moreover hence "constr_vars \<kappa> \<inter> vs' \<subseteq> vs \<and> uvars \<tau>\<^sub>1 \<inter> vs' \<subseteq> vs \<and> uvars \<tau>\<^sub>2 \<inter> vs' \<subseteq> vs" by auto
+  ultimately show ?case by (simp add: partial_typeify_reduce_subset)
+qed simp_all
 
 lemma valid_empty [simp]: "valid_ty_subst Map.empty"
   by (simp add: valid_ty_subst_def)
@@ -84,9 +169,6 @@ lemma [simp]: "valid_ty_uexpr t \<Longrightarrow> valid_ty_subst sub \<Longright
 
 lemma [simp]: "valid_ty_subst s \<Longrightarrow> valid_ty_uexpr e \<Longrightarrow> valid_ty_subst (extend_subst x e s)"
   by (auto simp add: valid_ty_subst_def extend_subst_def ran_def)
-
-lemma [elim]: "valid_ty_subst \<Gamma> \<Longrightarrow> \<Gamma> x = Some t \<Longrightarrow> valid_ty_uexpr t"
-  by (auto simp add: valid_ty_subst_def ran_def)
 
 lemma [elim]: "valid_ty_uexprs ts \<Longrightarrow> unify ts = Some sub \<Longrightarrow> valid_ty_subst sub"                                  
 proof (induction ts arbitrary: sub rule: unify.induct)

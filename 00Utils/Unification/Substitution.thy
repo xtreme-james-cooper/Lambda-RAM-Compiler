@@ -22,7 +22,7 @@ lemma subst_not_in_dom [simp]: "dom \<sigma> \<inter> uvars \<tau> = {} \<Longri
 lemma subst_empty [simp]: "subst Map.empty = id"
   by auto
 
-lemma uvars_subst_member [simp]: "x \<in> uvars \<tau> \<Longrightarrow> 
+lemma uvars_subst_single_member [simp]: "x \<in> uvars \<tau> \<Longrightarrow> 
     uvars (subst [x \<mapsto> \<tau>'] \<tau>) = uvars \<tau> - {x} \<union> uvars \<tau>'"
   and "x \<in> uvarss \<tau>s \<Longrightarrow> uvarss (map (subst [x \<mapsto> \<tau>']) \<tau>s) = uvarss \<tau>s - {x} \<union> uvars \<tau>'"
 proof (induction \<tau> and \<tau>s rule: uvars_uvarss.induct)
@@ -31,7 +31,7 @@ proof (induction \<tau> and \<tau>s rule: uvars_uvarss.induct)
   thus ?case by blast
 qed simp_all
 
-lemma uvars_subst [simp]: "uvars (subst [x \<mapsto> \<tau>'] \<tau>) = 
+lemma uvars_subst_single [simp]: "uvars (subst [x \<mapsto> \<tau>'] \<tau>) = 
     uvars \<tau> - {x} \<union> (if x \<in> uvars \<tau> then uvars \<tau>' else {})"
   by simp
 
@@ -130,12 +130,15 @@ is important is the free variables of the range of a substitution:\<close>
 definition subst_vars :: "subst \<Rightarrow> var set" where
   "subst_vars \<sigma> \<equiv> \<Union> (uvars ` ran \<sigma>)"
 
-lemma vars_subst [simp]: "uvars (subst \<sigma> \<tau>) \<subseteq> uvars \<tau> - dom \<sigma> \<union> subst_vars \<sigma>"
+lemma uvars_subst [simp]: "uvars (subst \<sigma> \<tau>) \<subseteq> uvars \<tau> - dom \<sigma> \<union> subst_vars \<sigma>"
   and "uvarss (map (subst \<sigma>) \<tau>s) \<subseteq> uvarss \<tau>s - dom \<sigma> \<union> subst_vars \<sigma>"
   by (induction \<tau> and \<tau>s rule: uvars_uvarss.induct) 
      (auto simp add: subst_vars_def ranI split: option.splits)
 
 lemma ran_empty_subst [simp]: "subst_vars Map.empty = {}"
+  by (simp add: subst_vars_def)
+
+lemma ran_single_subst [simp]: "subst_vars [x \<mapsto> \<tau>] = uvars \<tau>"
   by (simp add: subst_vars_def)
 
 lemma ran_narrower_subst [simp]: "subst_vars \<sigma> \<subseteq> vs \<Longrightarrow> subst_vars (\<sigma>(x := None)) \<subseteq> vs"
@@ -207,6 +210,14 @@ proof (induction \<tau>)
   qed
 qed simp_all
 
+lemma subst_absorb_no_ran': "subst_vars \<sigma> = {} \<Longrightarrow> 
+    subst (map_option (subst \<sigma>') \<circ> \<sigma>) \<tau> = subst \<sigma> \<tau>"
+  by (induction \<tau>) (auto simp add: subst_vars_def ran_def split: option.splits)
+
+lemma subst_absorb_no_ran: "subst_vars \<sigma> = {} \<Longrightarrow> 
+    subst (map_option (subst \<sigma>') \<circ> \<sigma>) = subst \<sigma>"
+  by (auto simp add: subst_absorb_no_ran')
+
 text \<open>A substitution can be extended an element at a time:\<close>
 
 definition extend_subst :: "var \<Rightarrow> uterm \<Rightarrow> subst \<Rightarrow> subst" where
@@ -271,7 +282,7 @@ proof
     proof (cases "\<sigma>' y")
       case (Some \<tau>')
       with E have "x \<in> uvars (subst \<sigma> \<tau>')" by simp
-      hence "x \<in> uvars \<tau>' - dom \<sigma> \<union> subst_vars \<sigma>" using vars_subst by blast
+      hence "x \<in> uvars \<tau>' - dom \<sigma> \<union> subst_vars \<sigma>" using uvars_subst by blast
       with Some show ?thesis by (auto simp add: subst_vars_def ran_def dom_def)
     qed (auto simp add: subst_vars_def ran_def)
   qed
