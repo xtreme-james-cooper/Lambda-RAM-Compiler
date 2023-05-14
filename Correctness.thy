@@ -12,7 +12,7 @@ lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
   by (induction e) simp_all
 
 theorem tc_failure: "alg_compile e = None \<Longrightarrow> 
-  \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t"
+  \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t"
 proof -
   assume "alg_compile e = None"
   hence "typecheck e = None" by (auto split: option.splits prod.splits)
@@ -25,7 +25,7 @@ theorem tc_success: "alg_compile e = Some (cd, t) \<Longrightarrow>
 proof -
   assume C: "alg_compile e = Some (cd, t)"
   then obtain e\<^sub>t where T: "typecheck e = Some (e\<^sub>t, t)" by (auto split: option.splits prod.splits)
-  hence TN: "(Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> e = erase e\<^sub>t" by simp
+  hence TN: "(Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e = erase e\<^sub>t" by simp
   then obtain v\<^sub>t where ET: "e\<^sub>t \<Down> v\<^sub>t" by fastforce
   hence VT: "value\<^sub>s v\<^sub>t" by simp
   hence VN: "value\<^sub>s (erase v\<^sub>t)" by simp

@@ -240,8 +240,12 @@ Variable
 Iteration
 AssocList
 
-Source Language
+SourceLanguage
 
 UnifyExpr
 Substitution
 Unification
+
+Type
+TypedLangauge
+Unifiable type

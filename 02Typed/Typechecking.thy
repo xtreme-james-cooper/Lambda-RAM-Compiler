@@ -136,16 +136,16 @@ lemma [elim]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> va
 
 lemma typecheck_succeeds [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> 
   valid_ty_subst \<Gamma> \<Longrightarrow> unify con = Some sub' \<Longrightarrow> sub specializes sub' \<Longrightarrow>
-    map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e') : typeify (subst sub t)"
+    map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>t solidify (hsubst sub e') : typeify (subst sub t)"
 proof (induction arbitrary: sub' rule: typecheck_induct)
   case (Var\<^sub>sS \<Gamma> vs t x)
   thus ?case by simp
 next
   case (Lam\<^sub>s \<Gamma> vs vs' con x u e\<^sub>1 e\<^sub>1' t' v)
   hence "valid_ty_subst (\<Gamma>(x \<mapsto> Var v))" by simp
-  with Lam\<^sub>s have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma>(x \<mapsto> Var v) \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>1') : 
+  with Lam\<^sub>s have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma>(x \<mapsto> Var v) \<turnstile>\<^sub>t solidify (hsubst sub e\<^sub>1') : 
       typeify (subst sub t')" by blast
-  hence "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub (Lam\<^sub>s x (Var v) e\<^sub>1')) :
+  hence "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>t solidify (hsubst sub (Lam\<^sub>s x (Var v) e\<^sub>1')) :
     typeify (subst sub (Ctor ''Arrow'' [Var v, t']))" by simp
   thus ?case by blast
 next
@@ -153,7 +153,7 @@ next
   then obtain s\<^sub>2 where S2: "unify (con\<^sub>1 @ con\<^sub>2) = Some s\<^sub>2 \<and> sub' specializes s\<^sub>2" by fastforce
   then obtain s\<^sub>3 where S3: "unify con\<^sub>1 = Some s\<^sub>3 \<and> s\<^sub>2 specializes s\<^sub>3" by fastforce
   with App\<^sub>s S2 have "sub specializes s\<^sub>3" by auto
-  with App\<^sub>s S2 S3 have T: "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>1') : 
+  with App\<^sub>s S2 S3 have T: "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>t solidify (hsubst sub e\<^sub>1') : 
     typeify (subst sub t\<^sub>1)" by blast
   from App\<^sub>s have "sub' unifies\<^sub>\<kappa> (con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Ctor ''Arrow'' [t\<^sub>2, Var v])])" 
     by (metis unify_some) 
@@ -162,23 +162,23 @@ next
   from S2 obtain s\<^sub>4 where S4: "unify con\<^sub>2 = Some s\<^sub>4 \<and> s\<^sub>2 specializes s\<^sub>4" 
     using unify_append_snd by blast
   with App\<^sub>s S2 have "sub specializes s\<^sub>4" by auto
-  with App\<^sub>s S4 have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub e\<^sub>2') : 
+  with App\<^sub>s S4 have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>t solidify (hsubst sub e\<^sub>2') : 
     typeify (subst sub t\<^sub>2)" by blast
-  with T X have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>n solidify (hsubst sub (App\<^sub>s e\<^sub>1' e\<^sub>2')) : 
+  with T X have "map_option (typeify \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>t solidify (hsubst sub (App\<^sub>s e\<^sub>1' e\<^sub>2')) : 
     typeify (subst sub (Var v))" by simp
   thus ?case by blast
 qed simp_all
 
-lemma [simp]: "typecheck e = Some (e\<^sub>t, t) \<Longrightarrow> Map.empty \<turnstile>\<^sub>n e\<^sub>t : t"
+lemma [simp]: "typecheck e = Some (e\<^sub>t, t) \<Longrightarrow> Map.empty \<turnstile>\<^sub>t e\<^sub>t : t"
 proof -
   assume "typecheck e = Some (e\<^sub>t, t)"
   then obtain e' tt vs con sub where T: "typecheck' Map.empty {} e = (e', tt, vs, con) \<and>
     unify con = Some sub \<and> e\<^sub>t = solidify (hsubst sub e') \<and> t = typeify (subst sub tt)" 
       by (auto split: option.splits prod.splits)
-  moreover hence "map_option (typeify \<circ> subst sub) \<circ> Map.empty \<turnstile>\<^sub>n solidify (hsubst sub e') : 
+  moreover hence "map_option (typeify \<circ> subst sub) \<circ> Map.empty \<turnstile>\<^sub>t solidify (hsubst sub e') : 
     typeify (subst sub tt)" by (metis typecheck_succeeds valid_empty specializes_refl)
   moreover from T have "valid_ty_uexpr tt" and "valid_ty_hexpr e'" by auto
-  ultimately show "Map.empty \<turnstile>\<^sub>n e\<^sub>t : t" by simp
+  ultimately show "Map.empty \<turnstile>\<^sub>t e\<^sub>t : t" by simp
 qed
 
 lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> e = erase (solidify e')"
@@ -360,35 +360,35 @@ next
   thus ?case by blast
 qed auto
 
-lemma typecheck_fails' [simp]: "map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>n e\<^sub>t : t \<Longrightarrow> finite vs \<Longrightarrow> 
+lemma typecheck_fails' [simp]: "map_option typeify \<circ> \<Gamma> \<turnstile>\<^sub>t e\<^sub>t : t \<Longrightarrow> finite vs \<Longrightarrow> 
   subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> typecheck' \<Gamma> vs (erase e\<^sub>t) = (e', tt, vs', con) \<Longrightarrow> 
   \<exists>s. partial_solidify vs (hsubst s e') = liquify e\<^sub>t \<and> 
   partial_typeify vs (subst s tt) = untypeify t \<and> dom s = vs' - vs \<and> 
   subst_vars s = {} \<and> s unifies\<^sub>\<kappa> partial_typeify_constr vs con \<and> valid_ty_subst s \<and> idempotent s"
-proof (induction "map_option typeify \<circ> \<Gamma>" e\<^sub>t t arbitrary: \<Gamma> vs e' tt vs' con rule: typecheckn.induct)
-  case (tcn_lam x t\<^sub>1 e t\<^sub>2)
+proof (induction "map_option typeify \<circ> \<Gamma>" e\<^sub>t t arbitrary: \<Gamma> vs e' tt vs' con rule: typing\<^sub>t.induct)
+  case (tc\<^sub>t_lam x t\<^sub>1 e t\<^sub>2)
   let ?v = "fresh vs"
   obtain e'' t' vs'' con' where T: "typecheck' (\<Gamma>(x \<mapsto> Var ?v)) (insert ?v vs) (erase e) = 
     (e'', t', vs'', con')" by (metis prod_cases4)
-  with tcn_lam have E: "e' = Lam\<^sub>s x (Var ?v) e'' \<and> tt = Ctor ''Arrow'' [Var ?v, t'] \<and> vs'' = vs' \<and> 
+  with tc\<^sub>t_lam have E: "e' = Lam\<^sub>s x (Var ?v) e'' \<and> tt = Ctor ''Arrow'' [Var ?v, t'] \<and> vs'' = vs' \<and> 
     con' = con" by (simp add: Let_def)
-  from tcn_lam have "subst_vars \<Gamma> \<subseteq> insert ?v vs" by auto
+  from tc\<^sub>t_lam have "subst_vars \<Gamma> \<subseteq> insert ?v vs" by auto
   hence X: "subst_vars (\<Gamma>(x \<mapsto> untypeify t\<^sub>1)) \<subseteq> insert ?v vs" by simp
   have Y: "(map_option typeify \<circ> \<Gamma>)(x \<mapsto> t\<^sub>1) = map_option typeify \<circ> (\<Gamma>(x \<mapsto> untypeify t\<^sub>1))" by simp
-  from tcn_lam have Z: "valid_ty_subst (\<Gamma>(x \<mapsto> untypeify t\<^sub>1))" by simp
-  from tcn_lam T have TC: "typecheck' (\<Gamma>(x \<mapsto> untypeify t\<^sub>1)) (insert ?v vs) (erase e) = 
+  from tc\<^sub>t_lam have Z: "valid_ty_subst (\<Gamma>(x \<mapsto> untypeify t\<^sub>1))" by simp
+  from tc\<^sub>t_lam T have TC: "typecheck' (\<Gamma>(x \<mapsto> untypeify t\<^sub>1)) (insert ?v vs) (erase e) = 
     (hsubst [?v \<mapsto> untypeify t\<^sub>1] e'', subst [?v \<mapsto> untypeify t\<^sub>1] t', vs'', 
      constr_subst ?v (untypeify t\<^sub>1) con')" by simp
-  from tcn_lam have "finite (insert ?v vs)" by simp
-  with tcn_lam X Y Z TC obtain s where S: "
+  from tc\<^sub>t_lam have "finite (insert ?v vs)" by simp
+  with tc\<^sub>t_lam X Y Z TC obtain s where S: "
     partial_solidify (insert ?v vs) (hsubst s (hsubst [?v \<mapsto> untypeify t\<^sub>1] e'')) = liquify e \<and> 
     partial_typeify (insert ?v vs) (subst s (subst [?v \<mapsto> untypeify t\<^sub>1] t')) = untypeify t\<^sub>2 \<and>
     s unifies\<^sub>\<kappa> partial_typeify_constr (insert ?v vs) (constr_subst ?v (untypeify t\<^sub>1) con') \<and> 
     dom s = vs'' - insert ?v vs \<and> subst_vars s = {} \<and> valid_ty_subst s \<and> idempotent s" by meson
-  from tcn_lam have "subst_vars (\<Gamma>(x \<mapsto> untypeify t\<^sub>1)) \<subseteq> vs" by simp
-  moreover from tcn_lam have FV: "?v \<notin> vs" by simp
+  from tc\<^sub>t_lam have "subst_vars (\<Gamma>(x \<mapsto> untypeify t\<^sub>1)) \<subseteq> vs" by simp
+  moreover from tc\<^sub>t_lam have FV: "?v \<notin> vs" by simp
   ultimately have "?v \<notin> subst_vars (\<Gamma>(x \<mapsto> untypeify t\<^sub>1))" by blast
-  with tcn_lam TC have VCS: "?v \<notin> constr_vars (constr_subst ?v (untypeify t\<^sub>1) con')" by simp
+  with tc\<^sub>t_lam TC have VCS: "?v \<notin> constr_vars (constr_subst ?v (untypeify t\<^sub>1) con')" by simp
   have "htvars (hsubst [?v \<mapsto> untypeify t\<^sub>1] e') \<subseteq> 
     htvars e' - dom [?v \<mapsto> untypeify t\<^sub>1] \<union> subst_vars [?v \<mapsto> untypeify t\<^sub>1]" 
       by (metis htvars_hsubst)
@@ -400,13 +400,13 @@ proof (induction "map_option typeify \<circ> \<Gamma>" e\<^sub>t t arbitrary: \<
   with S have "?v \<notin> htvars (hsubst (extend_subst ?v (untypeify t\<^sub>1) s) e')" by auto
   with E S VCS have A: "partial_solidify vs (hsubst (extend_subst ?v (untypeify t\<^sub>1) s) e') = 
     liquify (Lam\<^sub>s x t\<^sub>1 e)" by simp
-  from tcn_lam S have U: "?v \<notin> dom s" by auto
+  from tc\<^sub>t_lam S have U: "?v \<notin> dom s" by auto
   with S have B: "idempotent (extend_subst ?v (untypeify t\<^sub>1) s)" by simp
   from S E FV have "s unifies\<^sub>\<kappa> constr_subst ?v (untypeify t\<^sub>1) (partial_typeify_constr vs con)" 
     by simp
   hence C: "extend_subst ?v (untypeify t\<^sub>1) s unifies\<^sub>\<kappa> partial_typeify_constr vs con" by simp
   from E TC have "insert ?v vs \<subseteq> vs'" by (metis vars_expand)
-  with tcn_lam have "insert ?v (vs' - insert ?v vs) = vs' - vs" by auto
+  with tc\<^sub>t_lam have "insert ?v (vs' - insert ?v vs) = vs' - vs" by auto
   with S E have D: "dom (extend_subst ?v (untypeify t\<^sub>1) s) = vs' - vs" by simp
   have VS: "uvars (subst s (untypeify t\<^sub>1)) \<subseteq> uvars (untypeify t\<^sub>1) - dom s \<union> subst_vars s" 
     by (metis uvars_subst)
@@ -429,16 +429,16 @@ proof (induction "map_option typeify \<circ> \<Gamma>" e\<^sub>t t arbitrary: \<
   from S have "valid_ty_subst (extend_subst ?v (untypeify t\<^sub>1) s)" by simp
   with A B C D F G show ?case by blast
 next
-  case (tcn_app e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
+  case (tc\<^sub>t_app e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
   let ?v = "fresh vs"
   obtain e\<^sub>1' t\<^sub>1' vs'' con\<^sub>1 where TC1: "typecheck' \<Gamma> (insert ?v vs) (erase e\<^sub>1) = 
     (e\<^sub>1', t\<^sub>1', vs'', con\<^sub>1)" by (metis prod_cases4)
   obtain e\<^sub>2' t\<^sub>2' vs''' con\<^sub>2 where TC2: "typecheck' \<Gamma> vs'' (erase e\<^sub>2) = (e\<^sub>2', t\<^sub>2', vs''', con\<^sub>2)"
     by (metis prod_cases4)
-  with tcn_app TC1 have E: "e' = App\<^sub>s e\<^sub>1' e\<^sub>2' \<and> tt = Var ?v \<and> vs''' = vs' \<and> 
+  with tc\<^sub>t_app TC1 have E: "e' = App\<^sub>s e\<^sub>1' e\<^sub>2' \<and> tt = Var ?v \<and> vs''' = vs' \<and> 
     con = con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1', Ctor ''Arrow'' [t\<^sub>2', Var ?v])]" by (auto simp add: Let_def)
-  from tcn_app have "subst_vars \<Gamma> \<subseteq> insert ?v vs" by auto
-  with tcn_app TC1 obtain s\<^sub>1 where S1: "
+  from tc\<^sub>t_app have "subst_vars \<Gamma> \<subseteq> insert ?v vs" by auto
+  with tc\<^sub>t_app TC1 obtain s\<^sub>1 where S1: "
     partial_solidify (insert ?v vs) (hsubst s\<^sub>1 e\<^sub>1') = liquify e\<^sub>1 \<and> 
     partial_typeify (insert ?v vs) (subst s\<^sub>1 t\<^sub>1') = untypeify (Arrow t\<^sub>1 t\<^sub>2) \<and> 
     dom s\<^sub>1 = vs'' - insert ?v vs \<and> subst_vars s\<^sub>1 = {} \<and> 
@@ -446,27 +446,27 @@ next
       by fastforce
   from TC1 have V1: "insert ?v vs \<subseteq> vs''" by (metis vars_expand)
   from TC2 E have V2: "vs'' \<subseteq> vs'" by (metis vars_expand)
-  with tcn_app V1 have Y: "subst_vars \<Gamma> \<subseteq> vs''" by auto
-  with tcn_app TC1 TC2 Y obtain s\<^sub>2 where S2: "partial_solidify vs'' (hsubst s\<^sub>2 e\<^sub>2') = liquify e\<^sub>2 \<and> 
+  with tc\<^sub>t_app V1 have Y: "subst_vars \<Gamma> \<subseteq> vs''" by auto
+  with tc\<^sub>t_app TC1 TC2 Y obtain s\<^sub>2 where S2: "partial_solidify vs'' (hsubst s\<^sub>2 e\<^sub>2') = liquify e\<^sub>2 \<and> 
     partial_typeify vs'' (subst s\<^sub>2 t\<^sub>2') = untypeify t\<^sub>1 \<and> dom s\<^sub>2 = vs''' - vs'' \<and> subst_vars s\<^sub>2 = {} \<and> 
     s\<^sub>2 unifies\<^sub>\<kappa> partial_typeify_constr vs'' con\<^sub>2 \<and> valid_ty_subst s\<^sub>2 \<and> idempotent s\<^sub>2" by fastforce
-  from tcn_app have FV: "?v \<notin> vs" by simp
+  from tc\<^sub>t_app have FV: "?v \<notin> vs" by simp
   from S1 S2 have DSS: "dom s\<^sub>1 \<inter> dom s\<^sub>2 = {}" by auto
-  from tcn_app TC1 S1 have "valid_ty_uexpr t\<^sub>1' \<and> valid_ty_subst s\<^sub>1" by auto
+  from tc\<^sub>t_app TC1 S1 have "valid_ty_uexpr t\<^sub>1' \<and> valid_ty_subst s\<^sub>1" by auto
   hence VTS1: "valid_ty_uexpr (subst s\<^sub>1 t\<^sub>1')" by simp
-  from tcn_app TC2 S2 have "valid_ty_uexpr t\<^sub>2' \<and> valid_ty_subst s\<^sub>2" by auto
+  from tc\<^sub>t_app TC2 S2 have "valid_ty_uexpr t\<^sub>2' \<and> valid_ty_subst s\<^sub>2" by auto
   hence VTS2: "valid_ty_uexpr (subst s\<^sub>2 t\<^sub>2')" by simp
   let ?s = "extend_subst ?v (untypeify t\<^sub>2) (combine_subst s\<^sub>1 s\<^sub>2)"
   from S1 have D1: "dom s\<^sub>1 = vs'' - insert ?v vs" by simp
   from S2 E have D2: "dom s\<^sub>2 = vs' - vs''" by simp
   with V1 V2 D1 have D3: "dom (combine_subst s\<^sub>1 s\<^sub>2) = vs' - insert ?v vs" by auto
   with FV V1 V2 have A: "dom ?s = vs' - vs" by auto
-  from tcn_app have VG: "?v \<notin> subst_vars \<Gamma>" by auto 
-  with tcn_app TC1 have VE1: "?v \<notin> htvars e\<^sub>1'" by simp
-  from tcn_app TC1 TC2 V1 VG have VE2: "?v \<notin> htvars e\<^sub>2'" by simp
-  from tcn_app TC1 have "htvars e\<^sub>1' \<subseteq> vs'' - insert ?v vs" by simp
+  from tc\<^sub>t_app have VG: "?v \<notin> subst_vars \<Gamma>" by auto 
+  with tc\<^sub>t_app TC1 have VE1: "?v \<notin> htvars e\<^sub>1'" by simp
+  from tc\<^sub>t_app TC1 TC2 V1 VG have VE2: "?v \<notin> htvars e\<^sub>2'" by simp
+  from tc\<^sub>t_app TC1 have "htvars e\<^sub>1' \<subseteq> vs'' - insert ?v vs" by simp
   with D2 have HV: "dom s\<^sub>2 \<inter> htvars e\<^sub>1' = {}" by auto
-  from tcn_app E TC1 TC2 have HV2: "htvars e\<^sub>2' \<subseteq> vs' - vs''" by simp
+  from tc\<^sub>t_app E TC1 TC2 have HV2: "htvars e\<^sub>2' \<subseteq> vs' - vs''" by simp
   have "htvars (hsubst s\<^sub>2 e\<^sub>2') \<subseteq> htvars e\<^sub>2' - dom s\<^sub>2 \<union> subst_vars s\<^sub>2" by simp
   with D2 S2 HV2 have HVS2: "htvars (hsubst s\<^sub>2 e\<^sub>2') = {}" by auto
   have "htvars (hsubst s\<^sub>1 e\<^sub>1') \<subseteq> htvars e\<^sub>1' - dom s\<^sub>1 \<union> subst_vars s\<^sub>1" by simp
@@ -478,33 +478,32 @@ next
   from S1 S2 DSS D3 have D: "subst_vars ?s = {}" by auto
   from S1 S2 have VCS: "?v \<notin> subst_vars s\<^sub>1 \<and> ?v \<notin> subst_vars s\<^sub>2" by auto
   from D2 S1 V1 have D2S1: "dom s\<^sub>2 \<inter> subst_vars s\<^sub>1 = {}" by auto
-  from tcn_app TC1 VG have "?v \<notin> constr_vars con\<^sub>1" by simp
+  from tc\<^sub>t_app TC1 VG have "?v \<notin> constr_vars con\<^sub>1" by simp
   with S1 S2 DSS D3 D2S1 have UC1: "?s unifies\<^sub>\<kappa> partial_typeify_constr vs con\<^sub>1" by simp
   from V1 V2 have VVS': "vs \<subseteq> vs''" by simp
-  from tcn_app TC1 TC2 E have "constr_vars con\<^sub>2 \<subseteq> vs' - vs'' \<union> subst_vars \<Gamma>" by simp
-  with tcn_app have "constr_vars con\<^sub>2 \<inter> vs'' \<subseteq> vs" by auto
+  from tc\<^sub>t_app TC1 TC2 E have "constr_vars con\<^sub>2 \<subseteq> vs' - vs'' \<union> subst_vars \<Gamma>" by simp
+  with tc\<^sub>t_app have "constr_vars con\<^sub>2 \<inter> vs'' \<subseteq> vs" by auto
   with S2 VVS' have "s\<^sub>2 unifies\<^sub>\<kappa> partial_typeify_constr vs con\<^sub>2" 
     by (metis partial_typeify_constr_reduce_subset)
   with S1 S2 DSS D3 have UC2: "?s unifies\<^sub>\<kappa> partial_typeify_constr vs con\<^sub>2" by simp
-  from tcn_app TC1 have UV1: "uvars t\<^sub>1' \<subseteq> vs'' - insert ?v vs \<union> subst_vars \<Gamma>" by simp
+  from tc\<^sub>t_app TC1 have UV1: "uvars t\<^sub>1' \<subseteq> vs'' - insert ?v vs \<union> subst_vars \<Gamma>" by simp
   with VG have VT1: "?v \<notin> uvars t\<^sub>1'" by auto
-  from tcn_app D2 V1 UV1 have DU1: "dom s\<^sub>2 \<inter> uvars t\<^sub>1' = {}" by auto
-  from tcn_app TC1 TC2 E have UV2: "uvars t\<^sub>2' \<subseteq> vs' - vs'' \<union> subst_vars \<Gamma>" by simp
+  from tc\<^sub>t_app D2 V1 UV1 have DU1: "dom s\<^sub>2 \<inter> uvars t\<^sub>1' = {}" by auto
+  from tc\<^sub>t_app TC1 TC2 E have UV2: "uvars t\<^sub>2' \<subseteq> vs' - vs'' \<union> subst_vars \<Gamma>" by simp
   with VG V1 have VT2: "?v \<notin> uvars t\<^sub>2'" by auto
   have "uvars (subst s\<^sub>1 t\<^sub>1') \<subseteq> uvars t\<^sub>1' - dom s\<^sub>1 \<union> subst_vars s\<^sub>1" by simp
   with S1 D1 UV1 have "uvars (subst s\<^sub>1 t\<^sub>1') \<subseteq> 
     (vs'' - insert ?v vs \<union> subst_vars \<Gamma>) - (vs'' - insert ?v vs) \<union> {}" by auto
-  with tcn_app(6) have "uvars (subst s\<^sub>1 t\<^sub>1') \<subseteq> vs'' - insert ?v vs \<union> vs - (vs'' - insert ?v vs)" 
+  with tc\<^sub>t_app(6) have "uvars (subst s\<^sub>1 t\<^sub>1') \<subseteq> vs'' - insert ?v vs \<union> vs - (vs'' - insert ?v vs)" 
     by auto
   hence US1: "uvars (subst s\<^sub>1 t\<^sub>1') \<subseteq> vs" by auto
   have US2: "uvars (subst s\<^sub>2 t\<^sub>2') \<subseteq> uvars t\<^sub>2' - dom s\<^sub>2 \<union> subst_vars s\<^sub>2" by simp
   with S2 D2 UV2 have "uvars (subst s\<^sub>2 t\<^sub>2') \<subseteq> (vs' - vs'' \<union> subst_vars \<Gamma>) - (vs' - vs'') \<union> {}" 
     by auto
-  with tcn_app(6) have "uvars (subst s\<^sub>2 t\<^sub>2') \<subseteq> vs' - vs'' \<union> vs - (vs' - vs'')" 
-    by auto
+  with tc\<^sub>t_app(6) have "uvars (subst s\<^sub>2 t\<^sub>2') \<subseteq> vs' - vs'' \<union> vs - (vs' - vs'')" by auto
   hence US2: "uvars (subst s\<^sub>2 t\<^sub>2') \<subseteq> vs" by auto
   have "(vs'' - insert ?v vs) \<inter> ((vs' - vs'' \<union> vs) - (vs' - vs'') \<union> vs) = {}" by auto
-  with tcn_app have "(vs'' - insert ?v vs) \<inter> ((vs' - vs'' \<union> subst_vars \<Gamma>) - (vs' - vs'') \<union> vs) = {}" 
+  with tc\<^sub>t_app have "(vs'' - insert ?v vs) \<inter> ((vs' - vs'' \<union> subst_vars \<Gamma>) - (vs' - vs'') \<union> vs) = {}" 
     by auto
   with S2 D2 UV2 have "(vs'' - insert ?v vs) \<inter> (uvars t\<^sub>2' - dom s\<^sub>2 \<union> subst_vars s\<^sub>2) = {}" by auto
   with D1 US2 have DU2: "dom s\<^sub>1 \<inter> uvars (subst s\<^sub>2 t\<^sub>2') = {}" by fast
@@ -528,13 +527,13 @@ next
 qed auto
 
 lemma typecheck_fails [simp]: "typecheck e = None \<Longrightarrow> 
-  \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t"
+  \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t"
 proof                              
   assume "typecheck e = None"
   then obtain e' tt vs' con where X: "typecheck' Map.empty {} e = (e', tt, vs', con) \<and> 
     unify con = None" by (auto split: prod.splits option.splits)
-  assume "\<exists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t"
-  then obtain e\<^sub>t t where Y: "(map_option typeify \<circ> Map.empty \<turnstile>\<^sub>n e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> 
+  assume "\<exists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> e = erase e\<^sub>t"
+  then obtain e\<^sub>t t where Y: "(map_option typeify \<circ> Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> tvarst e\<^sub>t = {} \<and> 
     e = erase e\<^sub>t" by fastforce
   have Z: "subst_vars Map.empty \<subseteq> {}" by simp
   have "valid_ty_subst Map.empty \<and> finite {}" by simp

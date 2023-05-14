@@ -11,23 +11,23 @@ fun convert' :: "var list \<Rightarrow> ty expr\<^sub>s \<Rightarrow> dexpr" whe
 definition convert :: "ty expr\<^sub>s \<Rightarrow> dexpr" where
   "convert e \<equiv> convert' [] e"
 
-lemma [simp]: "map_of \<Gamma> \<turnstile>\<^sub>n e : t \<Longrightarrow> mset (map fst \<Gamma>) = mset \<Phi> \<Longrightarrow> 
+lemma [simp]: "map_of \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> mset (map fst \<Gamma>) = mset \<Phi> \<Longrightarrow> 
   map_by_assoc_list \<Gamma> \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e : t"
 proof (induction \<Phi> e arbitrary: \<Gamma> t rule: convert'.induct)
   case (3 \<Phi> x t\<^sub>1 e)
-  then obtain t\<^sub>2 where "t = Arrow t\<^sub>1 t\<^sub>2 \<and> (map_of \<Gamma>)(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>n e : t\<^sub>2" by fastforce
+  then obtain t\<^sub>2 where "t = Arrow t\<^sub>1 t\<^sub>2 \<and> (map_of \<Gamma>)(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t e : t\<^sub>2" by fastforce
   moreover with 3 have 
     "map_by_assoc_list ((x, t\<^sub>1) # \<Gamma>) (insert_at 0 x \<Phi>) \<turnstile>\<^sub>d convert' (insert_at 0 x \<Phi>) e : t\<^sub>2" 
       by fastforce
   ultimately show ?case by simp
 qed fastforce+
 
-theorem typesafend [simp]: "Map.empty \<turnstile>\<^sub>n e : t \<Longrightarrow> [] \<turnstile>\<^sub>d convert e : t"
+theorem typesafend [simp]: "Map.empty \<turnstile>\<^sub>t e : t \<Longrightarrow> [] \<turnstile>\<^sub>d convert e : t"
 proof (unfold convert_def)
   define \<Gamma> where "\<Gamma> = ([] :: (var \<times> ty) list)"
   define \<Phi> where "\<Phi> = ([] :: var list)"
-  assume "Map.empty \<turnstile>\<^sub>n e : t"
-  hence "map_of \<Gamma> \<turnstile>\<^sub>n e : t" by (simp add: \<Gamma>_def)
+  assume "Map.empty \<turnstile>\<^sub>t e : t"
+  hence "map_of \<Gamma> \<turnstile>\<^sub>t e : t" by (simp add: \<Gamma>_def)
   moreover have "mset (map fst \<Gamma>) = mset \<Phi>" by (simp add: \<Gamma>_def \<Phi>_def)
   moreover have "distinct \<Phi>" by (simp add: \<Phi>_def)
   ultimately have "map_by_assoc_list \<Gamma> \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e : t" by simp
@@ -164,18 +164,18 @@ qed
 
 (* Now we can finish the deferred progress lemmas from 01Source/Named and 02Typed/Typed *)
 
-theorem progresst [simp]: "Map.empty \<turnstile>\<^sub>n e : t \<Longrightarrow> \<exists>v. e \<Down> v"
+theorem progresst [simp]: "Map.empty \<turnstile>\<^sub>t e : t \<Longrightarrow> \<exists>v. e \<Down> v"
 proof -
-  assume X: "Map.empty \<turnstile>\<^sub>n e : t"
+  assume X: "Map.empty \<turnstile>\<^sub>t e : t"
   hence "[] \<turnstile>\<^sub>d convert e : t" by simp
   then obtain v\<^sub>d where "vald v\<^sub>d \<and> convert e \<Down>\<^sub>d v\<^sub>d" by fastforce
   with X obtain v\<^sub>n where "e \<Down> v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n" by fastforce
   thus ?thesis by fastforce
 qed
 
-theorem progressn [simp]: "Map.empty \<turnstile>\<^sub>n e : t \<Longrightarrow> \<exists>v. erase e \<Down> v"
+theorem progressn [simp]: "Map.empty \<turnstile>\<^sub>t e : t \<Longrightarrow> \<exists>v. erase e \<Down> v"
 proof -
-  assume X: "Map.empty \<turnstile>\<^sub>n e : t"
+  assume X: "Map.empty \<turnstile>\<^sub>t e : t"
   then obtain v\<^sub>t where "e \<Down> v\<^sub>t" by fastforce
   hence "erase e \<Down> erase v\<^sub>t" by simp
   thus ?thesis by fastforce
