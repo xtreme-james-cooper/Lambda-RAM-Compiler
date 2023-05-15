@@ -5,7 +5,11 @@ begin
 subsection \<open>Reflexive Transitive Closure\<close>
 
 text \<open>Our final utility is the reflexive transitive closure of a relation. This will be used for 
-iterating evaluation steps.\<close>
+iterating evaluation steps. We will also reuse it for the case of "zero or one" relations, that is,
+where the two arguments are either the same or separated by only a single step. We could define a
+second operator on relations for that, but the only subsequent use for them is to concatenate them 
+together into an iterated relation, which would be expressed in terms of \<open>iter\<close> anyways, so we cut 
+out the middleman and just use \<open>iter\<close> for these as well.\<close>
 
 inductive iter :: "('a \<Rightarrow> 'a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> 'a \<Rightarrow> bool" for f where
   iter_refl [simp]: "iter f a a"
