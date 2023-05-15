@@ -20,20 +20,20 @@ proof -
 qed
 
 theorem tc_success: "alg_compile e = Some (cd, t) \<Longrightarrow> \<exists>e\<^sub>t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> erase e\<^sub>t = e \<and>
-  (\<exists>v. value\<^sub>s v \<and> e \<Down> v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
+  (\<exists>v. value\<^sub>s v \<and> e \<Down>\<^sub>s v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
     print_mach_state \<Sigma> = print_nexpr v))"
 proof -
   assume C: "alg_compile e = Some (cd, t)"
   then obtain e\<^sub>t where T: "typecheck e = Some (e\<^sub>t, t)" by (auto split: option.splits prod.splits)
   hence TN: "(Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e = erase e\<^sub>t" by simp
-  then obtain v\<^sub>t where ET: "e\<^sub>t \<Down> v\<^sub>t" by fastforce
+  then obtain v\<^sub>t where ET: "e\<^sub>t \<Down>\<^sub>s v\<^sub>t" by fastforce
   hence VT: "value\<^sub>s v\<^sub>t" by simp
   hence VN: "value\<^sub>s (erase v\<^sub>t)" by simp
-  from ET have EN: "erase e\<^sub>t \<Down> erase v\<^sub>t" by simp
+  from ET have EN: "erase e\<^sub>t \<Down>\<^sub>s erase v\<^sub>t" by simp
   from TN have TD: "[] \<turnstile>\<^sub>d convert e\<^sub>t : t" by simp
   from ET TN have ED: "convert e\<^sub>t \<Down>\<^sub>d convert v\<^sub>t" by fastforce
   hence VD: "value\<^sub>d (convert v\<^sub>t)" by simp
-  from ED have "iter (\<leadsto>\<^sub>d) (convert e\<^sub>t) (convert v\<^sub>t)" by (metis BigStep.correctb)
+  from ED have "iter (\<leadsto>\<^sub>d) (convert e\<^sub>t) (convert v\<^sub>t)" by (metis correct\<^sub>d\<^sub>b)
   with ED EN TD have ES: "iter (\<leadsto>\<^sub>s) (SS False [FReturn] (convert e\<^sub>t)) (SS True [] (convert v\<^sub>t))" 
     by simp
   from TD have TC: "CSE [CReturn []] [] (convert e\<^sub>t) :\<^sub>c t" 

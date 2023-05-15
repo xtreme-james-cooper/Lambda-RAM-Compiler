@@ -165,7 +165,10 @@ qed simp_all
 text \<open>We can now define \<open>insert_at\<close>, which extends an environment at a given index. We treat 
 extending  environments in terms of this function, rather than simply by consing elements to the 
 front, because moving under binders can rearrange the environment, and the \<open>insert_at\<close> function can 
-represent this cleanly.\<close>
+represent this cleanly. The first two equations could be collapsed into 
+\<open>insert_at 0 a' as = a' # as\<close>, but doing so would cause \<open>insert_at 0\<close> to always evaluate to a cons; 
+doing it this way allows us to keep the insertion abstract and allow other simplifications to fire 
+with it.\<close>
 
 fun insert_at :: "nat \<Rightarrow> 'a \<Rightarrow> 'a list \<Rightarrow> 'a list" where
   "insert_at 0 a' [] = a' # []"

@@ -1,5 +1,5 @@
 theory TreeCodeConversion
-  imports TreeCode "../05Closure/Closure"
+  imports TreeCode "../05Closure/Closure" "../00Utils/Iteration"
 begin
 
 primrec encode :: "expr\<^sub>d \<Rightarrow> tree_code list" where

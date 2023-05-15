@@ -103,10 +103,10 @@ next
   with 3 Z H show ?case by (simp add: Let_def)
 qed simp_all
 
-theorem correctnd [simp]: "e \<Down> v \<Longrightarrow> free_vars\<^sub>s e = {} \<Longrightarrow> convert e \<Down>\<^sub>d convert v"
+theorem correctnd [simp]: "e \<Down>\<^sub>s v \<Longrightarrow> free_vars\<^sub>s e = {} \<Longrightarrow> convert e \<Down>\<^sub>d convert v"
 proof (induction e v rule: eval\<^sub>s.induct)
   case (ev\<^sub>s_app e\<^sub>1 x t e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
-  hence "e\<^sub>1 \<Down> Lam\<^sub>s x t e\<^sub>1'" by simp
+  hence "e\<^sub>1 \<Down>\<^sub>s Lam\<^sub>s x t e\<^sub>1'" by simp
   moreover from ev\<^sub>s_app have "free_vars\<^sub>s e\<^sub>1 = {}" by simp
   ultimately have "free_vars\<^sub>s (Lam\<^sub>s x t e\<^sub>1') = {}" by (metis free_vars_eval)
   hence X: "free_vars\<^sub>s e\<^sub>1' \<subseteq> insert x (set [])" by simp
@@ -130,54 +130,54 @@ lemma [dest]: "Lam\<^sub>d t e\<^sub>d = convert e\<^sub>n \<Longrightarrow>
   by (cases e\<^sub>n) (simp_all add: convert_def)
 
 theorem completend [simp]: "convert e\<^sub>n \<Down>\<^sub>d v\<^sub>d \<Longrightarrow> free_vars\<^sub>s e\<^sub>n = {} \<Longrightarrow> 
-  \<exists>v\<^sub>n. e\<^sub>n \<Down> v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n"
-proof (induction "convert e\<^sub>n" v\<^sub>d arbitrary: e\<^sub>n rule: big_evald.induct)
-  case (bevd_const k)
-  hence "e\<^sub>n \<Down> Const\<^sub>s k \<and> Const\<^sub>d k = convert (Const\<^sub>s k)" by (cases e\<^sub>n) (simp_all add: convert_def)
+  \<exists>v\<^sub>n. e\<^sub>n \<Down>\<^sub>s v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n"
+proof (induction "convert e\<^sub>n" v\<^sub>d arbitrary: e\<^sub>n rule: big_eval\<^sub>d.induct)
+  case (bev\<^sub>d_const k)
+  hence "e\<^sub>n \<Down>\<^sub>s Const\<^sub>s k \<and> Const\<^sub>d k = convert (Const\<^sub>s k)" by (cases e\<^sub>n) (simp_all add: convert_def)
   thus ?case by fastforce
 next
-  case (bevd_lam t e)
+  case (bev\<^sub>d_lam t e)
   then obtain x e' where "e\<^sub>n = Lam\<^sub>s x t e' \<and> e = convert' [x] e'" 
     by (cases e\<^sub>n) (simp_all add: convert_def)
-  hence "e\<^sub>n \<Down> Lam\<^sub>s x t e' \<and> Lam\<^sub>d t e = convert (Lam\<^sub>s x t e')" by (simp add: convert_def)
+  hence "e\<^sub>n \<Down>\<^sub>s Lam\<^sub>s x t e' \<and> Lam\<^sub>d t e = convert (Lam\<^sub>s x t e')" by (simp add: convert_def)
   thus ?case by fastforce
 next
-  case (bevd_app e\<^sub>1 t e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
+  case (bev\<^sub>d_app e\<^sub>1 t e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
   then obtain e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 where E: "e\<^sub>n = App\<^sub>s e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<and> e\<^sub>1 = convert e\<^sub>n\<^sub>1 \<and> e\<^sub>2 = convert e\<^sub>n\<^sub>2" 
     by (cases e\<^sub>n) (simp_all add: convert_def)
-  with bevd_app obtain v\<^sub>n\<^sub>1 where V1: "e\<^sub>n\<^sub>1 \<Down> v\<^sub>n\<^sub>1 \<and> Lam\<^sub>d t e\<^sub>1' = convert v\<^sub>n\<^sub>1" by fastforce
+  with bev\<^sub>d_app obtain v\<^sub>n\<^sub>1 where V1: "e\<^sub>n\<^sub>1 \<Down>\<^sub>s v\<^sub>n\<^sub>1 \<and> Lam\<^sub>d t e\<^sub>1' = convert v\<^sub>n\<^sub>1" by fastforce
   then obtain x e\<^sub>n\<^sub>1' where X: "v\<^sub>n\<^sub>1 = Lam\<^sub>s x t e\<^sub>n\<^sub>1' \<and> e\<^sub>1' = convert' [x] e\<^sub>n\<^sub>1'"
     by (cases v\<^sub>n\<^sub>1) (simp_all add: convert_def)
-  from bevd_app E obtain v\<^sub>n\<^sub>2 where V2: "e\<^sub>n\<^sub>2 \<Down> v\<^sub>n\<^sub>2 \<and> v\<^sub>2 = convert v\<^sub>n\<^sub>2" by fastforce
-  from bevd_app E have "free_vars\<^sub>s e\<^sub>n\<^sub>1 = {}" by simp
+  from bev\<^sub>d_app E obtain v\<^sub>n\<^sub>2 where V2: "e\<^sub>n\<^sub>2 \<Down>\<^sub>s v\<^sub>n\<^sub>2 \<and> v\<^sub>2 = convert v\<^sub>n\<^sub>2" by fastforce
+  from bev\<^sub>d_app E have "free_vars\<^sub>s e\<^sub>n\<^sub>1 = {}" by simp
   with V1 X have "free_vars\<^sub>s (Lam\<^sub>s x t e\<^sub>n\<^sub>1') = {}" by (metis free_vars_eval)
   hence Y: "free_vars\<^sub>s e\<^sub>n\<^sub>1' \<subseteq> {x}" by simp
-  from bevd_app E have "free_vars\<^sub>s e\<^sub>n\<^sub>2 = {}" by simp
+  from bev\<^sub>d_app E have "free_vars\<^sub>s e\<^sub>n\<^sub>2 = {}" by simp
   with V2 have Z: "free_vars\<^sub>s v\<^sub>n\<^sub>2 = {}" by auto
   with Y have "free_vars\<^sub>s (subst\<^sub>s x v\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1') = {}" by (metis free_vars_subst subset_empty)
-  with bevd_app X V2 Y Z have "\<exists>v\<^sub>n. subst\<^sub>s x v\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1' \<Down> v\<^sub>n \<and> v = convert v\<^sub>n" 
+  with bev\<^sub>d_app X V2 Y Z have "\<exists>v\<^sub>n. subst\<^sub>s x v\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1' \<Down>\<^sub>s v\<^sub>n \<and> v = convert v\<^sub>n" 
     by (simp add: convert_def)
-  then obtain v\<^sub>n where "subst\<^sub>s x v\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1' \<Down> v\<^sub>n \<and> v = convert v\<^sub>n" by fastforce
-  with V1 X V2 have "App\<^sub>s e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<Down> v\<^sub>n \<and> v = convert v\<^sub>n" by fastforce
+  then obtain v\<^sub>n where "subst\<^sub>s x v\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1' \<Down>\<^sub>s v\<^sub>n \<and> v = convert v\<^sub>n" by fastforce
+  with V1 X V2 have "App\<^sub>s e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<Down>\<^sub>s v\<^sub>n \<and> v = convert v\<^sub>n" by fastforce
   with E show ?case by fastforce
 qed
 
 (* Now we can finish the deferred progress lemmas from 01Source/Named and 02Typed/Typed *)
 
-theorem progresst [simp]: "Map.empty \<turnstile>\<^sub>t e : t \<Longrightarrow> \<exists>v. e \<Down> v"
+theorem progresst [simp]: "Map.empty \<turnstile>\<^sub>t e : t \<Longrightarrow> \<exists>v. e \<Down>\<^sub>s v"
 proof -
   assume X: "Map.empty \<turnstile>\<^sub>t e : t"
   hence "[] \<turnstile>\<^sub>d convert e : t" by simp
   then obtain v\<^sub>d where "value\<^sub>d v\<^sub>d \<and> convert e \<Down>\<^sub>d v\<^sub>d" by fastforce
-  with X obtain v\<^sub>n where "e \<Down> v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n" by fastforce
+  with X obtain v\<^sub>n where "e \<Down>\<^sub>s v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n" by fastforce
   thus ?thesis by fastforce
 qed
 
-theorem progressn [simp]: "Map.empty \<turnstile>\<^sub>t e : t \<Longrightarrow> \<exists>v. erase e \<Down> v"
+theorem progressn [simp]: "Map.empty \<turnstile>\<^sub>t e : t \<Longrightarrow> \<exists>v. erase e \<Down>\<^sub>s v"
 proof -
   assume X: "Map.empty \<turnstile>\<^sub>t e : t"
-  then obtain v\<^sub>t where "e \<Down> v\<^sub>t" by fastforce
-  hence "erase e \<Down> erase v\<^sub>t" by simp
+  then obtain v\<^sub>t where "e \<Down>\<^sub>s v\<^sub>t" by fastforce
+  hence "erase e \<Down>\<^sub>s erase v\<^sub>t" by simp
   thus ?thesis by fastforce
 qed
 

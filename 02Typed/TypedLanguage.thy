@@ -95,7 +95,7 @@ proof (induction x e' e arbitrary: \<Gamma> t rule: subst\<^sub>s.induct)
   with T show ?case by (simp add: Let_def)
 qed fastforce+
 
-theorem preservation\<^sub>t: "e \<Down> v \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t v : t"
+theorem preservation\<^sub>t: "e \<Down>\<^sub>s v \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t v : t"
   by (induction e v arbitrary: t rule: eval\<^sub>s.induct) fastforce+
 
 subsection \<open>Type Erasure\<close>
@@ -137,7 +137,7 @@ lemma erased_subst_var [simp]: "erase (subst_var\<^sub>s x y e\<^sub>t) = subst_
 lemma erased_subst [simp]: "erase (subst\<^sub>s x e\<^sub>t' e\<^sub>t) = subst\<^sub>s x (erase e\<^sub>t') (erase e\<^sub>t)"
   by (induction x e\<^sub>t' e\<^sub>t rule: subst\<^sub>s.induct) (simp_all add: Let_def)
 
-theorem completeness [simp]: "e\<^sub>t \<Down> v\<^sub>t \<Longrightarrow> erase e\<^sub>t \<Down> erase v\<^sub>t"
+theorem completeness [simp]: "e\<^sub>t \<Down>\<^sub>s v\<^sub>t \<Longrightarrow> erase e\<^sub>t \<Down>\<^sub>s erase v\<^sub>t"
   by (induction e\<^sub>t v\<^sub>t rule: eval\<^sub>s.induct) simp_all
 
 end

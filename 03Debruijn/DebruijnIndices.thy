@@ -1,5 +1,5 @@
 theory DebruijnIndices
-  imports "../02Typed/Type" "../00Utils/Environment" "../00Utils/Iteration"
+  imports "../02Typed/Type" "../00Utils/Environment" 
 begin
 
 section \<open>Debruijn Indices\<close>
@@ -9,8 +9,9 @@ without names on the binders and with natural numbers for variables; these are o
 [5] covers Debruijn indices well, but the brief version is that it is a nameless representation of 
 expressions where a variable points to its binder by counting how many binders lie between them. So,
 for example, \<open>\<lambda>x. \<lambda>y. x y (\<lambda>y. x y)\<close> would be represented by \<open>\<lambda>. \<lambda>. 1 0 (\<lambda>. 2 0)\<close>. It is far more
-difficult to read, but has the great virtue that name-shadowing and name-collisions are impossible - 
-since there are no names - and thus substitution is made much simpler.\<close>
+difficult to read, but alpha-equivalence becomes simple equality, and it has the further great 
+virtue that name-shadowing and name-collisions are impossible - since there are no names - and thus 
+substitution is made much simpler.\<close>
 
 datatype expr\<^sub>d = 
   Var\<^sub>d nat

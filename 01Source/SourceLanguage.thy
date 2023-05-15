@@ -105,12 +105,12 @@ relation rather than an evaluation function because, of course, some source expr
 a normal form. However, even once we prove termination for later stages, we will mostly continue to 
 use an inductive definition of evaluation simply because it is easier to write and work with.\<close> 
 
-inductive eval\<^sub>s :: "'a expr\<^sub>s \<Rightarrow> 'a expr\<^sub>s \<Rightarrow> bool" (infix "\<Down>" 50) where
-  ev\<^sub>s_const [simp]: "Const\<^sub>s n \<Down> Const\<^sub>s n"
-| ev\<^sub>s_lam [simp]: "Lam\<^sub>s x t e \<Down> Lam\<^sub>s x t e"
-| ev\<^sub>s_app [simp]: "e\<^sub>1 \<Down> Lam\<^sub>s x t e\<^sub>1' \<Longrightarrow> e\<^sub>2 \<Down> v\<^sub>2 \<Longrightarrow> subst\<^sub>s x v\<^sub>2 e\<^sub>1' \<Down> v \<Longrightarrow> App\<^sub>s e\<^sub>1 e\<^sub>2 \<Down> v"
+inductive eval\<^sub>s :: "'a expr\<^sub>s \<Rightarrow> 'a expr\<^sub>s \<Rightarrow> bool" (infix "\<Down>\<^sub>s" 50) where
+  ev\<^sub>s_const [simp]: "Const\<^sub>s n \<Down>\<^sub>s Const\<^sub>s n"
+| ev\<^sub>s_lam [simp]: "Lam\<^sub>s x t e \<Down>\<^sub>s Lam\<^sub>s x t e"
+| ev\<^sub>s_app [simp]: "e\<^sub>1 \<Down>\<^sub>s Lam\<^sub>s x t e\<^sub>1' \<Longrightarrow> e\<^sub>2 \<Down>\<^sub>s v\<^sub>2 \<Longrightarrow> subst\<^sub>s x v\<^sub>2 e\<^sub>1' \<Down>\<^sub>s v \<Longrightarrow> App\<^sub>s e\<^sub>1 e\<^sub>2 \<Down>\<^sub>s v"
 
-lemma free_vars_eval [simp]: "e \<Down> v \<Longrightarrow> free_vars\<^sub>s e = {} \<Longrightarrow> free_vars\<^sub>s v = {}"
+lemma free_vars_eval [simp]: "e \<Down>\<^sub>s v \<Longrightarrow> free_vars\<^sub>s e = {} \<Longrightarrow> free_vars\<^sub>s v = {}"
 proof (induction e v rule: eval\<^sub>s.induct)
   case (ev\<^sub>s_app e\<^sub>1 x t e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
   hence "free_vars\<^sub>s e\<^sub>1' \<subseteq> insert x {} \<and> free_vars\<^sub>s v\<^sub>2 \<subseteq> {}" by simp
@@ -118,16 +118,16 @@ proof (induction e v rule: eval\<^sub>s.induct)
   with ev\<^sub>s_app show ?case by simp
 qed simp_all
 
-lemma eval_to_value [simp]: "e \<Down> v \<Longrightarrow> value\<^sub>s v"
+lemma eval_to_value [simp]: "e \<Down>\<^sub>s v \<Longrightarrow> value\<^sub>s v"
   by (induction e v rule: eval\<^sub>s.induct) simp_all
 
-lemma val_no_eval: "e \<Down> v \<Longrightarrow> value\<^sub>s e \<Longrightarrow> v = e"
+lemma val_no_eval: "e \<Down>\<^sub>s v \<Longrightarrow> value\<^sub>s e \<Longrightarrow> v = e"
   by (induction e v rule: eval\<^sub>s.induct) simp_all
 
 text \<open>Since our language is untyped, we cannot prove (or even express) the progress and preservation 
 theorems. However, we can prove determinism of evaluation:\<close>
 
-theorem determinism\<^sub>s: "e \<Down> v \<Longrightarrow> e \<Down> v' \<Longrightarrow> v = v'"
+theorem determinism\<^sub>s: "e \<Down>\<^sub>s v \<Longrightarrow> e \<Down>\<^sub>s v' \<Longrightarrow> v = v'"
 proof (induction e v arbitrary: v' rule: eval\<^sub>s.induct)
   case (ev\<^sub>s_const n)
   thus ?case by (induction rule: eval\<^sub>s.cases) simp_all

@@ -1,5 +1,5 @@
 theory Closure
-  imports "../03Debruijn/DebruijnIndices"
+  imports "../03Debruijn/DebruijnIndices" "../00Utils/Iteration"
 begin
 
 datatype closure = 
