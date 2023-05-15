@@ -23,11 +23,11 @@ proof (induction c)
 qed simp_all
 
 lemma [simp]: "c :\<^sub>c\<^sub>l t \<Longrightarrow> [] \<turnstile>\<^sub>d declosure c : t"
-  and [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> tc_pairs ts (map declosure cs)" 
+  and [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> tc_expr_context ts (map declosure cs)" 
 proof (induction c t and cs ts rule: typecheck_closure_typecheck_closure_list.inducts)
   case (tcc_lam cs ts t\<^sub>1 e t\<^sub>2)
   then obtain e' where "multisubst (map declosure cs) (Lam\<^sub>d t\<^sub>1 e) = Lam\<^sub>d t\<^sub>1 e' \<and> ([t\<^sub>1] \<turnstile>\<^sub>d e' : t\<^sub>2) \<and> 
-    (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst (insert_at 0 e\<^sub>2 (map declosure cs)) e = subst\<^sub>d 0 e\<^sub>2 e')" 
+    (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst (map declosure cs) (subst\<^sub>d 0 e\<^sub>2 e) = subst\<^sub>d 0 e\<^sub>2 e')" 
       by fastforce
   thus ?case by simp
 qed simp_all
@@ -35,7 +35,7 @@ qed simp_all
 lemma [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> declosure_stack s : t' \<rightarrow> t"
 proof (induction s t' t rule: typecheck_cstack.induct)
   case (tcc_scons_app1 cs ts e t\<^sub>1 s t\<^sub>2 t)
-  hence "tc_pairs ts (map declosure cs)" by simp
+  hence "tc_expr_context ts (map declosure cs)" by simp
   moreover from tcc_scons_app1 have "ts \<turnstile>\<^sub>d e : t\<^sub>1" by simp
   ultimately have "[] \<turnstile>\<^sub>d multisubst (map declosure cs) e : t\<^sub>1" by simp
   with tcc_scons_app1 show ?case by simp
@@ -49,7 +49,7 @@ qed simp_all
 theorem typesafec [simp]: "\<Sigma> :\<^sub>c t \<Longrightarrow> declosure_state \<Sigma> :\<^sub>s t"
 proof (induction \<Sigma> t rule: typecheck_closure_state.induct)
   case (tcc_state_ev s t' t cs ts e)
-  hence "tc_pairs ts (map declosure cs)" by simp
+  hence "tc_expr_context ts (map declosure cs)" by simp
   moreover from tcc_state_ev have "ts \<turnstile>\<^sub>d e : t'" by simp
   ultimately have "[] \<turnstile>\<^sub>d multisubst (map declosure cs) e : t'" by simp
   moreover from tcc_state_ev have "declosure_stack s : t' \<rightarrow> t" by simp
@@ -65,10 +65,10 @@ lemma multisubst_closure [simp]: "c :\<^sub>c\<^sub>l t \<Longrightarrow> multis
   and [simp]: "cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> v \<in> set (map declosure cs) \<Longrightarrow> multisubst es v = v"
 proof (induction c t and cs ts rule: typecheck_closure_typecheck_closure_list.inducts)
   case (tcc_lam cs ts t\<^sub>1 e t\<^sub>2)
-  moreover hence "tc_pairs ts (map declosure cs)" by simp
+  moreover hence "tc_expr_context ts (map declosure cs)" by simp
   ultimately obtain e' where E: "multisubst (map declosure cs) (Lam\<^sub>d t\<^sub>1 e) = Lam\<^sub>d t\<^sub>1 e' \<and> 
     ([t\<^sub>1] \<turnstile>\<^sub>d e' : t\<^sub>2) \<and> (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> 
-      multisubst (insert_at 0 e\<^sub>2 (map declosure cs)) e = subst\<^sub>d 0 e\<^sub>2 e')" by fastforce
+      multisubst (map declosure cs) (subst\<^sub>d 0 e\<^sub>2 e) = subst\<^sub>d 0 e\<^sub>2 e')" by fastforce
   hence "[] \<turnstile>\<^sub>d Lam\<^sub>d t\<^sub>1 e' : Arrow t\<^sub>1 t\<^sub>2" by simp
   hence "multisubst es (Lam\<^sub>d t\<^sub>1 e') = Lam\<^sub>d t\<^sub>1 e'" by simp
   with E show ?case by simp
@@ -122,17 +122,14 @@ next
   case (retc_app2 t\<^sub>1 cs e\<^sub>1 s c\<^sub>2)
   then obtain ts t\<^sub>2 where T: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2) \<and> (s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> 
     (c\<^sub>2 :\<^sub>c\<^sub>l t\<^sub>1)" by fastforce
-  hence "tc_pairs ts (map declosure cs) \<and> insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2" by simp
+  hence "tc_expr_context ts (map declosure cs) \<and> insert_at 0 t\<^sub>1 ts \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2" by simp
   then obtain e' where "multisubst (map declosure cs) (Lam\<^sub>d t\<^sub>1 e\<^sub>1) = Lam\<^sub>d t\<^sub>1 e' \<and> ([t\<^sub>1] \<turnstile>\<^sub>d e' : t\<^sub>2) \<and>
-    (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst (insert_at 0 e\<^sub>2 (map declosure cs)) e\<^sub>1 = subst\<^sub>d 0 e\<^sub>2 e')" 
+    (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst (map declosure cs) (subst\<^sub>d 0 e\<^sub>2 e\<^sub>1) = subst\<^sub>d 0 e\<^sub>2 e')" 
       by fastforce
-  with T have "multisubst (map declosure cs) (Lam\<^sub>d t\<^sub>1 e\<^sub>1) = Lam\<^sub>d t\<^sub>1 e' \<and> 
-    multisubst (insert_at 0 (declosure c\<^sub>2) (map declosure cs)) e\<^sub>1 = subst\<^sub>d 0 (declosure c\<^sub>2) e'" 
-      by simp
-  hence "SS True (FApp2 (multisubst (map declosure cs) (Lam\<^sub>d t\<^sub>1 e\<^sub>1)) # declosure_stack s) 
+  with T have "SS True (FApp2 (multisubst (map declosure cs) (Lam\<^sub>d t\<^sub>1 e\<^sub>1)) # declosure_stack s) 
     (declosure c\<^sub>2) \<leadsto>\<^sub>s (SS False (FReturn # declosure_stack s) 
       (multisubst (map declosure cs) (subst\<^sub>d 0 (declosure c\<^sub>2) e\<^sub>1)))" 
-    by (induction cs) simp_all
+    by simp
   hence "iter (\<leadsto>\<^sub>s) (SS True (FApp2 (multisubst (map declosure cs) (Lam\<^sub>d t\<^sub>1 e\<^sub>1)) # declosure_stack s) 
     (declosure c\<^sub>2)) 
       (SS False (FReturn # declosure_stack s) 
@@ -175,15 +172,20 @@ proof -
   ultimately show ?thesis by simp
 qed
 
-lemma [simp]: "Lam\<^sub>d t e = declosure c \<Longrightarrow> 
-  \<exists>cs e'. c = CLam t cs e' \<and> (\<forall>e\<^sub>2. (\<forall>ee. subst\<^sub>d 0 ee e\<^sub>2 = e\<^sub>2) \<longrightarrow> 
-    subst\<^sub>d 0 e\<^sub>2 e = multisubst (map declosure cs) (subst\<^sub>d 0 e\<^sub>2 e'))"
+lemma lam_to_declosure [simp]: "Lam\<^sub>d t\<^sub>1 e = declosure c \<Longrightarrow> c :\<^sub>c\<^sub>l Arrow t' t\<^sub>2 \<Longrightarrow>
+  \<exists>cs e'. c = CLam t\<^sub>1 cs e' \<and> multisubst (map declosure cs) (Lam\<^sub>d t\<^sub>1 e') = Lam\<^sub>d t\<^sub>1 e \<and> 
+    ([t\<^sub>1] \<turnstile>\<^sub>d e : t\<^sub>2) \<and> t' = t\<^sub>1 \<and>
+    (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst (map declosure cs) (subst\<^sub>d 0 e\<^sub>2 e') = subst\<^sub>d 0 e\<^sub>2 e)"
 proof (induction c)
   case (CLam tt cs e')
-  moreover obtain ee' where "multisubst (map declosure cs) (Lam\<^sub>d tt e') = Lam\<^sub>d tt ee' \<and> 
-    (\<forall>e\<^sub>2. (\<forall>ee. subst\<^sub>d 0 ee e\<^sub>2 = e\<^sub>2) \<longrightarrow> 
-      subst\<^sub>d 0 e\<^sub>2 ee' = multisubst (map declosure cs) (subst\<^sub>d 0 e\<^sub>2 e'))" by fastforce
-  ultimately show ?case by simp
+  moreover then obtain ts where T: "(cs :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (insert_at 0 t' ts \<turnstile>\<^sub>d e' : t\<^sub>2) \<and> tt = t'" 
+    by fastforce
+  moreover hence "tc_expr_context ts (map declosure cs)" by simp
+  ultimately obtain e'' where "multisubst (map declosure cs) (Lam\<^sub>d t' e') = Lam\<^sub>d t' e'' \<and> 
+    ([t'] \<turnstile>\<^sub>d e'' : t\<^sub>2) \<and>
+    (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t') \<longrightarrow> multisubst (map declosure cs) (subst\<^sub>d 0 e\<^sub>2 e') = subst\<^sub>d 0 e\<^sub>2 e'')"
+      by fastforce
+  with CLam T show ?case by simp
 qed simp_all
 
 lemma [dest]: "App\<^sub>d e\<^sub>1 e\<^sub>2 = declosure c \<Longrightarrow> False"
@@ -381,16 +383,18 @@ next
     e\<^sub>2 = declosure c\<^sub>2" by fastforce
   then obtain c s\<^sub>c' where S': "s\<^sub>c = CApp2 c # s\<^sub>c' \<and> Lam\<^sub>d t\<^sub>1 e\<^sub>1 = declosure c \<and> 
     s = declosure_stack s\<^sub>c'" by fastforce
-  then obtain cs' e\<^sub>1' where C: "c = CLam t\<^sub>1 cs' e\<^sub>1' \<and> (\<forall>e\<^sub>2. (\<forall>ee. subst\<^sub>d 0 ee e\<^sub>2 = e\<^sub>2) \<longrightarrow> 
-    subst\<^sub>d 0 e\<^sub>2 e\<^sub>1 = multisubst (map declosure cs') (subst\<^sub>d 0 e\<^sub>2 e\<^sub>1'))" by fastforce
-  have X: "CSC (CApp2 (CLam t\<^sub>1 cs' e\<^sub>1') # s\<^sub>c') c\<^sub>2 \<leadsto>\<^sub>c CSE (CReturn (c\<^sub>2 # cs') # s\<^sub>c') (c\<^sub>2 # cs') e\<^sub>1'"
+  from evs_app3 S S' obtain t' t\<^sub>2 cs where T: "(c :\<^sub>c\<^sub>l Arrow t' t\<^sub>2) \<and> (s\<^sub>c' :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> 
+    latest_environment s\<^sub>c' = Some cs \<and> c\<^sub>2 :\<^sub>c\<^sub>l t'" by fastforce
+  with S' obtain cs' e\<^sub>1' where C: "c = CLam t\<^sub>1 cs' e\<^sub>1' \<and> 
+    multisubst (map declosure cs') (Lam\<^sub>d t\<^sub>1 e\<^sub>1') = Lam\<^sub>d t\<^sub>1 e\<^sub>1 \<and> ([t\<^sub>1] \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2) \<and> t' = t\<^sub>1 \<and>
+    (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst (map declosure cs') (subst\<^sub>d 0 e\<^sub>2 e\<^sub>1') = subst\<^sub>d 0 e\<^sub>2 e\<^sub>1)" 
+      by (metis lam_to_declosure)
+  with T S have "subst\<^sub>d 0 e\<^sub>2 e\<^sub>1 = multisubst (map declosure cs') (subst\<^sub>d 0 (declosure c\<^sub>2) e\<^sub>1')" 
     by simp
-  with evs_app3 S S' C have "CSE (CReturn (c\<^sub>2 # cs') # s\<^sub>c') (c\<^sub>2 # cs') e\<^sub>1' :\<^sub>c t" 
-    by (metis preservationc)
-  then obtain t' ts where "(s\<^sub>c' :\<^sub>c t' \<rightarrow> t) \<and> (c\<^sub>2 # cs' :\<^sub>c\<^sub>l\<^sub>s ts) \<and> (ts \<turnstile>\<^sub>d e\<^sub>1' : t')" by fastforce
-  with S have "\<forall>ee. subst\<^sub>d 0 ee e\<^sub>2 = e\<^sub>2" by fastforce
-  with S S' C have "SS False (FReturn # s) (subst\<^sub>d 0 e\<^sub>2 e\<^sub>1) = 
+  with S S' have X: "SS False (FReturn # s) (subst\<^sub>d 0 e\<^sub>2 e\<^sub>1) = 
     declosure_state (CSE (CReturn (c\<^sub>2 # cs') # s\<^sub>c') (c\<^sub>2 # cs') e\<^sub>1')" by simp
+  have "CSC (CApp2 (CLam t\<^sub>1 cs' e\<^sub>1') # s\<^sub>c') c\<^sub>2 \<leadsto>\<^sub>c CSE (CReturn (c\<^sub>2 # cs') # s\<^sub>c') (c\<^sub>2 # cs') e\<^sub>1'"
+    by simp
   with S S' C X show ?case by (metis iter_step iter_refl)
 next
   case (evs_ret s e)

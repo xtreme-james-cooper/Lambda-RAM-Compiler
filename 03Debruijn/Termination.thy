@@ -34,9 +34,9 @@ proof (induction es)
   with Cons show ?case by simp
 qed simp_all
 
-lemma [simp]: "tc_pairs \<Gamma> es \<Longrightarrow> list_all2 stable \<Gamma> es \<Longrightarrow> lookup \<Gamma> x = Some t \<Longrightarrow> 
+lemma [simp]: "tc_expr_context \<Gamma> es \<Longrightarrow> list_all2 stable \<Gamma> es \<Longrightarrow> lookup \<Gamma> x = Some t \<Longrightarrow> 
   stable t (multisubst es (Var\<^sub>d x))"
-proof (induction \<Gamma> es arbitrary: x rule: tc_pairs.induct)
+proof (induction \<Gamma> es arbitrary: x rule: tc_expr_context.induct)
   case (tcp_cons t' e \<Gamma> ves)
   thus ?case by (induction x) simp_all
 qed simp_all
@@ -117,12 +117,12 @@ proof (induction e\<^sub>2 e\<^sub>2' rule: iter.induct)
   ultimately show ?case by simp
 qed simp_all
 
-lemma tc_stable [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> tc_pairs \<Gamma> es \<Longrightarrow> list_all2 stable \<Gamma> es \<Longrightarrow> 
+lemma tc_stable [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> tc_expr_context \<Gamma> es \<Longrightarrow> list_all2 stable \<Gamma> es \<Longrightarrow> 
   stable t (multisubst es e)"
 proof (induction \<Gamma> e t arbitrary: es rule: typing\<^sub>d.induct)
   case (tc\<^sub>d_lam t\<^sub>1 \<Gamma> e t\<^sub>2)
   then obtain e' where E: "multisubst es (Lam\<^sub>d t\<^sub>1 e) = Lam\<^sub>d t\<^sub>1 e' \<and> ([t\<^sub>1] \<turnstile>\<^sub>d e' : t\<^sub>2) \<and> 
-    (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst (insert_at 0 e\<^sub>2 es) e = subst\<^sub>d 0 e\<^sub>2 e')" by fastforce
+    (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst es (subst\<^sub>d 0 e\<^sub>2 e) = subst\<^sub>d 0 e\<^sub>2 e')" by fastforce
   moreover have "\<And>e\<^sub>2. stable t\<^sub>1 e\<^sub>2 \<Longrightarrow> value\<^sub>d e\<^sub>2 \<Longrightarrow> stable t\<^sub>2 (App\<^sub>d (Lam\<^sub>d t\<^sub>1 e') e\<^sub>2)"
   proof -
     fix e\<^sub>2
@@ -130,8 +130,10 @@ proof (induction \<Gamma> e t arbitrary: es rule: typing\<^sub>d.induct)
     hence E2: "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1" by (metis stable_typechecks)
     hence T: "\<exists>t. [] \<turnstile>\<^sub>d e\<^sub>2 : t" by fastforce
     from tc\<^sub>d_lam S have "list_all2 stable (insert_at 0 t\<^sub>1 \<Gamma>) (insert_at 0 e\<^sub>2 es)" by simp
-    with tc\<^sub>d_lam have "tc_pairs (insert_at 0 t\<^sub>1 \<Gamma>) (insert_at 0 e\<^sub>2 es) \<Longrightarrow> 
+    with tc\<^sub>d_lam have "tc_expr_context (insert_at 0 t\<^sub>1 \<Gamma>) (insert_at 0 e\<^sub>2 es) \<Longrightarrow> 
       stable t\<^sub>2 (multisubst (insert_at 0 e\<^sub>2 es) e)" by blast
+    hence "tc_expr_context (insert_at 0 t\<^sub>1 \<Gamma>) (insert_at 0 e\<^sub>2 es) \<Longrightarrow> 
+      stable t\<^sub>2 (multisubst es (subst\<^sub>d 0 e\<^sub>2 e))" by (cases es) simp_all
     with tc\<^sub>d_lam S V T E have "stable t\<^sub>2 (subst\<^sub>d 0 e\<^sub>2 e')" by (simp add: stable_typechecks)
     moreover with V have "App\<^sub>d (Lam\<^sub>d t\<^sub>1 e') e\<^sub>2 \<leadsto>\<^sub>d subst\<^sub>d 0 e\<^sub>2 e'" by simp
     moreover from E have "[] \<turnstile>\<^sub>d Lam\<^sub>d t\<^sub>1 e' : Arrow t\<^sub>1 t\<^sub>2" by simp
