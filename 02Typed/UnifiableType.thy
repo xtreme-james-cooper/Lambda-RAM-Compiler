@@ -1,5 +1,5 @@
 theory UnifiableType
-  imports Type "../00Utils/Unification/Unification"
+  imports TypedLanguage "../00Utils/Unification/Unification"
 begin
 
 subsection \<open>Unifiable Types\<close>
@@ -94,6 +94,14 @@ proof (unfold valid_ty_subst_def combine_subst_def ran_def, rule)
   qed auto
 qed
 
+text \<open>We also extend it to expressions annotated with unifiable types:\<close>
+
+primrec valid_ty_expr :: "uterm expr\<^sub>s \<Rightarrow> bool" where
+  "valid_ty_expr (Var\<^sub>s x) = True"
+| "valid_ty_expr (Const\<^sub>s n) = True"
+| "valid_ty_expr (Lam\<^sub>s x \<tau> e) = (valid_ty_term \<tau> \<and> valid_ty_expr e)"
+| "valid_ty_expr (App\<^sub>s e\<^sub>1 e\<^sub>2) = (valid_ty_expr e\<^sub>1 \<and> valid_ty_expr e\<^sub>2)"
+
 text \<open>Now on to the promised complications. Because the types we produce are not the fully-general 
 ones produced by the unification algorithm, we need an operation to replace term variables with 
 \<open>Num\<^sub>\<tau>\<close>s. But we still may need to instantiate some of them, to extend a subexpression type 
@@ -179,5 +187,47 @@ proof (induction \<kappa> rule: constr_vars.induct)
   moreover hence "uvars \<tau>\<^sub>1 \<inter> vs' \<subseteq> vs \<and> uvars \<tau>\<^sub>2 \<inter> vs' \<subseteq> vs" by auto
   ultimately show ?case by fastforce
 qed simp_all
+
+text \<open>Finally, we define a free type-variables operation on expressions annotated with unifiable 
+types.\<close>
+
+primrec tyvars\<^sub>s :: "uterm expr\<^sub>s \<Rightarrow> var set" where
+  "tyvars\<^sub>s (Var\<^sub>s x) = {}"
+| "tyvars\<^sub>s (Const\<^sub>s n) = {}"
+| "tyvars\<^sub>s (Lam\<^sub>s x \<tau> e) = uvars \<tau> \<union> tyvars\<^sub>s e"
+| "tyvars\<^sub>s (App\<^sub>s e\<^sub>1 e\<^sub>2) = tyvars\<^sub>s e\<^sub>1 \<union> tyvars\<^sub>s e\<^sub>2"
+
+lemma tyvars_subst_expr [simp]: "tyvars\<^sub>s (map_expr\<^sub>s (subst \<sigma>) e) \<subseteq> 
+  tyvars\<^sub>s e - dom \<sigma> \<union> subst_vars \<sigma>"
+proof (induction e)
+  case (Lam\<^sub>s x \<tau> e)
+  moreover have "uvars (subst \<sigma> \<tau>) \<subseteq> uvars \<tau> - dom \<sigma> \<union> subst_vars \<sigma>" by simp
+  ultimately show ?case by fastforce
+qed auto
+
+lemma eliminate_from_closed_expr [simp]: "tyvars\<^sub>s e = {} \<Longrightarrow> map_expr\<^sub>s (eliminate_vars vs) e = e"
+  by (induction e) simp_all
+
+lemma eliminate_unused_var_expr [simp]: "x \<notin> tyvars\<^sub>s e \<Longrightarrow> 
+    map_expr\<^sub>s (eliminate_vars (insert x vs)) e = map_expr\<^sub>s (eliminate_vars vs) e"
+  by (induction e) simp_all
+
+lemma subst_unused_vars_expr [simp]: "dom \<sigma> \<inter> tyvars\<^sub>s e = {} \<Longrightarrow> map_expr\<^sub>s (subst \<sigma>) e = e"
+proof (induction e)
+  case (Lam\<^sub>s x \<tau> e)
+  moreover hence "dom \<sigma> \<inter> uvars \<tau> = {}" by auto
+  ultimately show ?case by auto
+qed auto
+
+lemma subst_conbine_subst_expr [simp]: "map_expr\<^sub>s (subst (combine_subst s t)) e = 
+    map_expr\<^sub>s (subst s) (map_expr\<^sub>s (subst t) e)"
+  by (induction e) simp_all
+
+text \<open>This is also a convenient place to place some other miscellaneous lemmas about term-annotated 
+expressions.\<close>
+
+lemma extend_subst_on_expr [simp]: "map_expr\<^sub>s (subst (extend_subst x \<tau> \<sigma>)) e = 
+    map_expr\<^sub>s (subst \<sigma>) (map_expr\<^sub>s (subst [x \<mapsto> \<tau>]) e)"
+  by (induction e) (simp_all only: expr\<^sub>s.map expand_extend_subst comp_def)
 
 end

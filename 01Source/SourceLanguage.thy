@@ -106,7 +106,7 @@ a normal form. However, even once we prove termination for later stages, we will
 use an inductive definition of evaluation simply because it is easier to write and work with.\<close> 
 
 inductive eval\<^sub>s :: "'a expr\<^sub>s \<Rightarrow> 'a expr\<^sub>s \<Rightarrow> bool" (infix "\<Down>" 50) where
-  ev\<^sub>s_const [simp]: "Const\<^sub>s k \<Down> Const\<^sub>s k"
+  ev\<^sub>s_const [simp]: "Const\<^sub>s n \<Down> Const\<^sub>s n"
 | ev\<^sub>s_lam [simp]: "Lam\<^sub>s x t e \<Down> Lam\<^sub>s x t e"
 | ev\<^sub>s_app [simp]: "e\<^sub>1 \<Down> Lam\<^sub>s x t e\<^sub>1' \<Longrightarrow> e\<^sub>2 \<Down> v\<^sub>2 \<Longrightarrow> subst\<^sub>s x v\<^sub>2 e\<^sub>1' \<Down> v \<Longrightarrow> App\<^sub>s e\<^sub>1 e\<^sub>2 \<Down> v"
 
@@ -129,7 +129,7 @@ theorems. However, we can prove determinism of evaluation:\<close>
 
 theorem determinism\<^sub>s: "e \<Down> v \<Longrightarrow> e \<Down> v' \<Longrightarrow> v = v'"
 proof (induction e v arbitrary: v' rule: eval\<^sub>s.induct)
-  case (ev\<^sub>s_const k)
+  case (ev\<^sub>s_const n)
   thus ?case by (induction rule: eval\<^sub>s.cases) simp_all
 next
   case (ev\<^sub>s_lam x e)

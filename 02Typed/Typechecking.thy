@@ -1,5 +1,5 @@
 theory Typechecking
-  imports TypedLanguage UnifiableType
+  imports UnifiableType
 begin
 
 subsection \<open>Typechecking\<close>
@@ -11,9 +11,9 @@ expression, a set of additional used variables, and a constraint that must be un
 the final form of the type of the expression. Rather than explicitly failing if we reach an unbound 
 variable, we simply throw an un-unifiable constraint in and fail later.\<close>
 
-text \<open>*The first argument is a \<open>subst\<close> rather than a \<open>var \<rightharpoonup> ty\<close> or \<open>ty list\<close>, but we call it \<Gamma> 
-rather than \<sigma> to emphasize its role as a context in which we look up types, not a substitution we 
-apply to terms.\<close>
+text \<open>*The first argument is a \<open>subst\<close>, not a \<open>var \<rightharpoonup> ty\<close> or \<open>ty list\<close>, but we call it \<Gamma> rather than 
+\<sigma> to emphasize its role as a context in which we look up types, not a substitution we apply to 
+terms.\<close>
 
 primrec typecheck' :: "subst \<Rightarrow> var set \<Rightarrow> 'a expr\<^sub>s \<Rightarrow> uterm expr\<^sub>s \<times> uterm \<times> var set \<times> constraint" 
     where
@@ -23,250 +23,194 @@ primrec typecheck' :: "subst \<Rightarrow> var set \<Rightarrow> 'a expr\<^sub>s
 | "typecheck' \<Gamma> vs (Const\<^sub>s n) = (Const\<^sub>s n, Num\<^sub>\<tau>, {}, [])"
 | "typecheck' \<Gamma> vs (Lam\<^sub>s x u e) = (
     let v = fresh vs
-    in let (e', \<tau>, vs', \<kappa>) = typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e
-    in (Lam\<^sub>s x (Var v) e', Arrow\<^sub>\<tau> (Var v) \<tau>, insert v vs', \<kappa>))"
+    in let (e\<^sub>u, \<tau>, vs', \<kappa>) = typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e
+    in (Lam\<^sub>s x (Var v) e\<^sub>u, Arrow\<^sub>\<tau> (Var v) \<tau>, insert v vs', \<kappa>))"
 | "typecheck' \<Gamma> vs (App\<^sub>s e\<^sub>1 e\<^sub>2) = (
     let v = fresh vs
-    in let (e\<^sub>1', \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1) = typecheck' \<Gamma> (insert v vs) e\<^sub>1 
-    in let (e\<^sub>2', \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2) = typecheck' \<Gamma> (insert v (vs \<union> vs\<^sub>1)) e\<^sub>2 
-    in (App\<^sub>s e\<^sub>1' e\<^sub>2', Var v, insert v (vs\<^sub>1 \<union> vs\<^sub>2), \<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var v))]))"
+    in let (e\<^sub>u\<^sub>1, \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1) = typecheck' \<Gamma> (insert v vs) e\<^sub>1 
+    in let (e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2) = typecheck' \<Gamma> (insert v (vs \<union> vs\<^sub>1)) e\<^sub>2 
+    in (App\<^sub>s e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2, Var v, insert v (vs\<^sub>1 \<union> vs\<^sub>2), \<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var v))]))"
 
 text \<open>As with the unification algorithm, we create an induction method tailored to \<open>typecheck'\<close>.\<close>
 
 lemma typecheck_induct [consumes 1, case_names Var\<^sub>sS Var\<^sub>sN Const\<^sub>s Lam\<^sub>s App\<^sub>s]: "
-  typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> 
-  (\<And>\<Gamma> vs t x. \<Gamma> x = Some t \<Longrightarrow> P \<Gamma> vs (Var\<^sub>s x) (Var\<^sub>s x) t {} []) \<Longrightarrow> 
+  typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> 
+  (\<And>\<Gamma> vs x \<tau>. \<Gamma> x = Some \<tau> \<Longrightarrow> P \<Gamma> vs (Var\<^sub>s x) (Var\<^sub>s x) \<tau> {} []) \<Longrightarrow> 
   (\<And>\<Gamma> vs x. \<Gamma> x = None \<Longrightarrow> P \<Gamma> vs (Var\<^sub>s x) (Var\<^sub>s x) Num\<^sub>\<tau> {} fail) \<Longrightarrow> 
-  (\<And>\<Gamma> vs k. P \<Gamma> vs (Const\<^sub>s k) (Const\<^sub>s k) Num\<^sub>\<tau> {} []) \<Longrightarrow> 
-  (\<And>\<Gamma> vs vs' con x u e\<^sub>1 e\<^sub>1' t' v. v = fresh vs \<Longrightarrow> typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e\<^sub>1 = 
-    (e\<^sub>1', t', vs', con) \<Longrightarrow> P (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e\<^sub>1 e\<^sub>1' t' vs' con \<Longrightarrow> 
-    P \<Gamma> vs (Lam\<^sub>s x u e\<^sub>1) (Lam\<^sub>s x (Var v) e\<^sub>1') (Arrow\<^sub>\<tau> (Var v) t') (insert v vs') con) \<Longrightarrow> 
-  (\<And>\<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 e\<^sub>2' t\<^sub>2 con\<^sub>2. v = fresh vs \<Longrightarrow> 
-    typecheck' \<Gamma> (insert v vs) e\<^sub>1 = (e\<^sub>1', t\<^sub>1, vs', con\<^sub>1) \<Longrightarrow> 
-    typecheck' \<Gamma> (insert v (vs \<union> vs')) e\<^sub>2 = (e\<^sub>2', t\<^sub>2, vs'', con\<^sub>2) \<Longrightarrow> 
-    P \<Gamma> (insert v vs) e\<^sub>1 e\<^sub>1' t\<^sub>1 vs' con\<^sub>1 \<Longrightarrow> 
-    P \<Gamma> (insert v (vs \<union> vs')) e\<^sub>2 e\<^sub>2' t\<^sub>2 vs'' con\<^sub>2 \<Longrightarrow>
-    P \<Gamma> vs (App\<^sub>s e\<^sub>1 e\<^sub>2) (App\<^sub>s e\<^sub>1' e\<^sub>2') (Var v) (insert v (vs' \<union> vs'')) 
-      (con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Arrow\<^sub>\<tau> t\<^sub>2 (Var v))])) \<Longrightarrow> 
-  P \<Gamma> vs e e' t vs' con"
-  by (induction e arbitrary: \<Gamma> vs e' t vs' con) 
+  (\<And>\<Gamma> vs n. P \<Gamma> vs (Const\<^sub>s n) (Const\<^sub>s n) Num\<^sub>\<tau> {} []) \<Longrightarrow> 
+  (\<And>\<Gamma> vs x u e\<^sub>s v e\<^sub>u \<tau> vs' \<kappa>. v = fresh vs \<Longrightarrow> 
+    typecheck' (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> 
+    P (\<Gamma>(x \<mapsto> Var v)) (insert v vs) e\<^sub>s e\<^sub>u \<tau> vs' \<kappa> \<Longrightarrow> 
+    P \<Gamma> vs (Lam\<^sub>s x u e\<^sub>s) (Lam\<^sub>s x (Var v) e\<^sub>u) (Arrow\<^sub>\<tau> (Var v) \<tau>) (insert v vs') \<kappa>) \<Longrightarrow> 
+  (\<And>\<Gamma> vs e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2 v e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2. v = fresh vs \<Longrightarrow> 
+    typecheck' \<Gamma> (insert v vs) e\<^sub>s\<^sub>1 = (e\<^sub>u\<^sub>1, \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1) \<Longrightarrow> 
+    typecheck' \<Gamma> (insert v (vs \<union> vs\<^sub>1)) e\<^sub>s\<^sub>2 = (e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2) \<Longrightarrow> 
+    P \<Gamma> (insert v vs) e\<^sub>s\<^sub>1 e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 \<Longrightarrow> 
+    P \<Gamma> (insert v (vs \<union> vs\<^sub>1)) e\<^sub>s\<^sub>2 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2 \<Longrightarrow>
+    P \<Gamma> vs (App\<^sub>s e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2) (App\<^sub>s e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2) (Var v) (insert v (vs\<^sub>1 \<union> vs\<^sub>2)) 
+      (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var v))])) \<Longrightarrow> 
+  P \<Gamma> vs e\<^sub>s e\<^sub>u \<tau> vs' \<kappa>"
+  by (induction e\<^sub>s arbitrary: \<Gamma> vs e\<^sub>u \<tau> vs' \<kappa>) 
      (auto simp add: Let_def split: option.splits prod.splits)
+
+lemma typecheck_to_valid_type [elim]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> 
+    valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_term \<tau>"
+  by (induction rule: typecheck_induct) auto
+
+lemma typecheck_to_valid_expr [elim]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> 
+    valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_expr e\<^sub>u"
+  by (induction rule: typecheck_induct) simp_all
+
+lemma typecheck_erase [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> erase e\<^sub>u = e\<^sub>s"
+  by (induction rule: typecheck_induct) simp_all
 
 text \<open>Full typechecking is now easy. We generate our annotated expression, type term, and 
 constraints and then try to unify the constraint; if it fails, we fail, and if it succeeds, we 
-can use the unifying substitution to produce the final typed expression and type.\<close>
+can use the unifying substitution to produce the final typed expression and type. As noted earlier, 
+we use only simple types in our final output, so \<open>Lam\<^sub>s x () (Var\<^sub>s x)\<close> will be typechecked with the 
+type \<open>Arrow Num Num\<close>, for instance. This does not mean that every conceptually-polymorphic function 
+can only be applied to numbers, however: the expression 
+\<open>App\<^sub>s (Lam\<^sub>s x () (Var\<^sub>s x)) (Lam\<^sub>s x () (Var\<^sub>s x))\<close> will be given the overall type \<open>Arrow Num Num\<close> as 
+well, with the first lambda subexpression typed as \<open>Arrow (Arrow Num Num) (Arrow Num Num)\<close>. It is 
+only when the final unifiable type term is converted to a proper type that we specialize to \<open>Num\<close>s.\<close>
 
-fun typecheck :: "'a expr\<^sub>s \<rightharpoonup> ty expr\<^sub>s \<times> ty" where
-  "typecheck e = (
-    let (e', \<tau>, vs, \<kappa>) = typecheck' Map.empty {} e
+fun typecheck :: "unit expr\<^sub>s \<rightharpoonup> ty expr\<^sub>s \<times> ty" where
+  "typecheck e\<^sub>s = (
+    let (e\<^sub>u, \<tau>, vs, \<kappa>) = typecheck' Map.empty {} e\<^sub>s
     in case unify \<kappa> of 
-        Some \<sigma> \<Rightarrow> Some (map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e'), to_type (subst \<sigma> \<tau>))
+        Some \<sigma> \<Rightarrow> Some (map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u), to_type (subst \<sigma> \<tau>))
       | None \<Rightarrow> None)"
 
-abbreviation erase :: "'a expr\<^sub>s \<Rightarrow> unit expr\<^sub>s" where
-  "erase \<equiv> map_expr\<^sub>s (\<lambda>x. ())"
+text \<open>The typechecking success theorem is simple: a successfully typechecked expression has the type 
+indicated, and erases to the original expression. We prove it first for \<open>typecheck'\<close>, then for the 
+full typechecker.\<close>
 
-primrec tyvars\<^sub>s :: "uterm expr\<^sub>s \<Rightarrow> var set" where
-  "tyvars\<^sub>s (Var\<^sub>s x) = {}"
-| "tyvars\<^sub>s (Const\<^sub>s k) = {}"
-| "tyvars\<^sub>s (Lam\<^sub>s x t e) = uvars t \<union> tyvars\<^sub>s e"
-| "tyvars\<^sub>s (App\<^sub>s e\<^sub>1 e\<^sub>2) = tyvars\<^sub>s e\<^sub>1 \<union> tyvars\<^sub>s e\<^sub>2"
-
-primrec valid_ty_expr :: "uterm expr\<^sub>s \<Rightarrow> bool" where
-  "valid_ty_expr (Var\<^sub>s x) = True"
-| "valid_ty_expr (Const\<^sub>s k) = True"
-| "valid_ty_expr (Lam\<^sub>s x t e) = (valid_ty_term t \<and> valid_ty_expr e)"
-| "valid_ty_expr (App\<^sub>s e\<^sub>1 e\<^sub>2) = (valid_ty_expr e\<^sub>1 \<and> valid_ty_expr e\<^sub>2)"
-
-lemma [simp]: "valid_ty_expr (map_expr\<^sub>s to_unifiable e)"
-  by (induction e) simp_all
-
-lemma [simp]: "x \<notin> tyvars\<^sub>s e \<Longrightarrow> map_expr\<^sub>s (subst [x \<mapsto> t]) e = e"
-  by (induction e) simp_all
-
-lemma [simp]: "map_expr\<^sub>s (subst (extend_subst x t s)) e = 
-    map_expr\<^sub>s (subst s) (map_expr\<^sub>s (subst [x \<mapsto> t]) e)"
-  by (induction e) (simp_all only: expr\<^sub>s.map expand_extend_subst comp_def)
-
-lemma [simp]: "map_expr\<^sub>s to_type (map_expr\<^sub>s to_unifiable e) = e"
-  by (induction e) simp_all
-
-lemma [simp]: "valid_ty_expr e \<Longrightarrow> tyvars\<^sub>s e = {} \<Longrightarrow> map_expr\<^sub>s to_unifiable (map_expr\<^sub>s to_type e) = e"
-  by (induction e) simp_all
-
-lemma [simp]: "erase (map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e)) = erase (map_expr\<^sub>s to_type e)"
-  by (induction e) simp_all
-
-lemma [simp]: "tyvars\<^sub>s t = {} \<Longrightarrow> map_expr\<^sub>s (eliminate_vars vs) t = t"
-  by (induction t) simp_all
-
-lemma [simp]: "x \<notin> tyvars\<^sub>s t \<Longrightarrow> map_expr\<^sub>s (eliminate_vars (insert x vs)) t = map_expr\<^sub>s (eliminate_vars vs) t"
-  by (induction t) simp_all
-
-lemma [simp]: "valid_ty_subst sub \<Longrightarrow> valid_ty_expr e \<Longrightarrow> valid_ty_expr (map_expr\<^sub>s (subst sub) e)"
-  by (induction e) simp_all
-
-lemma htvars_hsubst [simp]: "tyvars\<^sub>s (map_expr\<^sub>s (subst sub) e) \<subseteq> tyvars\<^sub>s e - dom sub \<union> subst_vars sub"
-proof (induction e)
-  case (Lam\<^sub>s x t e)
-  moreover have "uvars (subst sub t) \<subseteq> uvars t - dom sub \<union> subst_vars sub" by simp
-  ultimately show ?case by fastforce
-qed auto
-
-lemma [simp]: "dom sub \<inter> tyvars\<^sub>s e = {} \<Longrightarrow> map_expr\<^sub>s (subst sub) e = e"
-proof (induction e)
-  case (Lam\<^sub>s x t e)
-  moreover hence "dom sub \<inter> uvars t = {}" by auto
-  ultimately show ?case by auto
-qed auto
-
-lemma [simp]: "map_expr\<^sub>s (subst (combine_subst s t)) e = map_expr\<^sub>s (subst s) (map_expr\<^sub>s (subst t) e)"
-  by (induction e) simp_all
-
-lemma [elim]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_term t"
-  by (induction rule: typecheck_induct) auto
-
-lemma [elim]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_expr e'"
-  by (induction rule: typecheck_induct) auto
-
-lemma typecheck_succeeds [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> 
-  valid_ty_subst \<Gamma> \<Longrightarrow> unify con = Some sub' \<Longrightarrow> sub specializes sub' \<Longrightarrow>
-    map_option (to_type \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>t map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e') : to_type (subst sub t)"
-proof (induction arbitrary: sub' rule: typecheck_induct)
-  case (Var\<^sub>sS \<Gamma> vs t x)
-  thus ?case by simp
-next
-  case (Lam\<^sub>s \<Gamma> vs vs' con x u e\<^sub>1 e\<^sub>1' t' v)
+lemma typecheck_success' [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> 
+  unify \<kappa> = Some \<sigma>' \<Longrightarrow> \<sigma> specializes \<sigma>' \<Longrightarrow>
+  map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma> \<turnstile>\<^sub>t map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u) : 
+    to_type (subst \<sigma> \<tau>)"
+proof (induction arbitrary: \<sigma>' rule: typecheck_induct)
+  case (Lam\<^sub>s \<Gamma> vs x u e\<^sub>s v e\<^sub>u \<tau> vs' \<kappa>)
   hence "valid_ty_subst (\<Gamma>(x \<mapsto> Var v))" by simp
-  with Lam\<^sub>s have "map_option (to_type \<circ> subst sub) \<circ> \<Gamma>(x \<mapsto> Var v) \<turnstile>\<^sub>t map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e\<^sub>1') : 
-      to_type (subst sub t')" by blast
-  hence "map_option (to_type \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>t map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) (Lam\<^sub>s x (Var v) e\<^sub>1')) :
-    to_type (subst sub (Arrow\<^sub>\<tau> (Var v) t'))" by simp
+  with Lam\<^sub>s have "map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma>(x \<mapsto> Var v) \<turnstile>\<^sub>t 
+    map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u) : to_type (subst \<sigma> \<tau>)" by blast
+  hence "map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma> \<turnstile>\<^sub>t 
+    map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) (Lam\<^sub>s x (Var v) e\<^sub>u)) : 
+    to_type (subst \<sigma> (Arrow\<^sub>\<tau> (Var v) \<tau>))" by simp
   thus ?case by blast
 next
-  case (App\<^sub>s \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 e\<^sub>2' t\<^sub>2 con\<^sub>2)
-  then obtain s\<^sub>2 where S2: "unify (con\<^sub>1 @ con\<^sub>2) = Some s\<^sub>2 \<and> sub' specializes s\<^sub>2" by fastforce
-  then obtain s\<^sub>3 where S3: "unify con\<^sub>1 = Some s\<^sub>3 \<and> s\<^sub>2 specializes s\<^sub>3" by fastforce
-  with App\<^sub>s S2 have "sub specializes s\<^sub>3" by auto
-  with App\<^sub>s S2 S3 have T: "map_option (to_type \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>t map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e\<^sub>1') : 
-    to_type (subst sub t\<^sub>1)" by blast
-  from App\<^sub>s have "sub' unifies\<^sub>\<kappa> (con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Arrow\<^sub>\<tau> t\<^sub>2 (Var v))])" 
-    by (metis unify_some) 
-  hence "sub' unifies t\<^sub>1 and Arrow\<^sub>\<tau> t\<^sub>2 (Var v)" by simp
-  with App\<^sub>s have X: "sub unifies t\<^sub>1 and Arrow\<^sub>\<tau> t\<^sub>2 (Var v)" by fastforce
-  from S2 obtain s\<^sub>4 where S4: "unify con\<^sub>2 = Some s\<^sub>4 \<and> s\<^sub>2 specializes s\<^sub>4" 
+  case (App\<^sub>s \<Gamma> vs e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2 v e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2)
+  then obtain \<sigma>\<^sub>2 where S2: "unify (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2) = Some \<sigma>\<^sub>2 \<and> \<sigma>' specializes \<sigma>\<^sub>2" by fastforce
+  then obtain \<sigma>\<^sub>3 where S3: "unify \<kappa>\<^sub>1 = Some \<sigma>\<^sub>3 \<and> \<sigma>\<^sub>2 specializes \<sigma>\<^sub>3" by fastforce
+  with App\<^sub>s S2 have "\<sigma> specializes \<sigma>\<^sub>3" by auto
+  with App\<^sub>s S2 S3 have T: "map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma> \<turnstile>\<^sub>t 
+    map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u\<^sub>1) : to_type (subst \<sigma> \<tau>\<^sub>1)" by blast
+  from App\<^sub>s have "\<sigma>' unifies\<^sub>\<kappa> (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var v))])" by (metis unify_some) 
+  hence "\<sigma>' unifies \<tau>\<^sub>1 and Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var v)" by simp
+  with App\<^sub>s have X: "\<sigma> unifies \<tau>\<^sub>1 and Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var v)" by fastforce
+  from S2 obtain s\<^sub>4 where S4: "unify \<kappa>\<^sub>2 = Some s\<^sub>4 \<and> \<sigma>\<^sub>2 specializes s\<^sub>4" 
     using unify_append_snd by blast
-  with App\<^sub>s S2 have "sub specializes s\<^sub>4" by auto
-  with App\<^sub>s S4 have "map_option (to_type \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>t map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e\<^sub>2') : 
-    to_type (subst sub t\<^sub>2)" by blast
-  with T X have "map_option (to_type \<circ> subst sub) \<circ> \<Gamma> \<turnstile>\<^sub>t map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) (App\<^sub>s e\<^sub>1' e\<^sub>2')) : 
-    to_type (subst sub (Var v))" by simp
+  with App\<^sub>s S2 have "\<sigma> specializes s\<^sub>4" by auto
+  with App\<^sub>s S4 have "map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma> \<turnstile>\<^sub>t 
+    map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u\<^sub>2) : to_type (subst \<sigma> \<tau>\<^sub>2)" by blast
+  with T X have "map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma> \<turnstile>\<^sub>t 
+    map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) (App\<^sub>s e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2)) : to_type (subst \<sigma> (Var v))" by simp
   thus ?case by blast
 qed simp_all
 
-lemma [simp]: "typecheck e = Some (e\<^sub>t, t) \<Longrightarrow> Map.empty \<turnstile>\<^sub>t e\<^sub>t : t"
-proof -
-  assume "typecheck e = Some (e\<^sub>t, t)"
-  then obtain e' tt vs con sub where T: "typecheck' Map.empty {} e = (e', tt, vs, con) \<and>
-    unify con = Some sub \<and> e\<^sub>t = map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e') \<and> t = to_type (subst sub tt)" 
+theorem typecheck_success [simp]: "typecheck e\<^sub>s = Some (e\<^sub>t, t) \<Longrightarrow> 
+  erase e\<^sub>t = e\<^sub>s \<and> Map.empty \<turnstile>\<^sub>t e\<^sub>t : t"
+proof
+  assume "typecheck e\<^sub>s = Some (e\<^sub>t, t)"
+  then obtain e\<^sub>u \<tau> vs \<kappa> \<sigma> where T: "typecheck' Map.empty {} e\<^sub>s = (e\<^sub>u, \<tau>, vs, \<kappa>) \<and>
+    unify \<kappa> = Some \<sigma> \<and> e\<^sub>t = map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u) \<and> t = to_type (subst \<sigma> \<tau>)" 
       by (auto split: option.splits prod.splits)
-  moreover hence "map_option (to_type \<circ> subst sub) \<circ> Map.empty \<turnstile>\<^sub>t map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e') : 
-    to_type (subst sub tt)" by (metis typecheck_succeeds valid_empty_subst specializes_refl)
-  moreover from T have "valid_ty_term tt" and "valid_ty_expr e'" by auto
+  moreover hence "map_option (to_type \<circ> subst \<sigma>) \<circ> Map.empty \<turnstile>\<^sub>t 
+    map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u) : to_type (subst \<sigma> \<tau>)" 
+      by (metis typecheck_success' valid_empty_subst specializes_refl)
+  moreover from T have "valid_ty_term \<tau>" and "valid_ty_expr e\<^sub>u" by auto
   ultimately show "Map.empty \<turnstile>\<^sub>t e\<^sub>t : t" by simp
+  from T have "erase e\<^sub>u = e\<^sub>s" by (metis typecheck_erase)
+  with T show "erase e\<^sub>t = e\<^sub>s" by simp
 qed
 
-lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> e = erase (map_expr\<^sub>s to_type e')"
+text \<open>The typechecking failure theorem is just as simple to state - if typechecking fails, then 
+there is no possible expression both erases to our initial expression and typechecks - but requires 
+much, much more machinery to prove. It is worth considering why. The success theorem could be 
+rendered false if our typechecker accepted bogus expressions, but not if it accepted too few: the 
+theorem would hold exactly the same if we refused to type any \<open>Lam\<^sub>s\<close> expressions, or for that matter
+if we simply failed in every case. The success theorem does not prevent underspecified 
+implementations like \<open>typecheck e\<^sub>s = None\<close>. The failure theorem, on the other hand, could be 
+rendered false by accepting too few expressions: we must prove that every single failure is a 
+genuine failure, and the process of doing so essentially amounts to proving the correctness of the 
+whole algorithm. For this reason, although it may not appear so at first glance, the failure theorem 
+is the more important of the two.\<close>
+
+lemma typecheck_finite [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> finite vs \<Longrightarrow> finite vs'"
+  by (induction rule: typecheck_induct) simp_all
+
+lemma typecheck_vars_distinct [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> finite vs \<Longrightarrow> 
+    vs \<inter> vs' = {}"
   by (induction rule: typecheck_induct) auto
 
-lemma [simp]: "typecheck e = Some (e\<^sub>t, t) \<Longrightarrow> e = erase e\<^sub>t"
-  by (auto split: option.splits prod.splits)
-
-lemma [dest]: "erase e\<^sub>t = Var\<^sub>s x \<Longrightarrow> e\<^sub>t = Var\<^sub>s x"
-  by (induction e\<^sub>t) simp_all
-
-lemma [dest]: "erase e\<^sub>t = Lam\<^sub>s x u e \<Longrightarrow> \<exists>t e\<^sub>t'. e\<^sub>t = Lam\<^sub>s x t e\<^sub>t' \<and> e = erase e\<^sub>t'"
-  by (induction e\<^sub>t) simp_all
-
-lemma [dest]: "erase e\<^sub>t = App\<^sub>s e\<^sub>1 e\<^sub>2 \<Longrightarrow> \<exists>e\<^sub>1' e\<^sub>2'. e\<^sub>t = App\<^sub>s e\<^sub>1' e\<^sub>2' \<and> e\<^sub>1 = erase e\<^sub>1'\<and> e\<^sub>2 = erase e\<^sub>2'"
-  by (induction e\<^sub>t) simp_all
-
-lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> finite vs \<Longrightarrow> finite vs'"
-  by (induction e arbitrary: \<Gamma> vs e' t vs' con) 
-     (auto simp add: Let_def split: option.splits prod.splits)
-
-lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> finite vs \<Longrightarrow> vs \<inter> vs' = {}"
-proof (induction e arbitrary: \<Gamma> vs e' t vs' con)
-  case (Lam\<^sub>s x u e)
-  let ?v = "fresh vs"
-  obtain e'' \<tau> vs'' \<kappa> where T: "typecheck' (\<Gamma>(x \<mapsto> Var ?v)) (insert ?v vs) e = (e'', \<tau>, vs'', \<kappa>)"
-    by (metis prod_cases4)
-  with Lam\<^sub>s have "e' = Lam\<^sub>s x (Var ?v) e'' \<and> t = Arrow\<^sub>\<tau> (Var ?v) \<tau> \<and> vs' = insert ?v vs'' \<and> 
-    con = \<kappa>" by (simp add: Let_def)
-  with Lam\<^sub>s T show ?case by fastforce
-next
-  case (App\<^sub>s e\<^sub>1 e\<^sub>2)
-  let ?v = "fresh vs"
-  obtain e\<^sub>1' \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 where T1: "typecheck' \<Gamma> (insert ?v vs) e\<^sub>1 = (e\<^sub>1', \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1)"
-    by (metis prod_cases4)
-  obtain e\<^sub>2' \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2 where T2: "typecheck' \<Gamma> (insert ?v (vs \<union> vs\<^sub>1)) e\<^sub>2 = (e\<^sub>2', \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2)"
-    by (metis prod_cases4)
-  with App\<^sub>s T1 have "e' = App\<^sub>s e\<^sub>1' e\<^sub>2' \<and> t = Var ?v \<and> vs' = insert ?v (vs\<^sub>1 \<union> vs\<^sub>2) \<and>
-    con = \<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var ?v))]" by (auto simp add: Let_def)
-  with App\<^sub>s T1 T2 show ?case by fastforce
-qed (simp_all split: option.splits)
-     
-lemma [simp]: "typecheck' \<Gamma> vs e = (e', t', vs', con) \<Longrightarrow> finite vs \<Longrightarrow> tyvars\<^sub>s e' \<subseteq> vs'"
+lemma typecheck_type_vars [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> finite vs \<Longrightarrow> 
+    uvars \<tau> \<subseteq> vs' \<union> subst_vars \<Gamma>"
   by (induction rule: typecheck_induct) auto
 
-lemma [simp]: "typecheck' \<Gamma> vs e = (e', t', vs', con) \<Longrightarrow> x \<in> vs \<Longrightarrow> finite vs \<Longrightarrow> x \<notin> tyvars\<^sub>s e'"
+lemma typecheck_type_in_old_vars [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> x \<in> vs \<Longrightarrow> 
+  finite vs \<Longrightarrow> x \<notin> subst_vars \<Gamma> \<Longrightarrow> x \<notin> uvars \<tau>"
 proof -
-  assume T: "typecheck' \<Gamma> vs e = (e', t', vs', con)" and F: "finite vs"
-  hence "tyvars\<^sub>s e' \<subseteq> vs'" by simp
-  moreover from T F have "vs \<inter> vs' = {}" by simp
-  moreover assume "x \<in> vs" 
-  ultimately show "x \<notin> tyvars\<^sub>s e'" by auto
-qed
-
-lemma [simp]: "typecheck' \<Gamma> vs e = (e', t', vs', con) \<Longrightarrow> finite vs \<Longrightarrow> 
-    uvars t' \<subseteq> vs' \<union> subst_vars \<Gamma>"
-  by (induction rule: typecheck_induct) auto
-
-lemma [simp]: "typecheck' \<Gamma> vs e = (e', t', vs', con) \<Longrightarrow> x \<in> vs \<Longrightarrow> finite vs \<Longrightarrow>
-  x \<notin> subst_vars \<Gamma> \<Longrightarrow> x \<notin> uvars t'"
-proof -
-  assume T: "typecheck' \<Gamma> vs e = (e', t', vs', con)" and F: "finite vs"
-  hence "uvars t' \<subseteq> vs' \<union> subst_vars \<Gamma>" by simp
+  assume T: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>)" and F: "finite vs"
+  hence "uvars \<tau> \<subseteq> vs' \<union> subst_vars \<Gamma>" by simp
   moreover from T F have "vs \<inter> vs' = {}" by simp
   moreover assume "x \<in> vs" and "x \<notin> subst_vars \<Gamma>" 
-  ultimately show "x \<notin> uvars t'" by auto
+  ultimately show "x \<notin> uvars \<tau>" by auto
 qed
 
-lemma [simp]: "typecheck' \<Gamma> vs e = (e', t', vs', con) \<Longrightarrow> finite vs \<Longrightarrow> 
-  constr_vars con \<subseteq> vs' \<union> subst_vars \<Gamma>"
+lemma typecheck_expr_vars [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> finite vs \<Longrightarrow> 
+    tyvars\<^sub>s e\<^sub>u \<subseteq> vs'"
+  by (induction rule: typecheck_induct) auto
+
+lemma typecheck_expr_not_in_old_vars [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> x \<in> vs \<Longrightarrow> 
+  finite vs \<Longrightarrow> x \<notin> tyvars\<^sub>s e\<^sub>u"
+proof -
+  assume T: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>)" and F: "finite vs"
+  hence "tyvars\<^sub>s e\<^sub>u \<subseteq> vs'" by simp
+  moreover from T F have "vs \<inter> vs' = {}" by simp
+  moreover assume "x \<in> vs" 
+  ultimately show "x \<notin> tyvars\<^sub>s e\<^sub>u" by auto
+qed
+
+lemma typecheck_constr_vars  [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> finite vs \<Longrightarrow> 
+  constr_vars \<kappa> \<subseteq> vs' \<union> subst_vars \<Gamma>"
 proof (induction rule: typecheck_induct) 
-  case (App\<^sub>s \<Gamma> vs vs' e\<^sub>1 e\<^sub>2 v e\<^sub>1' t\<^sub>1 vs'' con\<^sub>1 e\<^sub>2' t\<^sub>2 con\<^sub>2)
-  hence "uvars t\<^sub>1 \<subseteq> vs' \<union> subst_vars \<Gamma>" by simp
-  moreover from App\<^sub>s have "uvars t\<^sub>2 \<subseteq> vs'' \<union> subst_vars \<Gamma>" by simp
-  ultimately have "uvars t\<^sub>1 \<subseteq> insert v (vs' \<union> vs'' \<union> subst_vars \<Gamma>) \<and> 
-    uvars t\<^sub>2 \<subseteq> insert v (vs' \<union> vs'' \<union> subst_vars \<Gamma>)" by auto
+  case (App\<^sub>s \<Gamma> vs e\<^sub>1 e\<^sub>2 v e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2)
+  hence "uvars \<tau>\<^sub>1 \<subseteq> vs\<^sub>1 \<union> subst_vars \<Gamma>" by simp
+  moreover from App\<^sub>s have "uvars \<tau>\<^sub>2 \<subseteq> vs\<^sub>2 \<union> subst_vars \<Gamma>" by simp
+  ultimately have "uvars \<tau>\<^sub>1 \<subseteq> insert v (vs\<^sub>1 \<union> vs\<^sub>2 \<union> subst_vars \<Gamma>) \<and> 
+    uvars \<tau>\<^sub>2 \<subseteq> insert v (vs\<^sub>1 \<union> vs\<^sub>2 \<union> subst_vars \<Gamma>)" by auto
   with App\<^sub>s show ?case by auto
 qed auto
 
-lemma [simp]: "typecheck' \<Gamma> vs e = (e', t', vs', con) \<Longrightarrow> x \<in> vs \<Longrightarrow> finite vs \<Longrightarrow>
-  x \<notin> subst_vars \<Gamma> \<Longrightarrow> x \<notin> constr_vars con"
+lemma typecheck_constr_in_old_vars [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> x \<in> vs \<Longrightarrow> 
+  finite vs \<Longrightarrow> x \<notin> subst_vars \<Gamma> \<Longrightarrow> x \<notin> constr_vars \<kappa>"
 proof -
-  assume T: "typecheck' \<Gamma> vs e = (e', t', vs', con)" and F: "finite vs"
-  hence "constr_vars con \<subseteq> vs' \<union> subst_vars \<Gamma>" by simp
+  assume T: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>)" and F: "finite vs"
+  hence "constr_vars \<kappa> \<subseteq> vs' \<union> subst_vars \<Gamma>" by simp
   moreover from T F have "vs \<inter> vs' = {}" by simp
   moreover assume "x \<in> vs" and "x \<notin> subst_vars \<Gamma>" 
-  ultimately show "x \<notin> constr_vars con" by auto
+  ultimately show "x \<notin> constr_vars \<kappa>" by auto
 qed
 
-lemma [simp]: "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs e = (e', tt, vs', con) \<Longrightarrow> y \<in> vs \<Longrightarrow>
-  subst_vars \<Gamma> \<subseteq> vs - {y} \<Longrightarrow> uvars t' \<subseteq> vs - {y} \<Longrightarrow> finite vs \<Longrightarrow> typecheck' (\<Gamma>(x \<mapsto> t')) vs e = 
-    (map_expr\<^sub>s (subst [y \<mapsto> t']) e', subst [y \<mapsto> t'] tt, vs', constr_subst y t' con)"
-proof (induction e arbitrary: \<Gamma> vs e' tt vs' con)
+text \<open>Usually our typing context is passed along unchanged, but we add to it when typechecking a 
+\<open>Lam\<^sub>s\<close> expression. As a result, we need the following lemma, which allows us to make substitutions 
+in the typing context.\<close>
+
+lemma typecheck_subst_in_context [simp]: "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> 
+  y \<in> vs \<Longrightarrow> subst_vars \<Gamma> \<subseteq> vs - {y} \<Longrightarrow> uvars \<tau>' \<subseteq> vs - {y} \<Longrightarrow> finite vs \<Longrightarrow> 
+  typecheck' (\<Gamma>(x \<mapsto> \<tau>')) vs e\<^sub>s = 
+    (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u, subst [y \<mapsto> \<tau>'] \<tau>, vs', constr_subst y \<tau>' \<kappa>)"
+proof (induction e\<^sub>s arbitrary: \<Gamma> vs e\<^sub>u \<tau> vs' \<kappa>)
   case (Var\<^sub>s z)
   thus ?case
   proof (cases "x = z")
@@ -275,270 +219,273 @@ proof (induction e arbitrary: \<Gamma> vs e' tt vs' con)
     proof (cases "\<Gamma> z")
       case (Some t)
       from Var\<^sub>s have "y \<notin> subst_vars \<Gamma>" by auto
-      with Var\<^sub>s False Some have "typecheck' (\<Gamma>(x \<mapsto> t')) vs (Var\<^sub>s z) =
-        (map_expr\<^sub>s (subst [y \<mapsto> t']) e', subst [y \<mapsto> t'] tt, vs', constr_subst y t' con)" 
+      with Var\<^sub>s False Some have "typecheck' (\<Gamma>(x \<mapsto> \<tau>')) vs (Var\<^sub>s z) =
+        (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u, subst [y \<mapsto> \<tau>'] \<tau>, vs', constr_subst y \<tau>' \<kappa>)" 
           by auto
       thus ?thesis by blast
     qed auto
   qed auto
 next
-  case (Lam\<^sub>s z u e)
+  case (Lam\<^sub>s z u e\<^sub>s)
   let ?v = "fresh vs"
   from Lam\<^sub>s have F: "fresh vs \<noteq> y" using fresh_is_fresh by blast
-  obtain e'' tt' vs'' con' where T: "typecheck' (\<Gamma>(x \<mapsto> Var y, z \<mapsto> Var ?v)) (insert ?v vs) e = 
-    (e'', tt', vs'', con')" by (metis prod_cases4)
-  with Lam\<^sub>s(2) have E: "e' = Lam\<^sub>s z (Var ?v) e'' \<and> tt = Arrow\<^sub>\<tau> (Var ?v) tt' \<and> vs' = insert ?v vs'' \<and> 
-    con' = con" by (simp only: typecheck'.simps Let_def split: prod.splits) simp
+  obtain e\<^sub>u' \<tau>\<^sub>2 vs'' \<kappa>' where T: "typecheck' (\<Gamma>(x \<mapsto> Var y, z \<mapsto> Var ?v)) (insert ?v vs) e\<^sub>s = 
+    (e\<^sub>u', \<tau>\<^sub>2, vs'', \<kappa>')" by (metis prod_cases4)
+  with Lam\<^sub>s(2) have E: "e\<^sub>u = Lam\<^sub>s z (Var ?v) e\<^sub>u' \<and> \<tau> = Arrow\<^sub>\<tau> (Var ?v) \<tau>\<^sub>2 \<and> vs' = insert ?v vs'' \<and> 
+    \<kappa>' = \<kappa>" by (simp only: typecheck'.simps Let_def split: prod.splits) simp
   show ?case
   proof (cases "x = z")
     case True
-    with T E have T': "typecheck' (\<Gamma>(z \<mapsto> Var ?v)) (insert ?v vs) e = (e'', tt', vs'', con)" 
-      by simp
-    from Lam\<^sub>s(4) F have "y \<notin> subst_vars (\<Gamma>(z \<mapsto> Var ?v))" 
-      by (auto simp add: subst_vars_def ran_def)
-    with Lam\<^sub>s F E T' True T have "typecheck' (\<Gamma>(x \<mapsto> t')) vs (Lam\<^sub>s z u e) =
-      (map_expr\<^sub>s (subst [y \<mapsto> t']) e', subst [y \<mapsto> t'] tt, vs', constr_subst y t' con)" 
+    with T E have T': "typecheck' (\<Gamma>(z \<mapsto> Var ?v)) (insert ?v vs) e\<^sub>s = (e\<^sub>u', \<tau>\<^sub>2, vs'', \<kappa>)" by simp
+    from Lam\<^sub>s(4) F have "y \<notin> subst_vars (\<Gamma>(z \<mapsto> Var ?v))" by (auto simp add: subst_vars_def ran_def)
+    with Lam\<^sub>s F E T' True T have "typecheck' (\<Gamma>(x \<mapsto> \<tau>')) vs (Lam\<^sub>s z u e\<^sub>s) =
+      (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u, subst [y \<mapsto> \<tau>'] \<tau>, vs', constr_subst y \<tau>' \<kappa>)" 
         by (simp add: Let_def split: if_splits prod.splits)
     thus ?thesis by blast
   next
     case False
-    from Lam\<^sub>s have "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs (Lam\<^sub>s z u e) = (e', tt, vs', con)" by blast
-    from E T False have X: "typecheck' (\<Gamma>(z \<mapsto> Var ?v, x \<mapsto> Var y)) (insert ?v vs) e = 
-      (e'', tt', vs'', con)" by (metis fun_upd_twist)
+    from Lam\<^sub>s have "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs (Lam\<^sub>s z u e\<^sub>s) = (e\<^sub>u, \<tau>, vs', \<kappa>)" by blast
+    from E T False have X: "typecheck' (\<Gamma>(z \<mapsto> Var ?v, x \<mapsto> Var y)) (insert ?v vs) e\<^sub>s = 
+      (e\<^sub>u', \<tau>\<^sub>2, vs'', \<kappa>)" by (metis fun_upd_twist)
     have "subst_vars (\<Gamma>(z := None)) \<subseteq> subst_vars \<Gamma>" by simp
     with Lam\<^sub>s(4) F have "subst_vars (\<Gamma>(z \<mapsto> Var ?v)) \<subseteq> insert ?v vs - {y}" by fastforce
-    with Lam\<^sub>s X have "typecheck' (\<Gamma>(z \<mapsto> Var ?v, x \<mapsto> t')) (insert ?v vs) e = 
-      (map_expr\<^sub>s (subst [y \<mapsto> t']) e'', subst [y \<mapsto> t'] tt', vs'', constr_subst y t' con)" by blast
-    with False have "typecheck' (\<Gamma>(x \<mapsto> t', z \<mapsto> Var ?v)) (insert ?v vs) e = 
-      (map_expr\<^sub>s (subst [y \<mapsto> t']) e'', subst [y \<mapsto> t'] tt', vs'', constr_subst y t' con)" 
+    with Lam\<^sub>s X have "typecheck' (\<Gamma>(z \<mapsto> Var ?v, x \<mapsto> \<tau>')) (insert ?v vs) e\<^sub>s = 
+      (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u', subst [y \<mapsto> \<tau>'] \<tau>\<^sub>2, vs'', constr_subst y \<tau>' \<kappa>)" by blast
+    with False have "typecheck' (\<Gamma>(x \<mapsto> \<tau>', z \<mapsto> Var ?v)) (insert ?v vs) e\<^sub>s = 
+      (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u', subst [y \<mapsto> \<tau>'] \<tau>\<^sub>2, vs'', constr_subst y \<tau>' \<kappa>)" 
         by (metis fun_upd_twist)
-    with E F have "typecheck' (\<Gamma>(x \<mapsto> t')) vs (Lam\<^sub>s z u e) =
-      (map_expr\<^sub>s (subst [y \<mapsto> t']) e', subst [y \<mapsto> t'] tt, vs', constr_subst y t' con)" 
+    with E F have "typecheck' (\<Gamma>(x \<mapsto> \<tau>')) vs (Lam\<^sub>s z u e\<^sub>s) =
+      (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u, subst [y \<mapsto> \<tau>'] \<tau>, vs', constr_subst y \<tau>' \<kappa>)" 
         by (simp add: Let_def split: if_splits prod.splits)
     thus ?thesis by blast
   qed
 next
-  case (App\<^sub>s e1 e2)
+  case (App\<^sub>s e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2)
   let ?v = "fresh vs"
-  obtain e\<^sub>1' \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 where T1: "typecheck' (\<Gamma>(x \<mapsto> Var y)) (insert ?v vs) e1 = 
-    (e\<^sub>1', \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1)" by (metis prod_cases4)
-  moreover obtain e\<^sub>2' t\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2 where T2: "
-    typecheck' (\<Gamma>(x \<mapsto> Var y)) (insert ?v (vs \<union> vs\<^sub>1)) e2 = (e\<^sub>2', t\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2)" 
+  obtain e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 where T1: "typecheck' (\<Gamma>(x \<mapsto> Var y)) (insert ?v vs) e\<^sub>s\<^sub>1 = 
+    (e\<^sub>u\<^sub>1, \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1)" by (metis prod_cases4)
+  moreover obtain e\<^sub>u\<^sub>2 t\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2 where T2: "
+    typecheck' (\<Gamma>(x \<mapsto> Var y)) (insert ?v (vs \<union> vs\<^sub>1)) e\<^sub>s\<^sub>2 = (e\<^sub>u\<^sub>2, t\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2)" 
       by (metis prod_cases4)
-  moreover from App\<^sub>s have "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs (App\<^sub>s e1 e2) = (e', tt, vs', con)" by blast
-  ultimately have E: "e' = App\<^sub>s e\<^sub>1' e\<^sub>2' \<and> tt = Var ?v \<and> vs' = insert ?v (vs\<^sub>1 \<union> vs\<^sub>2) \<and> 
-    con = \<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> t\<^sub>2 (Var ?v))]" by (auto simp add: Let_def)
-  moreover from App\<^sub>s T1 have "typecheck' (\<Gamma>(x \<mapsto> t')) (insert ?v vs) e1 =
-    (map_expr\<^sub>s (subst [y \<mapsto> t']) e\<^sub>1', subst [y \<mapsto> t'] \<tau>\<^sub>1, vs\<^sub>1, constr_subst y t' \<kappa>\<^sub>1)" by blast
+  moreover from App\<^sub>s have "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs (App\<^sub>s e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2) = (e\<^sub>u, \<tau>, vs', \<kappa>)" by blast
+  ultimately have E: "e\<^sub>u = App\<^sub>s e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2 \<and> \<tau> = Var ?v \<and> vs' = insert ?v (vs\<^sub>1 \<union> vs\<^sub>2) \<and> 
+    \<kappa> = \<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> t\<^sub>2 (Var ?v))]" by (auto simp add: Let_def)
+  moreover from App\<^sub>s T1 have "typecheck' (\<Gamma>(x \<mapsto> \<tau>')) (insert ?v vs) e\<^sub>s\<^sub>1 =
+    (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u\<^sub>1, subst [y \<mapsto> \<tau>'] \<tau>\<^sub>1, vs\<^sub>1, constr_subst y \<tau>' \<kappa>\<^sub>1)" by blast
   moreover from App\<^sub>s T1 have "finite (insert ?v (vs \<union> vs\<^sub>1))" by simp
-  moreover with App\<^sub>s T2 have "typecheck' (\<Gamma>(x \<mapsto> t')) (insert ?v (vs \<union> vs\<^sub>1)) e2 =
-    (map_expr\<^sub>s (subst [y \<mapsto> t']) e\<^sub>2', subst [y \<mapsto> t'] t\<^sub>2, vs\<^sub>2, constr_subst y t' \<kappa>\<^sub>2)" by blast
+  moreover with App\<^sub>s T2 have "typecheck' (\<Gamma>(x \<mapsto> \<tau>')) (insert ?v (vs \<union> vs\<^sub>1)) e\<^sub>s\<^sub>2 =
+    (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u\<^sub>2, subst [y \<mapsto> \<tau>'] t\<^sub>2, vs\<^sub>2, constr_subst y \<tau>' \<kappa>\<^sub>2)" by blast
   moreover from App\<^sub>s have "y \<noteq> ?v" by auto
-  ultimately have "typecheck' (\<Gamma>(x \<mapsto> t')) vs (App\<^sub>s e1 e2) =
-    (map_expr\<^sub>s (subst [y \<mapsto> t']) e', subst [y \<mapsto> t'] tt, vs', constr_subst y t' con)" 
+  ultimately have "typecheck' (\<Gamma>(x \<mapsto> \<tau>')) vs (App\<^sub>s e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2) =
+    (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u, subst [y \<mapsto> \<tau>'] \<tau>, vs', constr_subst y \<tau>' \<kappa>)" 
       by (simp add: Let_def)
   thus ?case by blast
 qed auto
 
-lemma typecheck_fails' [simp]: "map_option to_type \<circ> \<Gamma> \<turnstile>\<^sub>t e\<^sub>t : t \<Longrightarrow> finite vs \<Longrightarrow> 
-  subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> typecheck' \<Gamma> vs (erase e\<^sub>t) = (e', tt, vs', con) \<Longrightarrow> 
-  \<exists>s. map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst s) e') = map_expr\<^sub>s to_unifiable e\<^sub>t \<and> 
-  eliminate_vars vs (subst s tt) = to_unifiable t \<and> dom s = vs' \<and> subst_vars s = {} \<and> 
-  s unifies\<^sub>\<kappa> eliminate_vars_constr vs con \<and> valid_ty_subst s \<and> idempotent s"
-proof (induction "map_option to_type \<circ> \<Gamma>" e\<^sub>t t arbitrary: \<Gamma> vs e' tt vs' con rule: typing\<^sub>t.induct)
-  case (tc\<^sub>t_lam x t\<^sub>1 e t\<^sub>2)
+text \<open>Now, the big one. If an expression is well-typed, then there is an (idempotent, well-formed) 
+substitution with no free variables and a domain of exactly \<open>typecheck'\<close>'s new variables, that 
+solves \<open>typecheck'\<close>'s generated constraints, and unifies the expressions and types. (We finally 
+bring in the \<open>eliminate_vars\<close> function, to be careful to map to \<open>Num\<^sub>\<tau>\<close> only the variables that are 
+free in the whole expression while unifying; \<open>map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u) = e\<^sub>t\<close> and 
+\<open>to_type (subst \<sigma> \<tau>) = t\<close> are simpler and look equivalent at first glance, but actually claim too 
+much and the induction does not carry on the \<open>App\<^sub>s\<close> case.) This lemma is where the correctness of 
+the typechecker is shown: if there is a type, the typechecker will find it.\<close>
+
+lemma typecheck_finds_subst [simp]: "map_option to_type \<circ> \<Gamma> \<turnstile>\<^sub>t e\<^sub>t : t \<Longrightarrow> finite vs \<Longrightarrow> 
+  subst_vars \<Gamma> \<subseteq> vs \<Longrightarrow> valid_ty_subst \<Gamma> \<Longrightarrow> typecheck' \<Gamma> vs (erase e\<^sub>t) = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> 
+  \<exists>\<sigma>. map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u) = map_expr\<^sub>s to_unifiable e\<^sub>t \<and> 
+    eliminate_vars vs (subst \<sigma> \<tau>) = to_unifiable t \<and> dom \<sigma> = vs' \<and> subst_vars \<sigma> = {} \<and> 
+    \<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa> \<and> valid_ty_subst \<sigma> \<and> idempotent \<sigma>"
+proof (induction "map_option to_type \<circ> \<Gamma>" e\<^sub>t t arbitrary: \<Gamma> vs e\<^sub>u \<tau> vs' \<kappa> rule: typing\<^sub>t.induct)
+  case (tc\<^sub>t_lam x t\<^sub>1 e\<^sub>t t\<^sub>2)
   let ?v = "fresh vs"
-  obtain e'' t' vs'' con' where T: "typecheck' (\<Gamma>(x \<mapsto> Var ?v)) (insert ?v vs) (erase e) = 
-    (e'', t', vs'', con')" by (metis prod_cases4)
-  with tc\<^sub>t_lam have E: "e' = Lam\<^sub>s x (Var ?v) e'' \<and> tt = Arrow\<^sub>\<tau> (Var ?v) t' \<and> vs' = insert ?v vs'' \<and> 
-    con' = con" by (simp add: Let_def)
+  obtain e\<^sub>u' \<tau>\<^sub>2 vs'' \<kappa>' where T: "typecheck' (\<Gamma>(x \<mapsto> Var ?v)) (insert ?v vs) (erase e\<^sub>t) = 
+    (e\<^sub>u', \<tau>\<^sub>2, vs'', \<kappa>')" by (metis prod_cases4)
+  with tc\<^sub>t_lam have E: "e\<^sub>u = Lam\<^sub>s x (Var ?v) e\<^sub>u' \<and> \<tau> = Arrow\<^sub>\<tau> (Var ?v) \<tau>\<^sub>2 \<and> vs' = insert ?v vs'' \<and> 
+    \<kappa>' = \<kappa>" by (simp add: Let_def)
   from tc\<^sub>t_lam have "subst_vars \<Gamma> \<subseteq> insert ?v vs" by auto
   hence X: "subst_vars (\<Gamma>(x \<mapsto> to_unifiable t\<^sub>1)) \<subseteq> insert ?v vs" by simp
-  have Y: "(map_option to_type \<circ> \<Gamma>)(x \<mapsto> t\<^sub>1) = map_option to_type \<circ> (\<Gamma>(x \<mapsto> to_unifiable t\<^sub>1))" by simp
+  have Y: "(map_option to_type \<circ> \<Gamma>)(x \<mapsto> t\<^sub>1) = map_option to_type \<circ> (\<Gamma>(x \<mapsto> to_unifiable t\<^sub>1))" 
+    by simp
   from tc\<^sub>t_lam have Z: "valid_ty_subst (\<Gamma>(x \<mapsto> to_unifiable t\<^sub>1))" by simp
-  from tc\<^sub>t_lam T have TC: "typecheck' (\<Gamma>(x \<mapsto> to_unifiable t\<^sub>1)) (insert ?v vs) (erase e) = 
-    (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e'', subst [?v \<mapsto> to_unifiable t\<^sub>1] t', vs'', 
-     constr_subst ?v (to_unifiable t\<^sub>1) con')" by simp
+  from tc\<^sub>t_lam T have TC: "typecheck' (\<Gamma>(x \<mapsto> to_unifiable t\<^sub>1)) (insert ?v vs) (erase e\<^sub>t) = 
+    (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u', subst [?v \<mapsto> to_unifiable t\<^sub>1] \<tau>\<^sub>2, vs'', 
+      constr_subst ?v (to_unifiable t\<^sub>1) \<kappa>')" by simp
   from tc\<^sub>t_lam have "finite (insert ?v vs)" by simp
-  with tc\<^sub>t_lam X Y Z TC obtain s where S: "
-    map_expr\<^sub>s (eliminate_vars (insert ?v vs)) (map_expr\<^sub>s (subst s) (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e'')) = map_expr\<^sub>s to_unifiable e \<and> 
-    eliminate_vars (insert ?v vs) (subst s (subst [?v \<mapsto> to_unifiable t\<^sub>1] t')) = to_unifiable t\<^sub>2 \<and>
-    s unifies\<^sub>\<kappa> eliminate_vars_constr (insert ?v vs) (constr_subst ?v (to_unifiable t\<^sub>1) con') \<and> 
+  with tc\<^sub>t_lam X Y Z TC obtain s where S: "map_expr\<^sub>s (eliminate_vars (insert ?v vs)) 
+    (map_expr\<^sub>s (subst s) (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u')) = 
+      map_expr\<^sub>s to_unifiable e\<^sub>t \<and> 
+    eliminate_vars (insert ?v vs) (subst s (subst [?v \<mapsto> to_unifiable t\<^sub>1] \<tau>\<^sub>2)) = to_unifiable t\<^sub>2 \<and>
+    s unifies\<^sub>\<kappa> eliminate_vars_constr (insert ?v vs) (constr_subst ?v (to_unifiable t\<^sub>1) \<kappa>') \<and> 
     dom s = vs'' \<and> subst_vars s = {} \<and> valid_ty_subst s \<and> idempotent s" by meson
   from tc\<^sub>t_lam have "subst_vars (\<Gamma>(x \<mapsto> to_unifiable t\<^sub>1)) \<subseteq> vs" by simp
   moreover from tc\<^sub>t_lam have FV: "?v \<notin> vs" by simp
   ultimately have "?v \<notin> subst_vars (\<Gamma>(x \<mapsto> to_unifiable t\<^sub>1))" by blast
-  with tc\<^sub>t_lam TC have VCS: "?v \<notin> constr_vars (constr_subst ?v (to_unifiable t\<^sub>1) con')" by simp
-  have "tyvars\<^sub>s (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e') \<subseteq> 
-    tyvars\<^sub>s e' - dom [?v \<mapsto> to_unifiable t\<^sub>1] \<union> subst_vars [?v \<mapsto> to_unifiable t\<^sub>1]" 
-      by (metis htvars_hsubst)
-  hence "tyvars\<^sub>s (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e') \<subseteq> tyvars\<^sub>s e' - {?v}" by simp
-  moreover have "tyvars\<^sub>s (map_expr\<^sub>s (subst s) (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e')) \<subseteq> 
-    tyvars\<^sub>s (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e') - dom s \<union> subst_vars s" by simp
-  ultimately have "tyvars\<^sub>s (map_expr\<^sub>s (subst s) (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e')) \<subseteq> 
-    tyvars\<^sub>s e' - {?v} - dom s \<union> subst_vars s" by blast
-  with S have "?v \<notin> tyvars\<^sub>s (map_expr\<^sub>s (subst (extend_subst ?v (to_unifiable t\<^sub>1) s)) e')" by auto
-  with E S VCS have A: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst (extend_subst ?v (to_unifiable t\<^sub>1) s)) e') = 
-    map_expr\<^sub>s to_unifiable (Lam\<^sub>s x t\<^sub>1 e)" by simp
+  with tc\<^sub>t_lam TC have VCS: "?v \<notin> constr_vars (constr_subst ?v (to_unifiable t\<^sub>1) \<kappa>')" by simp
+  have "tyvars\<^sub>s (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u) \<subseteq> 
+    tyvars\<^sub>s e\<^sub>u - dom [?v \<mapsto> to_unifiable t\<^sub>1] \<union> subst_vars [?v \<mapsto> to_unifiable t\<^sub>1]" 
+      by (metis tyvars_subst_expr)
+  hence "tyvars\<^sub>s (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u) \<subseteq> tyvars\<^sub>s e\<^sub>u - {?v}" by simp
+  moreover have "tyvars\<^sub>s (map_expr\<^sub>s (subst s) (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u)) \<subseteq> 
+    tyvars\<^sub>s (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u) - dom s \<union> subst_vars s" 
+      by simp
+  ultimately have "tyvars\<^sub>s (map_expr\<^sub>s (subst s) (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u)) \<subseteq> 
+    tyvars\<^sub>s e\<^sub>u - {?v} - dom s \<union> subst_vars s" by blast
+  with S have "?v \<notin> tyvars\<^sub>s (map_expr\<^sub>s (subst (extend_subst ?v (to_unifiable t\<^sub>1) s)) e\<^sub>u)" by auto
+  with E S VCS have A: "map_expr\<^sub>s (eliminate_vars vs) 
+    (map_expr\<^sub>s (subst (extend_subst ?v (to_unifiable t\<^sub>1) s)) e\<^sub>u) = 
+      map_expr\<^sub>s to_unifiable (Lam\<^sub>s x t\<^sub>1 e\<^sub>t)" by simp
   from tc\<^sub>t_lam T have "insert ?v vs \<inter> vs'' = {}" by simp
   with S have U: "?v \<notin> dom s" by blast
   with S have B: "idempotent (extend_subst ?v (to_unifiable t\<^sub>1) s)" by simp
-  from S E FV have "s unifies\<^sub>\<kappa> constr_subst ?v (to_unifiable t\<^sub>1) (eliminate_vars_constr vs con)" 
+  from S E FV have "s unifies\<^sub>\<kappa> constr_subst ?v (to_unifiable t\<^sub>1) (eliminate_vars_constr vs \<kappa>)" 
     by simp
-  hence C: "extend_subst ?v (to_unifiable t\<^sub>1) s unifies\<^sub>\<kappa> eliminate_vars_constr vs con" by simp
+  hence C: "extend_subst ?v (to_unifiable t\<^sub>1) s unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>" by simp
   from S E have D: "dom (extend_subst ?v (to_unifiable t\<^sub>1) s) = vs'" by simp
   have VS: "uvars (subst s (to_unifiable t\<^sub>1)) \<subseteq> uvars (to_unifiable t\<^sub>1) - dom s \<union> subst_vars s" 
     by (metis uvars_subst)
   from S U VS have F: "subst_vars (extend_subst ?v (to_unifiable t\<^sub>1) s) = {}" by auto
   from S have AR: "eliminate_vars (insert ?v vs) 
     (subst (map_option (subst [fresh vs \<mapsto> to_unifiable t\<^sub>1]) \<circ> s) 
-    (subst [fresh vs \<mapsto> to_unifiable t\<^sub>1] t')) = to_unifiable t\<^sub>2" by (metis subst_absorb_no_ran)
+      (subst [fresh vs \<mapsto> to_unifiable t\<^sub>1] \<tau>\<^sub>2)) = to_unifiable t\<^sub>2" 
+    by (metis subst_absorb_no_ran)
   from U have SV: "s ?v = None" by auto
-  have "uvars (subst (extend_subst ?v (to_unifiable t\<^sub>1) s) t') \<subseteq> 
-    uvars t' - dom (extend_subst ?v (to_unifiable t\<^sub>1) s) \<union> 
-      subst_vars (extend_subst ?v (to_unifiable t\<^sub>1) s)" by (metis uvars_subst)
-  with U have "uvars (subst (extend_subst ?v (to_unifiable t\<^sub>1) s) t') \<subseteq> 
-    uvars t' - insert ?v (dom s) \<union> uvars (subst s (to_unifiable t\<^sub>1)) \<union> subst_vars s" by simp
+  have "uvars (subst (extend_subst ?v (to_unifiable t\<^sub>1) s) \<tau>\<^sub>2) \<subseteq> 
+    uvars \<tau>\<^sub>2 - dom (extend_subst ?v (to_unifiable t\<^sub>1) s) \<union> 
+      subst_vars (extend_subst ?v (to_unifiable t\<^sub>1) s)" 
+    by (metis uvars_subst)
+  with U have "uvars (subst (extend_subst ?v (to_unifiable t\<^sub>1) s) \<tau>\<^sub>2) \<subseteq> 
+    uvars \<tau>\<^sub>2 - insert ?v (dom s) \<union> uvars (subst s (to_unifiable t\<^sub>1)) \<union> subst_vars s" by simp
   moreover from S have "?v \<notin> 
-    uvars t' - insert ?v (dom s) \<union> uvars (subst s (to_unifiable t\<^sub>1)) \<union> subst_vars s" by simp
-  ultimately have "?v \<notin> uvars (subst (extend_subst ?v (to_unifiable t\<^sub>1) s) t')" by auto
-  with E have "?v \<notin> uvars (subst (extend_subst ?v (to_unifiable t\<^sub>1) s) tt)" by simp
-  with S E AR SV have G: "eliminate_vars vs (subst (extend_subst ?v (to_unifiable t\<^sub>1) s) tt) = 
+    uvars \<tau>\<^sub>2 - insert ?v (dom s) \<union> uvars (subst s (to_unifiable t\<^sub>1)) \<union> subst_vars s" by simp
+  ultimately have "?v \<notin> uvars (subst (extend_subst ?v (to_unifiable t\<^sub>1) s) \<tau>\<^sub>2)" by auto
+  with E have "?v \<notin> uvars (subst (extend_subst ?v (to_unifiable t\<^sub>1) s) \<tau>)" by simp
+  with S E AR SV have G: "eliminate_vars vs (subst (extend_subst ?v (to_unifiable t\<^sub>1) s) \<tau>) = 
     to_unifiable (Arrow t\<^sub>1 t\<^sub>2)" by (simp add: expand_extend_subst)
   from S have "valid_ty_subst (extend_subst ?v (to_unifiable t\<^sub>1) s)" by simp
   with A B C D F G show ?case by blast
 next
-  case (tc\<^sub>t_app e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
+  case (tc\<^sub>t_app e\<^sub>s\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>s\<^sub>2)
   let ?v = "fresh vs"
-  obtain e\<^sub>1' t\<^sub>1' vs\<^sub>1 con\<^sub>1 where TC1: "typecheck' \<Gamma> (insert ?v vs) (erase e\<^sub>1) = 
-    (e\<^sub>1', t\<^sub>1', vs\<^sub>1, con\<^sub>1)" by (metis prod_cases4)
-  obtain e\<^sub>2' t\<^sub>2' vs\<^sub>2 con\<^sub>2 where TC2: "typecheck' \<Gamma> (insert ?v (vs \<union> vs\<^sub>1)) (erase e\<^sub>2) = 
-    (e\<^sub>2', t\<^sub>2', vs\<^sub>2, con\<^sub>2)" by (metis prod_cases4)
-  with tc\<^sub>t_app TC1 have E: "e' = App\<^sub>s e\<^sub>1' e\<^sub>2' \<and> tt = Var ?v \<and> vs' = insert ?v (vs\<^sub>1 \<union> vs\<^sub>2) \<and> 
-    con = con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1', Arrow\<^sub>\<tau> t\<^sub>2' (Var ?v))]" by (auto simp add: Let_def)
+  obtain e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 where TC1: "typecheck' \<Gamma> (insert ?v vs) (erase e\<^sub>s\<^sub>1) = (e\<^sub>u\<^sub>1, \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1)" 
+    by (metis prod_cases4)
+  obtain e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2 where TC2: "typecheck' \<Gamma> (insert ?v (vs \<union> vs\<^sub>1)) (erase e\<^sub>s\<^sub>2) = (e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2)" 
+    by (metis prod_cases4)
+  with tc\<^sub>t_app TC1 have E: "e\<^sub>u = App\<^sub>s e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2 \<and> \<tau> = Var ?v \<and> vs' = insert ?v (vs\<^sub>1 \<union> vs\<^sub>2) \<and> 
+    \<kappa> = \<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var ?v))]" by (auto simp add: Let_def)
   from tc\<^sub>t_app have "subst_vars \<Gamma> \<subseteq> insert ?v vs" by auto
-  with tc\<^sub>t_app TC1 obtain s\<^sub>1 where S1: "
-    map_expr\<^sub>s (eliminate_vars (insert ?v vs)) (map_expr\<^sub>s (subst s\<^sub>1) e\<^sub>1') = map_expr\<^sub>s to_unifiable e\<^sub>1 \<and> 
-    eliminate_vars (insert ?v vs) (subst s\<^sub>1 t\<^sub>1') = to_unifiable (Arrow t\<^sub>1 t\<^sub>2) \<and> 
-    dom s\<^sub>1 = vs\<^sub>1 \<and> subst_vars s\<^sub>1 = {} \<and> 
-    s\<^sub>1 unifies\<^sub>\<kappa> eliminate_vars_constr (insert ?v vs) con\<^sub>1 \<and> valid_ty_subst s\<^sub>1 \<and> idempotent s\<^sub>1" 
-    by fastforce
+  with tc\<^sub>t_app TC1 obtain \<sigma>\<^sub>1 where S1: "
+    map_expr\<^sub>s (eliminate_vars (insert ?v vs)) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) e\<^sub>u\<^sub>1) = 
+      map_expr\<^sub>s to_unifiable e\<^sub>s\<^sub>1 \<and> 
+    eliminate_vars (insert ?v vs) (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) = to_unifiable (Arrow t\<^sub>1 t\<^sub>2) \<and> 
+    dom \<sigma>\<^sub>1 = vs\<^sub>1 \<and> subst_vars \<sigma>\<^sub>1 = {} \<and> \<sigma>\<^sub>1 unifies\<^sub>\<kappa> eliminate_vars_constr (insert ?v vs) \<kappa>\<^sub>1 \<and> 
+    valid_ty_subst \<sigma>\<^sub>1 \<and> idempotent \<sigma>\<^sub>1" 
+      by fastforce
   from tc\<^sub>t_app TC1 TC2 have FVS: "finite (insert ?v (vs \<union> vs\<^sub>1))" by simp
   from tc\<^sub>t_app have "subst_vars \<Gamma> \<subseteq> insert ?v (vs \<union> vs\<^sub>1)" by auto
-  with tc\<^sub>t_app TC2 FVS obtain s\<^sub>2 where S2: "
-    map_expr\<^sub>s (eliminate_vars (insert ?v (vs \<union> vs\<^sub>1))) (map_expr\<^sub>s (subst s\<^sub>2) e\<^sub>2') = 
-      map_expr\<^sub>s to_unifiable e\<^sub>2 \<and> 
-    eliminate_vars (insert ?v (vs \<union> vs\<^sub>1)) (subst s\<^sub>2 t\<^sub>2') = to_unifiable t\<^sub>1 \<and> dom s\<^sub>2 = vs\<^sub>2 \<and> subst_vars s\<^sub>2 = {} \<and> 
-    s\<^sub>2 unifies\<^sub>\<kappa> eliminate_vars_constr (insert ?v (vs \<union> vs\<^sub>1)) con\<^sub>2 \<and> valid_ty_subst s\<^sub>2 \<and> idempotent s\<^sub>2" 
+  with tc\<^sub>t_app TC2 FVS obtain \<sigma>\<^sub>2 where S2: "
+    map_expr\<^sub>s (eliminate_vars (insert ?v (vs \<union> vs\<^sub>1))) (map_expr\<^sub>s (subst \<sigma>\<^sub>2) e\<^sub>u\<^sub>2) = 
+      map_expr\<^sub>s to_unifiable e\<^sub>s\<^sub>2 \<and> 
+    eliminate_vars (insert ?v (vs \<union> vs\<^sub>1)) (subst \<sigma>\<^sub>2 \<tau>\<^sub>2) = to_unifiable t\<^sub>1 \<and> dom \<sigma>\<^sub>2 = vs\<^sub>2 \<and> 
+    subst_vars \<sigma>\<^sub>2 = {} \<and> \<sigma>\<^sub>2 unifies\<^sub>\<kappa> eliminate_vars_constr (insert ?v (vs \<union> vs\<^sub>1)) \<kappa>\<^sub>2 \<and> 
+    valid_ty_subst \<sigma>\<^sub>2 \<and> idempotent \<sigma>\<^sub>2" 
       by presburger
   from tc\<^sub>t_app have FV: "?v \<notin> vs" by simp
   from tc\<^sub>t_app TC1 have VVS1: "insert ?v vs \<inter> vs\<^sub>1 = {}" by simp
   moreover from tc\<^sub>t_app TC1 TC2 have VVS2: "insert ?v (vs \<union> vs\<^sub>1) \<inter> vs\<^sub>2 = {}" by simp
   ultimately have VVS: "?v \<notin> vs\<^sub>1 \<union> vs\<^sub>2" by simp
-  from VVS2 S1 S2 have DSS: "dom s\<^sub>1 \<inter> dom s\<^sub>2 = {}" by auto
-  from tc\<^sub>t_app TC1 S1 have "valid_ty_term t\<^sub>1' \<and> valid_ty_subst s\<^sub>1" by auto
-  hence VTS1: "valid_ty_term (subst s\<^sub>1 t\<^sub>1')" by simp
-  from tc\<^sub>t_app TC2 S2 have "valid_ty_term t\<^sub>2' \<and> valid_ty_subst s\<^sub>2" by auto
-  hence VTS2: "valid_ty_term (subst s\<^sub>2 t\<^sub>2')" by simp
-  let ?s = "extend_subst ?v (to_unifiable t\<^sub>2) (combine_subst s\<^sub>1 s\<^sub>2)"
-  from S1 S2 have D3: "dom (combine_subst s\<^sub>1 s\<^sub>2) = vs\<^sub>1 \<union> vs\<^sub>2" by auto
-  with FV E have A: "dom ?s = vs'" by simp
+  from VVS2 S1 S2 have DSS: "dom \<sigma>\<^sub>1 \<inter> dom \<sigma>\<^sub>2 = {}" by auto
+  from tc\<^sub>t_app TC1 S1 have "valid_ty_term \<tau>\<^sub>1 \<and> valid_ty_subst \<sigma>\<^sub>1" by auto
+  hence VTS1: "valid_ty_term (subst \<sigma>\<^sub>1 \<tau>\<^sub>1)" by simp
+  from tc\<^sub>t_app TC2 S2 have "valid_ty_term \<tau>\<^sub>2 \<and> valid_ty_subst \<sigma>\<^sub>2" by auto
+  hence VTS2: "valid_ty_term (subst \<sigma>\<^sub>2 \<tau>\<^sub>2)" by simp
+  let ?\<sigma> = "extend_subst ?v (to_unifiable t\<^sub>2) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2)"
+  from S1 S2 have D3: "dom (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) = vs\<^sub>1 \<union> vs\<^sub>2" by auto
+  with FV E have A: "dom ?\<sigma> = vs'" by simp
   from tc\<^sub>t_app have VG: "?v \<notin> subst_vars \<Gamma>" by auto 
-  with tc\<^sub>t_app TC1 have VE1: "?v \<notin> tyvars\<^sub>s e\<^sub>1'" by simp
-  from tc\<^sub>t_app TC1 TC2 VG have VE2: "?v \<notin> tyvars\<^sub>s e\<^sub>2'" by simp
-  from tc\<^sub>t_app TC1 have "tyvars\<^sub>s e\<^sub>1' \<subseteq> vs\<^sub>1" by simp
-  with S1 S2 DSS have HV: "dom s\<^sub>2 \<inter> tyvars\<^sub>s e\<^sub>1' = {}" by blast
-  from tc\<^sub>t_app E TC1 TC2 have HV2: "tyvars\<^sub>s e\<^sub>2' \<subseteq> vs\<^sub>2" by simp
-  have "tyvars\<^sub>s (map_expr\<^sub>s (subst s\<^sub>2) e\<^sub>2') \<subseteq> tyvars\<^sub>s e\<^sub>2' - dom s\<^sub>2 \<union> subst_vars s\<^sub>2" by simp
-  with S2 HV2 have HVS2: "tyvars\<^sub>s (map_expr\<^sub>s (subst s\<^sub>2) e\<^sub>2') = {}" by auto
-  have "tyvars\<^sub>s (map_expr\<^sub>s (subst s\<^sub>1) e\<^sub>1') \<subseteq> tyvars\<^sub>s e\<^sub>1' - dom s\<^sub>1 \<union> subst_vars s\<^sub>1" by simp
-  with VE1 S1 have "?v \<notin> tyvars\<^sub>s (map_expr\<^sub>s (subst s\<^sub>1) e\<^sub>1')" by blast
-  with S1 HV have "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst s\<^sub>1) (map_expr\<^sub>s (subst s\<^sub>2) e\<^sub>1')) = 
-    map_expr\<^sub>s to_unifiable e\<^sub>1" by simp
-  hence PS1: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst s\<^sub>1 \<circ> subst s\<^sub>2) e\<^sub>1') = map_expr\<^sub>s to_unifiable e\<^sub>1"
-    by (simp add: expr\<^sub>s.map_comp)
-  from S2 HVS2 have "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst s\<^sub>1) (map_expr\<^sub>s (subst s\<^sub>2) e\<^sub>2')) = 
-    map_expr\<^sub>s to_unifiable e\<^sub>2" by simp
-  hence "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst s\<^sub>1 \<circ> subst s\<^sub>2) e\<^sub>2') = map_expr\<^sub>s to_unifiable e\<^sub>2"
-    by (simp add: expr\<^sub>s.map_comp)
-  with VE1 VE2 PS1 have "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst ?s) e\<^sub>1') = map_expr\<^sub>s to_unifiable e\<^sub>1 \<and>
-    map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst ?s) e\<^sub>2') = map_expr\<^sub>s to_unifiable e\<^sub>2" by simp
-  hence B: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst ?s) (App\<^sub>s e\<^sub>1' e\<^sub>2')) = map_expr\<^sub>s to_unifiable (App\<^sub>s e\<^sub>1 e\<^sub>2)" by simp
-  have C: "eliminate_vars vs (subst ?s (Var ?v)) = to_unifiable t\<^sub>2" by simp
-  from S1 S2 DSS VVS D3 have D: "subst_vars ?s = {}" by simp
-  from S1 S2 have VCS: "?v \<notin> subst_vars s\<^sub>1 \<and> ?v \<notin> subst_vars s\<^sub>2" by auto
-  from S1 S2 have D2S1: "dom s\<^sub>2 \<inter> subst_vars s\<^sub>1 = {}" by auto
-  from tc\<^sub>t_app TC1 VG have "?v \<notin> constr_vars con\<^sub>1" by simp
-  with VVS S1 S2 DSS D2S1 have UC1: "?s unifies\<^sub>\<kappa> eliminate_vars_constr vs con\<^sub>1" by simp  
-  from tc\<^sub>t_app TC1 TC2 E have "constr_vars con\<^sub>2 \<subseteq> vs\<^sub>2 \<union> subst_vars \<Gamma>" by simp
-  with tc\<^sub>t_app VVS2 have CV2: "constr_vars con\<^sub>2 \<inter> vs\<^sub>1 \<subseteq> vs" by auto
-  from tc\<^sub>t_app TC1 TC2 VG have "?v \<notin> constr_vars con\<^sub>2" by simp
-  with CV2 VVS S1 S2 DSS have UC2: "?s unifies\<^sub>\<kappa> eliminate_vars_constr vs con\<^sub>2" by simp
-  from tc\<^sub>t_app TC1 have UV1: "uvars t\<^sub>1' \<subseteq> vs\<^sub>1 \<union> subst_vars \<Gamma>" by simp
-  with VG VVS have VT1: "?v \<notin> uvars t\<^sub>1'" by auto
+  with tc\<^sub>t_app TC1 have VE1: "?v \<notin> tyvars\<^sub>s e\<^sub>u\<^sub>1" by simp
+  from tc\<^sub>t_app TC1 TC2 VG have VE2: "?v \<notin> tyvars\<^sub>s e\<^sub>u\<^sub>2" by simp
+  from tc\<^sub>t_app TC1 have "tyvars\<^sub>s e\<^sub>u\<^sub>1 \<subseteq> vs\<^sub>1" by simp
+  with S1 S2 DSS have HV: "dom \<sigma>\<^sub>2 \<inter> tyvars\<^sub>s e\<^sub>u\<^sub>1 = {}" by blast
+  from tc\<^sub>t_app E TC1 TC2 have HV2: "tyvars\<^sub>s e\<^sub>u\<^sub>2 \<subseteq> vs\<^sub>2" by simp
+  have "tyvars\<^sub>s (map_expr\<^sub>s (subst \<sigma>\<^sub>2) e\<^sub>u\<^sub>2) \<subseteq> tyvars\<^sub>s e\<^sub>u\<^sub>2 - dom \<sigma>\<^sub>2 \<union> subst_vars \<sigma>\<^sub>2" by simp
+  with S2 HV2 have HVS2: "tyvars\<^sub>s (map_expr\<^sub>s (subst \<sigma>\<^sub>2) e\<^sub>u\<^sub>2) = {}" by auto
+  have "tyvars\<^sub>s (map_expr\<^sub>s (subst \<sigma>\<^sub>1) e\<^sub>u\<^sub>1) \<subseteq> tyvars\<^sub>s e\<^sub>u\<^sub>1 - dom \<sigma>\<^sub>1 \<union> subst_vars \<sigma>\<^sub>1" by simp
+  with VE1 S1 have "?v \<notin> tyvars\<^sub>s (map_expr\<^sub>s (subst \<sigma>\<^sub>1) e\<^sub>u\<^sub>1)" by blast
+  with S1 HV have "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) (map_expr\<^sub>s (subst \<sigma>\<^sub>2) e\<^sub>u\<^sub>1)) = 
+    map_expr\<^sub>s to_unifiable e\<^sub>s\<^sub>1" by simp
+  hence PS1: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>\<^sub>1 \<circ> subst \<sigma>\<^sub>2) e\<^sub>u\<^sub>1) = 
+    map_expr\<^sub>s to_unifiable e\<^sub>s\<^sub>1" by (simp add: expr\<^sub>s.map_comp)
+  from S2 HVS2 have "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) (map_expr\<^sub>s (subst \<sigma>\<^sub>2) e\<^sub>u\<^sub>2)) = 
+    map_expr\<^sub>s to_unifiable e\<^sub>s\<^sub>2" by simp
+  hence "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>\<^sub>1 \<circ> subst \<sigma>\<^sub>2) e\<^sub>u\<^sub>2) = 
+    map_expr\<^sub>s to_unifiable e\<^sub>s\<^sub>2" by (simp add: expr\<^sub>s.map_comp)
+  with VE1 VE2 PS1 have "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst ?\<sigma>) e\<^sub>u\<^sub>1) = 
+      map_expr\<^sub>s to_unifiable e\<^sub>s\<^sub>1 \<and>
+    map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst ?\<sigma>) e\<^sub>u\<^sub>2) = map_expr\<^sub>s to_unifiable e\<^sub>s\<^sub>2" by simp
+  hence B: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst ?\<sigma>) (App\<^sub>s e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2)) = 
+    map_expr\<^sub>s to_unifiable (App\<^sub>s e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2)" by simp
+  have C: "eliminate_vars vs (subst ?\<sigma> (Var ?v)) = to_unifiable t\<^sub>2" by simp
+  from S1 S2 DSS VVS D3 have D: "subst_vars ?\<sigma> = {}" by simp
+  from S1 S2 have VCS: "?v \<notin> subst_vars \<sigma>\<^sub>1 \<and> ?v \<notin> subst_vars \<sigma>\<^sub>2" by auto
+  from S1 S2 have D2S1: "dom \<sigma>\<^sub>2 \<inter> subst_vars \<sigma>\<^sub>1 = {}" by auto
+  from tc\<^sub>t_app TC1 VG have "?v \<notin> constr_vars \<kappa>\<^sub>1" by simp
+  with VVS S1 S2 DSS D2S1 have UC1: "?\<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>\<^sub>1" by simp  
+  from tc\<^sub>t_app TC1 TC2 E have "constr_vars \<kappa>\<^sub>2 \<subseteq> vs\<^sub>2 \<union> subst_vars \<Gamma>" by simp
+  with tc\<^sub>t_app VVS2 have CV2: "constr_vars \<kappa>\<^sub>2 \<inter> vs\<^sub>1 \<subseteq> vs" by auto
+  from tc\<^sub>t_app TC1 TC2 VG have "?v \<notin> constr_vars \<kappa>\<^sub>2" by simp
+  with CV2 VVS S1 S2 DSS have UC2: "?\<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>\<^sub>2" by simp
+  from tc\<^sub>t_app TC1 have UV1: "uvars \<tau>\<^sub>1 \<subseteq> vs\<^sub>1 \<union> subst_vars \<Gamma>" by simp
+  with VG VVS have VT1: "?v \<notin> uvars \<tau>\<^sub>1" by auto
   from DSS VVS2 have "vs\<^sub>2 \<inter> (vs\<^sub>1 \<union> vs) = {}" by blast
-  with tc\<^sub>t_app(6) S2 UV1 have DU1: "dom s\<^sub>2 \<inter> uvars t\<^sub>1' = {}" by blast
-  from tc\<^sub>t_app TC1 TC2 E have UV2: "uvars t\<^sub>2' \<subseteq> vs\<^sub>2 \<union> subst_vars \<Gamma>" by simp
-  with VG VVS have VT2: "?v \<notin> uvars t\<^sub>2'" by auto
-  have "uvars (subst s\<^sub>1 t\<^sub>1') \<subseteq> uvars t\<^sub>1' - dom s\<^sub>1 \<union> subst_vars s\<^sub>1" by simp
-  with S1 UV1 have "uvars (subst s\<^sub>1 t\<^sub>1') \<subseteq> 
-    (vs\<^sub>1 - insert ?v vs \<union> subst_vars \<Gamma>) - (vs\<^sub>1 - insert ?v vs) \<union> {}" by auto
-  with tc\<^sub>t_app(6) have "uvars (subst s\<^sub>1 t\<^sub>1') \<subseteq> vs\<^sub>1 - insert ?v vs \<union> vs - (vs\<^sub>1 - insert ?v vs)" 
+  with tc\<^sub>t_app(6) S2 UV1 have DU1: "dom \<sigma>\<^sub>2 \<inter> uvars \<tau>\<^sub>1 = {}" by blast
+  from tc\<^sub>t_app TC1 TC2 E have UV2: "uvars \<tau>\<^sub>2 \<subseteq> vs\<^sub>2 \<union> subst_vars \<Gamma>" by simp
+  with VG VVS have VT2: "?v \<notin> uvars \<tau>\<^sub>2" by auto
+  have "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<subseteq> uvars \<tau>\<^sub>1 - dom \<sigma>\<^sub>1 \<union> subst_vars \<sigma>\<^sub>1" by simp
+  with S1 UV1 have "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<subseteq> (vs\<^sub>1 - insert ?v vs \<union> subst_vars \<Gamma>) - (vs\<^sub>1 - insert ?v vs)" 
     by auto
-  hence US1: "uvars (subst s\<^sub>1 t\<^sub>1') \<subseteq> vs" by auto
-  have "uvars (subst s\<^sub>2 t\<^sub>2') \<subseteq> uvars t\<^sub>2' - dom s\<^sub>2 \<union> subst_vars s\<^sub>2" by simp
-  with tc\<^sub>t_app(6) S2 UV2 have US2: "uvars (subst s\<^sub>2 t\<^sub>2') \<subseteq> vs" by blast
-  with S1 VVS1 have DU2: "dom s\<^sub>1 \<inter> uvars (subst s\<^sub>2 t\<^sub>2') = {}" by auto
-  from S1 VVS1 have DSV1: "dom s\<^sub>1 \<inter> vs = {}" by auto
-  from S2 VVS2 have DSV2: "dom s\<^sub>2 \<inter> vs = {}" by auto
-  from S1 obtain tt1 tt2 where SS1: "subst s\<^sub>1 t\<^sub>1' = Arrow\<^sub>\<tau> tt1 tt2 \<and> 
+  with tc\<^sub>t_app(6) have US1: "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<subseteq> vs" by auto
+  have "uvars (subst \<sigma>\<^sub>2 \<tau>\<^sub>2) \<subseteq> uvars \<tau>\<^sub>2 - dom \<sigma>\<^sub>2 \<union> subst_vars \<sigma>\<^sub>2" by simp
+  with tc\<^sub>t_app(6) S2 UV2 have US2: "uvars (subst \<sigma>\<^sub>2 \<tau>\<^sub>2) \<subseteq> vs" by blast
+  with S1 VVS1 have DU2: "dom \<sigma>\<^sub>1 \<inter> uvars (subst \<sigma>\<^sub>2 \<tau>\<^sub>2) = {}" by auto
+  from S1 VVS1 have DSV1: "dom \<sigma>\<^sub>1 \<inter> vs = {}" by auto
+  from S2 VVS2 have DSV2: "dom \<sigma>\<^sub>2 \<inter> vs = {}" by auto
+  from S1 obtain tt1 tt2 where SS1: "subst \<sigma>\<^sub>1 \<tau>\<^sub>1 = Arrow\<^sub>\<tau> tt1 tt2 \<and> 
     eliminate_vars (insert ?v vs) tt1 = to_unifiable t\<^sub>1 \<and> 
     eliminate_vars (insert ?v vs) tt2 = to_unifiable t\<^sub>2" by auto
   from US1 SS1 have "uvars tt1 \<subseteq> vs \<and> uvars tt2 \<subseteq> vs" by simp
   with FV SS1 have PT1: "eliminate_vars vs tt1 = to_unifiable t\<^sub>1 \<and> 
     eliminate_vars vs tt2 = to_unifiable t\<^sub>2" by force
-  from US2 have USV21: "uvars (subst s\<^sub>2 t\<^sub>2') \<inter> vs\<^sub>1 \<subseteq> vs" by auto
-  from US2 FV have "?v \<notin> uvars (subst s\<^sub>2 t\<^sub>2')" by auto
-  with S2 USV21 have "eliminate_vars vs (subst s\<^sub>2 t\<^sub>2') = to_unifiable t\<^sub>1" by simp
+  from US2 have USV21: "uvars (subst \<sigma>\<^sub>2 \<tau>\<^sub>2) \<inter> vs\<^sub>1 \<subseteq> vs" by auto
+  from US2 FV have "?v \<notin> uvars (subst \<sigma>\<^sub>2 \<tau>\<^sub>2)" by auto
+  with S2 USV21 have "eliminate_vars vs (subst \<sigma>\<^sub>2 \<tau>\<^sub>2) = to_unifiable t\<^sub>1" by simp
   with FV UC1 UC2 S1 S2 DSV1 DSV2 VT1 VT2 DU1 DU2 SS1 PT1 have F: "
-    ?s unifies\<^sub>\<kappa> eliminate_vars_constr vs (con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1', Arrow\<^sub>\<tau> t\<^sub>2' (Var ?v))])" 
-    by (simp add: expand_extend_subst)
-  from S1 S2 DSS VVS D3 have G: "idempotent ?s" by simp
-  from S1 S2 have "valid_ty_subst ?s" by simp
+    ?\<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr vs (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var ?v))])" 
+      by (simp add: expand_extend_subst)
+  from S1 S2 DSS VVS D3 have G: "idempotent ?\<sigma>" by simp
+  from S1 S2 have "valid_ty_subst ?\<sigma>" by simp
   with E A B C D F G show ?case by blast
 qed auto
 
-lemma typecheck_fails [simp]: "typecheck e = None \<Longrightarrow> \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e = erase e\<^sub>t"
+text \<open>With \<open>typecheck_finds_subst\<close> in hand, our failure case is now quite simple:\<close>
+
+theorem typecheck_fails [simp]: "typecheck e\<^sub>s = None \<Longrightarrow> \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e\<^sub>s = erase e\<^sub>t"
 proof                              
-  assume "typecheck e = None"
-  then obtain e' tt vs' con where X: "typecheck' Map.empty {} e = (e', tt, vs', con) \<and> 
-    unify con = None" by (auto split: prod.splits option.splits)
-  assume "\<exists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e = erase e\<^sub>t"
-  then obtain e\<^sub>t t where Y: "(map_option to_type \<circ> Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e = erase e\<^sub>t" by fastforce
+  assume "typecheck e\<^sub>s = None"
+  then obtain e\<^sub>u \<tau> vs' \<kappa> where X: "typecheck' Map.empty {} e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<and> unify \<kappa> = None" 
+    by (auto split: prod.splits option.splits)
+  assume "\<exists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e\<^sub>s = erase e\<^sub>t"
+  then obtain e\<^sub>t t where Y: "(map_option to_type \<circ> Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e\<^sub>s = erase e\<^sub>t" by fastforce
   have Z: "subst_vars Map.empty \<subseteq> {}" by simp
   have "valid_ty_subst Map.empty \<and> finite {}" by simp
-  with X Y Z have "\<exists>s. map_expr\<^sub>s (eliminate_vars {}) (map_expr\<^sub>s (subst s) e') = map_expr\<^sub>s to_unifiable e\<^sub>t \<and> 
-    eliminate_vars {} (subst s tt) = to_unifiable t \<and> dom s = vs' \<and> subst_vars s = {} \<and> 
-    s unifies\<^sub>\<kappa> eliminate_vars_constr {} con \<and> valid_ty_subst s \<and> idempotent s" 
-    using typecheck_fails' by blast
-  then obtain s where "s unifies\<^sub>\<kappa> eliminate_vars_constr {} con \<and> idempotent s" by blast
-  hence "\<exists>s'. unify con = Some s' \<and> s specializes s'" by simp
+  with X Y Z have "\<exists>\<sigma>. map_expr\<^sub>s (eliminate_vars {}) (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u) = 
+      map_expr\<^sub>s to_unifiable e\<^sub>t \<and> 
+    eliminate_vars {} (subst \<sigma> \<tau>) = to_unifiable t \<and> dom \<sigma> = vs' \<and> subst_vars \<sigma> = {} \<and> 
+    \<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr {} \<kappa> \<and> valid_ty_subst \<sigma> \<and> idempotent \<sigma>" 
+      using typecheck_finds_subst by blast
+  then obtain \<sigma> where "\<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr {} \<kappa> \<and> idempotent \<sigma>" by blast
+  hence "\<exists>\<sigma>'. unify \<kappa> = Some \<sigma>' \<and> \<sigma> specializes \<sigma>'" by simp
   with X show "False" by simp
 qed
-
-lemma [simp]: "value\<^sub>s (erase e) = value\<^sub>s e"
-  by (induction e) simp_all
-
-lemma [simp]: "all_vars\<^sub>s (erase e) = all_vars\<^sub>s e"
-  by (induction e) simp_all
-
-lemma [simp]: "erase (subst_var\<^sub>s x y e) = subst_var\<^sub>s x y (erase e)"
-  by (induction e) simp_all
-
-lemma [simp]: "erase (subst\<^sub>s x e' e) = subst\<^sub>s x (erase e') (erase e)"
-  by (induction x e' e rule: subst\<^sub>s.induct) (simp_all add: Let_def)
-
-theorem completeness [simp]: "e \<Down> v \<Longrightarrow> erase e \<Down> erase v"
-  by (induction e v rule: eval\<^sub>s.induct) simp_all
 
 end

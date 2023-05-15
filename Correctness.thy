@@ -19,9 +19,9 @@ proof -
   thus ?thesis by (metis typecheck_fails)
 qed
 
-theorem tc_success: "alg_compile e = Some (cd, t) \<Longrightarrow> 
-  \<exists>v. value\<^sub>s v \<and> e \<Down> v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
-    print_mach_state \<Sigma> = print_nexpr v)"
+theorem tc_success: "alg_compile e = Some (cd, t) \<Longrightarrow> \<exists>e\<^sub>t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> erase e\<^sub>t = e \<and>
+  (\<exists>v. value\<^sub>s v \<and> e \<Down> v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
+    print_mach_state \<Sigma> = print_nexpr v))"
 proof -
   assume C: "alg_compile e = Some (cd, t)"
   then obtain e\<^sub>t where T: "typecheck e = Some (e\<^sub>t, t)" by (auto split: option.splits prod.splits)

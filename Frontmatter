@@ -159,7 +159,7 @@ If compilation succeeds, then it has found a type for our program, and there is 
 source program evaluates to, and the compiled machine code will eventually evaluate to a final 
 state, and the printed outputs of that value and that machine state are identical:
 
-alg_compile e = Some (cd, t) \<Longrightarrow> 
+alg_compile e = Some (cd, t) \<Longrightarrow> \<exists>e\<^sub>t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> erase e\<^sub>t = e \<and>
   \<exists>v. valn v \<and> e \<Down> v \<and> 
     (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>) (initial_state cd) \<Sigma> \<and> print_mach_state \<Sigma> = print_nexpr v)
 
@@ -190,6 +190,7 @@ in the correctness proofs, for instance), we distinguish with subscripts:
 
 s : stage 1 (Source code)
 t : stage 2 (Typed code)
+u : stage 2 (Unifiable annotations, used during typechecking)
 d : stage 3 (Debruijn variables)
 k : stage 4 (stacK evaluation)
 c : stage 5 (Closure conversion)
@@ -199,7 +200,7 @@ b : stage 8 (Byte code)
 h : stage 9 (Heap memory)
 v : stage 10 (enVironment chaining)
 f : stage 11 (Flat code)
-u : stage 12 (Unstructured memory)
+r : stage 12 (UnstRuctured memory)
 a : stage 13 (Assembly code)
 m : stage 14 (Machine code)
 

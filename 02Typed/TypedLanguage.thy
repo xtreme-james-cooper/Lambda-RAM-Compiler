@@ -8,7 +8,7 @@ text \<open>Our typed language is almost identical to the untyped source, except
 type-annotation on every lambda-abstraction. This small change, of course, produces a great 
 difference in properties, and will take quite a lot of work to establish in the typechecking pass.\<close>
 
-text \<open>We begin with our typing relation. Thanks to the tags on binders (the only difficult part of 
+text \<open>We first define our typing relation. Thanks to the tags on binders (the only difficult part of 
 typing the lambda-calculus), we can straightforwardly check that a term has a given type. In fact, 
 we would even write it as an Isabelle function; however, since type-reconstruction is performed 
 separately and only once, and the typing judgement is only ever used to prove facts with, we go 
@@ -97,5 +97,47 @@ qed fastforce+
 
 theorem preservation\<^sub>t: "e \<Down> v \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t v : t"
   by (induction e v arbitrary: t rule: eval\<^sub>s.induct) fastforce+
+
+subsection \<open>Type Erasure\<close>
+
+text \<open>We define a type-erasure function to convert back to our untyped language. This will be 
+how we show that typechecked expressions have the same shape they started with.\<close>
+
+abbreviation erase :: "'a expr\<^sub>s \<Rightarrow> unit expr\<^sub>s" where
+  "erase \<equiv> map_expr\<^sub>s (\<lambda>x. ())"
+
+lemma erase_to_var [dest]: "erase e\<^sub>t = Var\<^sub>s x \<Longrightarrow> e\<^sub>t = Var\<^sub>s x"
+  by (induction e\<^sub>t) simp_all
+
+lemma erase_to_const [dest]: "erase e\<^sub>t = Const\<^sub>s n \<Longrightarrow> e\<^sub>t = Const\<^sub>s n"
+  by (induction e\<^sub>t) simp_all
+
+lemma erase_to_lam [dest]: "erase e\<^sub>t = Lam\<^sub>s x u e\<^sub>s \<Longrightarrow> \<exists>t e\<^sub>t'. e\<^sub>t = Lam\<^sub>s x t e\<^sub>t' \<and> e\<^sub>s = erase e\<^sub>t'"
+  by (induction e\<^sub>t) simp_all
+
+lemma erase_to_app [dest]: "erase e\<^sub>t = App\<^sub>s e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2 \<Longrightarrow> 
+    \<exists>e\<^sub>1' e\<^sub>2'. e\<^sub>t = App\<^sub>s e\<^sub>1' e\<^sub>2' \<and> e\<^sub>s\<^sub>1 = erase e\<^sub>1'\<and> e\<^sub>s\<^sub>2 = erase e\<^sub>2'"
+  by (induction e\<^sub>t) simp_all
+
+lemma erase_map [simp]: "erase (map_expr\<^sub>s f e\<^sub>t) = erase e\<^sub>t"
+  by (induction e\<^sub>t) simp_all
+
+text \<open>Since evaluation and all its related functions ignore tags, it is no surprise that our first 
+completeness theorem is very easy to prove.\<close>
+
+lemma erased_value [simp]: "value\<^sub>s (erase e\<^sub>t) = value\<^sub>s e\<^sub>t"
+  by (induction e\<^sub>t) simp_all
+
+lemma erased_vars [simp]: "all_vars\<^sub>s (erase e\<^sub>t) = all_vars\<^sub>s e\<^sub>t"
+  by (induction e\<^sub>t) simp_all
+
+lemma erased_subst_var [simp]: "erase (subst_var\<^sub>s x y e\<^sub>t) = subst_var\<^sub>s x y (erase e\<^sub>t)"
+  by (induction e\<^sub>t) simp_all
+
+lemma erased_subst [simp]: "erase (subst\<^sub>s x e\<^sub>t' e\<^sub>t) = subst\<^sub>s x (erase e\<^sub>t') (erase e\<^sub>t)"
+  by (induction x e\<^sub>t' e\<^sub>t rule: subst\<^sub>s.induct) (simp_all add: Let_def)
+
+theorem completeness [simp]: "e\<^sub>t \<Down> v\<^sub>t \<Longrightarrow> erase e\<^sub>t \<Down> erase v\<^sub>t"
+  by (induction e\<^sub>t v\<^sub>t rule: eval\<^sub>s.induct) simp_all
 
 end
