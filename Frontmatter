@@ -175,6 +175,7 @@ b : an arithmetic operation
 v : an expression in normal form (i.e. a value)
 t : a type
 \<Gamma> : a typing context
+\<Phi> : a naming context
 \<Sigma> : an evaluation state
 \<tau> : a unification term
 \<gamma> : a unification constructor tag
@@ -200,7 +201,7 @@ b : stage 8 (Byte code)
 h : stage 9 (Heap memory)
 v : stage 10 (enVironment chaining)
 f : stage 11 (Flat code)
-r : stage 12 (UnstRuctured memory)
+r : stage 12 (unstRuctured memory)
 a : stage 13 (Assembly code)
 m : stage 14 (Machine code)
 
@@ -239,7 +240,6 @@ Utils
 Environment
 Variable
 Iteration
-AssocList
 
 SourceLanguage
 
@@ -254,3 +254,6 @@ Typechecking
 
 Debruijn
 Multisubst
+Termination
+BigStep
+NameRemoval

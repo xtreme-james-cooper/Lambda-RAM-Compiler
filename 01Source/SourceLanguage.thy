@@ -35,25 +35,37 @@ primrec value\<^sub>s :: "'a expr\<^sub>s \<Rightarrow> bool" where
 | "value\<^sub>s (Lam\<^sub>s x t e) = True" 
 | "value\<^sub>s (App\<^sub>s e\<^sub>1 e\<^sub>2) = False" 
 
-text \<open>We define free variables in the usual way:\<close>
+text \<open>We define free and bound variables in the usual way:\<close>
 
 primrec free_vars\<^sub>s :: "'a expr\<^sub>s \<Rightarrow> var set" where
   "free_vars\<^sub>s (Var\<^sub>s x) = {x}"
-| "free_vars\<^sub>s (Const\<^sub>s k) = {}"
+| "free_vars\<^sub>s (Const\<^sub>s n) = {}"
 | "free_vars\<^sub>s (Lam\<^sub>s x t e) = free_vars\<^sub>s e - {x}"
 | "free_vars\<^sub>s (App\<^sub>s e\<^sub>1 e\<^sub>2) = free_vars\<^sub>s e\<^sub>1 \<union> free_vars\<^sub>s e\<^sub>2"
 
-text \<open>Our capture-avoiding substitution requires some helper methods. First, a function to gather up 
-all variables in an expression, even bound ones:\<close>
+primrec bound_vars\<^sub>s :: "'a expr\<^sub>s \<Rightarrow> var set" where
+  "bound_vars\<^sub>s (Var\<^sub>s x) = {}"
+| "bound_vars\<^sub>s (Const\<^sub>s n) = {}"
+| "bound_vars\<^sub>s (Lam\<^sub>s x t e) = insert x (bound_vars\<^sub>s e)"
+| "bound_vars\<^sub>s (App\<^sub>s e\<^sub>1 e\<^sub>2) = bound_vars\<^sub>s e\<^sub>1 \<union> bound_vars\<^sub>s e\<^sub>2"
 
-primrec all_vars\<^sub>s :: "'a expr\<^sub>s \<Rightarrow> var set" where
-  "all_vars\<^sub>s (Var\<^sub>s x) = {x}"
-| "all_vars\<^sub>s (Const\<^sub>s n) = {}"
-| "all_vars\<^sub>s (Lam\<^sub>s x t e) = insert x (all_vars\<^sub>s e)"
-| "all_vars\<^sub>s (App\<^sub>s e\<^sub>1 e\<^sub>2) = all_vars\<^sub>s e\<^sub>1 \<union> all_vars\<^sub>s e\<^sub>2"
+definition all_vars\<^sub>s :: "'a expr\<^sub>s \<Rightarrow> var set" where
+  "all_vars\<^sub>s e \<equiv> free_vars\<^sub>s e \<union> bound_vars\<^sub>s e"
 
 lemma all_vars_finite [simp]: "finite (all_vars\<^sub>s e)"
-  by (induction e) simp_all
+  by (induction e) (simp_all add: all_vars\<^sub>s_def)
+
+lemma all_vars_var [simp]: "all_vars\<^sub>s (Var\<^sub>s x) = {x}"
+  by (simp add: all_vars\<^sub>s_def)
+
+lemma all_vars_const [simp]: "all_vars\<^sub>s (Const\<^sub>s n) = {}"
+  by (simp add: all_vars\<^sub>s_def)
+
+lemma all_vars_lam [simp]: "all_vars\<^sub>s (Lam\<^sub>s x t e) = insert x (all_vars\<^sub>s e)"
+  by (auto simp add: all_vars\<^sub>s_def)
+
+lemma all_vars_app [simp]: "all_vars\<^sub>s (App\<^sub>s e\<^sub>1 e\<^sub>2) = all_vars\<^sub>s e\<^sub>1 \<union> all_vars\<^sub>s e\<^sub>2"
+  by (auto simp add: all_vars\<^sub>s_def)
 
 text \<open>Next, we define a limited form of substitution that simply swaps one variable for another. 
 Note that this function is unsafe if the replacement variable is bound in the expression; we will 
@@ -66,6 +78,13 @@ primrec subst_var\<^sub>s :: "var \<Rightarrow> var \<Rightarrow> 'a expr\<^sub>
 | "subst_var\<^sub>s x x' (App\<^sub>s e\<^sub>1 e\<^sub>2) = App\<^sub>s (subst_var\<^sub>s x x' e\<^sub>1) (subst_var\<^sub>s x x' e\<^sub>2)"
 
 lemma size_subst_var [simp]: "size (subst_var\<^sub>s x x' e) = size e"
+  by (induction e) simp_all
+
+lemma free_subst_vars [simp]: "x' \<notin> bound_vars\<^sub>s e \<Longrightarrow> free_vars\<^sub>s (subst_var\<^sub>s x x' e) = 
+    free_vars\<^sub>s e - {x} \<union> (if x \<in> free_vars\<^sub>s e then {x'} else {})"
+  by (induction e) (auto split: if_splits)
+
+lemma bound_subst_vars [simp]: "bound_vars\<^sub>s (subst_var\<^sub>s x x' e) = bound_vars\<^sub>s e"
   by (induction e) simp_all
 
 text \<open>Finally, our capture-avoiding substitution function. As noted above, we rename every binder 
@@ -138,5 +157,56 @@ next
   case (ev\<^sub>s_app e\<^sub>1 x e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
   from ev\<^sub>s_app(7, 1, 2, 3, 4, 5, 6) show ?case by (induction rule: eval\<^sub>s.cases) blast+
 qed
+
+text \<open>We also define a no-shadowing predicate on our expressions, where no variable is ever bound 
+twice in the same scope.\<close>
+
+primrec no_shadowing\<^sub>s :: "'a expr\<^sub>s \<Rightarrow> bool" where
+  "no_shadowing\<^sub>s (Var\<^sub>s x) = True"
+| "no_shadowing\<^sub>s (Const\<^sub>s n) = True"
+| "no_shadowing\<^sub>s (Lam\<^sub>s x t e) = (no_shadowing\<^sub>s e \<and> x \<notin> bound_vars\<^sub>s e)"
+| "no_shadowing\<^sub>s (App\<^sub>s e\<^sub>1 e\<^sub>2) = (no_shadowing\<^sub>s e\<^sub>1 \<and> no_shadowing\<^sub>s e\<^sub>2)"
+
+lemma now_shadowing_subst_var [simp]: "no_shadowing\<^sub>s (subst_var\<^sub>s x y e) = no_shadowing\<^sub>s e"
+  by (induction e) simp_all
+
+text \<open>We define a shadow-removing function on our expressions, that converts one to an 
+alpha-equivalent form with no shadowed variables.\<close>
+
+primrec remove_shadows\<^sub>s' :: "var set \<Rightarrow> 'a expr\<^sub>s \<Rightarrow> 'a expr\<^sub>s" where
+  "remove_shadows\<^sub>s' vs (Var\<^sub>s y) = Var\<^sub>s y"
+| "remove_shadows\<^sub>s' vs (Const\<^sub>s n) = Const\<^sub>s n"
+| "remove_shadows\<^sub>s' vs (Lam\<^sub>s x t e) = (
+    let e' = remove_shadows\<^sub>s' (insert x vs) e
+    in let y = fresh (vs \<union> all_vars\<^sub>s e')
+    in Lam\<^sub>s y t (subst_var\<^sub>s x y e'))"
+| "remove_shadows\<^sub>s' vs (App\<^sub>s e\<^sub>1 e\<^sub>2) = App\<^sub>s (remove_shadows\<^sub>s' vs e\<^sub>1) (remove_shadows\<^sub>s' vs e\<^sub>2)"
+
+definition remove_shadows\<^sub>s :: "'a expr\<^sub>s \<Rightarrow> 'a expr\<^sub>s" where
+  "remove_shadows\<^sub>s e \<equiv> remove_shadows\<^sub>s' {} e"
+
+lemma remove_shadows_no_shadow' [simp]: "finite vs \<Longrightarrow> no_shadowing\<^sub>s (remove_shadows\<^sub>s' vs e)"
+proof (induction e arbitrary: vs)
+  case (Lam\<^sub>s x t e)
+  let ?e = "remove_shadows\<^sub>s' (insert x vs) e"
+  let ?x = "fresh (vs \<union> all_vars\<^sub>s ?e)"
+  from Lam\<^sub>s have "finite (vs \<union> all_vars\<^sub>s ?e)" by simp
+  hence "?x \<notin> vs \<union> all_vars\<^sub>s ?e" by (metis fresh_is_fresh)
+  with Lam\<^sub>s show ?case by (simp add: Let_def all_vars\<^sub>s_def)
+qed simp_all
+
+lemma remove_shadows_no_shadow [simp]: "no_shadowing\<^sub>s (remove_shadows\<^sub>s e)"
+  by (simp add: remove_shadows\<^sub>s_def)
+
+lemma free_vars_remove_shadow [simp]: "finite vs \<Longrightarrow> 
+  free_vars\<^sub>s (remove_shadows\<^sub>s' vs e) = free_vars\<^sub>s e"
+proof (induction e arbitrary: vs)
+  case (Lam\<^sub>s x t e)
+  let ?e = "remove_shadows\<^sub>s' (insert x vs) e"
+  let ?x = "fresh (vs \<union> all_vars\<^sub>s ?e)"
+  from Lam\<^sub>s have "finite (vs \<union> all_vars\<^sub>s ?e)" by simp
+  hence "?x \<notin> vs \<union> all_vars\<^sub>s ?e" by (metis fresh_is_fresh)
+  with Lam\<^sub>s show ?case by (simp add: Let_def all_vars\<^sub>s_def)
+qed simp_all
 
 end

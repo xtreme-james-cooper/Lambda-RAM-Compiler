@@ -1,8 +1,12 @@
 theory NameRemoval
-  imports "../02Typed/Typechecking" BigStep "../00Utils/AssocList"
+  imports "../02Typed/Typechecking" BigStep
 begin
 
-fun convert' :: "var list \<Rightarrow> ty expr\<^sub>s \<Rightarrow> expr\<^sub>d" where
+subsection \<open>Name-Removal\<close>
+
+text \<open>Now, we  \<close>
+
+primrec convert' :: "var list \<Rightarrow> ty expr\<^sub>s \<Rightarrow> expr\<^sub>d" where
   "convert' \<Phi> (Var\<^sub>s x) = Var\<^sub>d (the (idx_of \<Phi> x))"
 | "convert' \<Phi> (Const\<^sub>s k) = Const\<^sub>d k"
 | "convert' \<Phi> (Lam\<^sub>s x t e) = Lam\<^sub>d t (convert' (insert_at 0 x \<Phi>) e)"
@@ -10,29 +14,6 @@ fun convert' :: "var list \<Rightarrow> ty expr\<^sub>s \<Rightarrow> expr\<^sub
 
 definition convert :: "ty expr\<^sub>s \<Rightarrow> expr\<^sub>d" where
   "convert e \<equiv> convert' [] e"
-
-lemma [simp]: "map_of \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> mset (map fst \<Gamma>) = mset \<Phi> \<Longrightarrow> 
-  map_by_assoc_list \<Gamma> \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e : t"
-proof (induction \<Phi> e arbitrary: \<Gamma> t rule: convert'.induct)
-  case (3 \<Phi> x t\<^sub>1 e)
-  then obtain t\<^sub>2 where "t = Arrow t\<^sub>1 t\<^sub>2 \<and> (map_of \<Gamma>)(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t e : t\<^sub>2" by fastforce
-  moreover with 3 have 
-    "map_by_assoc_list ((x, t\<^sub>1) # \<Gamma>) (insert_at 0 x \<Phi>) \<turnstile>\<^sub>d convert' (insert_at 0 x \<Phi>) e : t\<^sub>2" 
-      by fastforce
-  ultimately show ?case by simp
-qed fastforce+
-
-theorem typesafend [simp]: "Map.empty \<turnstile>\<^sub>t e : t \<Longrightarrow> [] \<turnstile>\<^sub>d convert e : t"
-proof (unfold convert_def)
-  define \<Gamma> where "\<Gamma> = ([] :: (var \<times> ty) list)"
-  define \<Phi> where "\<Phi> = ([] :: var list)"
-  assume "Map.empty \<turnstile>\<^sub>t e : t"
-  hence "map_of \<Gamma> \<turnstile>\<^sub>t e : t" by (simp add: \<Gamma>_def)
-  moreover have "mset (map fst \<Gamma>) = mset \<Phi>" by (simp add: \<Gamma>_def \<Phi>_def)
-  moreover have "distinct \<Phi>" by (simp add: \<Phi>_def)
-  ultimately have "map_by_assoc_list \<Gamma> \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e : t" by simp
-  thus "[] \<turnstile>\<^sub>d convert' [] e : t" by (simp add: \<Gamma>_def \<Phi>_def)
-qed
 
 lemma [simp]: "value\<^sub>s e \<Longrightarrow> value\<^sub>d (convert' \<Phi> e)"
   by (induction e) (simp_all add: Let_def)
@@ -160,6 +141,57 @@ next
   then obtain v\<^sub>n where "subst\<^sub>s x v\<^sub>n\<^sub>2 e\<^sub>n\<^sub>1' \<Down>\<^sub>s v\<^sub>n \<and> v = convert v\<^sub>n" by fastforce
   with V1 X V2 have "App\<^sub>s e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<Down>\<^sub>s v\<^sub>n \<and> v = convert v\<^sub>n" by fastforce
   with E show ?case by fastforce
+qed
+
+
+(* typesafety *)
+
+lemma convert_remove_shadows [simp]: "finite vs \<Longrightarrow> free_vars\<^sub>s e \<subseteq> set \<Phi> \<Longrightarrow>
+  convert' \<Phi> (remove_shadows\<^sub>s' vs e) = convert' \<Phi> e"
+proof (induction e arbitrary: \<Phi> vs)
+  case (Lam\<^sub>s x t e)
+  let ?e = "remove_shadows\<^sub>s' (insert x vs) e"
+  let ?x = "fresh (vs \<union> all_vars\<^sub>s ?e)"
+  from Lam\<^sub>s have "finite (vs \<union> all_vars\<^sub>s ?e)" by simp
+  hence X: "?x \<notin> vs \<union> all_vars\<^sub>s ?e" by (metis fresh_is_fresh)
+  from Lam\<^sub>s have "free_vars\<^sub>s e \<subseteq> insert x (set \<Phi>)" by auto
+  with Lam\<^sub>s X show ?case by (simp add: Let_def)
+qed simp_all
+ 
+lemma typesafe\<^sub>d' [simp]: "\<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> dom \<Gamma> = set \<Phi> \<Longrightarrow> bound_vars\<^sub>s e \<inter> set \<Phi> = {} \<Longrightarrow> 
+  no_shadowing\<^sub>s e \<Longrightarrow> map (the \<circ> \<Gamma>) \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e : t"
+proof (induction \<Gamma> e t arbitrary: \<Phi> rule: typing\<^sub>t.induct)
+  case (tc\<^sub>t_var \<Gamma> x t)
+  hence "x \<in> set \<Phi>" by auto
+  with tc\<^sub>t_var show ?case by auto
+next
+  case (tc\<^sub>t_lam \<Gamma> x t\<^sub>1 e t\<^sub>2)
+  moreover hence "dom (\<Gamma>(x \<mapsto> t\<^sub>1)) = set (insert_at 0 x \<Phi>)" by simp
+  moreover from tc\<^sub>t_lam have "bound_vars\<^sub>s e \<inter> set (insert_at 0 x \<Phi>) = {}" by simp
+  moreover from tc\<^sub>t_lam have "no_shadowing\<^sub>s e" by simp
+  ultimately have "map (the \<circ> \<Gamma>(x \<mapsto> t\<^sub>1)) (insert_at 0 x \<Phi>) \<turnstile>\<^sub>d convert' (insert_at 0 x \<Phi>) e : t\<^sub>2" 
+    by blast
+  with tc\<^sub>t_lam have "map (the \<circ> \<Gamma>) \<Phi> \<turnstile>\<^sub>d convert' \<Phi> (Lam\<^sub>s x t\<^sub>1 e) : Arrow t\<^sub>1 t\<^sub>2" by simp
+  thus ?case by blast
+next
+  case (tc\<^sub>t_app \<Gamma> e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
+  moreover hence "bound_vars\<^sub>s e\<^sub>1 \<inter> set \<Phi> = {}" by auto
+  ultimately have T: "map (the \<circ> \<Gamma>) \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2" by fastforce
+  from tc\<^sub>t_app have "bound_vars\<^sub>s e\<^sub>2 \<inter> set \<Phi> = {}" by auto
+  with tc\<^sub>t_app have "map (the \<circ> \<Gamma>) \<Phi> \<turnstile>\<^sub>d convert' \<Phi> e\<^sub>2 : t\<^sub>1" by fastforce
+  with T have "map (the \<circ> \<Gamma>) \<Phi> \<turnstile>\<^sub>d convert' \<Phi> (App\<^sub>s e\<^sub>1 e\<^sub>2) : t\<^sub>2" by simp
+  thus ?case by blast
+qed simp_all
+
+theorem typesafend [simp]: "Map.empty \<turnstile>\<^sub>t e : t \<Longrightarrow> [] \<turnstile>\<^sub>d convert e : t"
+proof -
+  assume T: "Map.empty \<turnstile>\<^sub>t e : t"
+  hence "Map.empty \<turnstile>\<^sub>t remove_shadows\<^sub>s e : t" by simp
+  moreover have "bound_vars\<^sub>s (remove_shadows\<^sub>s e) \<inter> set [] = {}" by simp
+  moreover have "no_shadowing\<^sub>s (remove_shadows\<^sub>s e)" by simp
+  ultimately have "[] \<turnstile>\<^sub>d convert' [] (remove_shadows\<^sub>s e) : t" 
+    by (metis typesafe\<^sub>d' dom_empty empty_set list.simps(8))
+  with T show ?thesis by (simp add: convert_def remove_shadows\<^sub>s_def)
 qed
 
 (* Now we can finish the deferred progress lemmas from 01Source/Named and 02Typed/Typed *)

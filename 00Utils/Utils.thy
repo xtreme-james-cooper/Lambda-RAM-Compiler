@@ -1,5 +1,5 @@
 theory Utils
-  imports "HOL-Library.Multiset"
+  imports Main
 begin
 
 section \<open>Utilities\<close>
@@ -16,24 +16,6 @@ lemma dom_expanded_fun_upd [simp]: "dom (\<lambda>a. if a = x then Some y else f
 
 lemma ran_of_map_option [simp]: "ran (map_option f \<circ> g) = f ` ran g"
   by (auto simp add: ran_def)
-
-lemma some_the_map_of_cancel [simp]: "image_mset fst (mset ab) = add_mset a s \<Longrightarrow> 
-  Some (the (map_of ab a)) = map_of ab a"
-proof (induction ab arbitrary: s)
-  case (Cons ab abb)
-  thus ?case
-  proof (induction ab)
-    case (Pair aa bb)
-    thus ?case
-    proof (cases "a = aa")
-      case False
-      from Pair have "add_mset aa (image_mset fst (mset abb)) - {# aa #} = add_mset a s - {# aa #}" 
-        by simp
-      with False have "image_mset fst (mset abb) = add_mset a (s - {# aa #})" by simp
-      with Pair show ?thesis by simp
-    qed simp_all
-  qed
-qed simp_all
 
 lemma length_concat_map [simp]: "length (concat (map f as)) = sum_list (map (length \<circ> f) as)"
   by (induction as) simp_all
@@ -91,5 +73,8 @@ lemma suc_mult_lt_lemma [simp]: "x < y \<Longrightarrow> 1 < k \<Longrightarrow>
 lemma x_mod_3_induct [case_names 0 1 2]: "((x::nat) mod 3 = 0 \<Longrightarrow> P x) \<Longrightarrow> (x mod 3 = 1 \<Longrightarrow> P x) \<Longrightarrow> 
     (x mod 3 = 2 \<Longrightarrow> P x) \<Longrightarrow> P x"
   by linarith
+
+lemma upd_the [simp]: "the \<circ> (f(x \<mapsto> a)) = (the \<circ> f)(x := a)"
+  by auto
 
 end

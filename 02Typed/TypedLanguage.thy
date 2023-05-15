@@ -65,7 +65,7 @@ would make proving it more painful than necessary. We will return to it once we 
 Debruijn variable representation.\<close>
 
 lemma tc\<^sub>t_widen_context [simp]: "\<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> x \<notin> all_vars\<^sub>s e \<Longrightarrow> \<Gamma>(x \<mapsto> t') \<turnstile>\<^sub>t e : t"
-  by (induction \<Gamma> e t rule: typing\<^sub>t.induct) (simp_all add: fun_upd_twist)
+  by (induction \<Gamma> e t rule: typing\<^sub>t.induct) (auto simp add: fun_upd_twist)
 
 lemma tc\<^sub>t_subst_var [simp]: "\<Gamma>(x \<mapsto> t') \<turnstile>\<^sub>t e : t \<Longrightarrow> x' \<notin> all_vars\<^sub>s e \<Longrightarrow> 
   \<Gamma>(x' \<mapsto> t') \<turnstile>\<^sub>t subst_var\<^sub>s x x' e : t"
@@ -97,6 +97,27 @@ qed fastforce+
 
 theorem preservation\<^sub>t: "e \<Down>\<^sub>s v \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t v : t"
   by (induction e v arbitrary: t rule: eval\<^sub>s.induct) fastforce+
+
+text \<open>We also prove that the removed-shadow version of a term typechecks if the original did.\<close>
+
+lemma tc_remove_shadows' [simp]: "\<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> finite vs \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t remove_shadows\<^sub>s' vs e : t"
+proof (induction \<Gamma> e t arbitrary: vs rule: typing\<^sub>t.induct)
+  case (tc\<^sub>t_lam \<Gamma> x t\<^sub>1 e t\<^sub>2)
+  let ?e = "remove_shadows\<^sub>s' (insert x vs) e"
+  let ?x = "fresh (vs \<union> all_vars\<^sub>s ?e)"
+  from tc\<^sub>t_lam have "finite (vs \<union> all_vars\<^sub>s ?e)" by simp
+  hence "?x \<notin> vs \<union> all_vars\<^sub>s ?e" by (metis fresh_is_fresh)
+  moreover from tc\<^sub>t_lam have "\<Gamma>(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t ?e : t\<^sub>2" by fastforce
+  ultimately show ?case by (simp add: Let_def)
+next
+  case (tc\<^sub>t_app \<Gamma> e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
+  hence "\<Gamma> \<turnstile>\<^sub>t remove_shadows\<^sub>s' vs e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2" by simp
+  moreover from tc\<^sub>t_app have "\<Gamma> \<turnstile>\<^sub>t remove_shadows\<^sub>s' vs e\<^sub>2 : t\<^sub>1" by simp
+  ultimately show ?case by simp
+qed simp_all
+
+lemma tc_remove_shadows [simp]: "\<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t remove_shadows\<^sub>s e : t"
+  by (simp add: remove_shadows\<^sub>s_def)
 
 subsection \<open>Type Erasure\<close>
 

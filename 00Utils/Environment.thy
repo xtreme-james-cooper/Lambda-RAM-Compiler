@@ -1,5 +1,5 @@
 theory Environment
-  imports "HOL-Library.Multiset"
+  imports Main
 begin
 
 subsection \<open>Environments\<close>
@@ -179,9 +179,6 @@ fun insert_at :: "nat \<Rightarrow> 'a \<Rightarrow> 'a list \<Rightarrow> 'a li
 lemma insert_at_length [simp]: "x \<le> length as \<Longrightarrow> length (insert_at x a as) = Suc (length as)"
   by (induction x a as rule: insert_at.induct) simp_all
 
-lemma insert_at_mset [simp]: "x \<le> length as \<Longrightarrow> mset (insert_at x a as) = add_mset a (mset as)"
-  by (induction x a as rule: insert_at.induct) simp_all
-
 lemma insert_at_set [simp]: "x \<le> length as \<Longrightarrow> set (insert_at x a as) = insert a (set as)"
   by (induction x a as rule: insert_at.induct) auto
 
@@ -227,6 +224,14 @@ next
   then show ?case by (induction y) simp_all
 qed simp_all
 
+lemma insert_at_partial_map [simp]: "x \<le> length as \<Longrightarrow> a \<notin> set as \<Longrightarrow>
+    map (f(a := b)) (insert_at x a as) = insert_at x b (map f as)"
+proof (induction x a as rule: insert_at.induct)
+  case (4 x a' a as)
+  moreover hence "map (f(a' := b)) (insert_at x a' as) = insert_at x b (map f as)" by fastforce
+  ultimately show ?case by auto
+qed auto
+
 text \<open>\<open>insert_at\<close> gets its own swap lemma: the canonical order is from smallest index to largest.\<close>
 
 lemma insert_at_swap [simp]: "x \<le> length as \<Longrightarrow> y \<le> x \<Longrightarrow> 
@@ -265,42 +270,15 @@ proof (induction x a as rule: insert_at.induct)
   thus ?case by (cases "idx_of as b") auto
 qed (simp_all split: option.splits)
 
-lemma idd_of_map_of [simp]: "map_of ab a = Some b \<Longrightarrow> mset (map fst ab) = mset as \<Longrightarrow> 
-  idx_of as a \<noteq> None"
-proof (induction ab arbitrary: as)
-  case (Cons a' ab)
-  thus ?case 
-  proof (induction a')
-    case (Pair a' b')
-    thus ?case
-    proof (induction as)
-      case (Cons a'' as)
-      thus ?case
-      proof (cases "a = a''")
-        case False note F'' = False
-        thus ?thesis
-        proof (cases "a = a'")
-          case True
-          from Cons have "add_mset a' (mset (map fst ab)) - {# a'' #} = 
-            add_mset a'' (mset as) - {# a'' #}" by simp
-          with True False have "add_mset a (mset (map fst ab) - {# a'' #}) = mset as" by simp
-          moreover have "a \<in># add_mset a (mset (map fst ab) - {# a'' #})" by simp
-          ultimately show ?thesis by simp
-        next
-          case False note F' = False
-          with Cons show ?thesis
-          proof (cases "a' = a''")
-            case False
-            from Cons have "add_mset a' (mset (map fst ab)) - {# a' #} = 
-              add_mset a'' (mset as) - {# a' #}" by simp
-            with False have "mset (map fst ab) = mset (a'' # (remove1 a' as))" by simp
-            with Cons F' have "idx_of (a'' # (remove1 a' as)) a \<noteq> None" by fastforce
-            with F'' F' show ?thesis by simp
-          qed simp_all
-        qed
-      qed simp_all
-    qed simp_all
-  qed
+lemma lookup_idx_of [simp]: "a \<in> set as \<Longrightarrow> lookup as (the (idx_of as a)) = Some a"
+proof (induction as)
+  case (Cons a' as)
+  thus ?case
+  proof (cases "a' = a")
+    case False
+    with Cons obtain x where "idx_of as a = Some x" by fastforce
+    with Cons False show ?thesis by simp
+  qed simp_all
 qed simp_all
 
 text \<open>Finally, some numeral simplification rules. These will be used in the assembly code pass, 
