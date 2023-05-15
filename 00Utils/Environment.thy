@@ -51,7 +51,7 @@ some helper functions on nats, \<open>incr\<close> and \<open>decr\<close>. If \
 the  index at which the environment is being expanded (respectively, contracted) at, then \<open>incr x y\<close> 
 and \<open>decr x y\<close> represent the modified index which will point to the same element in the environment. 
 Because an element is being eliminated, \<open>decr\<close> has a side-condition that its two arguments be 
-unequal.\<close>
+unequal. They will also be useful much later for defining substitutions on Debruijn variables.\<close>
 
 (* 
 

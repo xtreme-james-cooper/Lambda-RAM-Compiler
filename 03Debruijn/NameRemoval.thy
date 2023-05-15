@@ -2,13 +2,13 @@ theory NameRemoval
   imports "../02Typed/Typechecking" BigStep "../00Utils/AssocList"
 begin
 
-fun convert' :: "var list \<Rightarrow> ty expr\<^sub>s \<Rightarrow> dexpr" where
-  "convert' \<Phi> (Var\<^sub>s x) = DVar (the (idx_of \<Phi> x))"
-| "convert' \<Phi> (Const\<^sub>s k) = DConst k"
-| "convert' \<Phi> (Lam\<^sub>s x t e) = DLam t (convert' (insert_at 0 x \<Phi>) e)"
-| "convert' \<Phi> (App\<^sub>s e\<^sub>1 e\<^sub>2) = DApp (convert' \<Phi> e\<^sub>1) (convert' \<Phi> e\<^sub>2)"
+fun convert' :: "var list \<Rightarrow> ty expr\<^sub>s \<Rightarrow> expr\<^sub>d" where
+  "convert' \<Phi> (Var\<^sub>s x) = Var\<^sub>d (the (idx_of \<Phi> x))"
+| "convert' \<Phi> (Const\<^sub>s k) = Const\<^sub>d k"
+| "convert' \<Phi> (Lam\<^sub>s x t e) = Lam\<^sub>d t (convert' (insert_at 0 x \<Phi>) e)"
+| "convert' \<Phi> (App\<^sub>s e\<^sub>1 e\<^sub>2) = App\<^sub>d (convert' \<Phi> e\<^sub>1) (convert' \<Phi> e\<^sub>2)"
 
-definition convert :: "ty expr\<^sub>s \<Rightarrow> dexpr" where
+definition convert :: "ty expr\<^sub>s \<Rightarrow> expr\<^sub>d" where
   "convert e \<equiv> convert' [] e"
 
 lemma [simp]: "map_of \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> mset (map fst \<Gamma>) = mset \<Phi> \<Longrightarrow> 
@@ -34,11 +34,11 @@ proof (unfold convert_def)
   thus "[] \<turnstile>\<^sub>d convert' [] e : t" by (simp add: \<Gamma>_def \<Phi>_def)
 qed
 
-lemma [simp]: "value\<^sub>s e \<Longrightarrow> vald (convert' \<Phi> e)"
+lemma [simp]: "value\<^sub>s e \<Longrightarrow> value\<^sub>d (convert' \<Phi> e)"
   by (induction e) (simp_all add: Let_def)
 
 lemma [simp]: "y \<notin> all_vars\<^sub>s e \<Longrightarrow> x \<le> length \<Phi> \<Longrightarrow> free_vars\<^sub>s e \<subseteq> set \<Phi> \<Longrightarrow>
-  convert' (insert_at x y \<Phi>) e = incrd x (convert' \<Phi> e)"
+  convert' (insert_at x y \<Phi>) e = incr\<^sub>d x (convert' \<Phi> e)"
 proof (induction e arbitrary: x \<Phi>)
   case (Var\<^sub>s z)
   moreover then obtain w where "idx_of \<Phi> z = Some w" by fastforce
@@ -76,7 +76,7 @@ qed (auto split: option.splits)
 
 lemma convert_subst [simp]: "y \<le> length \<Phi> \<Longrightarrow> x \<notin> set \<Phi> \<Longrightarrow> free_vars\<^sub>s e \<subseteq> insert x (set \<Phi>) \<Longrightarrow>
   free_vars\<^sub>s e' \<subseteq> set \<Phi> \<Longrightarrow>
-    convert' \<Phi> (subst\<^sub>s x e' e) = substd y (convert' \<Phi> e') (convert' (insert_at y x \<Phi>) e)" 
+    convert' \<Phi> (subst\<^sub>s x e' e) = subst\<^sub>d y (convert' \<Phi> e') (convert' (insert_at y x \<Phi>) e)" 
 proof (induction x e' e arbitrary: \<Phi> y rule: subst\<^sub>s.induct)
   case (1 x e' z)
   thus ?case
@@ -95,7 +95,7 @@ next
   with Z have "free_vars\<^sub>s (subst_var\<^sub>s z ?z' e) \<subseteq> insert ?z' (insert x (set \<Phi>))" by auto
   hence "free_vars\<^sub>s (subst_var\<^sub>s z ?z' e) \<subseteq> insert x (set (insert_at 0 ?z' \<Phi>))" by auto
   with 3 X Z have H: "convert' (insert_at 0 ?z' \<Phi>) (subst\<^sub>s x e' (subst_var\<^sub>s z ?z' e)) = 
-    substd (Suc y) (convert' (insert_at 0 ?z' \<Phi>) e') 
+    subst\<^sub>d (Suc y) (convert' (insert_at 0 ?z' \<Phi>) e') 
       (convert' (insert_at (Suc y) x (insert_at 0 ?z' \<Phi>)) (subst_var\<^sub>s z ?z' e))" by fastforce
   from 3 have "free_vars\<^sub>s e \<subseteq> insert z (set (insert_at y x \<Phi>))" by auto
   with Z have "convert' (insert_at 0 ?z' (insert_at y x \<Phi>)) (subst_var\<^sub>s z ?z' e) =
@@ -115,17 +115,17 @@ proof (induction e v rule: eval\<^sub>s.induct)
   with ev\<^sub>s_app X Y show ?case by (simp add: convert_def)
 qed (simp_all add: convert_def)
 
-lemma [simp]: "vald (convert' \<Phi> e) \<Longrightarrow> value\<^sub>s e"
+lemma [simp]: "value\<^sub>d (convert' \<Phi> e) \<Longrightarrow> value\<^sub>s e"
   by (induction e) (simp_all add: Let_def)
 
-lemma convert_val_back: "vald (convert e) \<Longrightarrow> value\<^sub>s e"
+lemma convert_val_back: "value\<^sub>d (convert e) \<Longrightarrow> value\<^sub>s e"
   by (simp add: convert_def)
 
-lemma [dest]: "DApp e\<^sub>d\<^sub>1 e\<^sub>d\<^sub>2 = convert e\<^sub>n \<Longrightarrow> 
+lemma [dest]: "App\<^sub>d e\<^sub>d\<^sub>1 e\<^sub>d\<^sub>2 = convert e\<^sub>n \<Longrightarrow> 
     \<exists>e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2. e\<^sub>n = App\<^sub>s e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<and> e\<^sub>d\<^sub>1 = convert e\<^sub>n\<^sub>1 \<and> e\<^sub>d\<^sub>2 = convert e\<^sub>n\<^sub>2"
   by (cases e\<^sub>n) (simp_all add: convert_def)
 
-lemma [dest]: "DLam t e\<^sub>d = convert e\<^sub>n \<Longrightarrow> 
+lemma [dest]: "Lam\<^sub>d t e\<^sub>d = convert e\<^sub>n \<Longrightarrow> 
     \<exists>x e\<^sub>n'. e\<^sub>n = Lam\<^sub>s x t e\<^sub>n' \<and> e\<^sub>d = convert' [x] e\<^sub>n'"
   by (cases e\<^sub>n) (simp_all add: convert_def)
 
@@ -133,19 +133,19 @@ theorem completend [simp]: "convert e\<^sub>n \<Down>\<^sub>d v\<^sub>d \<Longri
   \<exists>v\<^sub>n. e\<^sub>n \<Down> v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n"
 proof (induction "convert e\<^sub>n" v\<^sub>d arbitrary: e\<^sub>n rule: big_evald.induct)
   case (bevd_const k)
-  hence "e\<^sub>n \<Down> Const\<^sub>s k \<and> DConst k = convert (Const\<^sub>s k)" by (cases e\<^sub>n) (simp_all add: convert_def)
+  hence "e\<^sub>n \<Down> Const\<^sub>s k \<and> Const\<^sub>d k = convert (Const\<^sub>s k)" by (cases e\<^sub>n) (simp_all add: convert_def)
   thus ?case by fastforce
 next
   case (bevd_lam t e)
   then obtain x e' where "e\<^sub>n = Lam\<^sub>s x t e' \<and> e = convert' [x] e'" 
     by (cases e\<^sub>n) (simp_all add: convert_def)
-  hence "e\<^sub>n \<Down> Lam\<^sub>s x t e' \<and> DLam t e = convert (Lam\<^sub>s x t e')" by (simp add: convert_def)
+  hence "e\<^sub>n \<Down> Lam\<^sub>s x t e' \<and> Lam\<^sub>d t e = convert (Lam\<^sub>s x t e')" by (simp add: convert_def)
   thus ?case by fastforce
 next
   case (bevd_app e\<^sub>1 t e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
   then obtain e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 where E: "e\<^sub>n = App\<^sub>s e\<^sub>n\<^sub>1 e\<^sub>n\<^sub>2 \<and> e\<^sub>1 = convert e\<^sub>n\<^sub>1 \<and> e\<^sub>2 = convert e\<^sub>n\<^sub>2" 
     by (cases e\<^sub>n) (simp_all add: convert_def)
-  with bevd_app obtain v\<^sub>n\<^sub>1 where V1: "e\<^sub>n\<^sub>1 \<Down> v\<^sub>n\<^sub>1 \<and> DLam t e\<^sub>1' = convert v\<^sub>n\<^sub>1" by fastforce
+  with bevd_app obtain v\<^sub>n\<^sub>1 where V1: "e\<^sub>n\<^sub>1 \<Down> v\<^sub>n\<^sub>1 \<and> Lam\<^sub>d t e\<^sub>1' = convert v\<^sub>n\<^sub>1" by fastforce
   then obtain x e\<^sub>n\<^sub>1' where X: "v\<^sub>n\<^sub>1 = Lam\<^sub>s x t e\<^sub>n\<^sub>1' \<and> e\<^sub>1' = convert' [x] e\<^sub>n\<^sub>1'"
     by (cases v\<^sub>n\<^sub>1) (simp_all add: convert_def)
   from bevd_app E obtain v\<^sub>n\<^sub>2 where V2: "e\<^sub>n\<^sub>2 \<Down> v\<^sub>n\<^sub>2 \<and> v\<^sub>2 = convert v\<^sub>n\<^sub>2" by fastforce
@@ -168,7 +168,7 @@ theorem progresst [simp]: "Map.empty \<turnstile>\<^sub>t e : t \<Longrightarrow
 proof -
   assume X: "Map.empty \<turnstile>\<^sub>t e : t"
   hence "[] \<turnstile>\<^sub>d convert e : t" by simp
-  then obtain v\<^sub>d where "vald v\<^sub>d \<and> convert e \<Down>\<^sub>d v\<^sub>d" by fastforce
+  then obtain v\<^sub>d where "value\<^sub>d v\<^sub>d \<and> convert e \<Down>\<^sub>d v\<^sub>d" by fastforce
   with X obtain v\<^sub>n where "e \<Down> v\<^sub>n \<and> v\<^sub>d = convert v\<^sub>n" by fastforce
   thus ?thesis by fastforce
 qed

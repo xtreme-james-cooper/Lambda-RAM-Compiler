@@ -1,18 +1,18 @@
 theory Closure
-  imports "../03Debruijn/Debruijn"
+  imports "../03Debruijn/DebruijnIndices"
 begin
 
 datatype closure = 
   CConst nat
-  | CLam ty "closure list" dexpr
+  | CLam ty "closure list" expr\<^sub>d
 
 datatype cframe = 
-  CApp1 "closure list" dexpr
+  CApp1 "closure list" expr\<^sub>d
   | CApp2 closure
   | CReturn "closure list"
 
 datatype closure_state = 
-  CSE "cframe list" "closure list"  dexpr
+  CSE "cframe list" "closure list"  expr\<^sub>d
   | CSC "cframe list" closure
 
 fun latest_environment :: "cframe list \<rightharpoonup> closure list" where
@@ -55,10 +55,10 @@ inductive_cases [elim]: "CSE s cs e :\<^sub>c t"
 inductive_cases [elim]: "CSC s c :\<^sub>c t"
 
 inductive evalc :: "closure_state \<Rightarrow> closure_state \<Rightarrow> bool" (infix "\<leadsto>\<^sub>c" 50) where
-  evc_var [simp]: "lookup cs x = Some c \<Longrightarrow> CSE s cs (DVar x) \<leadsto>\<^sub>c CSC s c"
-| evc_con [simp]: "CSE s cs (DConst k) \<leadsto>\<^sub>c CSC s (CConst k)"
-| evc_lam [simp]: "CSE s cs (DLam t e) \<leadsto>\<^sub>c CSC s (CLam t cs e)"
-| evc_app [simp]: "CSE s cs (DApp e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>c CSE (CApp1 cs e\<^sub>2 # s) cs e\<^sub>1"
+  evc_var [simp]: "lookup cs x = Some c \<Longrightarrow> CSE s cs (Var\<^sub>d x) \<leadsto>\<^sub>c CSC s c"
+| evc_con [simp]: "CSE s cs (Const\<^sub>d k) \<leadsto>\<^sub>c CSC s (CConst k)"
+| evc_lam [simp]: "CSE s cs (Lam\<^sub>d t e) \<leadsto>\<^sub>c CSC s (CLam t cs e)"
+| evc_app [simp]: "CSE s cs (App\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>c CSE (CApp1 cs e\<^sub>2 # s) cs e\<^sub>1"
 | retc_app1 [simp]: "CSC (CApp1 cs e\<^sub>2 # s) c\<^sub>1 \<leadsto>\<^sub>c CSE (CApp2 c\<^sub>1 # s) cs e\<^sub>2"
 | retc_app2 [simp]: "CSC (CApp2 (CLam t cs e\<^sub>1) # s) c\<^sub>2 \<leadsto>\<^sub>c CSE (CReturn (c\<^sub>2 # cs) # s) (c\<^sub>2 # cs) e\<^sub>1"
 | retc_ret [simp]: "CSC (CReturn cs # s) c \<leadsto>\<^sub>c CSC s c"
@@ -79,22 +79,22 @@ proof (induction c t and cs \<Gamma> arbitrary: and x
 qed simp_all
 
 lemma [simp]: "ts \<turnstile>\<^sub>d e : t \<Longrightarrow> cs :\<^sub>c\<^sub>l\<^sub>s ts \<Longrightarrow> \<exists>\<Sigma>'. CSE s cs e \<leadsto>\<^sub>c \<Sigma>'"
-proof (induction ts e t rule: typecheckd.induct)
-  case (tcd_var \<Gamma> x t)
+proof (induction ts e t rule: typing\<^sub>d.induct)
+  case (tc\<^sub>d_var \<Gamma> x t)
   then obtain c where "lookup cs x = Some c \<and> c :\<^sub>c\<^sub>l t" by fastforce
-  hence "CSE s cs (DVar x) \<leadsto>\<^sub>c CSC s c" by simp
+  hence "CSE s cs (Var\<^sub>d x) \<leadsto>\<^sub>c CSC s c" by simp
   thus ?case by fastforce 
 next
-  case (tcd_const \<Gamma> k)
-  have "CSE s cs (DConst k) \<leadsto>\<^sub>c CSC s (CConst k)" by simp
+  case (tc\<^sub>d_const \<Gamma> k)
+  have "CSE s cs (Const\<^sub>d k) \<leadsto>\<^sub>c CSC s (CConst k)" by simp
   thus ?case by fastforce 
 next
-  case (tcd_lam t\<^sub>1 \<Gamma> e t\<^sub>2)
-  have "CSE s cs (DLam t\<^sub>1 e) \<leadsto>\<^sub>c CSC s (CLam t\<^sub>1 cs e)" by simp
+  case (tc\<^sub>d_lam t\<^sub>1 \<Gamma> e t\<^sub>2)
+  have "CSE s cs (Lam\<^sub>d t\<^sub>1 e) \<leadsto>\<^sub>c CSC s (CLam t\<^sub>1 cs e)" by simp
   thus ?case by fastforce 
 next
-  case (tcd_app \<Gamma> e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
-  have "CSE s cs (DApp e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>c CSE (CApp1 cs e\<^sub>2 # s) cs e\<^sub>1" by simp
+  case (tc\<^sub>d_app \<Gamma> e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
+  have "CSE s cs (App\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>c CSE (CApp1 cs e\<^sub>2 # s) cs e\<^sub>1" by simp
   then show ?case by fastforce
 qed
 
@@ -151,16 +151,16 @@ lemma [simp]: "iter (\<leadsto>\<^sub>c) \<Sigma> \<Sigma>' \<Longrightarrow> \<
 theorem determinismc: "\<Sigma> \<leadsto>\<^sub>c \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>c \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: evalc.induct)
   case (evc_var cs x c s)
-  from evc_var(2, 1) show ?case by (induction "CSE s cs (DVar x)" \<Sigma>'' rule: evalc.induct) simp_all 
+  from evc_var(2, 1) show ?case by (induction "CSE s cs (Var\<^sub>d x)" \<Sigma>'' rule: evalc.induct) simp_all 
 next
   case (evc_con s cs k)
-  thus ?case by (induction "CSE s cs (DConst k)" \<Sigma>'' rule: evalc.induct) simp_all 
+  thus ?case by (induction "CSE s cs (Const\<^sub>d k)" \<Sigma>'' rule: evalc.induct) simp_all 
 next
   case (evc_lam s cs t e)
-  thus ?case by (induction "CSE s cs (DLam t e)" \<Sigma>'' rule: evalc.induct) simp_all 
+  thus ?case by (induction "CSE s cs (Lam\<^sub>d t e)" \<Sigma>'' rule: evalc.induct) simp_all 
 next
   case (evc_app s cs e\<^sub>1 e\<^sub>2)
-  thus ?case by (induction "CSE s cs (DApp e\<^sub>1 e\<^sub>2)" \<Sigma>'' rule: evalc.induct) simp_all 
+  thus ?case by (induction "CSE s cs (App\<^sub>d e\<^sub>1 e\<^sub>2)" \<Sigma>'' rule: evalc.induct) simp_all 
 next
   case (retc_app1 cs e\<^sub>2 s c\<^sub>1)
   thus ?case by (induction "CSC (CApp1 cs e\<^sub>2 # s) c\<^sub>1" \<Sigma>'' rule: evalc.induct) simp_all 

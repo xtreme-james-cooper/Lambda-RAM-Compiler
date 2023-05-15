@@ -32,7 +32,7 @@ proof -
   from ET have EN: "erase e\<^sub>t \<Down> erase v\<^sub>t" by simp
   from TN have TD: "[] \<turnstile>\<^sub>d convert e\<^sub>t : t" by simp
   from ET TN have ED: "convert e\<^sub>t \<Down>\<^sub>d convert v\<^sub>t" by fastforce
-  hence VD: "vald (convert v\<^sub>t)" by simp
+  hence VD: "value\<^sub>d (convert v\<^sub>t)" by simp
   from ED have "iter (\<leadsto>\<^sub>d) (convert e\<^sub>t) (convert v\<^sub>t)" by (metis BigStep.correctb)
   with ED EN TD have ES: "iter (\<leadsto>\<^sub>s) (SS False [FReturn] (convert e\<^sub>t)) (SS True [] (convert v\<^sub>t))" 
     by simp

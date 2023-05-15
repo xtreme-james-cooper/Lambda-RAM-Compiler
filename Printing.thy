@@ -13,11 +13,11 @@ primrec print_nexpr :: "'a expr\<^sub>s \<Rightarrow> print" where
 | "print_nexpr (Lam\<^sub>s x t e) = Fun"
 | "print_nexpr (App\<^sub>s e\<^sub>1 e\<^sub>2) = undefined"
 
-primrec print_dexpr :: "dexpr \<Rightarrow> print" where
-  "print_dexpr (DVar x) = undefined"
-| "print_dexpr (DConst k) = Number k"
-| "print_dexpr (DLam t e) = Fun"
-| "print_dexpr (DApp e\<^sub>1 e\<^sub>2) = undefined"
+primrec print_dexpr :: "expr\<^sub>d \<Rightarrow> print" where
+  "print_dexpr (Var\<^sub>d x) = undefined"
+| "print_dexpr (Const\<^sub>d k) = Number k"
+| "print_dexpr (Lam\<^sub>d t e) = Fun"
+| "print_dexpr (App\<^sub>d e\<^sub>1 e\<^sub>2) = undefined"
 
 primrec print_closure :: "closure \<Rightarrow> print" where
   "print_closure (CConst k) = Number k"

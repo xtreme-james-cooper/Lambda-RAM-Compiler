@@ -250,3 +250,7 @@ Unification
 Type
 TypedLangauge
 Unifiable type
+Typechecking
+
+Debruijn
+Multisubst
