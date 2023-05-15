@@ -177,6 +177,7 @@ t : a type
 \<Gamma> : a typing context
 \<Phi> : a naming context
 \<Sigma> : an evaluation state
+s : an evaluation stack
 \<tau> : a unification term
 \<gamma> : a unification constructor tag
 \<sigma> : a unification substitution
@@ -187,7 +188,7 @@ TODO add more as I come across them in the write-up
 types.)
 
 Where two names of the same sort but different stages of the compiler occur (as frequently happens 
-in the correctness proofs, for instance), we distinguish with subscripts:
+in the conversion correctness proofs, for instance), we distinguish with subscripts:
 
 s : stage 1 (Source code)
 t : stage 2 (Typed code)
@@ -257,3 +258,5 @@ Multisubst
 Termination
 BigStep
 NameRemoval
+
+Stack

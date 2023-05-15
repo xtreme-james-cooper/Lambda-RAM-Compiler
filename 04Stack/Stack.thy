@@ -2,155 +2,115 @@ theory Stack
   imports "../03Debruijn/DebruijnIndices" "../00Utils/Iteration"
 begin
 
-datatype frame = 
-  FApp1 expr\<^sub>d
-  | FApp2 expr\<^sub>d
-  | FReturn
+section \<open>Stack Evaluation\<close>
 
-datatype stack_state = SS bool "frame list" expr\<^sub>d
+text \<open>Even with the small-step Debruijn-substitution evaluation, we still have a very complex 
+evaluation relation, and one that is still not far-removed from the world of semantic definitions. 
+(Indeed, Pierce [5] and Harper [6] both use a style much like this for their books, and the very 
+early versions of this program began here with what is now stage 3.) For the remainder of this 
+paper, we descend through a series of increasingly low-level evaluation states, with correspondingly 
+simplified evaluation relations.\<close>
 
-inductive typecheck_stack :: "frame list \<Rightarrow> ty \<Rightarrow> ty \<Rightarrow> bool" (infix ": _ \<rightarrow>" 50) where
-  tcs_nil [simp]: "[] : t \<rightarrow> t"
-| tcs_cons_app1 [simp]: "[] \<turnstile>\<^sub>d e : t\<^sub>1 \<Longrightarrow> s : t\<^sub>2 \<rightarrow> t \<Longrightarrow> FApp1 e # s : Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
-| tcs_cons_app2 [simp]: "[] \<turnstile>\<^sub>d e : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> value\<^sub>d e \<Longrightarrow> s : t\<^sub>2 \<rightarrow> t \<Longrightarrow> FApp2 e # s : t\<^sub>1 \<rightarrow> t"
-| tcs_cons_ret [simp]: "s : t' \<rightarrow> t \<Longrightarrow> FReturn # s : t' \<rightarrow> t"
+text \<open>The first thing to get rid of is our evaluation premises: we implicitly search the expression 
+for the first redex with each step. By making this search explicit via a stack of evaluation frames, 
+we can make every evaluation step immediate, acting directly on the expression in the state. We also 
+take the opportunity to get rid of explicitly testing expressions for being values.\<close>
 
-inductive_cases [elim]: "[] : t' \<rightarrow> t"
-inductive_cases [elim]: "FApp1 e # s : t' \<rightarrow> t"
-inductive_cases [elim]: "FApp2 e # s : t' \<rightarrow> t"
-inductive_cases [elim]: "FReturn # s : t' \<rightarrow> t"
+text \<open>There are only two things to search through, the left and right subexpressions of an \<open>App\<^sub>d\<close>, 
+so there is a frame for each, recording our position in the search. The \<open>FReturn\<^sub>k\<close> frame is not 
+strictly necessary for this stage, but recording each time we would return from an application will 
+make future stages possible.\<close>
 
-inductive typecheck_stack_state :: "stack_state \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>s" 50) where
-  tcs_state [simp]: "s : t' \<rightarrow> t \<Longrightarrow> [] \<turnstile>\<^sub>d e : t' \<Longrightarrow> (b \<Longrightarrow> value\<^sub>d e) \<Longrightarrow> SS b s e :\<^sub>s t"
+datatype frame\<^sub>k = 
+  FApp1\<^sub>k expr\<^sub>d
+  | FApp2\<^sub>k expr\<^sub>d
+  | FReturn\<^sub>k
 
-inductive_cases [elim]: "SS b s e :\<^sub>s t"
+text \<open>Typing a stack is simple. Since the stack represents, in effect, an expression with a hole in 
+it for the subexpression under evaluation, it takes a type for that inner expression and returns a 
+type for the type of the stack and expression together. Since the stack has no binders and is always
+created from a closed expression, we do not need a typing context, either. Note that since we only 
+ever search the left side of an \<open>App\<^sub>d\<close> when the right is a value, we enforce that the expression 
+stored in a \<open>FApp2\<^sub>k\<close> frame must be a value too.\<close>
 
-inductive evals :: "stack_state \<Rightarrow> stack_state \<Rightarrow> bool" (infix "\<leadsto>\<^sub>s" 50) where
-  evs_const [simp]: "SS False s (Const\<^sub>d k) \<leadsto>\<^sub>s SS True s (Const\<^sub>d k)"
-| evs_lam [simp]: "SS False s (Lam\<^sub>d t e) \<leadsto>\<^sub>s SS True s (Lam\<^sub>d t e)"
-| evs_app1 [simp]: "SS False s (App\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>s SS False (FApp1 e\<^sub>2 # s) e\<^sub>1"
-| evs_app2 [simp]: "SS True (FApp1 e\<^sub>2 # s) e\<^sub>1 \<leadsto>\<^sub>s SS False (FApp2 e\<^sub>1 # s) e\<^sub>2"
-| evs_app3 [simp]: "SS True (FApp2 (Lam\<^sub>d t e\<^sub>1) # s) e\<^sub>2 \<leadsto>\<^sub>s SS False (FReturn # s) (subst\<^sub>d 0 e\<^sub>2 e\<^sub>1)"
-| evs_ret [simp]: "SS True (FReturn # s) e \<leadsto>\<^sub>s SS True s e"
+inductive typing_stack\<^sub>k :: "frame\<^sub>k list \<Rightarrow> ty \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>k _ \<rightarrow>" 50) where
+  tcs\<^sub>k_nil [simp]: "[] :\<^sub>k t \<rightarrow> t"
+| tcs\<^sub>k_cons_app1 [simp]: "[] \<turnstile>\<^sub>d e : t\<^sub>1 \<Longrightarrow> s :\<^sub>k t\<^sub>2 \<rightarrow> t \<Longrightarrow> FApp1\<^sub>k e # s :\<^sub>k Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
+| tcs\<^sub>k_cons_app2 [simp]: "[] \<turnstile>\<^sub>d e : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> value\<^sub>d e \<Longrightarrow> s :\<^sub>k t\<^sub>2 \<rightarrow> t \<Longrightarrow> 
+    FApp2\<^sub>k e # s :\<^sub>k t\<^sub>1 \<rightarrow> t"
+| tcs\<^sub>k_cons_ret [simp]: "s :\<^sub>k t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>k # s :\<^sub>k t' \<rightarrow> t"
 
-lemma [simp]: "[] \<turnstile>\<^sub>d e : t \<Longrightarrow> \<exists>\<Sigma>'. SS False s e \<leadsto>\<^sub>s \<Sigma>'"
-proof (induction "[] :: ty list" e t rule: typing\<^sub>d.induct)
-  case (tc\<^sub>d_const k)
-  have "SS False s (Const\<^sub>d k) \<leadsto>\<^sub>s SS True s (Const\<^sub>d k)" by simp
-  thus ?case by fastforce
-next
-  case (tc\<^sub>d_lam t\<^sub>1 e t\<^sub>2)
-  have "SS False s (Lam\<^sub>d t\<^sub>1 e) \<leadsto>\<^sub>s SS True s (Lam\<^sub>d t\<^sub>1 e)" by simp
-  thus ?case by fastforce
-next
-  case (tc\<^sub>d_app e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
-  have "SS False s (App\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>s SS False (FApp1 e\<^sub>2 # s) e\<^sub>1" by simp
-  thus ?case by fastforce
-qed simp_all
+inductive_cases [elim]: "[] :\<^sub>k t' \<rightarrow> t"
+inductive_cases [elim]: "FApp1\<^sub>k e # s :\<^sub>k t' \<rightarrow> t"
+inductive_cases [elim]: "FApp2\<^sub>k e # s :\<^sub>k t' \<rightarrow> t"
+inductive_cases [elim]: "FReturn\<^sub>k # s :\<^sub>k t' \<rightarrow> t"
 
-lemma [simp]: "s : t' \<rightarrow> t \<Longrightarrow> [] \<turnstile>\<^sub>d e : t' \<Longrightarrow> value\<^sub>d e \<Longrightarrow> s = [] \<or> (\<exists>\<Sigma>'. SS True s e \<leadsto>\<^sub>s \<Sigma>')"
-proof (induction s t' t rule: typecheck_stack.induct)
-  case (tcs_cons_app1 e\<^sub>2 t\<^sub>1 s t\<^sub>2 t)
-  hence "SS True (FApp1 e\<^sub>2 # s) e \<leadsto>\<^sub>s SS False (FApp2 e # s) e\<^sub>2" by simp
-  thus ?case by fastforce
-next
-  case (tcs_cons_app2 e\<^sub>1 t\<^sub>1 t\<^sub>2 s t)
-  then obtain e\<^sub>1' where "e\<^sub>1 = Lam\<^sub>d t\<^sub>1 e\<^sub>1' \<and> insert_at 0 t\<^sub>1 [] \<turnstile>\<^sub>d e\<^sub>1' : t\<^sub>2" by blast
-  moreover with tcs_cons_app2 have "SS True (FApp2 (Lam\<^sub>d t\<^sub>1 e\<^sub>1') # s) e \<leadsto>\<^sub>s 
-    SS False (FReturn # s) (subst\<^sub>d 0 e e\<^sub>1')" by simp
-  ultimately show ?case by fastforce
-next 
-  case (tcs_cons_ret s t')
-  hence "SS True (FReturn # s) e \<leadsto>\<^sub>s SS True s e" by simp
-  thus ?case by fastforce
-qed simp_all
-
-theorem progresss: "\<Sigma> :\<^sub>s t \<Longrightarrow> (\<exists>e. \<Sigma> = SS True [] e \<and> value\<^sub>d e) \<or> (\<exists>\<Sigma>'. \<Sigma> \<leadsto>\<^sub>s \<Sigma>')"
-proof (induction \<Sigma> t rule: typecheck_stack_state.induct)
-  case (tcs_state s t' t e b)
-  thus ?case by (cases b) simp_all
-qed 
-
-theorem preservations [simp]: "\<Sigma> \<leadsto>\<^sub>s \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>s t \<Longrightarrow> \<Sigma>' :\<^sub>s t"
-proof (induction \<Sigma> \<Sigma>' rule: evals.induct)
-  case (evs_app1 s e\<^sub>1 e\<^sub>2)
-  then obtain t\<^sub>1 t\<^sub>2 where "s : t\<^sub>2 \<rightarrow> t" and "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1" and X: "[] \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2" by blast
-  hence "FApp1 e\<^sub>2 # s : Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t" by simp
-  with X show ?case by simp
-next
-  case (evs_app2 e\<^sub>2 s e\<^sub>1)
-  then obtain t\<^sub>1 t\<^sub>2 where X: "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1" and "s : t\<^sub>2 \<rightarrow> t" and "[] \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2" 
-   and "value\<^sub>d e\<^sub>1" by blast
-  with evs_app2 have "FApp2 e\<^sub>1 # s : t\<^sub>1 \<rightarrow> t" by simp
-  with X show ?case by simp
-next
-  case (evs_app3 t\<^sub>1 e\<^sub>1 s e\<^sub>2)
-  then obtain t\<^sub>2 where "[t\<^sub>1] \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2" and X: "s : t\<^sub>2 \<rightarrow> t" and "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1" by fastforce
-  hence "[] \<turnstile>\<^sub>d subst\<^sub>d 0 e\<^sub>2 e\<^sub>1 : t\<^sub>2" by simp
-  moreover from X have "FReturn # s : t\<^sub>2 \<rightarrow> t" by simp
-  ultimately show ?case by simp
-qed fastforce+
-
-lemma [simp]: "iter (\<leadsto>\<^sub>s) \<Sigma> \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>s t \<Longrightarrow> \<Sigma>' :\<^sub>s t"
-  by (induction \<Sigma> \<Sigma>' rule: iter.induct) simp_all
-
-theorem determinisms: "\<Sigma> \<leadsto>\<^sub>s \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>s \<Sigma>'' \<Longrightarrow> \<Sigma> :\<^sub>s t \<Longrightarrow> \<Sigma>' = \<Sigma>''"
-proof (induction \<Sigma> \<Sigma>' rule: evals.induct)
-  case (evs_const s k)
-  thus ?case by (induction "SS False s (Const\<^sub>d k)" \<Sigma>'' rule: evals.induct) simp_all
-next
-  case (evs_lam s t e)
-  thus ?case by (induction "SS False s (Lam\<^sub>d t e)" \<Sigma>'' rule: evals.induct) simp_all
-next
-  case (evs_app1 s e\<^sub>1 e\<^sub>2)
-  thus ?case by (induction "SS False s (App\<^sub>d e\<^sub>1 e\<^sub>2)" \<Sigma>'' rule: evals.induct) simp_all
-next
-  case (evs_app2 e\<^sub>2 s e\<^sub>1)
-  thus ?case by (induction "SS True (FApp1 e\<^sub>2 # s) e\<^sub>1" \<Sigma>'' rule: evals.induct) simp_all
-next
-  case (evs_app3 t e\<^sub>1 s e\<^sub>2)
-  thus ?case by (induction "SS True (FApp2 (Lam\<^sub>d t e\<^sub>1) # s) e\<^sub>2" \<Sigma>'' rule: evals.induct) simp_all
-next 
-  case (evs_ret s e)
-  thus ?case by (induction "SS True (FReturn # s) e" \<Sigma>'' rule: evals.induct) simp_all
-qed
-
-lemma [simp]: "SS b s e \<leadsto>\<^sub>s SS b' s' e' \<Longrightarrow> SS b (s @ ss) e \<leadsto>\<^sub>s SS b' (s' @ ss) e'"
-  by (induction "SS b s e" "SS b' s' e'" rule: evals.induct) auto
-
-lemma eval_under [simp]: "iter (\<leadsto>\<^sub>s) (SS b s e) (SS b' s' e') \<Longrightarrow> 
-  iter (\<leadsto>\<^sub>s) (SS b (s @ ss) e) (SS b' (s' @ ss) e')"
-proof (induction "SS b s e" "SS b' s' e'" arbitrary: b s e rule: iter.induct)
-  case (iter_step \<Sigma>')
-  then show ?case 
-  proof (induction \<Sigma>' rule: stack_state.induct)
-    case (SS b'' s'' e'')
-    hence "SS b (s @ ss) e \<leadsto>\<^sub>s SS b'' (s'' @ ss) e''" by simp
-    moreover from SS have "iter (\<leadsto>\<^sub>s) (SS b'' (s'' @ ss) e'') (SS b' (s' @ ss) e')" by simp
-    ultimately show ?case by simp
-  qed
-qed simp_all
-
-lemma [simp]: "s @ s' : t' \<rightarrow> t \<Longrightarrow> \<exists>t''. (s : t' \<rightarrow> t'') \<and> (s' : t'' \<rightarrow> t)"
+lemma tc_stack\<^sub>k_append [simp]: "s @ s' :\<^sub>k t' \<rightarrow> t \<Longrightarrow> \<exists>t''. (s :\<^sub>k t' \<rightarrow> t'') \<and> (s' :\<^sub>k t'' \<rightarrow> t)"
 proof (induction s arbitrary: t')
   case (Cons f s)
   thus ?case 
   proof (induction f)
-    case (FApp2 e)
-    then obtain t\<^sub>2 where X: "([] \<turnstile>\<^sub>d e : Arrow t' t\<^sub>2) \<and> value\<^sub>d e \<and> (s @ s' : t\<^sub>2 \<rightarrow> t)" by auto
-    with FApp2 obtain t'' where "(s : t\<^sub>2 \<rightarrow> t'') \<and> (s' : t'' \<rightarrow> t)" by blast
-    moreover with X have "FApp2 e # s : t' \<rightarrow> t''" by fastforce
+    case (FApp2\<^sub>k e)
+    then obtain t\<^sub>2 where X: "([] \<turnstile>\<^sub>d e : Arrow t' t\<^sub>2) \<and> value\<^sub>d e \<and> (s @ s' :\<^sub>k t\<^sub>2 \<rightarrow> t)" by auto
+    with FApp2\<^sub>k obtain t'' where "(s :\<^sub>k t\<^sub>2 \<rightarrow> t'') \<and> (s' :\<^sub>k t'' \<rightarrow> t)" by blast
+    moreover with X have "FApp2\<^sub>k e # s :\<^sub>k t' \<rightarrow> t''" by fastforce
     ultimately show ?case by blast
   qed force+
 qed force+
 
-lemma [simp]: "value\<^sub>d e \<Longrightarrow> iter (\<leadsto>\<^sub>s) (SS b s e) (SS True s e)"
+text \<open>The stack evaluation state has three components: the expression being evaluated; the stack 
+itself; and a flag for whether or not the expression is known to be a value. We also define the 
+concept of a final state, analogous to values for expressions.\<close> 
+ 
+datatype state\<^sub>k = S\<^sub>k bool "frame\<^sub>k list" expr\<^sub>d
+
+fun final\<^sub>k :: "state\<^sub>k \<Rightarrow> bool" where
+  "final\<^sub>k (S\<^sub>k b s e) = (b \<and> s = [])"
+
+text \<open>Typechecking a full state is equally simple. Again, we do not need a typing context because we 
+only ever evaluate closed expressions.\<close>
+
+inductive typing_state\<^sub>k :: "state\<^sub>k \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>k" 50) where
+  tc_state\<^sub>k [simp]: "s :\<^sub>k t' \<rightarrow> t \<Longrightarrow> [] \<turnstile>\<^sub>d e : t' \<Longrightarrow> (b \<longrightarrow> value\<^sub>d e) \<Longrightarrow> S\<^sub>k b s e :\<^sub>k t"
+
+inductive_cases [elim]: "S\<^sub>k b s e :\<^sub>k t"
+
+text \<open>We now define the evaluation relation. As promised, each evaluation step operates directly on 
+the state, without any searching or testing of values. We have more steps now, as a result: 
+\<open>ev\<^sub>k_app1\<close>, \<open>ev\<^sub>k_app2\<close>, and \<open>ev\<^sub>k_ret\<close> to perform the redex search, and \<open>ev\<^sub>k_const\<close> and \<open>ev\<^sub>k_lam\<close> to 
+replace the value tests.\<close>
+
+inductive eval\<^sub>k :: "state\<^sub>k \<Rightarrow> state\<^sub>k \<Rightarrow> bool" (infix "\<leadsto>\<^sub>k" 50) where
+  ev\<^sub>k_const [simp]: "S\<^sub>k False s (Const\<^sub>d n) \<leadsto>\<^sub>k S\<^sub>k True s (Const\<^sub>d n)"
+| ev\<^sub>k_lam [simp]: "S\<^sub>k False s (Lam\<^sub>d t e) \<leadsto>\<^sub>k S\<^sub>k True s (Lam\<^sub>d t e)"
+| ev\<^sub>k_app1 [simp]: "S\<^sub>k False s (App\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>k S\<^sub>k False (FApp1\<^sub>k e\<^sub>2 # s) e\<^sub>1"
+| ev\<^sub>k_app2 [simp]: "S\<^sub>k True (FApp1\<^sub>k e\<^sub>2 # s) e\<^sub>1 \<leadsto>\<^sub>k S\<^sub>k False (FApp2\<^sub>k e\<^sub>1 # s) e\<^sub>2"
+| ev\<^sub>k_app3 [simp]: "S\<^sub>k True (FApp2\<^sub>k (Lam\<^sub>d t e\<^sub>1) # s) e\<^sub>2 \<leadsto>\<^sub>k S\<^sub>k False (FReturn\<^sub>k # s) (subst\<^sub>d 0 e\<^sub>2 e\<^sub>1)"
+| ev\<^sub>k_ret [simp]: "S\<^sub>k True (FReturn\<^sub>k # s) e \<leadsto>\<^sub>k S\<^sub>k True s e"
+
+lemma eval\<^sub>k_under [simp]: "S\<^sub>k b s e \<leadsto>\<^sub>k S\<^sub>k b' s' e' \<Longrightarrow> S\<^sub>k b (s @ ss) e \<leadsto>\<^sub>k S\<^sub>k b' (s' @ ss) e'"
+  by (induction "S\<^sub>k b s e" "S\<^sub>k b' s' e'" rule: eval\<^sub>k.induct) auto
+
+lemma eval\<^sub>k_under_iter [simp]: "iter (\<leadsto>\<^sub>k) (S\<^sub>k b s e) (S\<^sub>k b' s' e') \<Longrightarrow> 
+  iter (\<leadsto>\<^sub>k) (S\<^sub>k b (s @ ss) e) (S\<^sub>k b' (s' @ ss) e')"
+proof (induction "S\<^sub>k b s e" "S\<^sub>k b' s' e'" arbitrary: b s e rule: iter.induct)
+  case (iter_step \<Sigma>')
+  then show ?case 
+  proof (induction \<Sigma>' rule: state\<^sub>k.induct)
+    case (S\<^sub>k b'' s'' e'')
+    hence "S\<^sub>k b (s @ ss) e \<leadsto>\<^sub>k S\<^sub>k b'' (s'' @ ss) e''" by simp
+    moreover from S\<^sub>k have "iter (\<leadsto>\<^sub>k) (S\<^sub>k b'' (s'' @ ss) e'') (S\<^sub>k b' (s' @ ss) e')" by simp
+    ultimately show ?case by simp
+  qed
+qed simp_all
+
+lemma eval\<^sub>k_value [simp]: "value\<^sub>d e \<Longrightarrow> iter (\<leadsto>\<^sub>k) (S\<^sub>k b s e) (S\<^sub>k True s e)"
 proof (induction e)
-  case (Const\<^sub>d x)
+  case (Const\<^sub>d n)
   thus ?case 
   proof (induction b)
     case False
-    have "SS False s (Const\<^sub>d x) \<leadsto>\<^sub>s SS True s (Const\<^sub>d x)" by simp
+    have "S\<^sub>k False s (Const\<^sub>d n) \<leadsto>\<^sub>k S\<^sub>k True s (Const\<^sub>d n)" by simp
     thus ?case by (metis iter_step iter_refl)
   qed simp_all
 next
@@ -158,9 +118,94 @@ next
   thus ?case
   proof (induction b)
     case False
-    have "SS False s (Lam\<^sub>d t e) \<leadsto>\<^sub>s SS True s (Lam\<^sub>d t e)" by simp
+    have "S\<^sub>k False s (Lam\<^sub>d t e) \<leadsto>\<^sub>k S\<^sub>k True s (Lam\<^sub>d t e)" by simp
     thus ?case by (metis iter_step iter_refl)
   qed simp_all
 qed simp_all
+
+text \<open>From here, proving the safety theorems is straightforward:\<close>
+
+lemma eval\<^sub>k_from_nonvalue [simp]: "[] \<turnstile>\<^sub>d e : t \<Longrightarrow> \<exists>\<Sigma>'. S\<^sub>k False s e \<leadsto>\<^sub>k \<Sigma>'"
+proof (induction "[] :: ty list" e t rule: typing\<^sub>d.induct)
+  case (tc\<^sub>d_const n)
+  have "S\<^sub>k False s (Const\<^sub>d n) \<leadsto>\<^sub>k S\<^sub>k True s (Const\<^sub>d n)" by simp
+  thus ?case by fastforce
+next
+  case (tc\<^sub>d_lam t\<^sub>1 e t\<^sub>2)
+  have "S\<^sub>k False s (Lam\<^sub>d t\<^sub>1 e) \<leadsto>\<^sub>k S\<^sub>k True s (Lam\<^sub>d t\<^sub>1 e)" by simp
+  thus ?case by fastforce
+next
+  case (tc\<^sub>d_app e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
+  have "S\<^sub>k False s (App\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>k S\<^sub>k False (FApp1\<^sub>k e\<^sub>2 # s) e\<^sub>1" by simp
+  thus ?case by fastforce
+qed simp_all
+
+lemma eval\<^sub>k_from_value [simp]: "s :\<^sub>k t' \<rightarrow> t \<Longrightarrow> [] \<turnstile>\<^sub>d e : t' \<Longrightarrow> value\<^sub>d e \<Longrightarrow> 
+  s = [] \<or> (\<exists>\<Sigma>'. S\<^sub>k True s e \<leadsto>\<^sub>k \<Sigma>')"
+proof (induction s t' t rule: typing_stack\<^sub>k.induct)
+  case (tcs\<^sub>k_cons_app1 e\<^sub>2 t\<^sub>1 s t\<^sub>2 t)
+  hence "S\<^sub>k True (FApp1\<^sub>k e\<^sub>2 # s) e \<leadsto>\<^sub>k S\<^sub>k False (FApp2\<^sub>k e # s) e\<^sub>2" by simp
+  thus ?case by fastforce
+next
+  case (tcs\<^sub>k_cons_app2 e\<^sub>1 t\<^sub>1 t\<^sub>2 s t)
+  then obtain e\<^sub>1' where "e\<^sub>1 = Lam\<^sub>d t\<^sub>1 e\<^sub>1' \<and> insert_at 0 t\<^sub>1 [] \<turnstile>\<^sub>d e\<^sub>1' : t\<^sub>2" by blast
+  moreover with tcs\<^sub>k_cons_app2 have "S\<^sub>k True (FApp2\<^sub>k (Lam\<^sub>d t\<^sub>1 e\<^sub>1') # s) e \<leadsto>\<^sub>k 
+    S\<^sub>k False (FReturn\<^sub>k # s) (subst\<^sub>d 0 e e\<^sub>1')" by simp
+  ultimately show ?case by fastforce
+next 
+  case (tcs\<^sub>k_cons_ret s t')
+  hence "S\<^sub>k True (FReturn\<^sub>k # s) e \<leadsto>\<^sub>k S\<^sub>k True s e" by simp
+  thus ?case by fastforce
+qed simp_all
+
+theorem progress\<^sub>k: "\<Sigma> :\<^sub>k t \<Longrightarrow> final\<^sub>k \<Sigma> \<or> (\<exists>\<Sigma>'. \<Sigma> \<leadsto>\<^sub>k \<Sigma>')"
+proof (induction \<Sigma> t rule: typing_state\<^sub>k.induct)
+  case (tc_state\<^sub>k s t' t e b)
+  thus ?case by (cases b) simp_all
+qed 
+
+theorem preservation\<^sub>k [simp]: "\<Sigma> \<leadsto>\<^sub>k \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>k t \<Longrightarrow> \<Sigma>' :\<^sub>k t"
+proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>k.induct)
+  case (ev\<^sub>k_app1 s e\<^sub>1 e\<^sub>2)
+  then obtain t\<^sub>1 t\<^sub>2 where "s :\<^sub>k t\<^sub>2 \<rightarrow> t" and "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1" and X: "[] \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2" by blast
+  hence "FApp1\<^sub>k e\<^sub>2 # s :\<^sub>k Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t" by simp
+  with X show ?case by simp
+next
+  case (ev\<^sub>k_app2 e\<^sub>2 s e\<^sub>1)
+  then obtain t\<^sub>1 t\<^sub>2 where X: "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1" and "s :\<^sub>k t\<^sub>2 \<rightarrow> t" and "[] \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2" 
+   and "value\<^sub>d e\<^sub>1" by blast
+  with ev\<^sub>k_app2 have "FApp2\<^sub>k e\<^sub>1 # s :\<^sub>k t\<^sub>1 \<rightarrow> t" by simp
+  with X show ?case by simp
+next
+  case (ev\<^sub>k_app3 t\<^sub>1 e\<^sub>1 s e\<^sub>2)
+  then obtain t\<^sub>2 where "[t\<^sub>1] \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2" and X: "s :\<^sub>k t\<^sub>2 \<rightarrow> t" and "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1" by fastforce
+  hence "[] \<turnstile>\<^sub>d subst\<^sub>d 0 e\<^sub>2 e\<^sub>1 : t\<^sub>2" by simp
+  moreover from X have "FReturn\<^sub>k # s :\<^sub>k t\<^sub>2 \<rightarrow> t" by simp
+  ultimately show ?case by simp
+qed fastforce+
+
+lemma preservation_iter\<^sub>k [simp]: "iter (\<leadsto>\<^sub>k) \<Sigma> \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>k t \<Longrightarrow> \<Sigma>' :\<^sub>k t"
+  by (induction \<Sigma> \<Sigma>' rule: iter.induct) simp_all
+
+theorem determinism\<^sub>k: "\<Sigma> \<leadsto>\<^sub>k \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>k \<Sigma>'' \<Longrightarrow> \<Sigma> :\<^sub>k t \<Longrightarrow> \<Sigma>' = \<Sigma>''"
+proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>k.induct)
+  case (ev\<^sub>k_const s k)
+  thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
+next
+  case (ev\<^sub>k_lam s t e)
+  thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
+next
+  case (ev\<^sub>k_app1 s e\<^sub>1 e\<^sub>2)
+  thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
+next
+  case (ev\<^sub>k_app2 e\<^sub>2 s e\<^sub>1)
+  thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
+next
+  case (ev\<^sub>k_app3 t e\<^sub>1 s e\<^sub>2)
+  thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
+next 
+  case (ev\<^sub>k_ret s e)
+  thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
+qed
 
 end

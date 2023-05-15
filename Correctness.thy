@@ -34,7 +34,7 @@ proof -
   from ET TN have ED: "unname e\<^sub>t \<Down>\<^sub>d unname v\<^sub>t" by fastforce
   hence VD: "value\<^sub>d (unname v\<^sub>t)" by simp
   from ED have "iter (\<leadsto>\<^sub>d) (unname e\<^sub>t) (unname v\<^sub>t)" by (metis correct\<^sub>d\<^sub>b)
-  with ED EN TD have ES: "iter (\<leadsto>\<^sub>s) (SS False [FReturn] (unname e\<^sub>t)) (SS True [] (unname v\<^sub>t))" 
+  with ED EN TD have ES: "iter (\<leadsto>\<^sub>k) (S\<^sub>k False [FReturn\<^sub>k] (unname e\<^sub>t)) (S\<^sub>k True [] (unname v\<^sub>t))" 
     by simp
   from TD have TC: "CSE [CReturn []] [] (unname e\<^sub>t) :\<^sub>c t" 
     by (metis tcc_state_ev tcc_nil tcc_snil tcc_scons_ret latest_environment.simps(4))
