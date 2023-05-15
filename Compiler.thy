@@ -3,7 +3,7 @@ theory Compiler
 begin
 
 abbreviation code_compile :: "ty expr\<^sub>s \<Rightarrow> mach list" where
-  "code_compile \<equiv> disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco \<circ> encode \<circ> convert"
+  "code_compile \<equiv> disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco \<circ> encode \<circ> unname"
 
 abbreviation compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where 
   "compile \<equiv> map_option (apfst code_compile) \<circ> typecheck"
@@ -115,24 +115,24 @@ definition alg_compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times
       | Some s \<Rightarrow> 
           Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e []) []), to_type (subst s t)))"
 
-lemma [simp]: "encode (convert' \<Phi> (map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e))) = 
-    encode (convert' \<Phi> (map_expr\<^sub>s to_type e))"
+lemma [simp]: "encode (unname' \<Phi> (map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e))) = 
+    encode (unname' \<Phi> (map_expr\<^sub>s to_type e))"
   by (induction e arbitrary: \<Phi>) simp_all
 
-lemma [simp]: "encode \<circ> convert \<circ> map_expr\<^sub>s to_type \<circ> map_expr\<^sub>s (subst sub) = 
-    encode \<circ> convert \<circ> map_expr\<^sub>s to_type"
-  by (auto simp add: convert_def)
+lemma [simp]: "encode \<circ> unname \<circ> map_expr\<^sub>s to_type \<circ> map_expr\<^sub>s (subst sub) = 
+    encode \<circ> unname \<circ> map_expr\<^sub>s to_type"
+  by (auto simp add: unname_def)
 
 lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> quick_convert vs e = (e', vs')"
   by (induction e arbitrary: \<Gamma> vs e' t vs' con) 
      (simp_all add: Let_def split: option.splits prod.splits)
 
 lemma [simp]: "quick_convert vs e = (e', vs') \<Longrightarrow> 
-    alg_compile1 \<Phi> e acc = encode (convert' \<Phi> (map_expr\<^sub>s to_type e')) @ acc"
+    alg_compile1 \<Phi> e acc = encode (unname' \<Phi> (map_expr\<^sub>s to_type e')) @ acc"
   by (induction e arbitrary: \<Phi> acc vs e' vs') (auto simp add: Let_def split: prod.splits)
 
 lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> 
-  alg_compile1 \<Phi> e acc = encode (convert' \<Phi> (map_expr\<^sub>s to_type e')) @ acc"
+  alg_compile1 \<Phi> e acc = encode (unname' \<Phi> (map_expr\<^sub>s to_type e')) @ acc"
 proof -
   assume "typecheck' \<Gamma> vs e = (e', t, vs', con)"
   hence "quick_convert vs e = (e', vs')" by simp
@@ -162,6 +162,6 @@ lemma [simp]: "collect_constraints \<Gamma> vs e = snd (typecheck' \<Gamma> vs e
   by (induction e arbitrary: \<Gamma> vs) (simp_all add: Let_def split: option.splits prod.splits)
 
 lemma alg_compile_simp [simp]: "alg_compile = compile"
-  by rule (simp add: alg_compile_def tco_def convert_def split: prod.splits option.splits)
+  by rule (simp add: alg_compile_def tco_def unname_def split: prod.splits option.splits)
 
 end

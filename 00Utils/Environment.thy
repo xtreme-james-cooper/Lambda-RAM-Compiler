@@ -281,6 +281,15 @@ proof (induction as)
   qed simp_all
 qed simp_all
 
+text \<open>We also define an abbreviation to indicate when an index is lower than the fist occurrence of
+some item.\<close>
+
+abbreviation precede :: "nat \<Rightarrow> 'a \<Rightarrow> 'a list \<Rightarrow> bool" (infix "precedes _ in" 50) where
+  "x precedes a in as \<equiv> (case idx_of as a of Some y \<Rightarrow> x \<le> y | None \<Rightarrow> True)"
+
+lemma zero_precedes [simp]: "0 precedes a in as"
+  by (simp split: option.splits)
+
 text \<open>Finally, some numeral simplification rules. These will be used in the assembly code pass, 
 where lookups into long blocks of assembly code are common.\<close>
 

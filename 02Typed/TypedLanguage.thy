@@ -9,10 +9,10 @@ type-annotation on every lambda-abstraction. This small change, of course, produ
 difference in properties, and will take quite a lot of work to establish in the typechecking pass.\<close>
 
 text \<open>We first define our typing relation. Thanks to the tags on binders (the only difficult part of 
-typing the lambda-calculus), we can straightforwardly check that a term has a given type. In fact, 
-we would even write it as an Isabelle function; however, since type-reconstruction is performed 
-separately and only once, and the typing judgement is only ever used to prove facts with, we go 
-with the simpler inductive relation form.\<close>
+typing the lambda-calculus), we can straightforwardly check that an expression has a given type. In 
+fact, we would even write it as an Isabelle function; however, since type-reconstruction is 
+performed separately and only once, and the typing judgement is only ever used to prove facts with,
+we go with the simpler inductive relation form.\<close>
 
 inductive typing\<^sub>t :: "(var \<rightharpoonup> ty) \<Rightarrow> ty expr\<^sub>s \<Rightarrow> ty \<Rightarrow> bool" (infix "\<turnstile>\<^sub>t _ :" 50) where
   tc\<^sub>t_var [simp]: "\<Gamma> x = Some t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t Var\<^sub>s x : t"
@@ -98,7 +98,8 @@ qed fastforce+
 theorem preservation\<^sub>t: "e \<Down>\<^sub>s v \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t v : t"
   by (induction e v arbitrary: t rule: eval\<^sub>s.induct) fastforce+
 
-text \<open>We also prove that the removed-shadow version of a term typechecks if the original did.\<close>
+text \<open>We also prove that the removed-shadow version of an expression typechecks if the original 
+did.\<close>
 
 lemma tc_remove_shadows' [simp]: "\<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> finite vs \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t remove_shadows\<^sub>s' vs e : t"
 proof (induction \<Gamma> e t arbitrary: vs rule: typing\<^sub>t.induct)

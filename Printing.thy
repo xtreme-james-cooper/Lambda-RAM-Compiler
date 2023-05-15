@@ -56,11 +56,11 @@ fun print_mval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print
 primrec print_mach_state :: "mach_state \<Rightarrow> print" where
   "print_mach_state (MS rs mem pc) = print_mval mem (mem 2)"
 
-lemma [simp]: "value\<^sub>s e \<Longrightarrow> print_nexpr (erase e) = print_nexpr e" 
-  by (induction e) (simp_all add: convert_def)
+lemma [simp]: "print_nexpr (erase e) = print_nexpr e" 
+  by (induction e) simp_all
 
-lemma [simp]: "value\<^sub>s e \<Longrightarrow> print_dexpr (convert e) = print_nexpr e" 
-  by (induction e) (simp_all add: convert_def)
+lemma [simp]: "print_dexpr (unname e) = print_nexpr e" 
+  by (induction e) (simp_all add: unname_def)
 
 lemma print_eqiv_declosure [simp]: "print_closure c = print_dexpr (declosure c)" 
 proof (induction c)

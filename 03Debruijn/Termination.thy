@@ -126,7 +126,7 @@ qed simp_all
 
 text \<open>We prove the crucial lemma about \<open>multisubst\<close> rather than \<open>subst\<^sub>d\<close> because stability is only 
 defined over closed expressions, and we need to substitute for all free variables in an arbitrary 
-expression at once to get a closed term.\<close>
+expression at once to get a closed expression.\<close>
 
 lemma tc_stable_multisubst [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> tc_expr_context \<Gamma> es \<Longrightarrow> list_all2 stable \<Gamma> es \<Longrightarrow> 
   stable t (multisubst es e)"

@@ -30,27 +30,27 @@ proof -
   hence VT: "value\<^sub>s v\<^sub>t" by simp
   hence VN: "value\<^sub>s (erase v\<^sub>t)" by simp
   from ET have EN: "erase e\<^sub>t \<Down>\<^sub>s erase v\<^sub>t" by simp
-  from TN have TD: "[] \<turnstile>\<^sub>d convert e\<^sub>t : t" by simp
-  from ET TN have ED: "convert e\<^sub>t \<Down>\<^sub>d convert v\<^sub>t" by fastforce
-  hence VD: "value\<^sub>d (convert v\<^sub>t)" by simp
-  from ED have "iter (\<leadsto>\<^sub>d) (convert e\<^sub>t) (convert v\<^sub>t)" by (metis correct\<^sub>d\<^sub>b)
-  with ED EN TD have ES: "iter (\<leadsto>\<^sub>s) (SS False [FReturn] (convert e\<^sub>t)) (SS True [] (convert v\<^sub>t))" 
+  from TN have TD: "[] \<turnstile>\<^sub>d unname e\<^sub>t : t" by simp
+  from ET TN have ED: "unname e\<^sub>t \<Down>\<^sub>d unname v\<^sub>t" by fastforce
+  hence VD: "value\<^sub>d (unname v\<^sub>t)" by simp
+  from ED have "iter (\<leadsto>\<^sub>d) (unname e\<^sub>t) (unname v\<^sub>t)" by (metis correct\<^sub>d\<^sub>b)
+  with ED EN TD have ES: "iter (\<leadsto>\<^sub>s) (SS False [FReturn] (unname e\<^sub>t)) (SS True [] (unname v\<^sub>t))" 
     by simp
-  from TD have TC: "CSE [CReturn []] [] (convert e\<^sub>t) :\<^sub>c t" 
+  from TD have TC: "CSE [CReturn []] [] (unname e\<^sub>t) :\<^sub>c t" 
     by (metis tcc_state_ev tcc_nil tcc_snil tcc_scons_ret latest_environment.simps(4))
-  with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (CSE [CReturn []] [] (convert e\<^sub>t)) (CSC [] c) \<and> 
-    declosure c = convert v\<^sub>t" by fastforce
-  from TC EC have "iter (\<leadsto>\<^sub>t) (encode_state (CSE [CReturn []] [] (convert e\<^sub>t))) 
+  with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (CSE [CReturn []] [] (unname e\<^sub>t)) (CSC [] c) \<and> 
+    declosure c = unname v\<^sub>t" by fastforce
+  from TC EC have "iter (\<leadsto>\<^sub>t) (encode_state (CSE [CReturn []] [] (unname e\<^sub>t))) 
     (encode_state (CSC [] c))" by (metis iter_completet)
-  hence "iter (\<leadsto>\<^sub>t) (TS [] [([], encode (convert e\<^sub>t))]) (TS [encode_closure c] [])" 
+  hence "iter (\<leadsto>\<^sub>t) (TS [] [([], encode (unname e\<^sub>t))]) (TS [encode_closure c] [])" 
     by (simp add: encode_def)
-  hence "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS [] [([], encode (convert e\<^sub>t))])) 
+  hence "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS [] [([], encode (unname e\<^sub>t))])) 
     (tco_state (TS [encode_closure c] []))" by (metis iter_tco_eval)
-  hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (convert e\<^sub>t)), tco_r (encode (convert e\<^sub>t)))]) 
+  hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (unname e\<^sub>t)), tco_r (encode (unname e\<^sub>t)))]) 
     (TCOS [tco_val (encode_closure c)] [])" by simp
-  let ?cd = "(flatten_code \<circ> tco \<circ> encode \<circ> convert) e\<^sub>t"
+  let ?cd = "(flatten_code \<circ> tco \<circ> encode \<circ> unname) e\<^sub>t"
   have UB: "unflatten_state ?cd (BS [] [([], length ?cd)]) = 
-    TCOS [] [([], tco_cd (encode (convert e\<^sub>t)), tco_r (encode (convert e\<^sub>t)))]" 
+    TCOS [] [([], tco_cd (encode (unname e\<^sub>t)), tco_r (encode (unname e\<^sub>t)))]" 
       by (auto simp add: tco_def simp del: flatten_code.simps)
   have "orderly_state ?cd (BS [] [([], length ?cd)])" by auto
   with ET UB obtain v\<^sub>b where EB: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>b) (BS [] [([], length ?cd)]) (BS [v\<^sub>b] []) \<and> 
