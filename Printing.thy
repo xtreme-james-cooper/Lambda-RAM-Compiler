@@ -19,9 +19,9 @@ primrec print_dexpr :: "expr\<^sub>d \<Rightarrow> print" where
 | "print_dexpr (Lam\<^sub>d t e) = Fun"
 | "print_dexpr (App\<^sub>d e\<^sub>1 e\<^sub>2) = undefined"
 
-primrec print_closure :: "closure \<Rightarrow> print" where
-  "print_closure (CConst k) = Number k"
-| "print_closure (CLam t cs e) = Fun"
+primrec print_closure :: "closure\<^sub>c \<Rightarrow> print" where
+  "print_closure (Const\<^sub>c k) = Number k"
+| "print_closure (Lam\<^sub>c t cs e) = Fun"
 
 primrec print_tclosure :: "tclosure \<Rightarrow> print" where
   "print_tclosure (TConst k) = Number k"
@@ -64,7 +64,7 @@ lemma [simp]: "print_dexpr (unname e) = print_nexpr e"
 
 lemma print_eqiv_declosure [simp]: "print_closure c = print_dexpr (declosure c)" 
 proof (induction c)
-  case (CLam t cs e)
+  case (Lam\<^sub>c t cs e)
   thus ?case by (induction cs arbitrary: e) simp_all
 qed simp_all
 

@@ -64,7 +64,7 @@ concept of a final state, analogous to values for expressions.\<close>
  
 datatype state\<^sub>k = S\<^sub>k bool "frame\<^sub>k list" expr\<^sub>d
 
-fun final\<^sub>k :: "state\<^sub>k \<Rightarrow> bool" where
+primrec final\<^sub>k :: "state\<^sub>k \<Rightarrow> bool" where
   "final\<^sub>k (S\<^sub>k b s e) = (b \<and> s = [])"
 
 text \<open>Typechecking a full state is equally simple. Again, we do not need a typing context because we 

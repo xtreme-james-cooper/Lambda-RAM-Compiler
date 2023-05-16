@@ -36,12 +36,12 @@ proof -
   from ED have "iter (\<leadsto>\<^sub>d) (unname e\<^sub>t) (unname v\<^sub>t)" by (metis correct\<^sub>d\<^sub>b)
   with ED EN TD have ES: "iter (\<leadsto>\<^sub>k) (S\<^sub>k False [FReturn\<^sub>k] (unname e\<^sub>t)) (S\<^sub>k True [] (unname v\<^sub>t))" 
     by simp
-  from TD have TC: "CSE [CReturn []] [] (unname e\<^sub>t) :\<^sub>c t" 
-    by (metis tcc_state_ev tcc_nil tcc_snil tcc_scons_ret latest_environment.simps(4))
-  with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (CSE [CReturn []] [] (unname e\<^sub>t)) (CSC [] c) \<and> 
+  from TD have TC: "SE\<^sub>c [FReturn\<^sub>c []] [] (unname e\<^sub>t) :\<^sub>c t" 
+    by (metis tcc_state_ev tc\<^sub>c_nil tcc_snil tcc_scons_ret latest_environment.simps(4))
+  with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (SE\<^sub>c [FReturn\<^sub>c []] [] (unname e\<^sub>t)) (SC\<^sub>c [] c) \<and> 
     declosure c = unname v\<^sub>t" by fastforce
-  from TC EC have "iter (\<leadsto>\<^sub>t) (encode_state (CSE [CReturn []] [] (unname e\<^sub>t))) 
-    (encode_state (CSC [] c))" by (metis iter_completet)
+  from TC EC have "iter (\<leadsto>\<^sub>t) (encode_state (SE\<^sub>c [FReturn\<^sub>c []] [] (unname e\<^sub>t))) 
+    (encode_state (SC\<^sub>c [] c))" by (metis iter_completet)
   hence "iter (\<leadsto>\<^sub>t) (TS [] [([], encode (unname e\<^sub>t))]) (TS [encode_closure c] [])" 
     by (simp add: encode_def)
   hence "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS [] [([], encode (unname e\<^sub>t))])) 

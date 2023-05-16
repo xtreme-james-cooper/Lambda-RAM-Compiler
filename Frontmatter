@@ -178,6 +178,8 @@ t : a type
 \<Phi> : a naming context
 \<Sigma> : an evaluation state
 s : an evaluation stack
+c : a closure (or other value)
+\<Delta> : an environment
 \<tau> : a unification term
 \<gamma> : a unification constructor tag
 \<sigma> : a unification substitution

@@ -71,8 +71,8 @@ lemma unstack_to_value' [simp]: "value\<^sub>d v \<Longrightarrow> v = unstack' 
 lemma unstack_to_value [simp]: "value\<^sub>d v \<Longrightarrow> v = unstack \<Sigma>\<^sub>k \<Longrightarrow> \<exists>b s. \<Sigma>\<^sub>k = S\<^sub>k b s v \<and> all_returns s"
   by (induction \<Sigma>\<^sub>k) simp_all
 
-text \<open>Now we prove our reconstruction lemma for \<open>App\<^sub>d\<close>s. Without returns, this would be much simpler 
-- but as mentioned, we need them for the next stage.\<close>
+text \<open>Now we prove our reconstruction lemma for \<open>App\<^sub>d\<close>s. Without returns, this would be somewhat 
+simpler - but as mentioned, we need them for future stages.\<close>
 
 lemma unstack_to_app [consumes 1, case_names Empty FApp1\<^sub>k FApp2\<^sub>k]: "App\<^sub>d e\<^sub>1 e\<^sub>2 = unstack' s e \<Longrightarrow> 
     (all_returns s \<Longrightarrow> e = App\<^sub>d e\<^sub>1 e\<^sub>2 \<Longrightarrow> P) \<Longrightarrow> 
