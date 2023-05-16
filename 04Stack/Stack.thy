@@ -164,6 +164,9 @@ proof (induction \<Sigma> t rule: typing_state\<^sub>k.induct)
   thus ?case by (cases b) simp_all
 qed 
 
+lemma final_no_eval\<^sub>k [simp]: "\<Sigma> \<leadsto>\<^sub>k \<Sigma>' \<Longrightarrow> final\<^sub>k \<Sigma> \<Longrightarrow> False"
+  by (induction \<Sigma> \<Sigma>' rule: eval\<^sub>k.induct) simp_all
+
 theorem preservation\<^sub>k [simp]: "\<Sigma> \<leadsto>\<^sub>k \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>k t \<Longrightarrow> \<Sigma>' :\<^sub>k t"
 proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>k.induct)
   case (ev\<^sub>k_app1 s e\<^sub>1 e\<^sub>2)

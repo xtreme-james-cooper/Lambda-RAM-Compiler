@@ -32,6 +32,13 @@ lemma multisubst_lam_simple [simp]: "\<exists>e'. multisubst es (Lam\<^sub>d t e
 lemma multisubst_app [simp]: "multisubst es (App\<^sub>d e\<^sub>1 e\<^sub>2) = App\<^sub>d (multisubst es e\<^sub>1) (multisubst es e\<^sub>2)"
   by (induction es arbitrary: e\<^sub>1 e\<^sub>2) simp_all
 
+lemma multisubst_lam_to_app [dest]: "App\<^sub>d e\<^sub>1 e\<^sub>2 = multisubst es (Lam\<^sub>d t e) \<Longrightarrow> False"
+proof -
+  assume "App\<^sub>d e\<^sub>1 e\<^sub>2 = multisubst es (Lam\<^sub>d t e)"
+  moreover obtain e' where "multisubst es (Lam\<^sub>d t e) = Lam\<^sub>d t e'" by fastforce
+  ultimately show ?thesis by simp
+qed
+
 text \<open>Typechecking the sequence of expressions to be multiply-substituted in is simple: they must 
 all be closed values, and they must match the typing context type-for-type. \<close>
 

@@ -172,6 +172,9 @@ qed simp_all
 theorem progress\<^sub>c: "\<Sigma> :\<^sub>c t \<Longrightarrow> final\<^sub>c \<Sigma> \<or> (\<exists>\<Sigma>'. \<Sigma> \<leadsto>\<^sub>c \<Sigma>')"
   by (induction \<Sigma> t rule: typecheck_state\<^sub>c.induct) simp_all
 
+lemma final_no_eval\<^sub>c [simp]: "\<Sigma> \<leadsto>\<^sub>c \<Sigma>' \<Longrightarrow> final\<^sub>c \<Sigma> \<Longrightarrow> False"
+  by (induction \<Sigma> \<Sigma>' rule: eval\<^sub>c.induct) simp_all
+
 theorem preservation\<^sub>c [simp]: "\<Sigma> \<leadsto>\<^sub>c \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>c t \<Longrightarrow> \<Sigma>' :\<^sub>c t"
 proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>c.induct)
   case (ev\<^sub>c_var \<Delta> x c s)
