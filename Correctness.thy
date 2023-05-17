@@ -40,13 +40,13 @@ proof -
     by (metis tcc_state_ev tc\<^sub>c_nil tcc_snil tcc_scons_ret latest_environment.simps(4))
   with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (SE\<^sub>c [FReturn\<^sub>c []] [] (unname e\<^sub>t)) (SC\<^sub>c [] c) \<and> 
     declosure c = unname v\<^sub>t" by fastforce
-  from TC EC have "iter (\<leadsto>\<^sub>t) (encode_state (SE\<^sub>c [FReturn\<^sub>c []] [] (unname e\<^sub>t))) 
-    (encode_state (SC\<^sub>c [] c))" by (metis iter_completet)
-  hence "iter (\<leadsto>\<^sub>t) (TS [] [([], encode (unname e\<^sub>t))]) (TS [encode_closure c] [])" 
+  from TC EC have "iter (\<leadsto>\<^sub>e) (encode_state (SE\<^sub>c [FReturn\<^sub>c []] [] (unname e\<^sub>t))) 
+    (encode_state (SC\<^sub>c [] c))" by (metis correct\<^sub>e_iter)
+  hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e [] [([], encode (unname e\<^sub>t))]) (S\<^sub>e [encode_closure c] [])" 
     by (simp add: encode_def)
-  hence "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (tco_state (TS [] [([], encode (unname e\<^sub>t))])) 
-    (tco_state (TS [encode_closure c] []))" by (metis iter_tco_eval)
-  hence ET: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (unname e\<^sub>t)), tco_r (encode (unname e\<^sub>t)))]) 
+  hence "iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (tco_state (S\<^sub>e [] [([], encode (unname e\<^sub>t))])) 
+    (tco_state (S\<^sub>e [encode_closure c] []))" by (metis iter_tco_eval)
+  hence ET: "iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (unname e\<^sub>t)), tco_r (encode (unname e\<^sub>t)))]) 
     (TCOS [tco_val (encode_closure c)] [])" by simp
   let ?cd = "(flatten_code \<circ> tco \<circ> encode \<circ> unname) e\<^sub>t"
   have UB: "unflatten_state ?cd (BS [] [([], length ?cd)]) = 

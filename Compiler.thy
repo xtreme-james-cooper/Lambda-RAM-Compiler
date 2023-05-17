@@ -36,32 +36,32 @@ primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> unit e
     in let (t\<^sub>2, vs'', con\<^sub>2) = collect_constraints \<Gamma> (insert v (vs \<union> vs')) e\<^sub>2 
     in (Var v, insert v (vs' \<union> vs''), con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Arrow\<^sub>\<tau> t\<^sub>2 (Var v))]))"
 
-primrec tree_code_size :: "tree_code \<Rightarrow> nat"
-    and tree_code_size_list :: "tree_code list \<Rightarrow> nat" where
-  "tree_code_size (TLookup x) = 0"
-| "tree_code_size (TPushCon k) = 0"
-| "tree_code_size (TPushLam cd) = tree_code_size_list cd"
-| "tree_code_size TApply = 0"
+primrec tree_code_size :: "code\<^sub>e \<Rightarrow> nat"
+    and tree_code_size_list :: "code\<^sub>e list \<Rightarrow> nat" where
+  "tree_code_size (Lookup\<^sub>e x) = 0"
+| "tree_code_size (PushCon\<^sub>e k) = 0"
+| "tree_code_size (PushLam\<^sub>e cd) = tree_code_size_list cd"
+| "tree_code_size Apply\<^sub>e = 0"
 | "tree_code_size_list [] = 1"
 | "tree_code_size_list (op # cd) = 
-      Suc (if op = TApply \<and> cd = [] then 0 else tree_code_size op + tree_code_size_list cd)"
+      Suc (if op = Apply\<^sub>e \<and> cd = [] then 0 else tree_code_size op + tree_code_size_list cd)"
 
-primrec alg_compile1 :: "var list \<Rightarrow> unit expr\<^sub>s \<Rightarrow> tree_code list \<Rightarrow> tree_code list" where
-  "alg_compile1 \<Phi> (Var\<^sub>s x) acc = TLookup (the (idx_of \<Phi> x)) # acc"
-| "alg_compile1 \<Phi> (Const\<^sub>s k) acc = TPushCon k # acc"
-| "alg_compile1 \<Phi> (Lam\<^sub>s x u e) acc = TPushLam (alg_compile1 (insert_at 0 x \<Phi>) e []) # acc"
-| "alg_compile1 \<Phi> (App\<^sub>s e\<^sub>1 e\<^sub>2) acc = alg_compile1 \<Phi> e\<^sub>1 (alg_compile1 \<Phi> e\<^sub>2 (TApply # acc))"
+primrec alg_compile1 :: "var list \<Rightarrow> unit expr\<^sub>s \<Rightarrow> code\<^sub>e list \<Rightarrow> code\<^sub>e list" where
+  "alg_compile1 \<Phi> (Var\<^sub>s x) acc = Lookup\<^sub>e (the (idx_of \<Phi> x)) # acc"
+| "alg_compile1 \<Phi> (Const\<^sub>s k) acc = PushCon\<^sub>e k # acc"
+| "alg_compile1 \<Phi> (Lam\<^sub>s x u e) acc = PushLam\<^sub>e (alg_compile1 (insert_at 0 x \<Phi>) e []) # acc"
+| "alg_compile1 \<Phi> (App\<^sub>s e\<^sub>1 e\<^sub>2) acc = alg_compile1 \<Phi> e\<^sub>1 (alg_compile1 \<Phi> e\<^sub>2 (Apply\<^sub>e # acc))"
 
-function alg_compile2 :: "nat \<Rightarrow> tree_code list \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
+function alg_compile2 :: "nat \<Rightarrow> code\<^sub>e list \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
   "alg_compile2 lib [] acc = BReturn # acc"
-| "alg_compile2 lib (TLookup x # cd) acc = alg_compile2 lib cd (BLookup x # acc)"
-| "alg_compile2 lib (TPushCon k # cd) acc = alg_compile2 lib cd (BPushCon k # acc)"
-| "alg_compile2 lib (TPushLam cd' # cd) acc =
+| "alg_compile2 lib (Lookup\<^sub>e x # cd) acc = alg_compile2 lib cd (BLookup x # acc)"
+| "alg_compile2 lib (PushCon\<^sub>e k # cd) acc = alg_compile2 lib cd (BPushCon k # acc)"
+| "alg_compile2 lib (PushLam\<^sub>e cd' # cd) acc =
     alg_compile2 lib cd' 
       (alg_compile2 (lib + tree_code_size_list cd') cd 
         (BPushLam (lib + tree_code_size_list cd') # acc))"
-| "alg_compile2 lib (TApply # []) acc = BJump # acc"
-| "alg_compile2 lib (TApply # op # cd) acc = alg_compile2 lib (op # cd) (BApply # acc)"
+| "alg_compile2 lib (Apply\<^sub>e # []) acc = BJump # acc"
+| "alg_compile2 lib (Apply\<^sub>e # op # cd) acc = alg_compile2 lib (op # cd) (BApply # acc)"
   by pat_completeness auto
 termination
   by (relation "measure (tree_code_size_list \<circ> fst \<circ> snd)") simp_all

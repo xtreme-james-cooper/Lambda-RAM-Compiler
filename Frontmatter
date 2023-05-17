@@ -177,8 +177,10 @@ t : a type
 \<Gamma> : a typing context
 \<Phi> : a naming context
 \<Sigma> : an evaluation state
-s : an evaluation stack
+s : an evaluation (or call) stack
 c : a closure (or other value)
+\<C> : a block of code
+\<V> : a value stack
 \<Delta> : an environment
 \<tau> : a unification term
 \<gamma> : a unification constructor tag
@@ -262,3 +264,6 @@ BigStep
 NameRemoval
 
 Stack
+Stack Conversion
+Closure
+ClosureConversion

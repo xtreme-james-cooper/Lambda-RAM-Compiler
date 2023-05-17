@@ -2,87 +2,81 @@ theory TreeCode
   imports "../00Utils/Environment"
 begin
 
-datatype tree_code = 
-  TLookup nat
-  | TPushCon nat
-  | TPushLam "tree_code list"
-  | TApply
+section \<open>Tree Code\<close>
 
-datatype tclosure = 
-  TConst nat
-  | TLam "tclosure list" "tree_code list"
+text \<open>Our evaluation relation still works by examining an expression not too different from our 
+original source. But we use eager evaluation-order, meaning that for any given expression, it is 
+predictable from the shape of the expression exactly what operations must be performed and in what
+order. So our next stage is to eliminate all run-time analysis of the expression by performing it 
+once at compile time.\<close>
 
-type_synonym tree_stack_frame = "tclosure list \<times> tree_code list"
+text \<open>Our tree-code contains one constructor per expression constructor. The key difference is that 
+application is now an operation without arguments; we have restructured the expression tree into a 
+postfix form. Lambda-abstractions keep their sub-codeblock, however (hence the name "tree" code). We 
+Will eliminate this too, but not for a few stages yet.\<close>
 
-datatype tree_code_state = TS "tclosure list" "tree_stack_frame list"
+datatype code\<^sub>e = 
+  Lookup\<^sub>e nat
+  | PushCon\<^sub>e nat
+  | PushLam\<^sub>e "code\<^sub>e list"
+  | Apply\<^sub>e
 
-fun full_block :: "tree_code list \<Rightarrow> nat \<rightharpoonup> nat" where
-  "full_block [] n = Some n"
-| "full_block (TLookup x # cd) n = full_block cd (Suc n)"
-| "full_block (TPushCon k # cd) n = full_block cd (Suc n)"
-| "full_block (TPushLam cd' # cd) n = full_block cd (Suc n)"
-| "full_block (TApply # cd) 0 = None"
-| "full_block (TApply # cd) (Suc n) = full_block cd n"
+text \<open>Our closure-values remain the same, with just a change from a function body to a function 
+codeblock in closures-proper.\<close>
 
-primrec full_code_closure :: "tree_code \<Rightarrow> bool" where
-  "full_code_closure (TLookup x) = True"
-| "full_code_closure (TPushCon k) = True"
-| "full_code_closure (TPushLam cd) = (full_block cd 0 = Some 1 \<and> list_all full_code_closure cd)"
-| "full_code_closure TApply = True"
+datatype closure\<^sub>e = 
+  Const\<^sub>e nat
+  | Lam\<^sub>e "closure\<^sub>e list" "code\<^sub>e list"
 
-primrec full_closure :: "tclosure \<Rightarrow> bool" where
-  "full_closure (TConst k) = True"
-| "full_closure (TLam env cd) = 
-    (list_all full_closure env \<and> full_block cd 0 = Some 1 \<and> list_all full_code_closure cd)"
+text \<open>Our state, however, is greatly changed. In particular, the call stack has to be divided in 
+two: part of it becomes the call stack proper, with frames containing the call environment and a 
+block of yet-to-be-executed code, and the remainder becomes a value stack that \<open>PushX\<close> operations 
+push onto and \<open>Apply\<^sub>e\<close> operations pop off.\<close>
 
-primrec full_frame :: "tree_stack_frame \<Rightarrow> bool" where
-  "full_frame (env, cd) = (list_all full_closure env \<and> list_all full_code_closure cd)"
+type_synonym frame\<^sub>e = "closure\<^sub>e list \<times> code\<^sub>e list"
 
-primrec full_state :: "tree_code_state \<Rightarrow> bool" where
-  "full_state (TS env s) = (list_all full_closure env \<and> list_all full_frame s)"
+datatype state\<^sub>e = S\<^sub>e "closure\<^sub>e list" "frame\<^sub>e list"
 
-inductive evalt :: "tree_code_state \<Rightarrow> tree_code_state \<Rightarrow> bool" (infix "\<leadsto>\<^sub>t" 50) where
-  evt_lookup [simp]: "lookup env x = Some v \<Longrightarrow> 
-    TS vs ((env, TLookup x # cd) # sfs) \<leadsto>\<^sub>t TS (v # vs) ((env, cd) # sfs)"
-| evt_pushcon [simp]: "TS vs ((env, TPushCon k # cd) # sfs) \<leadsto>\<^sub>t TS (TConst k # vs) ((env, cd) # sfs)"
-| evt_pushlam [simp]: "TS vs ((env, TPushLam cd' # cd) # sfs) \<leadsto>\<^sub>t 
-    TS (TLam env cd' # vs) ((env, cd) # sfs)"
-| evt_apply [simp]: "TS (v # TLam env' cd' # vs) ((env, TApply # cd) # sfs) \<leadsto>\<^sub>t 
-    TS vs ((v # env', cd') # (env, cd) # sfs)"
-| evt_return [simp]: "TS vs ((env, []) # sfs) \<leadsto>\<^sub>t TS vs sfs"
+text \<open>Evaluation is now directed entirely by the code in the topmost callstack frame. \<open>Lookup\<^sub>e\<close> and 
+\<open>PushX\<close> push onto the value stack (the former looking up its closure-value from the topmost 
+callstack frame's environment); \<open>Apply\<^sub>e\<close> pops two values (the second of which should be a \<open>Lam\<^sub>e\<close>, to 
+be applied), and pushes a new callstack frame using the closure's environment and codeblock. When 
+the code in a callstack frame is exhausted, we return by popping that frame off the callstack.\<close>
 
-lemma [simp]: "full_block cd1 n = Some m \<Longrightarrow> full_block cd2 m = Some k \<Longrightarrow> 
-    full_block (cd1 @ cd2) n = Some k"
-  by (induction cd1 n rule: full_block.induct) simp_all
+inductive eval\<^sub>e :: "state\<^sub>e \<Rightarrow> state\<^sub>e \<Rightarrow> bool" (infix "\<leadsto>\<^sub>e" 50) where
+  ev\<^sub>e_lookup [simp]: "lookup \<Delta> x = Some v \<Longrightarrow> 
+    S\<^sub>e \<V> ((\<Delta>, Lookup\<^sub>e x # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (v # \<V>) ((\<Delta>, \<C>) # s)"
+| ev\<^sub>e_pushcon [simp]: "S\<^sub>e \<V> ((\<Delta>, PushCon\<^sub>e n # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (Const\<^sub>e n # \<V>) ((\<Delta>, \<C>) # s)"
+| ev\<^sub>e_pushlam [simp]: "S\<^sub>e \<V> ((\<Delta>, PushLam\<^sub>e \<C>' # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (Lam\<^sub>e \<Delta> \<C>' # \<V>) ((\<Delta>, \<C>) # s)"
+| ev\<^sub>e_apply [simp]: "S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' # \<V>) ((\<Delta>, Apply\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e 
+    S\<^sub>e \<V> ((v # \<Delta>', \<C>') # (\<Delta>, \<C>) # s)"
+| ev\<^sub>e_return [simp]: "S\<^sub>e \<V> ((\<Delta>, []) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> s"
 
-lemma [simp]: "full_block cd 0 = Some (Suc 0) \<Longrightarrow> cd \<noteq> [] \<and> cd \<noteq> [TApply]"
-proof (induction cd)
-  case (Cons op cd)
-  thus ?case by (induction op) simp_all
-qed simp_all
-  
-lemma preservation [simp]: "\<Sigma> \<leadsto>\<^sub>t \<Sigma>' \<Longrightarrow> full_state \<Sigma> \<Longrightarrow> full_state \<Sigma>'"
-  by (induction \<Sigma> \<Sigma>' rule: evalt.induct) auto
+text \<open>Without typing, our list of safety properties has become quite short: just determinism. We 
+could still type our codeblocks, and thence our state; we would need to give each tree-code 
+operation a type relating the type of its input value stack to the type of its output value stack, 
+and then check that they all compose together properly, but we could do it. However, the typing gets 
+more and more labourious as we go on, and here - the moment we finally leave expressions behind for 
+good - seems as reasonable a place as any to abandon it. This, of course, leaves us much more 
+dependent on the conversion correctness theorems, since they are now our only source of what it
+means for a state to be "correct".\<close>
 
-theorem determinismt: "\<Sigma> \<leadsto>\<^sub>t \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>t \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
-proof (induction \<Sigma> \<Sigma>' rule: evalt.induct)
-  case (evt_lookup env x v vs cd sfs)
-  from evt_lookup(2, 1) show ?case 
-    by (induction "TS vs ((env, TLookup x # cd) # sfs)" \<Sigma>'' rule: evalt.induct) simp_all 
+theorem determinism\<^sub>e: "\<Sigma> \<leadsto>\<^sub>e \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>e \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
+proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>e.induct)
+  case (ev\<^sub>e_lookup env x v \<V> \<C> sfs)
+  from ev\<^sub>e_lookup(2, 1) show ?case by (induction rule: eval\<^sub>e.cases) simp_all 
 next
-  case (evt_pushcon vs env k cd sfs)
-  thus ?case by (induction "TS vs ((env, TPushCon k # cd) # sfs)" \<Sigma>'' rule: evalt.induct) simp_all 
+  case (ev\<^sub>e_pushcon \<V> env k \<C> sfs)
+  thus ?case by  (induction rule: eval\<^sub>e.cases) simp_all 
 next
-  case (evt_pushlam vs env cd' cd sfs)
-  thus ?case by (induction "TS vs ((env, TPushLam cd' # cd) # sfs)" \<Sigma>'' rule: evalt.induct) simp_all 
+  case (ev\<^sub>e_pushlam \<V> env \<C>' \<C> sfs)
+  thus ?case by  (induction rule: eval\<^sub>e.cases) simp_all  
 next
-  case (evt_apply v env' cd' vs env cd sfs)
-  thus ?case 
-    by (induction "TS (v # TLam env' cd' # vs) ((env, TApply # cd) # sfs)" \<Sigma>'' rule: evalt.induct) 
-       simp_all 
+  case (ev\<^sub>e_apply v env' \<C>' \<V> env \<C> sfs)
+  thus ?case by (induction rule: eval\<^sub>e.cases) simp_all 
 next
-  case (evt_return vs env sfs)
-  thus ?case by (induction "TS vs ((env, []) # sfs)" \<Sigma>'' rule: evalt.induct) simp_all 
+  case (ev\<^sub>e_return \<V> env sfs)
+  thus ?case by (induction rule: eval\<^sub>e.cases) simp_all 
 qed
 
 end

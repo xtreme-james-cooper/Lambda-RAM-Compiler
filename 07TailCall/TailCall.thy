@@ -20,20 +20,20 @@ type_synonym tco_stack_frame = "tco_closure list \<times> tco_code list \<times>
 
 datatype tco_code_state = TCOS "tco_closure list" "tco_stack_frame list"
 
-inductive evaltco :: "tco_code_state \<Rightarrow> tco_code_state \<Rightarrow> bool" (infix "\<leadsto>\<^sub>t\<^sub>c\<^sub>o" 50) where
+inductive evaltco :: "tco_code_state \<Rightarrow> tco_code_state \<Rightarrow> bool" (infix "\<leadsto>\<^sub>e\<^sub>c\<^sub>o" 50) where
   evtco_lookup [simp]: "lookup env x = Some v \<Longrightarrow> 
-    TCOS vs ((env, TCOLookup x # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o TCOS (v # vs) ((env, cd, r) # sfs)"
-| evtco_pushcon [simp]: "TCOS vs ((env, TCOPushCon k # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
+    TCOS vs ((env, TCOLookup x # cd, r) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o TCOS (v # vs) ((env, cd, r) # sfs)"
+| evtco_pushcon [simp]: "TCOS vs ((env, TCOPushCon k # cd, r) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o 
     TCOS (TCOConst k # vs) ((env, cd, r) # sfs)"
-| evtco_pushlam [simp]: "TCOS vs ((env, TCOPushLam cd' r' # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
+| evtco_pushlam [simp]: "TCOS vs ((env, TCOPushLam cd' r' # cd, r) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o 
     TCOS (TCOLam env cd' r' # vs) ((env, cd, r) # sfs)"
-| evtco_apply [simp]: "TCOS (v # TCOLam env' cd' r' # vs) ((env, TCOApply # cd, r) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
+| evtco_apply [simp]: "TCOS (v # TCOLam env' cd' r' # vs) ((env, TCOApply # cd, r) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o 
     TCOS vs ((v # env', cd', r') # (env, cd, r) # sfs)"
-| evtco_return [simp]: "TCOS vs ((env, [], TCOReturn) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o TCOS vs sfs"
-| evtco_jump [simp]: "TCOS (v # TCOLam env' cd' r' # vs) ((env, [], TCOJump) # sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o 
+| evtco_return [simp]: "TCOS vs ((env, [], TCOReturn) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o TCOS vs sfs"
+| evtco_jump [simp]: "TCOS (v # TCOLam env' cd' r' # vs) ((env, [], TCOJump) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o 
     TCOS vs ((v # env', cd', r') # sfs)"
 
-theorem determinismt: "\<Sigma> \<leadsto>\<^sub>t\<^sub>c\<^sub>o \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>t\<^sub>c\<^sub>o \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
+theorem determinismt: "\<Sigma> \<leadsto>\<^sub>e\<^sub>c\<^sub>o \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>e\<^sub>c\<^sub>o \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: evaltco.induct)
   case (evtco_lookup env x v vs cd r sfs)
   from evtco_lookup(2, 1) show ?case 

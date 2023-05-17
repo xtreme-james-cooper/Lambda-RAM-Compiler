@@ -248,25 +248,25 @@ lemma [simp]: "lookup cd pc = Some (BPushLam pc') \<Longrightarrow> orderly cd 0
   using orderly_lam by fastforce
 
 theorem correctb [simp]: "cd \<tturnstile> \<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state cd \<Sigma>\<^sub>b \<Longrightarrow> 
-  iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state cd \<Sigma>\<^sub>b) (unflatten_state cd \<Sigma>\<^sub>b')"
+  iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (unflatten_state cd \<Sigma>\<^sub>b) (unflatten_state cd \<Sigma>\<^sub>b')"
 proof (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: evalb.induct)
   case (evb_lookup cd pc x env v vs sfs)
   hence "TCOS (ufcs cd vs) 
-    ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+    ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o
       TCOS (unflatten_closure cd v # ufcs cd vs)
         ((ufcs cd env, unflatten_code cd pc, unflatten_return cd pc) # ufsfs cd sfs)" by simp
   thus ?case by simp
 next
   case (evb_pushcon cd pc k vs env sfs)
   hence "TCOS (ufcs cd vs) 
-    ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+    ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o
       TCOS (TCOConst k # ufcs cd vs) 
         ((ufcs cd env, unflatten_code cd pc, unflatten_return cd pc) # ufsfs cd sfs)" by simp
   thus ?case by simp
 next
   case (evb_pushlam cd pc pc' vs env sfs)
   moreover hence X: "pc' \<le> pc" by auto
-  moreover have "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS (ufcs cd vs) ((ufcs cd env, 
+  moreover have "iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (TCOS (ufcs cd vs) ((ufcs cd env, 
     TCOPushLam (unflatten_code cd pc') (unflatten_return cd pc') # 
       unflatten_code cd pc, unflatten_return cd pc) # ufsfs cd sfs))
         (TCOS (TCOLam (ufcs cd env) (unflatten_code cd pc') (unflatten_return cd pc') # ufcs cd vs) 
@@ -277,29 +277,29 @@ next
   case (evb_apply cd pc v env' pc' vs env sfs)
   hence "TCOS (unflatten_closure cd v # TCOLam (ufcs cd env') (unflatten_code cd pc') 
     (unflatten_return cd pc') # ufcs cd vs) 
-      ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+      ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o
         TCOS (ufcs cd vs) ((unflatten_closure cd v # ufcs cd env', unflatten_code cd pc', 
           unflatten_return cd pc') # (ufcs cd env, unflatten_code cd pc, unflatten_return cd pc) # 
             ufsfs cd sfs)" by simp
   thus ?case by simp
 next
   case (evb_return cd pc vs env sfs)
-  moreover have "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS (ufcs cd vs) ((ufcs cd env, [], TCOReturn) # ufsfs cd sfs))
+  moreover have "iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (TCOS (ufcs cd vs) ((ufcs cd env, [], TCOReturn) # ufsfs cd sfs))
     (TCOS (ufcs cd vs) (ufsfs cd sfs))" by (metis evtco_return iter_one)
   ultimately show ?case by simp
 next
   case (evb_jump cd pc v env' pc' vs env sfs)
   have "TCOS (unflatten_closure cd v # TCOLam (ufcs cd env') (unflatten_code cd pc') 
     (unflatten_return cd pc') # ufcs cd vs) ((ufcs cd env, [], 
-      TCOJump) # ufsfs cd sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o TCOS (ufcs cd vs)
+      TCOJump) # ufsfs cd sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o TCOS (ufcs cd vs)
         ((unflatten_closure cd v # ufcs cd env', unflatten_code cd pc', unflatten_return cd pc') # 
           ufsfs cd sfs)" by (metis evtco_jump)
   with evb_jump have "TCOS (unflatten_closure cd v # 
     TCOLam (ufcs cd env') (unflatten_code cd pc') (unflatten_return cd pc') # ufcs cd vs)
-      ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs) \<leadsto>\<^sub>t\<^sub>c\<^sub>o
+      ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o
         TCOS (ufcs cd vs) ((unflatten_closure cd v # ufcs cd env', unflatten_code cd pc', 
           unflatten_return cd pc') # ufsfs cd sfs)" by simp
-  hence "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (TCOS (unflatten_closure cd v # 
+  hence "iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (TCOS (unflatten_closure cd v # 
     TCOLam (ufcs cd env') (unflatten_code cd pc') (unflatten_return cd pc') # ufcs cd vs)
       ((ufcs cd env, unflatten_code cd (Suc pc), unflatten_return cd (Suc pc)) # ufsfs cd sfs))
         (TCOS (ufcs cd vs) ((unflatten_closure cd v # ufcs cd env', unflatten_code cd pc', 
@@ -412,7 +412,7 @@ proof (induction sfsb "length cdb" rule: orderly_stack.induct)
   with 3 show ?case by simp
 qed simp_all
 
-theorem completeb [simp]: "unflatten_state cd\<^sub>b \<Sigma>\<^sub>b \<leadsto>\<^sub>t\<^sub>c\<^sub>o \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow>
+theorem completeb [simp]: "unflatten_state cd\<^sub>b \<Sigma>\<^sub>b \<leadsto>\<^sub>e\<^sub>c\<^sub>o \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>b'. iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state cd\<^sub>b \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'"
 proof (induction "unflatten_state cd\<^sub>b \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' rule: evaltco.induct)
   case (evtco_lookup env x v vs cd r sfs)
@@ -528,7 +528,7 @@ qed simp_all
 lemma [simp]: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b'"
   by (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: iter.induct) simp_all
 
-lemma [simp]: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state cd\<^sub>b \<Sigma>\<^sub>b) \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow>
+lemma [simp]: "iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (unflatten_state cd\<^sub>b \<Sigma>\<^sub>b) \<Sigma>\<^sub>t' \<Longrightarrow> orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>b'. iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state cd\<^sub>b \<Sigma>\<^sub>b' = \<Sigma>\<^sub>t'"
 proof (induction "unflatten_state cd\<^sub>b \<Sigma>\<^sub>b" \<Sigma>\<^sub>t' arbitrary: \<Sigma>\<^sub>b rule: iter.induct)
   case (iter_step \<Sigma>\<^sub>t' \<Sigma>\<^sub>t'')
@@ -550,11 +550,11 @@ proof -
   ultimately show ?thesis by simp
 qed
 
-lemma evalb_end [simp]: "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state cd\<^sub>b \<Sigma>\<^sub>b) (TCOS [c] []) \<Longrightarrow> 
+lemma evalb_end [simp]: "iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (unflatten_state cd\<^sub>b \<Sigma>\<^sub>b) (TCOS [c] []) \<Longrightarrow> 
   orderly_state cd\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow> 
     \<exists>v. iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b (BS [v] []) \<and> c = unflatten_closure cd\<^sub>b v"
 proof -
-  assume "iter (\<leadsto>\<^sub>t\<^sub>c\<^sub>o) (unflatten_state cd\<^sub>b \<Sigma>\<^sub>b) (TCOS [c] [])"
+  assume "iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (unflatten_state cd\<^sub>b \<Sigma>\<^sub>b) (TCOS [c] [])"
   moreover assume O: "orderly_state cd\<^sub>b \<Sigma>\<^sub>b"
   ultimately obtain \<Sigma>\<^sub>b' where E: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state cd\<^sub>b \<Sigma>\<^sub>b' = TCOS [c] []" 
     by fastforce

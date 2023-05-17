@@ -3,6 +3,7 @@ A simple verified compiler, from the (simple typed, call-by-value) lambda calcul
 Goals:
 
 - Figure out use for other direction of correctness proofs?
+- do reverse of type-saftey for conversions
 - Do reverse proofs for typechecking, assembly, machine?
 - Modularize code with classes
 - Remove runtime tags

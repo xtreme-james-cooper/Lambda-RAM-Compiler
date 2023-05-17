@@ -23,9 +23,9 @@ primrec print_closure :: "closure\<^sub>c \<Rightarrow> print" where
   "print_closure (Const\<^sub>c k) = Number k"
 | "print_closure (Lam\<^sub>c t cs e) = Fun"
 
-primrec print_tclosure :: "tclosure \<Rightarrow> print" where
-  "print_tclosure (TConst k) = Number k"
-| "print_tclosure (TLam cs cd) = Fun"
+primrec print_tclosure :: "closure\<^sub>e \<Rightarrow> print" where
+  "print_tclosure (Const\<^sub>e k) = Number k"
+| "print_tclosure (Lam\<^sub>e cs cd) = Fun"
 
 primrec print_tco_closure :: "tco_closure \<Rightarrow> print" where
   "print_tco_closure (TCOConst k) = Number k"
