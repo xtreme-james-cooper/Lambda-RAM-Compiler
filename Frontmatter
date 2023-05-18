@@ -172,14 +172,14 @@ e : an expression
 x, y, z : a variable
 n : a number
 b : an arithmetic operation
-v : an expression in normal form (i.e. a value)
+v : a value (an expression in normal form, or later a closure)
 t : a type
 \<Gamma> : a typing context
 \<Phi> : a naming context
 \<Sigma> : an evaluation state
 s : an evaluation (or call) stack
-c : a closure (or other value)
 \<C> : a block of code
+r : a return code
 \<V> : a value stack
 \<Delta> : an environment
 \<tau> : a unification term
@@ -212,7 +212,7 @@ m : stage 14 (Machine code)
 
 Thus the statement of the stack correctness theorem, for instance, is 
 
-\<Sigma>\<^sub>k :\<^sub>k t \<Longrightarrow> unwind \<Sigma>\<^sub>k \<leadsto>\<^sub>d e\<^sub>d' \<Longrightarrow> \<exists>\<Sigma>\<^sub>k'. iter (\<leadsto>\<^sub>k) \<Sigma>\<^sub>k \<Sigma>\<^sub>k' \<and> e\<^sub>d' = unwind \<Sigma>\<^sub>k'
+\<Sigma>\<^sub>k :\<^sub>k t \<Longrightarrow> unstack \<Sigma>\<^sub>k \<leadsto>\<^sub>d e' \<Longrightarrow> \<exists>\<Sigma>\<^sub>k'. iter (\<leadsto>\<^sub>k) \<Sigma>\<^sub>k \<Sigma>\<^sub>k' \<and> e' = unstack \<Sigma>\<^sub>k'
 
 subsection - Bibliography
 
