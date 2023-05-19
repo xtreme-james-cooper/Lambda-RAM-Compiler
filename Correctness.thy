@@ -44,13 +44,13 @@ proof -
     (encode_state (SC\<^sub>c [] c))" by (metis correct\<^sub>e_iter)
   hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e [] [([], encode (unname e\<^sub>t))]) (S\<^sub>e [encode_closure c] [])" 
     by (simp add: encode_def)
-  hence "iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (tco_state (S\<^sub>e [] [([], encode (unname e\<^sub>t))])) 
+  hence "iter (\<leadsto>\<^sub>l) (tco_state (S\<^sub>e [] [([], encode (unname e\<^sub>t))])) 
     (tco_state (S\<^sub>e [encode_closure c] []))" by (metis iter_tco_eval)
-  hence ET: "iter (\<leadsto>\<^sub>e\<^sub>c\<^sub>o) (TCOS [] [([], tco_cd (encode (unname e\<^sub>t)), tco_r (encode (unname e\<^sub>t)))]) 
-    (TCOS [tco_val (encode_closure c)] [])" by simp
+  hence ET: "iter (\<leadsto>\<^sub>l) (S\<^sub>l [] [([], tco_cd (encode (unname e\<^sub>t)), tco_r (encode (unname e\<^sub>t)))]) 
+    (S\<^sub>l [tco_val (encode_closure c)] [])" by simp
   let ?cd = "(flatten_code \<circ> tco \<circ> encode \<circ> unname) e\<^sub>t"
   have UB: "unflatten_state ?cd (BS [] [([], length ?cd)]) = 
-    TCOS [] [([], tco_cd (encode (unname e\<^sub>t)), tco_r (encode (unname e\<^sub>t)))]" 
+    S\<^sub>l [] [([], tco_cd (encode (unname e\<^sub>t)), tco_r (encode (unname e\<^sub>t)))]" 
       by (auto simp add: tco_def simp del: flatten_code.simps)
   have "orderly_state ?cd (BS [] [([], length ?cd)])" by auto
   with ET UB obtain v\<^sub>b where EB: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>b) (BS [] [([], length ?cd)]) (BS [v\<^sub>b] []) \<and> 

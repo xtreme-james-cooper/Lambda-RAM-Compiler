@@ -416,6 +416,10 @@ next
   have "SC\<^sub>c (FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c) c \<leadsto>\<^sub>c SC\<^sub>c s\<^sub>c c" by simp
   hence "iter (\<leadsto>\<^sub>c) (SC\<^sub>c (FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c) c) (SC\<^sub>c s\<^sub>c c)" by (metis iter_one)
   with S show ?case by auto
+next
+  case (ev\<^sub>e_jump v \<Delta>\<^sub>e' \<C>' r' \<V> \<Delta>\<^sub>e s\<^sub>e)
+  hence "encode_state \<Sigma>\<^sub>c = S\<^sub>e (v # Lam\<^sub>e \<Delta>\<^sub>e' \<C>' r' # \<V>) ((\<Delta>\<^sub>e, [], Jump\<^sub>e) # s\<^sub>e)" by simp
+  thus ?case by auto
 qed
 
 end

@@ -2,6 +2,9 @@ theory Compiler
   imports Printing "04Stack/StackConversion" "12UnstructuredMemory/Unstructuring" 
 begin
 
+primrec tco :: "code\<^sub>e list \<times> return\<^sub>e \<Rightarrow> code\<^sub>e list \<times> return\<^sub>e" where
+  "tco (\<C>, r) = (tco_code \<C>, tco_return \<C> r)"
+
 abbreviation code_compile :: "ty expr\<^sub>s \<Rightarrow> mach list" where
   "code_compile \<equiv> disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco \<circ> encode \<circ> unname"
 

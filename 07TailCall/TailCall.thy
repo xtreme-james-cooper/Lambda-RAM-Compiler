@@ -2,66 +2,72 @@ theory TailCall
   imports "../00Utils/Environment"
 begin
 
-datatype tco_return =
-    TCOReturn
-  | TCOJump
+section \<open>Tail Call Optimization\<close>
 
-datatype tco_code = 
-  TCOLookup nat
-  | TCOPushCon nat
-  | TCOPushLam "tco_code list" tco_return
-  | TCOApply
+text \<open>Our previous stage never really returned; it just popped stack frames every time it ran out of 
+code to execute. We now add explicit return operations at the end of each code block. This will help 
+make it clear where blocks end, once we no longer have the luxury of tree-structured code in the 
+next stage - but for now it will also help us enact our one optimization.\<close>
 
-datatype tco_closure = 
-  TCOConst nat
-  | TCOLam "tco_closure list" "tco_code list" tco_return
+text \<open>We therefore add a second kind of return, \<open>Jump\<^sub>l\<close>, which combines the effect of an \<open>Apply\<^sub>l\<close> and 
+a \<open>Return\<^sub>l\<close>.\<close>
 
-type_synonym tco_stack_frame = "tco_closure list \<times> tco_code list \<times> tco_return"
+datatype return\<^sub>l =
+    Return\<^sub>l
+    | Jump\<^sub>l
 
-datatype tco_code_state = TCOS "tco_closure list" "tco_stack_frame list"
+text \<open>The code, closures, stacks, and states remain the same, except that every code block is now 
+paired with its return.\<close>
 
-inductive evaltco :: "tco_code_state \<Rightarrow> tco_code_state \<Rightarrow> bool" (infix "\<leadsto>\<^sub>e\<^sub>c\<^sub>o" 50) where
-  evtco_lookup [simp]: "lookup env x = Some v \<Longrightarrow> 
-    TCOS vs ((env, TCOLookup x # cd, r) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o TCOS (v # vs) ((env, cd, r) # sfs)"
-| evtco_pushcon [simp]: "TCOS vs ((env, TCOPushCon k # cd, r) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o 
-    TCOS (TCOConst k # vs) ((env, cd, r) # sfs)"
-| evtco_pushlam [simp]: "TCOS vs ((env, TCOPushLam cd' r' # cd, r) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o 
-    TCOS (TCOLam env cd' r' # vs) ((env, cd, r) # sfs)"
-| evtco_apply [simp]: "TCOS (v # TCOLam env' cd' r' # vs) ((env, TCOApply # cd, r) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o 
-    TCOS vs ((v # env', cd', r') # (env, cd, r) # sfs)"
-| evtco_return [simp]: "TCOS vs ((env, [], TCOReturn) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o TCOS vs sfs"
-| evtco_jump [simp]: "TCOS (v # TCOLam env' cd' r' # vs) ((env, [], TCOJump) # sfs) \<leadsto>\<^sub>e\<^sub>c\<^sub>o 
-    TCOS vs ((v # env', cd', r') # sfs)"
+datatype code\<^sub>l = 
+  Lookup\<^sub>l nat
+  | PushCon\<^sub>l nat
+  | PushLam\<^sub>l "code\<^sub>l list" return\<^sub>l
+  | Apply\<^sub>l
 
-theorem determinismt: "\<Sigma> \<leadsto>\<^sub>e\<^sub>c\<^sub>o \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>e\<^sub>c\<^sub>o \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
-proof (induction \<Sigma> \<Sigma>' rule: evaltco.induct)
-  case (evtco_lookup env x v vs cd r sfs)
-  from evtco_lookup(2, 1) show ?case 
-    by (induction "TCOS vs ((env, TCOLookup x # cd, r) # sfs)" \<Sigma>'' rule: evaltco.induct) simp_all 
+datatype closure\<^sub>l = 
+  Const\<^sub>l nat
+  | Lam\<^sub>l "closure\<^sub>l list" "code\<^sub>l list" return\<^sub>l
+
+type_synonym frame\<^sub>l = "closure\<^sub>l list \<times> code\<^sub>l list \<times> return\<^sub>l"
+
+datatype state\<^sub>l = S\<^sub>l "closure\<^sub>l list" "frame\<^sub>l list"
+
+text \<open>The evaluation relation closely matches the previous stage's, with the obvious exception of 
+\<open>ev\<^sub>l_jump\<close>. This takes the top two values and applies them together, but unlike \<open>ev\<^sub>l_apply\<close>, it 
+replaces the topmost stack frame entirely rather than pushing on top - exactly the tail-call 
+optimization we want to express.\<close>
+
+inductive eval\<^sub>l :: "state\<^sub>l \<Rightarrow> state\<^sub>l \<Rightarrow> bool" (infix "\<leadsto>\<^sub>l" 50) where
+  ev\<^sub>l_lookup [simp]: "lookup \<Delta> x = Some v \<Longrightarrow> 
+    S\<^sub>l \<V> ((\<Delta>, Lookup\<^sub>l x # \<C>, r) # s) \<leadsto>\<^sub>l S\<^sub>l (v # \<V>) ((\<Delta>, \<C>, r) # s)"
+| ev\<^sub>l_pushcon [simp]: "S\<^sub>l \<V> ((\<Delta>, PushCon\<^sub>l n # \<C>, r) # s) \<leadsto>\<^sub>l S\<^sub>l (Const\<^sub>l n # \<V>) ((\<Delta>, \<C>, r) # s)"
+| ev\<^sub>l_pushlam [simp]: "S\<^sub>l \<V> ((\<Delta>, PushLam\<^sub>l \<C>' r' # \<C>, r) # s) \<leadsto>\<^sub>l 
+    S\<^sub>l (Lam\<^sub>l \<Delta> \<C>' r' # \<V>) ((\<Delta>, \<C>, r) # s)"
+| ev\<^sub>l_apply [simp]: "S\<^sub>l (v # Lam\<^sub>l \<Delta>' \<C>' r' # \<V>) ((\<Delta>, Apply\<^sub>l # \<C>, r) # s) \<leadsto>\<^sub>l 
+    S\<^sub>l \<V> ((v # \<Delta>', \<C>', r') # (\<Delta>, \<C>, r) # s)"
+| ev\<^sub>l_return [simp]: "S\<^sub>l \<V> ((\<Delta>, [], Return\<^sub>l) # s) \<leadsto>\<^sub>l S\<^sub>l \<V> s"
+| ev\<^sub>l_jump [simp]: "S\<^sub>l (v # Lam\<^sub>l \<Delta>' \<C>' r' # \<V>) ((\<Delta>, [], Jump\<^sub>l) # s) \<leadsto>\<^sub>l S\<^sub>l \<V> ((v # \<Delta>', \<C>', r') # s)"
+
+theorem determinism\<^sub>l: "\<Sigma> \<leadsto>\<^sub>l \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>l \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
+proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>l.induct)
+  case ev\<^sub>l_lookup
+  from ev\<^sub>l_lookup(2, 1) show ?case by (induction rule: eval\<^sub>l.cases) simp_all 
 next
-  case (evtco_pushcon vs env k cd r sfs)
-  thus ?case 
-    by (induction "TCOS vs ((env, TCOPushCon k # cd, r) # sfs)" \<Sigma>'' rule: evaltco.induct) simp_all 
+  case ev\<^sub>l_pushcon
+  thus ?case by (induction rule: eval\<^sub>l.cases) simp_all 
 next
-  case (evtco_pushlam vs env cd' r' cd r sfs)
-  thus ?case 
-    by (induction "TCOS vs ((env, TCOPushLam cd' r' # cd, r) # sfs)" \<Sigma>'' rule: evaltco.induct) 
-       simp_all 
+  case ev\<^sub>l_pushlam
+  thus ?case by (induction rule: eval\<^sub>l.cases) simp_all 
 next
-  case (evtco_apply v env' cd' r' vs env cd r sfs)
-  thus ?case 
-    by (induction "TCOS (v # TCOLam env' cd' r' # vs) ((env, TCOApply # cd, r) # sfs)" \<Sigma>'' 
-        rule: evaltco.induct) 
-       simp_all 
+  case ev\<^sub>l_apply
+  thus ?case by (induction rule: eval\<^sub>l.cases) simp_all 
 next
-  case (evtco_return vs env sfs)
-  thus ?case by (induction "TCOS vs ((env, [], TCOReturn) # sfs)" \<Sigma>'' rule: evaltco.induct) simp_all 
+  case ev\<^sub>l_return
+  thus ?case by (induction rule: eval\<^sub>l.cases) simp_all 
 next
-  case (evtco_jump v env' cd' r' vs env sfs)
-  thus ?case 
-    by (induction "TCOS (v # TCOLam env' cd' r' # vs) ((env, [], TCOJump) # sfs)" \<Sigma>''
-        rule: evaltco.induct) 
-       simp_all 
+  case ev\<^sub>l_jump
+  thus ?case by (induction rule: eval\<^sub>l.cases) simp_all 
 qed
 
 end

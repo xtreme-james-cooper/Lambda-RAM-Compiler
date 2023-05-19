@@ -17,3 +17,4 @@ Refactorings:
 - constr_subst -> full substitution?
 - Make contraint functions use list functions?
 - Make all definitions abstract outside their file
+- rename closure stuff
