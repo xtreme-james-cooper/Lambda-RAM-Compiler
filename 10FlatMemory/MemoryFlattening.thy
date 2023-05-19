@@ -1,5 +1,5 @@
 theory MemoryFlattening                   
-  imports FlatMemory "../09HeapMemory/HeapConversion" "../10ChainedEnvironment/Chaining"
+  imports FlatMemory "../08HeapMemory/HeapConversion" "../09ChainedEnvironment/Chaining"
 begin
 
 primrec flatten_closure :: "ceclosure \<Rightarrow> nat list" where

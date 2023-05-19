@@ -1,5 +1,5 @@
 theory ChainedEnvironment
-  imports "../08ByteCode/ByteCode" "../09HeapMemory/Heap"
+  imports "../07ByteCode/ByteCode" "../08HeapMemory/Heap"
 begin
 
 datatype ceclosure = 

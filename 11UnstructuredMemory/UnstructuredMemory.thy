@@ -1,5 +1,5 @@
 theory UnstructuredMemory
-  imports "../08ByteCode/CodeFlattening"
+  imports "../07ByteCode/CodeFlattening"
 begin
 
 datatype unstr_state = 

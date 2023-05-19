@@ -1,5 +1,5 @@
 theory HeapMemory
-  imports "../08ByteCode/ByteCode" Heap
+  imports "../07ByteCode/ByteCode" Heap
 begin
 
 datatype hclosure = 

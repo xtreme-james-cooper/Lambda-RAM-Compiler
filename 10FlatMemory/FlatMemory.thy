@@ -1,5 +1,5 @@
 theory FlatMemory
-  imports "../10ChainedEnvironment/ChainedEnvironment"
+  imports "../09ChainedEnvironment/ChainedEnvironment"
 begin
 
 datatype flat_state = 

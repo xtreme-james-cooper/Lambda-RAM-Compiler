@@ -1,5 +1,5 @@
 theory Chaining
-  imports ChainedEnvironment "../09HeapMemory/HeapMemory"
+  imports ChainedEnvironment "../08HeapMemory/HeapMemory"
 begin
 
 abbreviation chain_structured :: "ceclosure heap \<Rightarrow> (ptr \<times> ptr) heap \<Rightarrow> bool" where

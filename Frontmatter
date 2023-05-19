@@ -70,38 +70,36 @@ examination at compile-time, converting these expressions into a list of operati
 executing the list. The code is tree-structured, because the "TPushLam" operation contains a sublist 
 with the code for the function body.
 
-7) Tail-Call Elimination. Our one optimization pass. The tree-code stage implicitly returned up the 
-call stack at the end of each block of code; we now end each block of code with an explicit return. 
-This explicitness also allows us to optimize away some returns, when we jump to a function in 
-tail-position.
+6b) Tail-Call Elimination. Our one optimization pass. We add a second kind of return, a jump, which
+enables us to optimize the calling of functions in tail-position (see, for example, [7]).
 
-8) Byte Code Compilation. Real code, of course, is not tree-structured. We flatten out our trees by
+7) Byte Code Compilation. Real code, of course, is not tree-structured. We flatten out our trees by
 moving each block of code into a single linear sequence of bytecode, and replace the inline code of 
 closure values and stack frames with code-pointers into this sequence.
 
-9) Heap Memory. Until now values have been copied and stored in lists in our evaluation state. We 
+8) Heap Memory. Until now values have been copied and stored in lists in our evaluation state. We 
 add a heap and replace our value stack and environments with stacks of pointers into this heap. 
 
-10) Environment Chaining. Our environments are still stacks of stacks of pointers, which, unlike the
+9) Environment Chaining. Our environments are still stacks of stacks of pointers, which, unlike the
 one-dimensional value and call stacks, cannot easily be replaced by flat arrays. We instead replace 
 them by heap-stored linked lists using explicit pointers from cons-cell to cons-cell.
 
-11) Flat Memory. Our environment-chaining heaps (both the main heap and the heap in which we have 
+10) Flat Memory. Our environment-chaining heaps (both the main heap and the heap in which we have 
 just built our environment linked lists) contain structured data. We flatten them out into 
 sequential naturals (representing real memory locations): a closure 
 `x \<mapsto> Closure code_pointer env_pointer`, for instance, is now represented as 
 `3 * x \<mapsto> 0 [tag indicating a closure] ; 3 * x + 1 \<mapsto> code_pointer ; 3 * x + 2 \<mapsto> env_pointer`.
 
-12) Unstructured Memory. The flat memory stage still has lists for the value and call stacks. These 
+11) Unstructured Memory. The flat memory stage still has lists for the value and call stacks. These 
 are now converted into arrays (represented as `nat \<Rightarrow> nat` functions with associated stack 
 pointers). We likewise replace our heap abstraction with plain arrays.
 
-13) Assembly Compilation. At this point, our evaluation state looks very much like our ultimate 
+12) Assembly Compilation. At this point, our evaluation state looks very much like our ultimate 
 machine will, containing nothing but some `nat \<Rightarrow> nat` arrays and nat registers. We therefore 
 continue compilation by replacing each byte code operation with a packaged sequence of assembly 
 code, performing much smaller steps on the simpler state. 
 
-14) Machine Compilation. We complete the compilation process by collapsing our separate arrays into 
+13) Machine Compilation. We complete the compilation process by collapsing our separate arrays into 
 a single shared memory, and replacing our assembly opcodes with machine opcodes.
 
 subsection - Structure of each stage
@@ -201,14 +199,13 @@ d : stage 3 (Debruijn variables)
 k : stage 4 (stacK evaluation)
 c : stage 5 (Closure conversion)
 e : stage 6 (trEE code)
-l : stage 7 (taiL-call elimination)
-b : stage 8 (Byte code)
-h : stage 9 (Heap memory)
-v : stage 10 (enVironment chaining)
-f : stage 11 (Flat code)
-r : stage 12 (unstRuctured memory)
-a : stage 13 (Assembly code)
-m : stage 14 (Machine code)
+b : stage 7 (Byte code)
+h : stage 8 (Heap memory)
+v : stage 9 (enVironment chaining)
+f : stage 10 (Flat code)
+r : stage 11 (unstRuctured memory)
+a : stage 12 (Assembly code)
+m : stage 13 (Machine code)
 
 Thus the statement of the stack correctness theorem, for instance, is 
 
@@ -234,7 +231,8 @@ subsection - Bibliography
 [6] Robert Harper. 2016. _Practical Foundations for Programming Languages_ (2nd ed).
 Cambridge University Press, New York, NY.
 
-
+[7] Guy Steele. 1976. _Lambda: The Ultimate Declarative_. Technical Report. Massachusetts Institute 
+  of Technology, MA.
 
 
 

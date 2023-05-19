@@ -1,5 +1,5 @@
 theory Unstructuring
-  imports UnstructuredMemory "../11FlatMemory/FlatMemory" "../00Utils/Utils" 
+  imports UnstructuredMemory "../10FlatMemory/FlatMemory" "../00Utils/Utils" 
 begin
 
 primrec restructure :: "unstr_state \<Rightarrow> flat_state" where
