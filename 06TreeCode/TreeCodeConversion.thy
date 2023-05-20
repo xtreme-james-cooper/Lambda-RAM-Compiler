@@ -8,8 +8,8 @@ text \<open>This is our first real compilation phase; typechecking and name-remo
 just modifying an underlying expression, but here we genuinely reshape our expressions into code. 
 The first few steps are simple: encoding an expression means shuffling it into a postfix form, and 
 tree-code closures-values are just encoded stack closure-values. We add a \<open>Return\<^sub>e\<close> operation on at 
-the end of ever code block, too; we never encode the \<open>Jump\<^sub>e\<close> operation. Its place will come a little 
-later.\<close>
+the end of every code block, too; we never encode the \<open>Jump\<^sub>e\<close> operation. Its place will come a 
+little later.\<close>
 
 primrec encode' :: "expr\<^sub>d \<Rightarrow> code\<^sub>e list" where
   "encode' (Var\<^sub>d x) = [Lookup\<^sub>e x]"

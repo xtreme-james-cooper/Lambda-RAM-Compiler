@@ -15,10 +15,10 @@ application is now an operation without arguments; we have restructured the expr
 postfix form. Lambda-abstractions keep their sub-codeblock, however (hence the name "tree" code). We 
 Will eliminate this too, but not for a few stages yet. We also create an explicit return operation, 
 to pop frames off the stack, rather than simply doing so when we run out of code. We arrange - 
-although we do not enforce syntactically - that every code block ends with a \<open>Return\<^sub>e\<close>. This will 
-help make it clear where blocks end, once we no longer have the luxury of tree-structured code in 
-the next stage - but the second return-like operation \<open>Jump\<^sub>e\<close>, which we do not use yet, will also 
-come in useful for tail-call optimization soon.\<close>
+although we do not enforce syntactically - that every code block ends with a \<open>Return\<^sub>e\<close> (or, later, a
+\<open>Jump\<^sub>e\<close>). This will help make it clear where blocks end, once we no longer have the luxury of 
+tree-structured code in the next stage; but the second return-like operation \<open>Jump\<^sub>e\<close> will also come 
+in useful for tail-call optimization soon.\<close>
 
 datatype code\<^sub>e = 
   Lookup\<^sub>e nat
@@ -27,6 +27,13 @@ datatype code\<^sub>e =
   | Apply\<^sub>e
   | Return\<^sub>e
   | Jump\<^sub>e
+
+fun properly_terminated\<^sub>e :: "code\<^sub>e list \<Rightarrow> bool" where
+  "properly_terminated\<^sub>e [] = False"
+| "properly_terminated\<^sub>e (PushLam\<^sub>e cd' # cd) = (properly_terminated\<^sub>e cd' \<and> properly_terminated\<^sub>e cd)"
+| "properly_terminated\<^sub>e (Return\<^sub>e # cd) = (cd = [])"
+| "properly_terminated\<^sub>e (Jump\<^sub>e # cd) = (cd = [])"
+| "properly_terminated\<^sub>e (op # cd) = properly_terminated\<^sub>e cd"
 
 text \<open>Our closure-values remain the same, with just a change from a function body to a function 
 codeblock in closures-proper.\<close>

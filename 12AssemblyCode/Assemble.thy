@@ -150,6 +150,10 @@ lemma [simp]: "assemble_code [] \<tturnstile>\<^sub>a \<Sigma> = None"
 lemma [simp]: "assembly_map cd 0 = 0"
   by (induction cd) simp_all
 
+lemma assembly_map_postpend [simp]: "
+    assembly_map (cd @ cd') (length cd) = assembly_map cd (length cd)"
+  by (induction cd) simp_all
+
 lemma assm_map_to_suc' [simp]: "assembly_map cd\<^sub>b pc\<^sub>b = Suc pc\<^sub>a \<Longrightarrow> pc\<^sub>b \<le> length cd\<^sub>b \<Longrightarrow> 
   \<exists>pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a''. pc\<^sub>b = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
     pc\<^sub>a = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and> 
@@ -765,31 +769,37 @@ lemma [simp]: "assm_stk cd (mp(0 := a, Suc 0 := b)) 2 =
     (\<lambda>x. (Con 0, 0))(0 := (PC 0, assembly_map cd a), Suc 0 := (Reg Env, b))"
   by rule (simp add: assemble_stack_def)
 
-lemma [simp]: "assembly_map (flatten_code' lib cd @ cd') (code_list_size cd) = 
-  assembly_map (flatten_code' lib cd) (code_list_size cd)"
-proof (induction lib cd arbitrary: cd' rule: flatten_code'.induct)
-  case (4 lib cd'' cd)
+lemma [simp]: "
+  assembly_map (lib @ flatten_code' (length lib) cd @ cd') (length lib + code_list_size cd) = 
+    assembly_map (lib @ flatten_code' (length lib) cd) (length (lib @ flatten_code' (length lib) cd))"
+        by (metis assembly_map_postpend append.assoc length_append flatten_length)
 
-
-  have "assembly_map
-     (flatten_code' lib cd'' @
-      flatten_code' (lib + code_list_size cd'') cd @ BPushLam (lib + code_list_size cd'') # cd')
-     (code_list_size cd'' + code_list_size cd) =
-    assembly_map
-     (flatten_code' lib cd'' @ flatten_code' (lib + code_list_size cd'') cd @ [BPushLam (lib + code_list_size cd'')])
-     (code_list_size cd'' + code_list_size cd)" by simp
-  then show ?case by simp
+lemma assembly_map_flatten' [simp]: "return_terminated\<^sub>e cd \<Longrightarrow>
+  assembly_map (lib @ flatten_code' (length lib) cd) (length lib + code_list_size cd) = 
+    sum_list (map (Suc \<circ> assemble_op_len) (lib @ flatten_code' (length lib) cd))"
+proof (induction "length lib" cd arbitrary: lib rule: flatten_code'.induct)
+  case (4 cd' cd)
+  let ?lib = "lib @ flatten_code' (length lib) cd'"
+  let ?cd = "flatten_code' (length ?lib) cd"
+  have X: "assembly_map (?lib @ ?cd @ [BPushLam (length lib + code_list_size cd')]) 
+    (length ?lib + code_list_size cd) = assembly_map (?lib @ ?cd) (length (?lib @ ?cd))" 
+      by (metis assembly_map_postpend append.assoc length_append flatten_length)
+  from 4 have Y: "return_terminated\<^sub>e cd" by simp
+  have "length lib + length (flatten_code' (length lib) cd') = length ?lib" by simp
+  with 4 Y have "assembly_map (?lib @ ?cd) (length ?lib + code_list_size cd) =
+    sum_list (map (Suc \<circ> assemble_op_len) (?lib @ ?cd))" by blast
+  with X show ?case by (simp add: add.assoc) 
 qed simp_all
 
-lemma [simp]: "assembly_map (flatten_code' lib cd) (code_list_size cd) = 
-  sum_list (map (Suc \<circ> assemble_op_len) (flatten_code' lib cd))"
-proof (induction lib cd rule: flatten_code'.induct)
-  case (4 lib cd' cd)
-  then show ?case by simp
-qed simp_all
-
-lemma [simp]: "assembly_map (flatten_code cd) (code_list_size cd) = 
+lemma [simp]: "return_terminated\<^sub>e cd \<Longrightarrow> assembly_map (flatten_code cd) (code_list_size cd) = 
     sum_list (map (Suc \<circ> assemble_op_len) (flatten_code cd))"
-  by (simp add: flatten_code_def)
+proof (unfold flatten_code_def)
+  assume "return_terminated\<^sub>e cd"
+  hence "assembly_map ([] @ flatten_code' 0 cd) (length [] + code_list_size cd) = 
+    sum_list (map (Suc \<circ> assemble_op_len) ([] @ flatten_code' 0 cd))" 
+      by (metis assembly_map_flatten' list.size(3))
+  thus "assembly_map (flatten_code' 0 cd) (code_list_size cd) = 
+    sum_list (map (Suc \<circ> assemble_op_len) (flatten_code' 0 cd))" by simp
+qed
 
 end

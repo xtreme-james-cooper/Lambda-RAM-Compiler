@@ -7,15 +7,15 @@ subsection \<open>Tail-Call Optimization\<close>
 text \<open>A tail-call is a function call that takes place at the very end of another function's body. 
 The significance of this becomes clear when you consider the naive execution of such a function. The 
 last thing the outer function does before it returns is to call the inner function; then, when the 
-inner function returns, the outer function immediately returns too. The outer function's stack frame 
-remains in the stack the whole time the inner function is executing, despite the fact that it will 
-never be needed again. Tail-call optimization changes the push into the inner function into a 
+inner function returns, the outer function returns immediately after. The outer function's stack 
+frame remains in the stack the whole time the inner function is executing, despite the fact that it 
+will never be needed again. Tail-call optimization changes the push into the inner function into a 
 _jump_ to the inner function, replacing the one frame with the other - the call stack is shorter, 
 and execution is quicker too, since the effort of preserving and then popping the outer frame is 
 avoided. When applied systematically the effect can be quite great: notably, recursive functions 
 that only make recursive calls in tail-position ("tail-recursive functions") can be executed in 
-constant space, just like an imperative loop. This is precisely what we added the \<open>Jump\<^sub>e\<close> 
-instruction to express.\<close>
+constant space, just like an imperative loop. This improvement is precisely what we added the 
+\<open>Jump\<^sub>e\<close> instruction to express.\<close>
 
 text \<open>What exactly do we change with tail-call optimization? We replace every sequence of an
 \<open>Apply\<^sub>e\<close> followed by a \<open>Return\<^sub>e\<close> with a \<open>Jump\<^sub>e\<close>, obviously. But we also eliminate certain frames from
@@ -66,9 +66,13 @@ proof (induction \<C> rule: tco_code.induct)
   thus ?case by (cases \<C>) simp_all
 qed simp_all
 
+lemma [simp]: "properly_terminated\<^sub>e (tco_code cd) = properly_terminated\<^sub>e cd"
+  by (induction cd rule: tco_code.induct) simp_all
+
 text \<open>We will of course prove that tail-call removal is semantics-preserving, but we will not 
 formally prove that it really is "an optimization". Instead, we will prove some much simpler results 
-that indicate _why_ it is an optimization, and what a full proof would need to formalize.\<close>
+that indicate _why_ it is an optimization, and gesture towards what a full proof would need to 
+formalize.\<close>
 
 text \<open>The optimized code is always shorter. Since tail-call removal is a local optimization, leaving 
 the global structure of the computation intact, any codeblock executed before it will be executed 
@@ -80,8 +84,8 @@ theorem tco_always_shorter_code [simp]: "length (tco_code \<C>) \<le> length \<C
   by (induction \<C> rule: tco_code.induct) simp_all
 
 text \<open>The value stack - what we might consider something like a proxy for the heap usage - is 
-unchanged by tail-call removal. But the call stack - which remains the call stack throughout 
-compilation - is made shorter:\<close>
+unchanged by tail-call removal. But the call stack, which remains the call stack throughout 
+compilation, is made shorter:\<close>
 
 primrec get_callstack :: "state\<^sub>e \<Rightarrow> frame\<^sub>e list" where
   "get_callstack (S\<^sub>e \<V> s) = s"

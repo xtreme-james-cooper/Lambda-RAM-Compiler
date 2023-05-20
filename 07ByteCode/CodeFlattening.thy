@@ -77,8 +77,8 @@ primrec return_terminated\<^sub>b :: "byte_code list \<Rightarrow> bool" where
 fun return_terminated\<^sub>e :: "code\<^sub>e list \<Rightarrow> bool" where
   "return_terminated\<^sub>e [] = False"
 | "return_terminated\<^sub>e (PushLam\<^sub>e cd' # cd) = (return_terminated\<^sub>e cd' \<and> return_terminated\<^sub>e cd)"
-| "return_terminated\<^sub>e (Return\<^sub>e # cd) = (cd = [] \<or> return_terminated\<^sub>e cd)"
-| "return_terminated\<^sub>e (Jump\<^sub>e # cd) = (cd = [] \<or> return_terminated\<^sub>e cd)"
+| "return_terminated\<^sub>e (Return\<^sub>e # cd) = (cd = [])"
+| "return_terminated\<^sub>e (Jump\<^sub>e # cd) = (cd = [])"
 | "return_terminated\<^sub>e (op # cd) = return_terminated\<^sub>e cd"
 
 fun orderly_stack :: "(bclosure list \<times> nat) list \<Rightarrow> nat \<Rightarrow> bool" where
@@ -132,15 +132,10 @@ lemma [simp]: "ordered op (x + n) \<Longrightarrow> ordered op (x + (m + n))"
 lemma [simp]: "orderly (cd @ cd') n = (orderly cd n \<and> orderly cd' (length cd + n))"
   by (induction cd arbitrary: n) simp_all
 
-lemma [simp]: "lib \<le> n \<Longrightarrow> orderly (flatten_code' lib cd) n"
-proof (induction lib cd arbitrary: n rule: flatten_code'.induct)
-  case (4 lib cd' cd)
+lemma [simp]: "lib \<le> n \<Longrightarrow> return_terminated\<^sub>e cd \<Longrightarrow> orderly (flatten_code' lib cd) n"
+  by (induction lib cd arbitrary: n rule: flatten_code'.induct) auto
 
-  have "orderly (flatten_code' lib (PushLam\<^sub>e cd' # cd)) n" by simp
-  thus ?case by simp
-qed simp_all
-
-lemma [simp]: "orderly (flatten_code cdr) 0"
+lemma [simp]: "return_terminated\<^sub>e cdr \<Longrightarrow> orderly (flatten_code cdr) 0"
   by (simp add: flatten_code_def)
 
 lemma [simp]: "x > 0 \<Longrightarrow> orderly_stack [([], x)] x"
@@ -184,40 +179,34 @@ lemma unflatten_front [simp]: "pc \<le> length cd \<Longrightarrow>
     unflatten_code (cd @ cd') pc = unflatten_code cd pc"
   by (induction cd pc rule: unflatten_code.induct) (simp_all split: option.splits byte_code.splits) 
 
-lemma unflatten_flatten [simp]: "unflatten_code (lib @ flatten_code' (length lib) cd @ acc) 
-  (length lib + code_list_size cd) = cd"
+lemma unflatten_flatten [simp]: "return_terminated\<^sub>e cd \<Longrightarrow> 
+  unflatten_code (lib @ flatten_code' (length lib) cd @ acc) (length lib + code_list_size cd) = cd"
 proof (induction "length lib" cd arbitrary: lib acc rule: flatten_code'.induct)
-  case 1
-  thus ?case by simp
-next
   case (4 cd' cd)
   let ?pc = "length lib + code_list_size cd'"
   let ?code' = "lib @ flatten_code' (length lib) cd' @ []"
   let ?code = "?code' @ flatten_code' ?pc cd @ BPushLam ?pc # acc"
-  have "length lib + length (flatten_code' (length lib) cd') = length ?code'" by simp
-  with 4 have "unflatten_code (?code' @ flatten_code' (length ?code') cd @
+  have X: "length lib + length (flatten_code' (length lib) cd') = length ?code'" by simp
+  from 4 have "return_terminated\<^sub>e cd" by simp
+  with 4 X have "unflatten_code (?code' @ flatten_code' (length ?code') cd @
     BPushLam (length lib + length (flatten_code' (length lib) cd')) # acc)
       (length ?code' + code_list_size cd) = cd" by blast
   hence "unflatten_code ?code (length lib + code_list_size cd' + code_list_size cd) = cd" by simp
   hence X: "unflatten_code ?code (length lib + (code_list_size cd' + code_list_size cd)) = cd" 
     by (metis add.assoc)
-  have P: "?pc \<le> length ?code'" by simp
-  moreover from 4 have "unflatten_code ?code' (length lib + code_list_size cd') = cd'" by blast
+  from 4 have "return_terminated\<^sub>e cd'" by simp
+  with 4 have "unflatten_code ?code' (length lib + code_list_size cd') = cd'" by blast
+  moreover have "?pc \<le> length ?code'" by simp
   ultimately have Z: "unflatten_code ?code ?pc =  cd'" by (metis unflatten_front)
   with X Z show ?case by simp
-next
-  case (6 cd)
-  then show ?case by simp
-next
-  case (7 cd)
-  then show ?case by simp
 qed simp_all
 
-lemma [simp]: "unflatten_code (flatten_code cd) (code_list_size cd) = cd"
+lemma [simp]: "return_terminated\<^sub>e cd \<Longrightarrow> unflatten_code (flatten_code cd) (code_list_size cd) = cd"
 proof -
-  have "unflatten_code ([] @ flatten_code' (length []) cd @ []) 
+  assume "return_terminated\<^sub>e cd"
+  hence "unflatten_code ([] @ flatten_code' (length []) cd @ []) 
     (length [] + code_list_size cd) = cd" by (metis unflatten_flatten list.size(3))
-  thus ?thesis by simp
+  thus ?thesis by (simp add: flatten_code_def)
 qed
 
 lemma orderly_lam [simp]: "lookup cd pc = Some (BPushLam pc') \<Longrightarrow> orderly cd n \<Longrightarrow> pc' \<le> pc + n"
