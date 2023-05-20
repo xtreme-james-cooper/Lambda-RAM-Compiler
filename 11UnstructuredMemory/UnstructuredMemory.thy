@@ -83,23 +83,23 @@ definition restructurable_stack :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<
 
 primrec restructurable :: "unstr_state \<Rightarrow> byte_code list \<Rightarrow> bool" where
   "restructurable (US h hp e ep vs vp sh sp pc) cd = (pc \<le> length cd \<and> 
-    length cd \<noteq> 0 \<and> orderly cd 0 \<and> return_terminated cd \<and> restructurable_heap h hp ep (length cd) \<and> 
+    length cd \<noteq> 0 \<and> orderly cd 0 \<and> return_terminated\<^sub>b cd \<and> restructurable_heap h hp ep (length cd) \<and> 
       restructurable_env e ep hp \<and> restructurable_vals vs vp hp \<and> 
         restructurable_stack sh sp ep (length cd) \<and> even sp \<and> (sp = 0 \<longrightarrow> pc = 0))"
 
 lemma [simp]: "odd (x::nat) \<Longrightarrow> 0 < x"
   by (cases x) simp_all
 
-lemma [simp]: "return_terminated cd \<Longrightarrow> lookup cd 0 \<noteq> Some (BLookup x)"
+lemma [simp]: "return_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some (BLookup x)"
   by (induction cd) auto
 
-lemma [simp]: "return_terminated cd \<Longrightarrow> lookup cd 0 \<noteq> Some (BPushCon k)"
+lemma [simp]: "return_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some (BPushCon k)"
   by (induction cd) auto
 
-lemma [simp]: "return_terminated cd \<Longrightarrow> lookup cd 0 \<noteq> Some (BPushLam pc)"
+lemma [simp]: "return_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some (BPushLam pc)"
   by (induction cd) auto
 
-lemma [simp]: "return_terminated cd \<Longrightarrow> lookup cd 0 \<noteq> Some BApply"
+lemma [simp]: "return_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some BApply"
   by (induction cd) auto
 
 lemma [dest]: "x \<noteq> y \<Longrightarrow> x < Suc y \<Longrightarrow> x < y"
@@ -220,10 +220,10 @@ proof (unfold restructurable_stack_def)
 qed
 
 lemma [simp]: "restructurable_stack sh sp ep lcd \<Longrightarrow> even sp \<Longrightarrow> Suc pc \<le> lcd \<Longrightarrow> sp \<noteq> 0 \<Longrightarrow>
-  restructurable_env e ep hp \<Longrightarrow> return_terminated cd \<Longrightarrow> lookup cd pc = Some BApply \<Longrightarrow> 
+  restructurable_env e ep hp \<Longrightarrow> return_terminated\<^sub>b cd \<Longrightarrow> lookup cd pc = Some BApply \<Longrightarrow> 
     restructurable_stack (sh(sp := pc, Suc sp := Suc (Suc ep))) (Suc (Suc sp)) (Suc (Suc ep)) lcd"
 proof -
-  assume "return_terminated cd" and "lookup cd pc = Some BApply"
+  assume "return_terminated\<^sub>b cd" and "lookup cd pc = Some BApply"
   hence "pc = 0 \<Longrightarrow> False" by simp
   hence "pc \<noteq> 0" by auto
   moreover assume "restructurable_env e ep hp"

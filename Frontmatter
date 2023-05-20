@@ -177,7 +177,6 @@ t : a type
 \<Sigma> : an evaluation state
 s : an evaluation (or call) stack
 \<C> : a block of code
-r : a return code
 \<V> : a value stack
 \<Delta> : an environment
 \<tau> : a unification term
@@ -231,8 +230,9 @@ subsection - Bibliography
 [6] Robert Harper. 2016. _Practical Foundations for Programming Languages_ (2nd ed).
 Cambridge University Press, New York, NY.
 
-[7] Guy Steele. 1976. _Lambda: The Ultimate Declarative_. Technical Report. Massachusetts Institute 
-  of Technology, MA.
+[7] Guy Steele. 1977. _Debunking the "Expensive Procedure Call" Myth or Procedure Call 
+Implementations Considered harmful or Lambda: The Ultimate GOTO_. Technical Report. Massachusetts 
+  Institute of Technology, MA.
 
 
 
@@ -265,3 +265,6 @@ Stack
 Stack Conversion
 Closure
 ClosureConversion
+TreeCode
+TreeCodeConversion
+TaillCallOptimization

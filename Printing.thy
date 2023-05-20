@@ -25,7 +25,7 @@ primrec print_closure :: "closure\<^sub>c \<Rightarrow> print" where
 
 primrec print_eclosure :: "closure\<^sub>e \<Rightarrow> print" where
   "print_eclosure (Const\<^sub>e n) = Number n"
-| "print_eclosure (Lam\<^sub>e cs cd r) = Fun"
+| "print_eclosure (Lam\<^sub>e cs cd) = Fun"
 
 primrec print_bclosure :: "bclosure \<Rightarrow> print" where
   "print_bclosure (BConst n) = Number n"

@@ -2,11 +2,8 @@ theory Compiler
   imports Printing "04Stack/StackConversion" "11UnstructuredMemory/Unstructuring" 
 begin
 
-primrec tco :: "code\<^sub>e list \<times> return\<^sub>e \<Rightarrow> code\<^sub>e list \<times> return\<^sub>e" where
-  "tco (\<C>, r) = (tco_code \<C>, tco_return \<C> r)"
-
 abbreviation code_compile :: "ty expr\<^sub>s \<Rightarrow> mach list" where
-  "code_compile \<equiv> disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco \<circ> encode \<circ> unname"
+  "code_compile \<equiv> disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco_code \<circ> encode \<circ> unname"
 
 abbreviation compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where 
   "compile \<equiv> map_option (apfst code_compile) \<circ> typecheck"
@@ -39,32 +36,42 @@ primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> unit e
     in let (t\<^sub>2, vs'', con\<^sub>2) = collect_constraints \<Gamma> (insert v (vs \<union> vs')) e\<^sub>2 
     in (Var v, insert v (vs' \<union> vs''), con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Arrow\<^sub>\<tau> t\<^sub>2 (Var v))]))"
 
-primrec tree_code_size :: "code\<^sub>e \<Rightarrow> nat"
-    and tree_code_size_list :: "code\<^sub>e list \<Rightarrow> nat" where
+fun tree_code_size :: "code\<^sub>e \<Rightarrow> nat"
+and tree_code_size_list :: "code\<^sub>e list \<Rightarrow> nat" where
   "tree_code_size (Lookup\<^sub>e x) = 0"
 | "tree_code_size (PushCon\<^sub>e k) = 0"
 | "tree_code_size (PushLam\<^sub>e cd) = tree_code_size_list cd"
 | "tree_code_size Apply\<^sub>e = 0"
-| "tree_code_size_list [] = 1"
-| "tree_code_size_list (op # cd) = 
-      Suc (if op = Apply\<^sub>e \<and> cd = [] then 0 else tree_code_size op + tree_code_size_list cd)"
+| "tree_code_size Return\<^sub>e = 0"
+| "tree_code_size Jump\<^sub>e = 0"
+| "tree_code_size_list [] = 0"
+| "tree_code_size_list (Apply\<^sub>e # Return\<^sub>e # cd) = Suc (tree_code_size_list cd)"
+| "tree_code_size_list (op # cd) = Suc (tree_code_size op + tree_code_size_list cd)"
+
+lemma [simp]: "op \<noteq> Return\<^sub>e \<Longrightarrow> tree_code_size_list (op # cd) < tree_code_size_list (Apply\<^sub>e # op # cd)"
+  by (cases op) simp_all
 
 primrec alg_compile1 :: "var list \<Rightarrow> unit expr\<^sub>s \<Rightarrow> code\<^sub>e list \<Rightarrow> code\<^sub>e list" where
   "alg_compile1 \<Phi> (Var\<^sub>s x) acc = Lookup\<^sub>e (the (idx_of \<Phi> x)) # acc"
 | "alg_compile1 \<Phi> (Const\<^sub>s k) acc = PushCon\<^sub>e k # acc"
-| "alg_compile1 \<Phi> (Lam\<^sub>s x u e) acc = PushLam\<^sub>e (alg_compile1 (insert_at 0 x \<Phi>) e []) # acc"
+| "alg_compile1 \<Phi> (Lam\<^sub>s x u e) acc = PushLam\<^sub>e (alg_compile1 (insert_at 0 x \<Phi>) e [Return\<^sub>e]) # acc"
 | "alg_compile1 \<Phi> (App\<^sub>s e\<^sub>1 e\<^sub>2) acc = alg_compile1 \<Phi> e\<^sub>1 (alg_compile1 \<Phi> e\<^sub>2 (Apply\<^sub>e # acc))"
 
 function alg_compile2 :: "nat \<Rightarrow> code\<^sub>e list \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
-  "alg_compile2 lib [] acc = BReturn # acc"
+  "alg_compile2 lib [] acc = acc"
 | "alg_compile2 lib (Lookup\<^sub>e x # cd) acc = alg_compile2 lib cd (BLookup x # acc)"
 | "alg_compile2 lib (PushCon\<^sub>e k # cd) acc = alg_compile2 lib cd (BPushCon k # acc)"
 | "alg_compile2 lib (PushLam\<^sub>e cd' # cd) acc =
     alg_compile2 lib cd' 
       (alg_compile2 (lib + tree_code_size_list cd') cd 
         (BPushLam (lib + tree_code_size_list cd') # acc))"
-| "alg_compile2 lib (Apply\<^sub>e # []) acc = BJump # acc"
-| "alg_compile2 lib (Apply\<^sub>e # op # cd) acc = alg_compile2 lib (op # cd) (BApply # acc)"
+| "alg_compile2 lib (Apply\<^sub>e # []) acc = BApply # acc"
+| "alg_compile2 lib (Apply\<^sub>e # op # cd) acc = (
+    if op = Return\<^sub>e 
+    then alg_compile2 lib cd (BJump # acc)
+    else alg_compile2 lib (op # cd) (BApply # acc))"
+| "alg_compile2 lib (Return\<^sub>e # cd) acc = alg_compile2 lib cd (BReturn # acc)"
+| "alg_compile2 lib (Jump\<^sub>e # cd) acc = alg_compile2 lib cd (BJump # acc)"
   by pat_completeness auto
 termination
   by (relation "measure (tree_code_size_list \<circ> fst \<circ> snd)") simp_all
@@ -115,15 +122,15 @@ definition alg_compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times
     let (t, vs, con) = collect_constraints Map.empty {} e
     in case unify con of
         None \<Rightarrow> None
-      | Some s \<Rightarrow> 
-          Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e []) []), to_type (subst s t)))"
+      | Some s \<Rightarrow> Some (alg_compile3 (alg_compile2 0 (alg_compile1 [] e [] @ [Return\<^sub>e]) []), 
+                        to_type (subst s t)))"
 
-lemma [simp]: "encode (unname' \<Phi> (map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e))) = 
-    encode (unname' \<Phi> (map_expr\<^sub>s to_type e))"
+lemma [simp]: "encode' (unname' \<Phi> (map_expr\<^sub>s to_type (map_expr\<^sub>s (subst sub) e))) = 
+    encode' (unname' \<Phi> (map_expr\<^sub>s to_type e))"
   by (induction e arbitrary: \<Phi>) simp_all
 
-lemma [simp]: "encode \<circ> unname \<circ> map_expr\<^sub>s to_type \<circ> map_expr\<^sub>s (subst sub) = 
-    encode \<circ> unname \<circ> map_expr\<^sub>s to_type"
+lemma [simp]: "encode' \<circ> unname \<circ> map_expr\<^sub>s to_type \<circ> map_expr\<^sub>s (subst sub) = 
+    encode' \<circ> unname \<circ> map_expr\<^sub>s to_type"
   by (auto simp add: unname_def)
 
 lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> quick_convert vs e = (e', vs')"
@@ -131,22 +138,25 @@ lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> qu
      (simp_all add: Let_def split: option.splits prod.splits)
 
 lemma [simp]: "quick_convert vs e = (e', vs') \<Longrightarrow> 
-    alg_compile1 \<Phi> e acc = encode (unname' \<Phi> (map_expr\<^sub>s to_type e')) @ acc"
+    alg_compile1 \<Phi> e acc = encode' (unname' \<Phi> (map_expr\<^sub>s to_type e')) @ acc"
   by (induction e arbitrary: \<Phi> acc vs e' vs') (auto simp add: Let_def split: prod.splits)
 
 lemma [simp]: "typecheck' \<Gamma> vs e = (e', t, vs', con) \<Longrightarrow> 
-  alg_compile1 \<Phi> e acc = encode (unname' \<Phi> (map_expr\<^sub>s to_type e')) @ acc"
+  alg_compile1 \<Phi> e acc = encode' (unname' \<Phi> (map_expr\<^sub>s to_type e')) @ acc"
 proof -
   assume "typecheck' \<Gamma> vs e = (e', t, vs', con)"
   hence "quick_convert vs e = (e', vs')" by simp
   thus ?thesis by simp
 qed
 
-lemma [simp]: "tree_code_size_list cd = code_list_size (tco_cd cd)"
-  by (induction cd rule: tco_cd.induct) (simp_all split: list.splits)
+lemma [simp]: "tree_code_size_list cd = code_list_size (tco_code cd)"
+  by (induction cd rule: tco_code.induct) (simp_all split: list.splits)
 
-lemma [simp]: "alg_compile2 lib cd acc = flatten_code' lib (tco_cd cd) (tco_r cd) @ acc"
-  by (induction lib cd acc rule: alg_compile2.induct) simp_all
+lemma [simp]: "alg_compile2 lib cd acc = flatten_code' lib (tco_code cd) @ acc"
+proof (induction lib cd acc rule: alg_compile2.induct)
+  case (6 lib op cd acc)
+  thus ?case by (induction op) simp_all
+qed simp_all
 
 lemma alg_assemble_simp [simp]: "alg_assemble mp cd = 
     disassemble (concat (map (assemble_op mp) cd))"
@@ -165,6 +175,6 @@ lemma [simp]: "collect_constraints \<Gamma> vs e = snd (typecheck' \<Gamma> vs e
   by (induction e arbitrary: \<Gamma> vs) (simp_all add: Let_def split: option.splits prod.splits)
 
 lemma alg_compile_simp [simp]: "alg_compile = compile"
-  by rule (simp add: alg_compile_def tco_def unname_def split: prod.splits option.splits)
+  by rule (simp add: alg_compile_def encode_def flatten_code_def unname_def split: prod.splits option.splits)
 
 end

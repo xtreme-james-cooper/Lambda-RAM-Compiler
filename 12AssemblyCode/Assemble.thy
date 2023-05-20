@@ -765,4 +765,31 @@ lemma [simp]: "assm_stk cd (mp(0 := a, Suc 0 := b)) 2 =
     (\<lambda>x. (Con 0, 0))(0 := (PC 0, assembly_map cd a), Suc 0 := (Reg Env, b))"
   by rule (simp add: assemble_stack_def)
 
+lemma [simp]: "assembly_map (flatten_code' lib cd @ cd') (code_list_size cd) = 
+  assembly_map (flatten_code' lib cd) (code_list_size cd)"
+proof (induction lib cd arbitrary: cd' rule: flatten_code'.induct)
+  case (4 lib cd'' cd)
+
+
+  have "assembly_map
+     (flatten_code' lib cd'' @
+      flatten_code' (lib + code_list_size cd'') cd @ BPushLam (lib + code_list_size cd'') # cd')
+     (code_list_size cd'' + code_list_size cd) =
+    assembly_map
+     (flatten_code' lib cd'' @ flatten_code' (lib + code_list_size cd'') cd @ [BPushLam (lib + code_list_size cd'')])
+     (code_list_size cd'' + code_list_size cd)" by simp
+  then show ?case by simp
+qed simp_all
+
+lemma [simp]: "assembly_map (flatten_code' lib cd) (code_list_size cd) = 
+  sum_list (map (Suc \<circ> assemble_op_len) (flatten_code' lib cd))"
+proof (induction lib cd rule: flatten_code'.induct)
+  case (4 lib cd' cd)
+  then show ?case by simp
+qed simp_all
+
+lemma [simp]: "assembly_map (flatten_code cd) (code_list_size cd) = 
+    sum_list (map (Suc \<circ> assemble_op_len) (flatten_code cd))"
+  by (simp add: flatten_code_def)
+
 end

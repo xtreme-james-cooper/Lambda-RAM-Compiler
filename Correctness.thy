@@ -8,9 +8,6 @@ abbreviation initial_state :: "mach list \<Rightarrow> mach_state" where
 primrec final_state :: "mach_state \<Rightarrow> bool" where
   "final_state (MS rs mem pc) = (pc = 0 \<and> rs R3 = 6 \<and> rs R4 = 3)"
 
-lemma [simp]: "live_frame (env, tco_cd (encode e), tco_r (encode e))"
-  by (induction e) simp_all
-
 theorem tc_failure: "alg_compile e = None \<Longrightarrow> 
   \<nexists>e\<^sub>t t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e = erase e\<^sub>t"
 proof -
@@ -18,6 +15,19 @@ proof -
   hence "typecheck e = None" by (auto split: option.splits prod.splits)
   thus ?thesis by (metis typecheck_fails)
 qed
+
+lemma [simp]: "return_terminated\<^sub>e (cd @ [Apply\<^sub>e, Return\<^sub>e]) = return_terminated\<^sub>e (cd @ [Return\<^sub>e])"
+  by (induction cd rule: return_terminated\<^sub>e.induct) simp_all
+
+lemma [simp]: "return_terminated\<^sub>e (e1 @ [Return\<^sub>e]) \<Longrightarrow> return_terminated\<^sub>e (e2 @ [Return\<^sub>e]) \<Longrightarrow> 
+    return_terminated\<^sub>e (e1 @ e2 @ [Apply\<^sub>e, Return\<^sub>e])"
+  by (induction e1 rule: return_terminated\<^sub>e.induct) simp_all
+
+lemma [simp]: "return_terminated\<^sub>e (encode e)"
+  by (induction e) (simp_all add: encode_def)
+
+lemma [simp]: "return_terminated\<^sub>e (tco_code cd) = return_terminated\<^sub>e cd"
+  by (induction cd rule: tco_code.induct) simp_all
 
 theorem tc_success: "alg_compile e = Some (cd, t) \<Longrightarrow> \<exists>e\<^sub>t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> erase e\<^sub>t = e \<and>
   (\<exists>v. value\<^sub>s v \<and> e \<Down>\<^sub>s v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
@@ -44,15 +54,15 @@ proof -
     (encode_state (SC\<^sub>c [] c))" by (metis correct\<^sub>e_iter)
   hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e [] [([], encode (unname e\<^sub>t))]) (S\<^sub>e [encode_closure c] [])" 
     by (simp add: encode_def)
-  hence "iter (\<leadsto>\<^sub>l) (tco_state (S\<^sub>e [] [([], encode (unname e\<^sub>t))])) 
-    (tco_state (S\<^sub>e [encode_closure c] []))" by (metis iter_tco_eval)
-  hence ET: "iter (\<leadsto>\<^sub>l) (S\<^sub>l [] [([], tco_cd (encode (unname e\<^sub>t)), tco_r (encode (unname e\<^sub>t)))]) 
-    (S\<^sub>l [tco_val (encode_closure c)] [])" by simp
-  let ?cd = "(flatten_code \<circ> tco \<circ> encode \<circ> unname) e\<^sub>t"
+  moreover have "complete_lams_state (S\<^sub>e [] [([], encode (unname e\<^sub>t))])" by simp
+  ultimately have "iter (\<leadsto>\<^sub>e) (tco_state (S\<^sub>e [] [([], encode (unname e\<^sub>t))])) 
+    (tco_state (S\<^sub>e [encode_closure c] []))" by (metis correctness\<^sub>t\<^sub>c\<^sub>o_iter)
+  hence ET: "iter (\<leadsto>\<^sub>e) (S\<^sub>e [] [([], tco_code (encode (unname e\<^sub>t)))]) 
+    (S\<^sub>e [tco_val (encode_closure c)] [])" by (simp add: encode_def)
+  let ?cd = "(flatten_code \<circ> tco_code \<circ> encode \<circ> unname) e\<^sub>t"
   have UB: "unflatten_state ?cd (BS [] [([], length ?cd)]) = 
-    S\<^sub>l [] [([], tco_cd (encode (unname e\<^sub>t)), tco_r (encode (unname e\<^sub>t)))]" 
-      by (auto simp add: tco_def simp del: flatten_code.simps)
-  have "orderly_state ?cd (BS [] [([], length ?cd)])" by auto
+    S\<^sub>e [] [([], tco_code (encode (unname e\<^sub>t)))]" by simp
+  have "orderly_state ?cd (BS [] [([], length ?cd)])" by simp
   with ET UB obtain v\<^sub>b where EB: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>b) (BS [] [([], length ?cd)]) (BS [v\<^sub>b] []) \<and> 
     tco_val (encode_closure c) = unflatten_closure ?cd v\<^sub>b" by (metis evalb_end)
   then obtain \<Sigma>\<^sub>h' where EH: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>h) (HS hempty [] [([], length ?cd)]) \<Sigma>\<^sub>h' \<and> 
@@ -115,7 +125,7 @@ proof -
   with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) ((\<lambda>x. 0)(7 := 1)) 
     (length cd)) (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" by auto
   from EC VT have "print_closure c = print_nexpr (erase v\<^sub>t)" by simp
-  moreover from EB have "print_bclosure v\<^sub>b = print_tco_closure (tco_val (encode_closure c))" by simp
+  moreover from EB have "print_bclosure v\<^sub>b = print_eclosure (tco_val (encode_closure c))" by simp
   ultimately have "print_bclosure v\<^sub>b = print_nexpr (erase v\<^sub>t)" by simp
   with SH have "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by simp
   with VCE VH have "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by (metis print_ce)
