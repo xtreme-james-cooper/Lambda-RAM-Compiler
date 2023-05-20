@@ -57,64 +57,64 @@ primrec alg_compile1 :: "var list \<Rightarrow> unit expr\<^sub>s \<Rightarrow> 
 | "alg_compile1 \<Phi> (Lam\<^sub>s x u e) acc = PushLam\<^sub>e (alg_compile1 (insert_at 0 x \<Phi>) e [Return\<^sub>e]) # acc"
 | "alg_compile1 \<Phi> (App\<^sub>s e\<^sub>1 e\<^sub>2) acc = alg_compile1 \<Phi> e\<^sub>1 (alg_compile1 \<Phi> e\<^sub>2 (Apply\<^sub>e # acc))"
 
-function alg_compile2 :: "nat \<Rightarrow> code\<^sub>e list \<Rightarrow> byte_code list \<Rightarrow> byte_code list" where
+function alg_compile2 :: "nat \<Rightarrow> code\<^sub>e list \<Rightarrow> code\<^sub>b list \<Rightarrow> code\<^sub>b list" where
   "alg_compile2 lib [] acc = acc"
-| "alg_compile2 lib (Lookup\<^sub>e x # cd) acc = alg_compile2 lib cd (BLookup x # acc)"
-| "alg_compile2 lib (PushCon\<^sub>e k # cd) acc = alg_compile2 lib cd (BPushCon k # acc)"
+| "alg_compile2 lib (Lookup\<^sub>e x # cd) acc = alg_compile2 lib cd (Lookup\<^sub>b x # acc)"
+| "alg_compile2 lib (PushCon\<^sub>e k # cd) acc = alg_compile2 lib cd (PushCon\<^sub>b k # acc)"
 | "alg_compile2 lib (PushLam\<^sub>e cd' # cd) acc =
     alg_compile2 lib cd' 
       (alg_compile2 (lib + tree_code_size_list cd') cd 
-        (BPushLam (lib + tree_code_size_list cd') # acc))"
-| "alg_compile2 lib (Apply\<^sub>e # []) acc = BApply # acc"
+        (PushLam\<^sub>b (lib + tree_code_size_list cd') # acc))"
+| "alg_compile2 lib (Apply\<^sub>e # []) acc = Apply\<^sub>b # acc"
 | "alg_compile2 lib (Apply\<^sub>e # op # cd) acc = (
     if op = Return\<^sub>e 
-    then alg_compile2 lib cd (BJump # acc)
-    else alg_compile2 lib (op # cd) (BApply # acc))"
-| "alg_compile2 lib (Return\<^sub>e # cd) acc = alg_compile2 lib cd (BReturn # acc)"
-| "alg_compile2 lib (Jump\<^sub>e # cd) acc = alg_compile2 lib cd (BJump # acc)"
+    then alg_compile2 lib cd (Jump\<^sub>b # acc)
+    else alg_compile2 lib (op # cd) (Apply\<^sub>b # acc))"
+| "alg_compile2 lib (Return\<^sub>e # cd) acc = alg_compile2 lib cd (Return\<^sub>b # acc)"
+| "alg_compile2 lib (Jump\<^sub>e # cd) acc = alg_compile2 lib cd (Jump\<^sub>b # acc)"
   by pat_completeness auto
 termination
   by (relation "measure (tree_code_size_list \<circ> fst \<circ> snd)") simp_all
 
-fun assembly_mapb :: "byte_code list \<Rightarrow> nat \<Rightarrow> nat" where
+fun assembly_mapb :: "code\<^sub>b list \<Rightarrow> nat \<Rightarrow> nat" where
   "assembly_mapb [] x = 0"
 | "assembly_mapb (op # cd) 0 = 0"
-| "assembly_mapb (BLookup k # cd) (Suc x) = 8 + 2 * k + assembly_mapb cd x"
-| "assembly_mapb (BPushCon k # cd) (Suc x) = 8 + assembly_mapb cd x"
-| "assembly_mapb (BPushLam pc # cd) (Suc x) = 12 + assembly_mapb cd x"
-| "assembly_mapb (BApply # cd) (Suc x) = 24 + assembly_mapb cd x"
-| "assembly_mapb (BReturn # cd) (Suc x) = 6 + assembly_mapb cd x"
-| "assembly_mapb (BJump # cd) (Suc x) = 21 + assembly_mapb cd x"
+| "assembly_mapb (Lookup\<^sub>b k # cd) (Suc x) = 8 + 2 * k + assembly_mapb cd x"
+| "assembly_mapb (PushCon\<^sub>b k # cd) (Suc x) = 8 + assembly_mapb cd x"
+| "assembly_mapb (PushLam\<^sub>b pc # cd) (Suc x) = 12 + assembly_mapb cd x"
+| "assembly_mapb (Apply\<^sub>b # cd) (Suc x) = 24 + assembly_mapb cd x"
+| "assembly_mapb (Return\<^sub>b # cd) (Suc x) = 6 + assembly_mapb cd x"
+| "assembly_mapb (Jump\<^sub>b # cd) (Suc x) = 21 + assembly_mapb cd x"
 
-fun alg_assemble :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code list \<Rightarrow> mach list" where
+fun alg_assemble :: "(nat \<Rightarrow> nat) \<Rightarrow> code\<^sub>b list \<Rightarrow> mach list" where
   "alg_assemble mp [] = []"
-| "alg_assemble mp (BLookup x # cd) = 
+| "alg_assemble mp (Lookup\<^sub>b x # cd) = 
     [LDI R5 0, ADD R3 4, STO R3 R5, LOD R5 R5, SUB R5 8] @ 
       concat (replicate x [LOD R5 R5, SUB R5 4]) @ 
       [LOD R5 R5, SUB R5 4, MOV R5 R4] @ 
       alg_assemble mp cd"
-| "alg_assemble mp (BPushCon k # cd) = 
+| "alg_assemble mp (PushCon\<^sub>b k # cd) = 
     [ADD R1 4, STO R1 R5, ADD R1 4, STI R1 k, ADD R1 4, STI R1 1, ADD R3 4, STO R3 R1] @ 
       alg_assemble mp cd"
-| "alg_assemble mp (BPushLam pc # cd) = 
+| "alg_assemble mp (PushLam\<^sub>b pc # cd) = 
     [ADD R1 4, STI R1 (mp pc), LDI R5 0, ADD R1 4, 
       STO R1 R5, ADD R1 4, STI R1 0, LOD R5 R5, SUB R5 4, MOV R5 R4, ADD R3 4, STO R3 R1] @ 
       alg_assemble mp cd"
-| "alg_assemble mp (BApply # cd) = 
+| "alg_assemble mp (Apply\<^sub>b # cd) = 
     [JMP R5, LOD R5 R5, ADD R5 8, STI R3 0, LOD R5 R3, ADD R2 4, STO R2 R5, LOD R5 R5, ADD R5 4, 
       LOD R5 R3, SUB R3 4, ADD R4 4, STO R4 R5, ADD R5 4, MOV R5 R2, ADD R4 4, STO R4 R5, SUB R5 18, 
       MVP R5, ADD R2 4, STO R2 R5, STI R3 0, LOD R5 R3, SUB R3 4] @ 
       alg_assemble mp cd"
-| "alg_assemble mp (BReturn # cd) = 
+| "alg_assemble mp (Return\<^sub>b # cd) = 
     [JMP R5, STI R4 0, LOD R5 R4, SUB R4 4, STI R4 0, SUB R4 4] @ 
       alg_assemble mp cd"
-| "alg_assemble mp (BJump # cd) = 
+| "alg_assemble mp (Jump\<^sub>b # cd) = 
     [JMP R5, LOD R5 R5, ADD R5 8, STI R3 0, LOD R5 R3, ADD R2 4, STO R2 R5, LOD R5 R5, ADD R5 4, 
       LOD R5 R3, SUB R3 4, ADD R4 4, STO R4 R5, SUB R4 4, ADD R5 4, MOV R5 R2, ADD R2 4, STO R2 R5, 
       STI R3 0, LOD R5 R3, SUB R3 4] @ 
       alg_assemble mp cd"
 
-definition alg_compile3 :: "byte_code list \<Rightarrow> mach list" where
+definition alg_compile3 :: "code\<^sub>b list \<Rightarrow> mach list" where
   "alg_compile3 cd = alg_assemble (assembly_mapb cd) cd"
 
 definition alg_compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where

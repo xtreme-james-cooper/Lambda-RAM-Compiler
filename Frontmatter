@@ -179,6 +179,7 @@ s : an evaluation (or call) stack
 \<C> : a block of code
 \<V> : a value stack
 \<Delta> : an environment
+p : a code pointer
 \<tau> : a unification term
 \<gamma> : a unification constructor tag
 \<sigma> : a unification substitution

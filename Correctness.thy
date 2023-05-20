@@ -16,18 +16,16 @@ proof -
   thus ?thesis by (metis typecheck_fails)
 qed
 
-lemma [simp]: "return_terminated\<^sub>e (cd @ [Apply\<^sub>e, Return\<^sub>e]) = return_terminated\<^sub>e (cd @ [Return\<^sub>e])"
-  by (induction cd rule: return_terminated\<^sub>e.induct) simp_all
+lemma [simp]: "properly_terminated\<^sub>e (cd @ [Apply\<^sub>e, Return\<^sub>e]) = properly_terminated\<^sub>e (cd @ [Return\<^sub>e])"
+  by (induction cd rule: properly_terminated\<^sub>e.induct) simp_all
 
-lemma [simp]: "return_terminated\<^sub>e (e1 @ [Return\<^sub>e]) \<Longrightarrow> return_terminated\<^sub>e (e2 @ [Return\<^sub>e]) \<Longrightarrow> 
-    return_terminated\<^sub>e (e1 @ e2 @ [Apply\<^sub>e, Return\<^sub>e])"
-  by (induction e1 rule: return_terminated\<^sub>e.induct) simp_all
+lemma [simp]: "properly_terminated\<^sub>e (e1 @ [Return\<^sub>e]) \<Longrightarrow> properly_terminated\<^sub>e (e2 @ [Return\<^sub>e]) \<Longrightarrow> 
+    properly_terminated\<^sub>e (e1 @ e2 @ [Apply\<^sub>e, Return\<^sub>e])"
+  by (induction e1 rule: properly_terminated\<^sub>e.induct) simp_all
 
-lemma [simp]: "return_terminated\<^sub>e (encode e)"
+lemma [simp]: "properly_terminated\<^sub>e (encode e)"
   by (induction e) (simp_all add: encode_def)
 
-lemma [simp]: "return_terminated\<^sub>e (tco_code cd) = return_terminated\<^sub>e cd"
-  by (induction cd rule: tco_code.induct) simp_all
 
 theorem tc_success: "alg_compile e = Some (cd, t) \<Longrightarrow> \<exists>e\<^sub>t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> erase e\<^sub>t = e \<and>
   (\<exists>v. value\<^sub>s v \<and> e \<Down>\<^sub>s v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
@@ -60,13 +58,13 @@ proof -
   hence ET: "iter (\<leadsto>\<^sub>e) (S\<^sub>e [] [([], tco_code (encode (unname e\<^sub>t)))]) 
     (S\<^sub>e [tco_val (encode_closure c)] [])" by (simp add: encode_def)
   let ?cd = "(flatten_code \<circ> tco_code \<circ> encode \<circ> unname) e\<^sub>t"
-  have UB: "unflatten_state ?cd (BS [] [([], length ?cd)]) = 
+  have UB: "unflatten_state ?cd (S\<^sub>b [] [([], length ?cd)]) = 
     S\<^sub>e [] [([], tco_code (encode (unname e\<^sub>t)))]" by simp
-  have "orderly_state ?cd (BS [] [([], length ?cd)])" by simp
-  with ET UB obtain v\<^sub>b where EB: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>b) (BS [] [([], length ?cd)]) (BS [v\<^sub>b] []) \<and> 
+  have "orderly_state ?cd (S\<^sub>b [] [([], length ?cd)])" by simp
+  with ET UB obtain v\<^sub>b where EB: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>b) (S\<^sub>b [] [([], length ?cd)]) (S\<^sub>b [v\<^sub>b] []) \<and> 
     tco_val (encode_closure c) = unflatten_closure ?cd v\<^sub>b" by (metis evalb_end)
   then obtain \<Sigma>\<^sub>h' where EH: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>h) (HS hempty [] [([], length ?cd)]) \<Sigma>\<^sub>h' \<and> 
-    BS [v\<^sub>b] [] = unheap \<Sigma>\<^sub>h'" by fastforce
+    S\<^sub>b [v\<^sub>b] [] = unheap \<Sigma>\<^sub>h'" by fastforce
   then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = HS h\<^sub>h [v\<^sub>h] [] \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 
     using unheap_empty by blast
   have HS: "heap_structured (HS hempty [] [([], length ?cd)])" by simp

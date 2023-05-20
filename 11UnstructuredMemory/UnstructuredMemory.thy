@@ -11,26 +11,26 @@ fun unstr_lookup :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat
 | "unstr_lookup h (Suc (Suc p)) 0 = (if even p then Some (h p) else None)"
 | "unstr_lookup h (Suc (Suc p)) (Suc x) = (if even p then unstr_lookup h (h (Suc p)) x else None)"
 
-inductive evalu :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> unstr_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>u" 50) where
-  evu_lookup [simp]: "lookup cd pc = Some (BLookup x) \<Longrightarrow> unstr_lookup e (sh sp) x = Some y \<Longrightarrow>
+inductive evalu :: "code\<^sub>b list \<Rightarrow> unstr_state \<Rightarrow> unstr_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>u" 50) where
+  evu_lookup [simp]: "lookup cd pc = Some (Lookup\<^sub>b x) \<Longrightarrow> unstr_lookup e (sh sp) x = Some y \<Longrightarrow>
     cd \<tturnstile> US h hp e ep vs vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US h hp e ep (vs(vp := y)) (Suc vp) sh (Suc sp) pc"
-| evu_pushcon [simp]: "lookup cd pc = Some (BPushCon k) \<Longrightarrow> 
+| evu_pushcon [simp]: "lookup cd pc = Some (PushCon\<^sub>b k) \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US (h(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep 
         (vs(vp := hp)) (Suc vp) sh (Suc sp) pc"
-| evu_pushlam [simp]: "lookup cd pc = Some (BPushLam pc') \<Longrightarrow> 
+| evu_pushlam [simp]: "lookup cd pc = Some (PushLam\<^sub>b pc') \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US (h(hp := 0, Suc hp := sh sp, Suc (Suc hp) := pc')) (3 + hp) e ep 
         (vs(vp := hp)) (Suc vp) sh (Suc sp) pc"
-| evu_apply [simp]: "lookup cd pc = Some BApply \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
+| evu_apply [simp]: "lookup cd pc = Some Apply\<^sub>b \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
         (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (2 + Suc sp) (h (Suc (Suc (vs vp))))"
-| evu_return [simp]: "lookup cd pc = Some BReturn \<Longrightarrow> 
+| evu_return [simp]: "lookup cd pc = Some Return\<^sub>b \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
       US h hp e ep vs vp sh sp (sh sp)"
-| evu_jump [simp]: "lookup cd pc = Some BJump \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
+| evu_jump [simp]: "lookup cd pc = Some Jump\<^sub>b \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
     cd \<tturnstile> US h hp e ep vs (Suc (Suc vp)) sh (Suc sp) (Suc pc) \<leadsto>\<^sub>u 
       US h hp (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (2 + ep) vs vp
         (sh(sp := Suc (Suc ep))) (Suc sp) (h (Suc (Suc (vs vp))))"
@@ -81,25 +81,25 @@ definition restructurable_stack :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<
   "restructurable_stack sh sp ep lcd = (\<forall>x < sp. 
     if x = 0 then sh x = 0 else if even x then sh x \<noteq> 0 \<and> sh x \<le> lcd else even (sh x) \<and> sh x \<le> ep)"
 
-primrec restructurable :: "unstr_state \<Rightarrow> byte_code list \<Rightarrow> bool" where
+primrec restructurable :: "unstr_state \<Rightarrow> code\<^sub>b list \<Rightarrow> bool" where
   "restructurable (US h hp e ep vs vp sh sp pc) cd = (pc \<le> length cd \<and> 
-    length cd \<noteq> 0 \<and> orderly cd 0 \<and> return_terminated\<^sub>b cd \<and> restructurable_heap h hp ep (length cd) \<and> 
+    length cd \<noteq> 0 \<and> orderly_code cd 0 \<and> properly_terminated\<^sub>b cd \<and> restructurable_heap h hp ep (length cd) \<and> 
       restructurable_env e ep hp \<and> restructurable_vals vs vp hp \<and> 
         restructurable_stack sh sp ep (length cd) \<and> even sp \<and> (sp = 0 \<longrightarrow> pc = 0))"
 
 lemma [simp]: "odd (x::nat) \<Longrightarrow> 0 < x"
   by (cases x) simp_all
 
-lemma [simp]: "return_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some (BLookup x)"
+lemma [simp]: "properly_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some (Lookup\<^sub>b x)"
   by (induction cd) auto
 
-lemma [simp]: "return_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some (BPushCon k)"
+lemma [simp]: "properly_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some (PushCon\<^sub>b k)"
   by (induction cd) auto
 
-lemma [simp]: "return_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some (BPushLam pc)"
+lemma [simp]: "properly_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some (PushLam\<^sub>b pc)"
   by (induction cd) auto
 
-lemma [simp]: "return_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some BApply"
+lemma [simp]: "properly_terminated\<^sub>b cd \<Longrightarrow> lookup cd 0 \<noteq> Some Apply\<^sub>b"
   by (induction cd) auto
 
 lemma [dest]: "x \<noteq> y \<Longrightarrow> x < Suc y \<Longrightarrow> x < y"
@@ -220,10 +220,10 @@ proof (unfold restructurable_stack_def)
 qed
 
 lemma [simp]: "restructurable_stack sh sp ep lcd \<Longrightarrow> even sp \<Longrightarrow> Suc pc \<le> lcd \<Longrightarrow> sp \<noteq> 0 \<Longrightarrow>
-  restructurable_env e ep hp \<Longrightarrow> return_terminated\<^sub>b cd \<Longrightarrow> lookup cd pc = Some BApply \<Longrightarrow> 
+  restructurable_env e ep hp \<Longrightarrow> properly_terminated\<^sub>b cd \<Longrightarrow> lookup cd pc = Some Apply\<^sub>b \<Longrightarrow> 
     restructurable_stack (sh(sp := pc, Suc sp := Suc (Suc ep))) (Suc (Suc sp)) (Suc (Suc ep)) lcd"
 proof -
-  assume "return_terminated\<^sub>b cd" and "lookup cd pc = Some BApply"
+  assume "properly_terminated\<^sub>b cd" and "lookup cd pc = Some Apply\<^sub>b"
   hence "pc = 0 \<Longrightarrow> False" by simp
   hence "pc \<noteq> 0" by auto
   moreover assume "restructurable_env e ep hp"

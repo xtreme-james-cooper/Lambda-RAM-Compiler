@@ -2,16 +2,16 @@ theory Assemble
   imports AssemblyCode "../11UnstructuredMemory/UnstructuredMemory" "../00Utils/Utils"
 begin
 
-primrec assemble_op_len :: "byte_code \<Rightarrow> nat" where
-  "assemble_op_len (BLookup x) = 7 + 2 * x"
-| "assemble_op_len (BPushCon k) = 7"
-| "assemble_op_len (BPushLam pc) = 11"
-| "assemble_op_len BApply = 23"
-| "assemble_op_len BReturn = 5"
-| "assemble_op_len BJump = 20"
+primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
+  "assemble_op_len (Lookup\<^sub>b x) = 7 + 2 * x"
+| "assemble_op_len (PushCon\<^sub>b k) = 7"
+| "assemble_op_len (PushLam\<^sub>b pc) = 11"
+| "assemble_op_len Apply\<^sub>b = 23"
+| "assemble_op_len Return\<^sub>b = 5"
+| "assemble_op_len Jump\<^sub>b = 20"
 
-primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Rightarrow> assm list" where
-  "assemble_op mp (BLookup x) = [
+primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> code\<^sub>b \<Rightarrow> assm list" where
+  "assemble_op mp (Lookup\<^sub>b x) = [
     AMov (Con 0),
     AAdd (Reg Vals) 1,
     APut Vals (Acc (Con 0)),
@@ -23,7 +23,7 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Righta
     AGet (Acc (Reg Stk)) (Reg Env),
     ASub (Acc (Reg Stk)) 1,
     AMov (Reg Stk)]"
-| "assemble_op mp (BPushCon k) = [
+| "assemble_op mp (PushCon\<^sub>b k) = [
     AAdd (Reg Hp) 1, 
     APut Hp (Acc (Con 0)),
     AAdd (Reg Hp) 1,  
@@ -32,7 +32,7 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Righta
     APut Hp (Con 1), 
     AAdd (Reg Vals) 1,
     APut Vals (Reg Hp)]"
-| "assemble_op mp (BPushLam pc) = [
+| "assemble_op mp (PushLam\<^sub>b pc) = [
     AAdd (Reg Hp) 1, 
     APut Hp (PC (mp pc)), 
     AMov (Con 0),
@@ -45,7 +45,7 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Righta
     AMov (Reg Stk),
     AAdd (Reg Vals) 1,
     APut Vals (Reg Hp)]"
-| "assemble_op mp BApply = [
+| "assemble_op mp Apply\<^sub>b = [
     AJmp,
     AGet (Acc (Reg Hp)) (PC 0),
     AAdd (Acc (Reg Hp)) 2,
@@ -70,14 +70,14 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Righta
     APut Vals (Con 0),
     AGet (Reg Vals) (Reg Hp),
     ASub (Reg Vals) 1]"
-| "assemble_op mp BReturn = [
+| "assemble_op mp Return\<^sub>b = [
     AJmp,
     APut Stk (Con 0),
     AGet (Reg Stk) (PC 0),
     ASub (Reg Stk) 1,
     APut Stk (Con 0),
     ASub (Reg Stk) 1]"
-| "assemble_op mp BJump = [
+| "assemble_op mp Jump\<^sub>b = [
     AJmp,
     AGet (Acc (Reg Hp)) (PC 0),
     AAdd (Acc (Reg Hp)) 2,
@@ -100,12 +100,12 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> byte_code \<Righta
     AGet (Reg Vals) (Reg Hp),
     ASub (Reg Vals) 1]"
 
-fun assembly_map :: "byte_code list \<Rightarrow> nat \<Rightarrow> nat" where
+fun assembly_map :: "code\<^sub>b list \<Rightarrow> nat \<Rightarrow> nat" where
   "assembly_map [] x = 0"
 | "assembly_map (op # cd) 0 = 0"
 | "assembly_map (op # cd) (Suc x) = Suc (assemble_op_len op + assembly_map cd x)"
 
-definition assemble_code :: "byte_code list \<Rightarrow> assm list" where
+definition assemble_code :: "code\<^sub>b list \<Rightarrow> assm list" where
   "assemble_code cd = concat (map (assemble_op (assembly_map cd)) cd)"
 
 definition assemble_heap :: "(nat \<Rightarrow> nat) \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" where
@@ -129,13 +129,13 @@ primrec assemble_state :: "(nat \<Rightarrow> nat) \<Rightarrow> unstr_state \<R
     AS (case_register (assemble_heap mp h hp) (assemble_env e ep) (assemble_vals vs vp) 
       (assemble_stack mp sh sp)) (case_register hp ep vp sp) 0 (Con 0) (mp pc)"
 
-abbreviation assm_hp :: "byte_code list \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" where
+abbreviation assm_hp :: "code\<^sub>b list \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" where
   "assm_hp cd \<equiv> assemble_heap (assembly_map cd)"
 
-abbreviation assm_stk :: "byte_code list \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" where
+abbreviation assm_stk :: "code\<^sub>b list \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" where
   "assm_stk cd \<equiv> assemble_stack (assembly_map cd)"
 
-abbreviation assm_state :: "byte_code list \<Rightarrow> unstr_state \<Rightarrow> assm_state" where
+abbreviation assm_state :: "code\<^sub>b list \<Rightarrow> unstr_state \<Rightarrow> assm_state" where
   "assm_state cd \<equiv> assemble_state (assembly_map cd)"
 
 lemma length_assemble_op [simp]: "length (assemble_op mp op) = Suc (assemble_op_len op)"
@@ -463,7 +463,7 @@ lemma [simp]: "even ep \<Longrightarrow> (assemble_env e ep)(ep := (Reg Hp, a), 
     assemble_env (e(ep := a, Suc ep := b)) (Suc (Suc ep))"
   by (auto simp add: assemble_env_def)
 
-lemma [simp]: "unstr_lookup e a x = Some v \<Longrightarrow> lookup cd pc = Some (BLookup y) \<Longrightarrow> x \<le> y \<Longrightarrow> 
+lemma [simp]: "unstr_lookup e a x = Some v \<Longrightarrow> lookup cd pc = Some (Lookup\<^sub>b y) \<Longrightarrow> x \<le> y \<Longrightarrow> 
   pc < length cd \<Longrightarrow> a \<le> ep \<Longrightarrow> restructurable_env e ep hp \<Longrightarrow> iter_evala (assemble_code cd) 
     (5 + 2 * x) (AS (case_register h (assemble_env e ep) vs sh) (case_register hp ep vp sp) a 
       (Reg Env) (5 + 2 * x + assembly_map cd pc)) = Some (AS (case_register h (assemble_env e ep)
@@ -774,27 +774,27 @@ lemma [simp]: "
     assembly_map (lib @ flatten_code' (length lib) cd) (length (lib @ flatten_code' (length lib) cd))"
         by (metis assembly_map_postpend append.assoc length_append flatten_length)
 
-lemma assembly_map_flatten' [simp]: "return_terminated\<^sub>e cd \<Longrightarrow>
+lemma assembly_map_flatten' [simp]: "properly_terminated\<^sub>e cd \<Longrightarrow>
   assembly_map (lib @ flatten_code' (length lib) cd) (length lib + code_list_size cd) = 
     sum_list (map (Suc \<circ> assemble_op_len) (lib @ flatten_code' (length lib) cd))"
 proof (induction "length lib" cd arbitrary: lib rule: flatten_code'.induct)
   case (4 cd' cd)
   let ?lib = "lib @ flatten_code' (length lib) cd'"
   let ?cd = "flatten_code' (length ?lib) cd"
-  have X: "assembly_map (?lib @ ?cd @ [BPushLam (length lib + code_list_size cd')]) 
+  have X: "assembly_map (?lib @ ?cd @ [PushLam\<^sub>b (length lib + code_list_size cd')]) 
     (length ?lib + code_list_size cd) = assembly_map (?lib @ ?cd) (length (?lib @ ?cd))" 
       by (metis assembly_map_postpend append.assoc length_append flatten_length)
-  from 4 have Y: "return_terminated\<^sub>e cd" by simp
+  from 4 have Y: "properly_terminated\<^sub>e cd" by simp
   have "length lib + length (flatten_code' (length lib) cd') = length ?lib" by simp
   with 4 Y have "assembly_map (?lib @ ?cd) (length ?lib + code_list_size cd) =
     sum_list (map (Suc \<circ> assemble_op_len) (?lib @ ?cd))" by blast
   with X show ?case by (simp add: add.assoc) 
 qed simp_all
 
-lemma [simp]: "return_terminated\<^sub>e cd \<Longrightarrow> assembly_map (flatten_code cd) (code_list_size cd) = 
+lemma [simp]: "properly_terminated\<^sub>e cd \<Longrightarrow> assembly_map (flatten_code cd) (code_list_size cd) = 
     sum_list (map (Suc \<circ> assemble_op_len) (flatten_code cd))"
 proof (unfold flatten_code_def)
-  assume "return_terminated\<^sub>e cd"
+  assume "properly_terminated\<^sub>e cd"
   hence "assembly_map ([] @ flatten_code' 0 cd) (length [] + code_list_size cd) = 
     sum_list (map (Suc \<circ> assemble_op_len) ([] @ flatten_code' 0 cd))" 
       by (metis assembly_map_flatten' list.size(3))
