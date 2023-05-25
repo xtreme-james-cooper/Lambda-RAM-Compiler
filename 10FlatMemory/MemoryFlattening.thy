@@ -97,7 +97,7 @@ next
   ultimately have X: "hlookup (hsplay flatten_env env) (1 + 2 * p) = 2 * snd (hlookup env p)" 
     by meson
   obtain a b where A: "hlookup env p = (a, b)" by (cases "hlookup env p")
-  with 3 P have "b \<le> p" using heap_lookup_all by fast
+  with 3 P have "b \<le> p" using hlookup_all by fast
   with P have "chained_stack_pointer env b" by auto
   with 3 X A show ?case by simp
 qed simp_all

@@ -2,6 +2,22 @@ theory Unstructuring
   imports UnstructuredMemory "../10FlatMemory/FlatMemory" "../00Utils/Utils" 
 begin
 
+primrec listify_heap :: "(nat \<Rightarrow> 'a) \<Rightarrow> nat \<Rightarrow> 'a list" where
+  "listify_heap h 0 = []"
+| "listify_heap h (Suc x) = h x # listify_heap h x"
+
+lemma [dest]: "listify_heap h x = [] \<Longrightarrow> x = 0"
+  by (induction x) simp_all
+
+lemma [dest]: "listify_heap h x = a # as \<Longrightarrow> \<exists>y. x = Suc y \<and> h y = a \<and> listify_heap h y = as"
+  by (induction x) simp_all
+
+lemma [simp]: "hp \<le> x \<Longrightarrow> listify_heap (h(x := v)) hp = listify_heap h hp"
+  by (induction hp) simp_all
+
+lemma [simp]: "hp \<le> x \<Longrightarrow> listify_heap (h(Suc x := v) \<circ> Suc) hp = listify_heap (h \<circ> Suc) hp"
+  by (induction hp) auto
+
 primrec restructure :: "unstr_state \<Rightarrow> flat_state" where
   "restructure (US h hp e ep vs vp sh sp pc) = 
     FS (H h hp) (H e ep) (listify_heap vs vp) (case sp of 

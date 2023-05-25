@@ -77,4 +77,16 @@ lemma x_mod_3_induct [case_names 0 1 2]: "((x::nat) mod 3 = 0 \<Longrightarrow> 
 lemma upd_the [simp]: "the \<circ> (f(x \<mapsto> a)) = (the \<circ> f)(x := a)"
   by auto
 
+lemma splay_lemma [simp]: "(k::nat) < m \<Longrightarrow> x < n \<Longrightarrow> k + m * x < m * n"
+proof (induction x arbitrary: n)
+  case 0
+  thus ?case by (induction n) simp_all
+next
+  case (Suc x)
+  thus ?case by (induction n) simp_all
+qed
+
+lemma list_all_elem [elim]: "list_all f env \<Longrightarrow> x \<in> set env \<Longrightarrow> f x"
+  by (induction env) auto
+
 end

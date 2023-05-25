@@ -180,6 +180,7 @@ s : an evaluation (or call) stack
 \<V> : a value stack
 \<Delta> : an environment
 p : a code pointer
+h : a heap
 \<tau> : a unification term
 \<gamma> : a unification constructor tag
 \<sigma> : a unification substitution

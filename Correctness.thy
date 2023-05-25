@@ -62,7 +62,7 @@ proof -
     S\<^sub>e [] [([], tco_code (encode (unname e\<^sub>t)))]" by simp
   have "orderly_state ?cd (S\<^sub>b [] [([], length ?cd)])" by simp
   with ET UB obtain v\<^sub>b where EB: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>b) (S\<^sub>b [] [([], length ?cd)]) (S\<^sub>b [v\<^sub>b] []) \<and> 
-    tco_val (encode_closure c) = unflatten_closure ?cd v\<^sub>b" by (metis evalb_end)
+    tco_val (encode_closure c) = unflatten_closure ?cd v\<^sub>b" by (metis eval\<^sub>b_end)
   then obtain \<Sigma>\<^sub>h' where EH: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>h) (HS hempty [] [([], length ?cd)]) \<Sigma>\<^sub>h' \<and> 
     S\<^sub>b [v\<^sub>b] [] = unheap \<Sigma>\<^sub>h'" by fastforce
   then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = HS h\<^sub>h [v\<^sub>h] [] \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 

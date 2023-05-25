@@ -24,11 +24,11 @@ primrec unheap :: "heap_state \<Rightarrow> state\<^sub>b" where
 
 primrec bounded_closure :: "hclosure heap \<Rightarrow> ptr \<Rightarrow> hclosure \<Rightarrow> bool" where
   "bounded_closure h x (HConst k) = True"
-| "bounded_closure h x (HLam env pc) = (stack_contains h env \<and> stack_below x env)"
+| "bounded_closure h x (HLam env pc) = (list_all (hcontains h) env \<and> stack_below x env)"
 
 primrec heap_structured :: "heap_state \<Rightarrow> bool" where
   "heap_structured (HS h vs sfs) = (heap_all (bounded_closure h) h \<and>
-    stack_contains h vs \<and> env_contains h (map fst sfs))"
+    list_all (hcontains h) vs \<and> list_all (list_all (hcontains h)) (map fst sfs))"
 
 lemma [simp]: "halloc h a = (h', x) \<Longrightarrow> bounded_closure h y c \<Longrightarrow> bounded_closure h' y c"
   by (induction c) simp_all
@@ -45,7 +45,7 @@ qed
 lemma [simp]: "halloc h (HConst k) = (h', v) \<Longrightarrow> unheap_closure h' v = Const\<^sub>b k"
   by simp
 
-lemma [simp]: "halloc h c = (h', v) \<Longrightarrow> stack_contains h env \<Longrightarrow> stack_below v env"
+lemma [simp]: "halloc h c = (h', v) \<Longrightarrow> list_all (hcontains h) env \<Longrightarrow> stack_below v env"
   by (induction env) simp_all
 
 lemma [simp]: "halloc h c = (h', v) \<Longrightarrow> hcontains h x \<Longrightarrow> heap_all (bounded_closure h) h \<Longrightarrow> 
@@ -58,7 +58,7 @@ proof (induction h x rule: unheap_closure.induct)
     with 1 show ?thesis
     proof (cases "stack_below x env")
       case True
-      from HLam 1 have "stack_contains h env" by (metis heap_lookup_all bounded_closure.simps(2))
+      from HLam 1 have "list_all (hcontains h) env" by (metis hlookup_all bounded_closure.simps(2))
       hence S: "\<And>y. y \<in> set env \<Longrightarrow> hcontains h y" by auto
       from 1 HLam True have "\<And>y. y \<in> set env \<Longrightarrow> hcontains h y \<Longrightarrow> 
         unheap_closure h' y = unheap_closure h y" by simp
@@ -67,32 +67,32 @@ proof (induction h x rule: unheap_closure.induct)
   qed simp_all
 qed
 
-lemma [simp]: "halloc h c = (h', v) \<Longrightarrow> stack_contains h env \<Longrightarrow> heap_all (bounded_closure h) h \<Longrightarrow>
+lemma [simp]: "halloc h c = (h', v) \<Longrightarrow> list_all (hcontains h) env \<Longrightarrow> heap_all (bounded_closure h) h \<Longrightarrow>
     map (unheap_closure h') env = map (unheap_closure h) env"
   by (induction env) (simp_all del: unheap_closure.simps)
 
-lemma [simp]: "halloc h c = (h', v) \<Longrightarrow> env_contains h (map fst sfs) \<Longrightarrow> 
+lemma [simp]: "halloc h c = (h', v) \<Longrightarrow> list_all (list_all (hcontains h)) (map fst sfs) \<Longrightarrow> 
     heap_all (bounded_closure h) h \<Longrightarrow> unheap_stack h' sfs = unheap_stack h sfs"
   by (induction sfs rule: unheap_stack.induct) (simp_all del: unheap_closure.simps)
 
-lemma [simp]: "halloc h (HLam env p) = (h', v) \<Longrightarrow> stack_contains h env \<Longrightarrow> 
+lemma [simp]: "halloc h (HLam env p) = (h', v) \<Longrightarrow> list_all (hcontains h) env \<Longrightarrow> 
     heap_all (bounded_closure h) h \<Longrightarrow> unheap_closure h' v = Lam\<^sub>b (map (unheap_closure h) env) p"
   by simp
 
 lemma [simp]: "hlookup h v = HLam env pc \<Longrightarrow> heap_all (bounded_closure h) h \<Longrightarrow> hcontains h v \<Longrightarrow>
     stack_below v env"
-  by (metis heap_lookup_all bounded_closure.simps(2))
+  by (metis hlookup_all bounded_closure.simps(2))
 
 lemma [simp]: "cd \<tturnstile> \<Sigma>\<^sub>h \<leadsto>\<^sub>h \<Sigma>\<^sub>h' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> heap_structured \<Sigma>\<^sub>h'"
 proof (induction \<Sigma>\<^sub>h \<Sigma>\<^sub>h' rule: evalh.induct)
   case (evh_apply cd pc h v2 env pc' v1 vs sfs)
   hence "hlookup h v2 = HLam env pc' \<and> heap_all (bounded_closure h) h \<and> hcontains h v2" by simp
-  hence "bounded_closure h v2 (HLam env pc')" by (metis heap_lookup_all)
+  hence "bounded_closure h v2 (HLam env pc')" by (metis hlookup_all)
   with evh_apply show ?case by simp
 next
   case (evh_jump cd pc h v2 env' pc' v1 vs env sfs)
   hence "hlookup h v2 = HLam env' pc' \<and> heap_all (bounded_closure h) h \<and> hcontains h v2" by simp
-  hence "bounded_closure h v2 (HLam env' pc')" by (metis heap_lookup_all)
+  hence "bounded_closure h v2 (HLam env' pc')" by (metis hlookup_all)
   with evh_jump show ?case by simp
 qed fastforce+
 
