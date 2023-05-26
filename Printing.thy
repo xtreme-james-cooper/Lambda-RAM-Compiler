@@ -31,9 +31,9 @@ primrec print_bclosure :: "closure\<^sub>b \<Rightarrow> print" where
   "print_bclosure (Const\<^sub>b n) = Number n"
 | "print_bclosure (Lam\<^sub>b cs pc) = Fun"
 
-primrec print_hclosure :: "hclosure \<Rightarrow> print" where
-  "print_hclosure (HConst n) = Number n"
-| "print_hclosure (HLam cs pc) = Fun"
+primrec print_hclosure :: "closure\<^sub>h \<Rightarrow> print" where
+  "print_hclosure (Const\<^sub>h n) = Number n"
+| "print_hclosure (Lam\<^sub>h cs pc) = Fun"
 
 primrec print_ceclosure :: "ceclosure \<Rightarrow> print" where
   "print_ceclosure (CEConst n) = Number n"

@@ -270,3 +270,9 @@ ClosureConversion
 TreeCode
 TreeCodeConversion
 TaillCallOptimization
+ByteCode
+CodeFlattening
+
+Heap
+HeapMemory
+HeapConversion

@@ -34,11 +34,11 @@ fun unstack_list :: "(ptr \<times> ptr) heap \<Rightarrow> ptr \<Rightarrow> ptr
 | "unstack_list env (Suc p) = (case hlookup env p of 
       (v, p') \<Rightarrow> v # (if p' \<le> p then unstack_list env p' else undefined))"
 
-primrec unchain_closure :: "(ptr \<times> ptr) heap \<Rightarrow> ceclosure \<Rightarrow> hclosure" where
-  "unchain_closure env (CEConst k) = HConst k"
-| "unchain_closure env (CELam p pc) = HLam (unstack_list env p) pc"
+primrec unchain_closure :: "(ptr \<times> ptr) heap \<Rightarrow> ceclosure \<Rightarrow> closure\<^sub>h" where
+  "unchain_closure env (CEConst k) = Const\<^sub>h k"
+| "unchain_closure env (CELam p pc) = Lam\<^sub>h (unstack_list env p) pc"
 
-definition unchain_heap :: "ceclosure heap \<Rightarrow> (ptr \<times> ptr) heap \<Rightarrow> hclosure heap" where
+definition unchain_heap :: "ceclosure heap \<Rightarrow> (ptr \<times> ptr) heap \<Rightarrow> closure\<^sub>h heap" where
   "unchain_heap h env = hmap (unchain_closure env) h"
 
 primrec unchain_frame :: "(ptr \<times> ptr) heap \<Rightarrow> (ptr \<times> nat) \<Rightarrow> (ptr list \<times> nat)" where
@@ -48,7 +48,7 @@ definition unchain_stack :: "(ptr \<times> ptr) heap \<Rightarrow> (ptr \<times>
   "unchain_stack env sfs = map (unchain_frame env) sfs"
 
 primrec unchain_state :: "chained_state \<Rightarrow> heap_state" where
-  "unchain_state (CES h env vs sfs) = HS (unchain_heap h env) vs (unchain_stack env sfs)"
+  "unchain_state (CES h env vs sfs) = S\<^sub>h (unchain_heap h env) vs (unchain_stack env sfs)"
 
 lemma [simp]: "chain_structured h env \<Longrightarrow> 
   heap_all (\<lambda>p (y, p'). p' \<le> p \<and> (y = x \<or> hcontains h y)) env"
@@ -116,7 +116,7 @@ proof (induction env p x rule: chain_lookup.induct)
 qed (simp_all split: prod.splits)
 
 lemma [simp]: "halloc h (CEConst k) = (h', p) \<Longrightarrow> 
-  halloc (unchain_heap h env) (HConst k) = (unchain_heap h' env, p)"
+  halloc (unchain_heap h env) (Const\<^sub>h k) = (unchain_heap h' env, p)"
 proof -
   assume "halloc h (CEConst k) = (h', p)"
   hence "halloc (hmap (unchain_closure env) h) (unchain_closure env (CEConst k)) = 
@@ -125,7 +125,7 @@ proof -
 qed
 
 lemma [simp]: "halloc h (CELam p pc) = (h', v) \<Longrightarrow> 
-  halloc (unchain_heap h env) (HLam (unstack_list env p) pc) = (unchain_heap h' env, v)"
+  halloc (unchain_heap h env) (Lam\<^sub>h (unstack_list env p) pc) = (unchain_heap h' env, v)"
 proof -
   assume "halloc h (CELam p pc) = (h', v)"
   hence "halloc (hmap (unchain_closure env) h) (unchain_closure env (CELam p pc)) = 
@@ -134,19 +134,19 @@ proof -
 qed
 
 lemma [simp]: "hlookup h x = CEConst k \<Longrightarrow> hcontains h x \<Longrightarrow> 
-    hlookup (unchain_heap h env) x = HConst k"
+    hlookup (unchain_heap h env) x = Const\<^sub>h k"
   by (simp add: unchain_heap_def)
 
 lemma [simp]: "hlookup h x = CELam p pc \<Longrightarrow> hcontains h x \<Longrightarrow> 
-    hlookup (unchain_heap h env) x = HLam (unstack_list env p) pc"
+    hlookup (unchain_heap h env) x = Lam\<^sub>h (unstack_list env p) pc"
   by (simp add: unchain_heap_def)
 
-lemma unchain_state_reverse [dest]: "HS h vs sfs = unchain_state \<Sigma> \<Longrightarrow> 
+lemma unchain_state_reverse [dest]: "S\<^sub>h h vs sfs = unchain_state \<Sigma> \<Longrightarrow> 
   \<exists>h\<^sub>c\<^sub>e env sfs\<^sub>c\<^sub>e. \<Sigma> = CES h\<^sub>c\<^sub>e env vs sfs\<^sub>c\<^sub>e \<and> h = unchain_heap h\<^sub>c\<^sub>e env \<and> 
     sfs = unchain_stack env sfs\<^sub>c\<^sub>e"
   by (induction \<Sigma>) simp_all
 
-lemma [dest]: "HLam env\<^sub>h pc = unchain_closure env\<^sub>c\<^sub>e x \<Longrightarrow> 
+lemma [dest]: "Lam\<^sub>h env\<^sub>h pc = unchain_closure env\<^sub>c\<^sub>e x \<Longrightarrow> 
     \<exists>p. x = CELam p pc \<and> env\<^sub>h = unstack_list env\<^sub>c\<^sub>e p"
   by (induction x) simp_all
 
@@ -201,68 +201,68 @@ lemma [elim]: "chained_stack env sfs \<Longrightarrow> halloc env v = (env', p) 
 
 theorem completece [simp]: "cd \<tturnstile> unchain_state \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>h \<Sigma>\<^sub>h \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>c\<^sub>e'. (cd \<tturnstile> \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e') \<and> \<Sigma>\<^sub>h = unchain_state \<Sigma>\<^sub>c\<^sub>e'"
-proof (induction "unchain_state \<Sigma>\<^sub>c\<^sub>e" \<Sigma>\<^sub>h arbitrary: \<Sigma>\<^sub>c\<^sub>e rule: evalh.induct)
-  case (evh_lookup cd pc x env v h vs sfs)
+proof (induction "unchain_state \<Sigma>\<^sub>c\<^sub>e" \<Sigma>\<^sub>h arbitrary: \<Sigma>\<^sub>c\<^sub>e rule: eval\<^sub>h.induct)
+  case (ev\<^sub>h_lookup cd pc x env v h vs sfs)
   then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e' where S: "\<Sigma>\<^sub>c\<^sub>e = CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs sfs\<^sub>c\<^sub>e' \<and> h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> 
     (env, Suc pc) # sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e'" by fastforce
   then obtain sf\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where SF: "sfs\<^sub>c\<^sub>e' = sf\<^sub>c\<^sub>e # sfs\<^sub>c\<^sub>e \<and> (env, Suc pc) = unchain_frame env\<^sub>c\<^sub>e sf\<^sub>c\<^sub>e \<and> 
     sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by (auto simp add: unchain_stack_def)
   then obtain p where P: "sf\<^sub>c\<^sub>e = (p, Suc pc) \<and> env = unstack_list env\<^sub>c\<^sub>e p" by (cases sf\<^sub>c\<^sub>e) simp_all
-  with evh_lookup S SF have C: "chain_structured h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e" by simp
-  with evh_lookup S SF P have X: "HS h (v # vs) ((env, pc) # sfs) = 
+  with ev\<^sub>h_lookup S SF have C: "chain_structured h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e" by simp
+  with ev\<^sub>h_lookup S SF P have X: "S\<^sub>h h (v # vs) ((env, pc) # sfs) = 
     unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v # vs) ((p, pc) # sfs\<^sub>c\<^sub>e))" by (simp add: unchain_stack_def)
-  from evh_lookup S SF P have "chained_frame env\<^sub>c\<^sub>e (p, Suc pc)" by simp
+  from ev\<^sub>h_lookup S SF P have "chained_frame env\<^sub>c\<^sub>e (p, Suc pc)" by simp
   with C have "lookup (unstack_list env\<^sub>c\<^sub>e p) x = chain_lookup env\<^sub>c\<^sub>e p x" by simp
-  with evh_lookup P C have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
+  with ev\<^sub>h_lookup P C have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
     CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v # vs) ((p, pc) # sfs\<^sub>c\<^sub>e)" by simp
   with S SF P X show ?case by blast
 next
-  case (evh_pushcon cd pc k h h' v vs env sfs)
+  case (ev\<^sub>h_pushcon cd pc k h h' v vs env sfs)
   then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e' where S: "\<Sigma>\<^sub>c\<^sub>e = CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs sfs\<^sub>c\<^sub>e' \<and> h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> 
     (env, Suc pc) # sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e'" by fastforce
   then obtain sf\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where SF: "sfs\<^sub>c\<^sub>e' = sf\<^sub>c\<^sub>e # sfs\<^sub>c\<^sub>e \<and> (env, Suc pc) = unchain_frame env\<^sub>c\<^sub>e sf\<^sub>c\<^sub>e \<and> 
     sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by (auto simp add: unchain_stack_def)
   then obtain p where P: "sf\<^sub>c\<^sub>e = (p, Suc pc) \<and> env = unstack_list env\<^sub>c\<^sub>e p" by (cases sf\<^sub>c\<^sub>e) simp_all
-  from evh_pushcon S have "halloc (hmap (unchain_closure env\<^sub>c\<^sub>e) h\<^sub>c\<^sub>e) 
+  from ev\<^sub>h_pushcon S have "halloc (hmap (unchain_closure env\<^sub>c\<^sub>e) h\<^sub>c\<^sub>e) 
     (unchain_closure env\<^sub>c\<^sub>e (CEConst k)) = (h', v)" by (simp add: unchain_heap_def)
   then obtain h\<^sub>c\<^sub>e' where H: "halloc h\<^sub>c\<^sub>e (CEConst k) = (h\<^sub>c\<^sub>e', v) \<and> 
     h' = hmap (unchain_closure env\<^sub>c\<^sub>e) h\<^sub>c\<^sub>e'" by (metis halloc_map_inv)
   hence "h' = unchain_heap h\<^sub>c\<^sub>e' env\<^sub>c\<^sub>e" by (simp add: unchain_heap_def)
-  with SF P have X: "HS h' (v # vs) ((env, pc) # sfs) = 
+  with SF P have X: "S\<^sub>h h' (v # vs) ((env, pc) # sfs) = 
     unchain_state (CES h\<^sub>c\<^sub>e' env\<^sub>c\<^sub>e (v # vs) ((p, pc) # sfs\<^sub>c\<^sub>e))" by (simp add: unchain_stack_def)
-  from evh_pushcon H have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
+  from ev\<^sub>h_pushcon H have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
     CES h\<^sub>c\<^sub>e' env\<^sub>c\<^sub>e (v # vs) ((p, pc) # sfs\<^sub>c\<^sub>e)" by simp
   with S SF P X show ?case by blast
 next
-  case (evh_pushlam cd pc pc' h env h' v vs sfs)
+  case (ev\<^sub>h_pushlam cd pc pc' h env h' v vs sfs)
   then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e' where S: "\<Sigma>\<^sub>c\<^sub>e = CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs sfs\<^sub>c\<^sub>e' \<and> h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> 
     (env, Suc pc) # sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e'" by fastforce
   then obtain sf\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where SF: "sfs\<^sub>c\<^sub>e' = sf\<^sub>c\<^sub>e # sfs\<^sub>c\<^sub>e \<and> (env, Suc pc) = unchain_frame env\<^sub>c\<^sub>e sf\<^sub>c\<^sub>e \<and> 
     sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by (auto simp add: unchain_stack_def)
   then obtain p where P: "sf\<^sub>c\<^sub>e = (p, Suc pc) \<and> env = unstack_list env\<^sub>c\<^sub>e p" by (cases sf\<^sub>c\<^sub>e) simp_all
-  with evh_pushlam S have "halloc (hmap (unchain_closure env\<^sub>c\<^sub>e) h\<^sub>c\<^sub>e) 
+  with ev\<^sub>h_pushlam S have "halloc (hmap (unchain_closure env\<^sub>c\<^sub>e) h\<^sub>c\<^sub>e) 
     (unchain_closure env\<^sub>c\<^sub>e (CELam p pc')) = (h', v)" by (simp add: unchain_heap_def)
   then obtain h\<^sub>c\<^sub>e' where H: "halloc h\<^sub>c\<^sub>e (CELam p pc') = (h\<^sub>c\<^sub>e', v) \<and> 
     h' = hmap (unchain_closure env\<^sub>c\<^sub>e) h\<^sub>c\<^sub>e'" by (metis halloc_map_inv)
   hence "h' = unchain_heap h\<^sub>c\<^sub>e' env\<^sub>c\<^sub>e" by (simp add: unchain_heap_def)
-  with SF P have X: "HS h' (v # vs) ((env, pc) # sfs) = 
+  with SF P have X: "S\<^sub>h h' (v # vs) ((env, pc) # sfs) = 
     unchain_state (CES h\<^sub>c\<^sub>e' env\<^sub>c\<^sub>e (v # vs) ((p, pc) # sfs\<^sub>c\<^sub>e))" by (simp add: unchain_stack_def)
-  from evh_pushlam H have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
+  from ev\<^sub>h_pushlam H have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
     CES h\<^sub>c\<^sub>e' env\<^sub>c\<^sub>e (v # vs) ((p, pc) # sfs\<^sub>c\<^sub>e)" by simp
   with S SF P X show ?case by blast
 next
-  case (evh_apply cd pc h v2 env' pc' v1 vs env sfs)
+  case (ev\<^sub>h_apply cd pc h v2 env' pc' v1 vs env sfs)
   then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e' where S: "\<Sigma>\<^sub>c\<^sub>e = CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1 # v2 # vs) sfs\<^sub>c\<^sub>e' \<and> 
     h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> (env, Suc pc) # sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e'" by fastforce
   then obtain sf\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where SF: "sfs\<^sub>c\<^sub>e' = sf\<^sub>c\<^sub>e # sfs\<^sub>c\<^sub>e \<and> (env, Suc pc) = unchain_frame env\<^sub>c\<^sub>e sf\<^sub>c\<^sub>e \<and> 
     sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by (auto simp add: unchain_stack_def)
   then obtain p where P: "sf\<^sub>c\<^sub>e = (p, Suc pc) \<and> env = unstack_list env\<^sub>c\<^sub>e p" by (cases sf\<^sub>c\<^sub>e) simp_all
-  from evh_apply S have "HLam env' pc' = unchain_closure env\<^sub>c\<^sub>e (hlookup h\<^sub>c\<^sub>e v2)" 
+  from ev\<^sub>h_apply S have "Lam\<^sub>h env' pc' = unchain_closure env\<^sub>c\<^sub>e (hlookup h\<^sub>c\<^sub>e v2)" 
     by (simp add: unchain_heap_def)
   then obtain p' where P': "hlookup h\<^sub>c\<^sub>e v2 = CELam p' pc' \<and> env' = unstack_list env\<^sub>c\<^sub>e p'" by blast
   obtain env\<^sub>c\<^sub>e' p'' where H: "halloc env\<^sub>c\<^sub>e (v1, p') = (env\<^sub>c\<^sub>e', p'')" 
     by (cases "halloc env\<^sub>c\<^sub>e (v1, p')") simp_all
-  from evh_apply S SF P have C: "chain_structured h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> chained_closures env\<^sub>c\<^sub>e h\<^sub>c\<^sub>e \<and>
+  from ev\<^sub>h_apply S SF P have C: "chain_structured h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> chained_closures env\<^sub>c\<^sub>e h\<^sub>c\<^sub>e \<and>
     hcontains h\<^sub>c\<^sub>e v1 \<and> hcontains h\<^sub>c\<^sub>e v2 \<and> chained_vals h\<^sub>c\<^sub>e vs \<and> chained_frame env\<^sub>c\<^sub>e (p, Suc pc) \<and> 
       chained_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by simp
   with H have Y: "unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e" by fast
@@ -275,35 +275,35 @@ next
   with H P' have Z: "v1 # env' = unstack_list env\<^sub>c\<^sub>e' (Suc p'')" by simp
   from H C have "unchain_stack env\<^sub>c\<^sub>e' sfs\<^sub>c\<^sub>e = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by fast
   with SF have "sfs = unchain_stack env\<^sub>c\<^sub>e' sfs\<^sub>c\<^sub>e" by simp
-  with S Y Z W have X: "HS h vs ((v1 # env', pc') # (env, pc) # sfs) = 
+  with S Y Z W have X: "S\<^sub>h h vs ((v1 # env', pc') # (env, pc) # sfs) = 
     unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((Suc p'', pc') # (p, pc) # sfs\<^sub>c\<^sub>e))" 
       by (simp add: unchain_stack_def)
-  from evh_apply P' H have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1 # v2 # vs) ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
+  from ev\<^sub>h_apply P' H have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1 # v2 # vs) ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
       CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((Suc p'', pc') # (p, pc) # sfs\<^sub>c\<^sub>e)" by simp
   with S SF P X show ?case by blast
 next
-  case (evh_return cd pc h vs env sfs)
+  case (ev\<^sub>h_return cd pc h vs env sfs)
   then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e' where S: "\<Sigma>\<^sub>c\<^sub>e = CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs sfs\<^sub>c\<^sub>e' \<and> h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> 
     (env, Suc pc) # sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e'" by fastforce
   then obtain sf\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where SF: "sfs\<^sub>c\<^sub>e' = sf\<^sub>c\<^sub>e # sfs\<^sub>c\<^sub>e \<and> (env, Suc pc) = unchain_frame env\<^sub>c\<^sub>e sf\<^sub>c\<^sub>e \<and> 
     sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by (auto simp add: unchain_stack_def)
   then obtain p where P: "sf\<^sub>c\<^sub>e = (p, Suc pc) \<and> env = unstack_list env\<^sub>c\<^sub>e p" by (cases sf\<^sub>c\<^sub>e) simp_all
-  from S SF have X: "HS h vs sfs = unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs sfs\<^sub>c\<^sub>e)" by simp
-  from evh_return have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs sfs\<^sub>c\<^sub>e" by simp
+  from S SF have X: "S\<^sub>h h vs sfs = unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs sfs\<^sub>c\<^sub>e)" by simp
+  from ev\<^sub>h_return have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs sfs\<^sub>c\<^sub>e" by simp
   with S SF P X show ?case by blast
 next
-  case (evh_jump cd pc h v2 env' pc' v1 vs env sfs)
+  case (ev\<^sub>h_jump cd pc h v2 env' pc' v1 vs env sfs)
   then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e' where S: "\<Sigma>\<^sub>c\<^sub>e = CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1 # v2 # vs) sfs\<^sub>c\<^sub>e' \<and> 
     h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> (env, Suc pc) # sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e'" by fastforce
   then obtain sf\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where SF: "sfs\<^sub>c\<^sub>e' = sf\<^sub>c\<^sub>e # sfs\<^sub>c\<^sub>e \<and> (env, Suc pc) = unchain_frame env\<^sub>c\<^sub>e sf\<^sub>c\<^sub>e \<and> 
     sfs = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by (auto simp add: unchain_stack_def)
   then obtain p where P: "sf\<^sub>c\<^sub>e = (p, Suc pc) \<and> env = unstack_list env\<^sub>c\<^sub>e p" by (cases sf\<^sub>c\<^sub>e) simp_all
-  from evh_jump S have "HLam env' pc' = unchain_closure env\<^sub>c\<^sub>e (hlookup h\<^sub>c\<^sub>e v2)" 
+  from ev\<^sub>h_jump S have "Lam\<^sub>h env' pc' = unchain_closure env\<^sub>c\<^sub>e (hlookup h\<^sub>c\<^sub>e v2)" 
     by (simp add: unchain_heap_def)
   then obtain p' where P': "hlookup h\<^sub>c\<^sub>e v2 = CELam p' pc' \<and> env' = unstack_list env\<^sub>c\<^sub>e p'" by blast
   obtain env\<^sub>c\<^sub>e' p'' where H: "halloc env\<^sub>c\<^sub>e (v1, p') = (env\<^sub>c\<^sub>e', p'')" 
     by (cases "halloc env\<^sub>c\<^sub>e (v1, p')") simp_all
-  from evh_jump S SF P have C: "chain_structured h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> chained_closures env\<^sub>c\<^sub>e h\<^sub>c\<^sub>e \<and>
+  from ev\<^sub>h_jump S SF P have C: "chain_structured h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e \<and> chained_closures env\<^sub>c\<^sub>e h\<^sub>c\<^sub>e \<and>
     hcontains h\<^sub>c\<^sub>e v1 \<and> hcontains h\<^sub>c\<^sub>e v2 \<and> chained_vals h\<^sub>c\<^sub>e vs \<and> chained_stack_pointer env\<^sub>c\<^sub>e p \<and> 
       chained_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by simp
   with H have Y: "unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' = unchain_heap h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e" by fast
@@ -314,9 +314,9 @@ next
   with H P' have Z: "v1 # env' = unstack_list env\<^sub>c\<^sub>e' (Suc p'')" by simp
   from H C have "unchain_stack env\<^sub>c\<^sub>e' sfs\<^sub>c\<^sub>e = unchain_stack env\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by fast
   with SF have "sfs = unchain_stack env\<^sub>c\<^sub>e' sfs\<^sub>c\<^sub>e" by simp
-  with S Y Z have X: "HS h vs ((v1 # env', pc') # sfs) = 
+  with S Y Z have X: "S\<^sub>h h vs ((v1 # env', pc') # sfs) = 
     unchain_state (CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((Suc p'', pc') # sfs\<^sub>c\<^sub>e))" by (simp add: unchain_stack_def)
-  from evh_jump P' H have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1 # v2 # vs) ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
+  from ev\<^sub>h_jump P' H have "cd \<tturnstile> CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1 # v2 # vs) ((p, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>c\<^sub>e 
       CES h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs ((Suc p'', pc') # sfs\<^sub>c\<^sub>e)" by simp
   with S SF P X show ?case by blast
 qed
@@ -337,9 +337,9 @@ next
   from evce_apply have A: "unchain_heap h env' = unchain_heap h env" by auto
   from evce_apply have B: "unstack_list env' p = unstack_list env p" by auto
   from evce_apply have "unchain_stack env' sfs = unchain_stack env sfs" by auto 
-  with evce_apply X A B have "cd \<tturnstile> HS (unchain_heap h env) (v1 # v2 # vs) 
+  with evce_apply X A B have "cd \<tturnstile> S\<^sub>h (unchain_heap h env) (v1 # v2 # vs) 
     ((unstack_list env p, Suc pc) # unchain_stack env sfs) \<leadsto>\<^sub>h
-      HS (unchain_heap h env') vs 
+      S\<^sub>h (unchain_heap h env') vs 
         ((unstack_list env' (Suc p''), pc') # (unstack_list env' p, pc) # unchain_stack env' sfs)" 
     by simp
   thus ?case by (simp add: unchain_stack_def)
@@ -352,9 +352,9 @@ next
   hence X: "unstack_list env' (Suc p'') = v1 # unstack_list env p'" by (metis unfold_unstack_list)
   from evce_jump have A: "unchain_heap h env' = unchain_heap h env" by auto
   from evce_jump have "unchain_stack env' sfs = unchain_stack env sfs" by auto 
-  with evce_jump X A have "cd \<tturnstile> HS (unchain_heap h env) (v1 # v2 # vs) 
+  with evce_jump X A have "cd \<tturnstile> S\<^sub>h (unchain_heap h env) (v1 # v2 # vs) 
     ((unstack_list env p, Suc pc) # unchain_stack env sfs) \<leadsto>\<^sub>h
-      HS (unchain_heap h env') vs 
+      S\<^sub>h (unchain_heap h env') vs 
         ((unstack_list env' (Suc p''), pc') # unchain_stack env' sfs)" by simp
   thus ?case by (simp add: unchain_stack_def)
 qed (simp_all add: unchain_stack_def)

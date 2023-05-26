@@ -2,55 +2,58 @@ theory HeapMemory
   imports "../07ByteCode/ByteCode" Heap
 begin
 
-datatype hclosure = 
-  HConst nat
-  | HLam "ptr list" nat
+subsection \<open>Heap-Memory Values\<close>
+
+text \<open>Now that we have a way of representing heap-allocation, we can get rid of our duplicated 
+values. Closure-values replace the environment instance with a list of pointers into the heap, and 
+the state as a whole replaces the value stack and the callstack environments with more lists of 
+pointers. To make all this work, of course, we also need the actual heap to be stored in the state 
+now.\<close>
+
+datatype closure\<^sub>h = 
+  Const\<^sub>h nat
+  | Lam\<^sub>h "ptr list" nat
 
 datatype heap_state = 
-  HS "hclosure heap" "ptr list" "(ptr list \<times> nat) list"
+  S\<^sub>h "closure\<^sub>h heap" "ptr list" "(ptr list \<times> nat) list"
 
-inductive evalh :: "code\<^sub>b list \<Rightarrow> heap_state \<Rightarrow> heap_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>h" 50) where
-  evh_lookup [simp]: "lookup cd pc = Some (Lookup\<^sub>b x) \<Longrightarrow> lookup env x = Some v \<Longrightarrow> 
-    cd \<tturnstile> HS h vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>h HS h (v # vs) ((env, pc) # sfs)"
-| evh_pushcon [simp]: "lookup cd pc = Some (PushCon\<^sub>b k) \<Longrightarrow> halloc h (HConst k) = (h', v) \<Longrightarrow>
-    cd \<tturnstile> HS h vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>h HS h' (v # vs) ((env, pc) # sfs)"
-| evh_pushlam [simp]: "lookup cd pc = Some (PushLam\<^sub>b pc') \<Longrightarrow> halloc h (HLam env pc') = (h', v) \<Longrightarrow>
-    cd \<tturnstile> HS h vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>h HS h' (v # vs) ((env, pc) # sfs)"
-| evh_apply [simp]: "lookup cd pc = Some Apply\<^sub>b \<Longrightarrow> hlookup h v2 = HLam env' pc' \<Longrightarrow>
-    cd \<tturnstile> HS h (v1 # v2 # vs) ((env, Suc pc) # sfs) \<leadsto>\<^sub>h
-      HS h vs ((v1 # env', pc') # (env, pc) # sfs)"
-| evh_return [simp]: "lookup cd pc = Some Return\<^sub>b \<Longrightarrow> 
-    cd \<tturnstile> HS h vs ((env, Suc pc) # sfs) \<leadsto>\<^sub>h HS h vs sfs"
-| evh_jump [simp]: "lookup cd pc = Some Jump\<^sub>b \<Longrightarrow> hlookup h v2 = HLam env' pc' \<Longrightarrow>
-    cd \<tturnstile> HS h (v1 # v2 # vs) ((env, Suc pc) # sfs) \<leadsto>\<^sub>h HS h vs ((v1 # env', pc') # sfs)"
+text \<open>Our evaluation relation must now \<open>halloc\<close> values when pushing them, and \<open>hlookup\<close> them when 
+popping; but beyond that, things are mostly the same as the previous stage, and we no longer 
+duplicate values, only pointers to them.\<close>
 
-theorem determinismh: "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>h \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>h \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
-proof (induction cd \<Sigma> \<Sigma>' rule: evalh.induct)
-  case (evh_lookup cd pc x env v h vs sfs)
-  from evh_lookup(3, 1, 2) show ?case 
-    by (induction cd "HS h vs ((env, Suc pc) # sfs)" \<Sigma>'' rule: evalh.induct) simp_all 
+inductive eval\<^sub>h :: "code\<^sub>b list \<Rightarrow> heap_state \<Rightarrow> heap_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>h" 50) where
+  ev\<^sub>h_lookup [simp]: "lookup \<C> p = Some (Lookup\<^sub>b x) \<Longrightarrow> lookup \<Delta> x = Some v \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h (v # \<V>) ((\<Delta>, p) # s)"
+| ev\<^sub>h_pushcon [simp]: "lookup \<C> p = Some (PushCon\<^sub>b n) \<Longrightarrow> halloc h (Const\<^sub>h n) = (h', v) \<Longrightarrow>
+    \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h' (v # \<V>) ((\<Delta>, p) # s)"
+| ev\<^sub>h_pushlam [simp]: "lookup \<C> p = Some (PushLam\<^sub>b p') \<Longrightarrow> halloc h (Lam\<^sub>h \<Delta> p') = (h', v) \<Longrightarrow>
+    \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h' (v # \<V>) ((\<Delta>, p) # s)"
+| ev\<^sub>h_apply [simp]: "lookup \<C> p = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' \<Longrightarrow>
+    \<C> \<tturnstile> S\<^sub>h h (v\<^sub>1 # v\<^sub>2 # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> ((v\<^sub>1 # \<Delta>', p') # (\<Delta>, p) # s)"
+| ev\<^sub>h_return [simp]: "lookup \<C> p = Some Return\<^sub>b \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> s"
+| ev\<^sub>h_jump [simp]: "lookup \<C> p = Some Jump\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' \<Longrightarrow>
+    \<C> \<tturnstile> S\<^sub>h h (v\<^sub>1 # v\<^sub>2 # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> ((v\<^sub>1 # \<Delta>', p') # s)"
+
+theorem determinismh: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>h \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>h \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
+proof (induction \<C> \<Sigma> \<Sigma>' rule: eval\<^sub>h.induct)
+  case ev\<^sub>h_lookup
+  from ev\<^sub>h_lookup(3, 1, 2) show ?case by (induction rule: eval\<^sub>h.cases) simp_all 
 next
-  case (evh_pushcon cd pc k h h' v vs env sfs)
-  from evh_pushcon(3, 1, 2) show ?case 
-    by (induction cd "HS h vs ((env, Suc pc) # sfs)" \<Sigma>'' rule: evalh.induct) simp_all 
+  case ev\<^sub>h_pushcon
+  from ev\<^sub>h_pushcon(3, 1, 2) show ?case by (induction rule: eval\<^sub>h.cases) simp_all 
 next
-  case (evh_pushlam cd pc pc' h env h' v vs sfs)
-  from evh_pushlam(3, 1, 2) show ?case 
-    by (induction cd "HS h vs ((env, Suc pc) # sfs)" \<Sigma>'' rule: evalh.induct) simp_all 
+  case ev\<^sub>h_pushlam
+  from ev\<^sub>h_pushlam(3, 1, 2) show ?case by (induction rule: eval\<^sub>h.cases) simp_all 
 next
-  case (evh_apply cd pc h v2 env' pc' v1 vs env sfs)
-  from evh_apply(3, 1, 2) show ?case 
-    by (induction cd "HS h (v1 # v2 # vs) ((env, Suc pc) # sfs)" \<Sigma>'' rule: evalh.induct) 
-       simp_all 
+  case ev\<^sub>h_apply
+  from ev\<^sub>h_apply(3, 1, 2) show ?case by (induction rule: eval\<^sub>h.cases) simp_all 
 next
-  case (evh_return cd pc h vs env sfs)
-  from evh_return(2, 1) show ?case 
-    by (induction cd "HS h vs ((env, Suc pc) # sfs)" \<Sigma>'' rule: evalh.induct) simp_all 
+  case ev\<^sub>h_return
+  from ev\<^sub>h_return(2, 1) show ?case by (induction rule: eval\<^sub>h.cases) simp_all 
 next
-  case (evh_jump cd pc h v2 env' pc' v1 vs env sfs)
-  from evh_jump(3, 1, 2) show ?case 
-    by (induction cd "HS h (v1 # v2 # vs) ((env, Suc pc) # sfs)" \<Sigma>'' rule: evalh.induct) 
-       simp_all 
+  case ev\<^sub>h_jump
+  from ev\<^sub>h_jump(3, 1, 2) show ?case by (induction rule: eval\<^sub>h.cases) simp_all 
 qed
 
 end

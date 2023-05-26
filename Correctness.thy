@@ -63,15 +63,15 @@ proof -
   have "orderly_state ?cd (S\<^sub>b [] [([], length ?cd)])" by simp
   with ET UB obtain v\<^sub>b where EB: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>b) (S\<^sub>b [] [([], length ?cd)]) (S\<^sub>b [v\<^sub>b] []) \<and> 
     tco_val (encode_closure c) = unflatten_closure ?cd v\<^sub>b" by (metis eval\<^sub>b_end)
-  then obtain \<Sigma>\<^sub>h' where EH: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>h) (HS hempty [] [([], length ?cd)]) \<Sigma>\<^sub>h' \<and> 
+  then obtain \<Sigma>\<^sub>h' where EH: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>h) (S\<^sub>h hempty [] [([], length ?cd)]) \<Sigma>\<^sub>h' \<and> 
     S\<^sub>b [v\<^sub>b] [] = unheap \<Sigma>\<^sub>h'" by fastforce
-  then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = HS h\<^sub>h [v\<^sub>h] [] \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 
-    using unheap_empty by blast
-  have HS: "heap_structured (HS hempty [] [([], length ?cd)])" by simp
+  then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = S\<^sub>h h\<^sub>h [v\<^sub>h] [] \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 
+    using unheap_to_empty by blast
+  have S\<^sub>h: "heap_structured (S\<^sub>h hempty [] [([], length ?cd)])" by simp
   have CES: "unchain_state (CES hempty hempty [] [(0, length ?cd)]) = 
-    HS hempty [] [([], length ?cd)]" by (simp add: unchain_stack_def)
+    S\<^sub>h hempty [] [([], length ?cd)]" by (simp add: unchain_stack_def)
   with EH SH obtain \<Sigma>\<^sub>c\<^sub>e' where ECE: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>c\<^sub>e) 
-    (CES hempty hempty [] [(0, length ?cd)]) \<Sigma>\<^sub>c\<^sub>e' \<and> HS h\<^sub>h [v\<^sub>h] [] = unchain_state \<Sigma>\<^sub>c\<^sub>e'" by fastforce
+    (CES hempty hempty [] [(0, length ?cd)]) \<Sigma>\<^sub>c\<^sub>e' \<and> S\<^sub>h h\<^sub>h [v\<^sub>h] [] = unchain_state \<Sigma>\<^sub>c\<^sub>e'" by fastforce
   then obtain h\<^sub>c\<^sub>e env\<^sub>h where VCE: "\<Sigma>\<^sub>c\<^sub>e' = CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] [] \<and> h\<^sub>h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>h" 
     by (metis unchain_state_reverse map_is_Nil_conv unchain_stack_def)
   let ?nmem = "\<lambda>x. undefined"
