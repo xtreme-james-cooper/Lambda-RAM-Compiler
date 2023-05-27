@@ -5,10 +5,10 @@ begin
 datatype flat_state = 
   FS "nat heap" "ptr heap" "ptr list" "nat list"
 
-fun get_closure :: "nat heap \<Rightarrow> nat \<Rightarrow> ceclosure" where
+fun get_closure :: "nat heap \<Rightarrow> nat \<Rightarrow> closure\<^sub>v" where
   "get_closure h p = (case hlookup h p of
-      0 \<Rightarrow> CELam (hlookup h (Suc p)) (hlookup h (Suc (Suc p)))
-    | Suc x \<Rightarrow> CEConst (hlookup h (Suc p)))"
+      0 \<Rightarrow> Lam\<^sub>v (hlookup h (Suc p)) (hlookup h (Suc (Suc p)))
+    | Suc x \<Rightarrow> Const\<^sub>v (hlookup h (Suc p)))"
 
 fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonup> ptr" where
   "flat_lookup h 0 x = None"
@@ -25,13 +25,13 @@ inductive evalf :: "code\<^sub>b list \<Rightarrow> flat_state \<Rightarrow> fla
 | evf_pushlam [simp]: "lookup cd pc = Some (PushLam\<^sub>b pc') \<Longrightarrow> 
     halloc_list h [0, p, pc'] = (h', v) \<Longrightarrow> 
       cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs)"
-| evf_apply [simp]: "lookup cd pc = Some Apply\<^sub>b \<Longrightarrow> get_closure h v2 = CELam p' pc' \<Longrightarrow>
+| evf_apply [simp]: "lookup cd pc = Some Apply\<^sub>b \<Longrightarrow> get_closure h v2 = Lam\<^sub>v p' pc' \<Longrightarrow>
     halloc_list env [v1, p'] = (env', p2) \<Longrightarrow> 
       cd \<tturnstile> FS h env (v1 # v2 # vs) (Suc pc # p # sfs) \<leadsto>\<^sub>f 
         FS h env' vs (pc' # Suc (Suc p2) # pc # p # sfs)"
 | evf_return [simp]: "lookup cd pc = Some Return\<^sub>b \<Longrightarrow> 
     cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env vs sfs"
-| evf_jump [simp]: "lookup cd pc = Some Jump\<^sub>b \<Longrightarrow> get_closure h v2 = CELam p' pc' \<Longrightarrow>
+| evf_jump [simp]: "lookup cd pc = Some Jump\<^sub>b \<Longrightarrow> get_closure h v2 = Lam\<^sub>v p' pc' \<Longrightarrow>
     halloc_list env [v1, p'] = (env', p2) \<Longrightarrow> 
       cd \<tturnstile> FS h env (v1 # v2 # vs) (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env' vs (pc' # Suc (Suc p2) # sfs)"
 

@@ -14,14 +14,14 @@ datatype closure\<^sub>h =
   Const\<^sub>h nat
   | Lam\<^sub>h "ptr list" nat
 
-datatype heap_state = 
+datatype state\<^sub>h = 
   S\<^sub>h "closure\<^sub>h heap" "ptr list" "(ptr list \<times> nat) list"
 
 text \<open>Our evaluation relation must now \<open>halloc\<close> values when pushing them, and \<open>hlookup\<close> them when 
 popping; but beyond that, things are mostly the same as the previous stage, and we no longer 
 duplicate values, only pointers to them.\<close>
 
-inductive eval\<^sub>h :: "code\<^sub>b list \<Rightarrow> heap_state \<Rightarrow> heap_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>h" 50) where
+inductive eval\<^sub>h :: "code\<^sub>b list \<Rightarrow> state\<^sub>h \<Rightarrow> state\<^sub>h \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>h" 50) where
   ev\<^sub>h_lookup [simp]: "lookup \<C> p = Some (Lookup\<^sub>b x) \<Longrightarrow> lookup \<Delta> x = Some v \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h (v # \<V>) ((\<Delta>, p) # s)"
 | ev\<^sub>h_pushcon [simp]: "lookup \<C> p = Some (PushCon\<^sub>b n) \<Longrightarrow> halloc h (Const\<^sub>h n) = (h', v) \<Longrightarrow>

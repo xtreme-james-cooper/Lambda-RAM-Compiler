@@ -68,16 +68,16 @@ proof -
   then obtain h\<^sub>h v\<^sub>h where SH: "\<Sigma>\<^sub>h' = S\<^sub>h h\<^sub>h [v\<^sub>h] [] \<and> v\<^sub>b = unheap_closure h\<^sub>h v\<^sub>h" 
     using unheap_to_empty by blast
   have S\<^sub>h: "heap_structured (S\<^sub>h hempty [] [([], length ?cd)])" by simp
-  have CES: "unchain_state (CES hempty hempty [] [(0, length ?cd)]) = 
+  have S\<^sub>v: "unchain_state (S\<^sub>v hempty hempty [] [(0, length ?cd)]) = 
     S\<^sub>h hempty [] [([], length ?cd)]" by (simp add: unchain_stack_def)
-  with EH SH obtain \<Sigma>\<^sub>c\<^sub>e' where ECE: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>c\<^sub>e) 
-    (CES hempty hempty [] [(0, length ?cd)]) \<Sigma>\<^sub>c\<^sub>e' \<and> S\<^sub>h h\<^sub>h [v\<^sub>h] [] = unchain_state \<Sigma>\<^sub>c\<^sub>e'" by fastforce
-  then obtain h\<^sub>c\<^sub>e env\<^sub>h where VCE: "\<Sigma>\<^sub>c\<^sub>e' = CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] [] \<and> h\<^sub>h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>h" 
+  with EH SH obtain \<Sigma>\<^sub>c\<^sub>e' where ECE: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>v) 
+    (S\<^sub>v hempty hempty [] [(0, length ?cd)]) \<Sigma>\<^sub>c\<^sub>e' \<and> S\<^sub>h h\<^sub>h [v\<^sub>h] [] = unchain_state \<Sigma>\<^sub>c\<^sub>e'" by fastforce
+  then obtain h\<^sub>c\<^sub>e env\<^sub>h where VCE: "\<Sigma>\<^sub>c\<^sub>e' = S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] [] \<and> h\<^sub>h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>h" 
     by (metis unchain_state_reverse map_is_Nil_conv unchain_stack_def)
   let ?nmem = "\<lambda>x. undefined"
-  have CS: "chained_state (CES hempty hempty [] [(0, length ?cd)])" by simp
-  with ECE VCE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (CES hempty hempty [] [(0, length ?cd)]))
-    (flatten (CES h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis completef_iter)
+  have CS: "chained_state (S\<^sub>v hempty hempty [] [(0, length ?cd)])" by simp
+  with ECE VCE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (S\<^sub>v hempty hempty [] [(0, length ?cd)]))
+    (flatten (S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis completef_iter)
   hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (FS (H ?nmem 0) (H ?nmem 0) [] [length ?cd, 0])
      (FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [])" by (simp add: hempty_def)
   with ECE CS have "chained_state \<Sigma>\<^sub>c\<^sub>e'" by (metis preserve_chained)

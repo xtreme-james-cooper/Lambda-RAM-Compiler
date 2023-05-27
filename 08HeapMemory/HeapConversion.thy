@@ -20,7 +20,7 @@ abbreviation unheap_stack :: "closure\<^sub>h heap \<Rightarrow> (ptr list \<tim
     where
   "unheap_stack h s \<equiv> map (\<lambda>(\<Delta>, p). (map (unheap_closure h) \<Delta>, p)) s"
 
-primrec unheap :: "heap_state \<Rightarrow> state\<^sub>b" where
+primrec unheap :: "state\<^sub>h \<Rightarrow> state\<^sub>b" where
   "unheap (S\<^sub>h h \<V> s) = S\<^sub>b (map (unheap_closure h) \<V>) (unheap_stack h s)"
 
 primrec bounded_closure :: "closure\<^sub>h heap \<Rightarrow> ptr \<Rightarrow> closure\<^sub>h \<Rightarrow> bool" where
@@ -72,7 +72,7 @@ lemma hlookup_lam_bounded [simp]: "hlookup h v = Lam\<^sub>h \<Delta> p \<Longri
     hcontains h v \<Longrightarrow> list_all ((>) v) \<Delta>"
   by (metis hlookup_all bounded_closure.simps(2))
 
-primrec heap_structured :: "heap_state \<Rightarrow> bool" where
+primrec heap_structured :: "state\<^sub>h \<Rightarrow> bool" where
   "heap_structured (S\<^sub>h h \<V> s) = (heap_all (bounded_closure h) h \<and>
     list_all (hcontains h) \<V> \<and> list_all (list_all (hcontains h)) (map fst s))"
 

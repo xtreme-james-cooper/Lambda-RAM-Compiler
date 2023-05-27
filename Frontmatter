@@ -202,7 +202,7 @@ c : stage 5 (Closure conversion)
 e : stage 6 (trEE code)
 b : stage 7 (Byte code)
 h : stage 8 (Heap memory)
-v : stage 9 (enVironment chaining)
+v : stage 9 (chained enVironment)
 f : stage 10 (Flat code)
 r : stage 11 (unstRuctured memory)
 a : stage 12 (Assembly code)
@@ -276,3 +276,5 @@ CodeFlattening
 Heap
 HeapMemory
 HeapConversion
+ChainedEnvironment
+Chaining

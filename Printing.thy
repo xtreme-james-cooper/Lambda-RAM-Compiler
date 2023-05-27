@@ -35,9 +35,9 @@ primrec print_hclosure :: "closure\<^sub>h \<Rightarrow> print" where
   "print_hclosure (Const\<^sub>h n) = Number n"
 | "print_hclosure (Lam\<^sub>h cs pc) = Fun"
 
-primrec print_ceclosure :: "ceclosure \<Rightarrow> print" where
-  "print_ceclosure (CEConst n) = Number n"
-| "print_ceclosure (CELam cs pc) = Fun"
+primrec print_ceclosure :: "closure\<^sub>v \<Rightarrow> print" where
+  "print_ceclosure (Const\<^sub>v n) = Number n"
+| "print_ceclosure (Lam\<^sub>v cs pc) = Fun"
 
 fun print_uval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print" where
   "print_uval h p = (case h p of
