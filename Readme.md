@@ -18,3 +18,4 @@ Refactorings:
 - Make contraint functions use list functions?
 - Make all definitions abstract outside their file
 - rename closure stuff
+- Make late stage closures (post bytecode) a single parametric datatype?

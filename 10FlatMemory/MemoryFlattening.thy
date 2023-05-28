@@ -78,7 +78,7 @@ lemma flatten_e0 [simp]: "(flatten_env e ! 0) = 3 * fst e"
 lemma flatten_e1 [simp]: "(flatten_env e ! 1) = 2 * snd e"
   by (induction e) simp_all
 
-lemma [simp]: "chained_stack_pointer env p \<Longrightarrow> chain_structured h env \<Longrightarrow>
+lemma [simp]: "chained_heap_pointer env p \<Longrightarrow> chain_structured h env \<Longrightarrow>
   flat_lookup (flatten_environment env) (2 * p) x = map_option ((*) 3) (chain_lookup env p x)"
 proof (induction env p x rule: chain_lookup.induct)
   case (2 env p)
@@ -98,7 +98,7 @@ next
     by meson
   obtain a b where A: "hlookup env p = (a, b)" by (cases "hlookup env p")
   with 3 P have "b \<le> p" using hlookup_all by fast
-  with P have "chained_stack_pointer env b" by auto
+  with P have "chained_heap_pointer env b" by auto
   with 3 X A show ?case by simp
 qed simp_all
 
