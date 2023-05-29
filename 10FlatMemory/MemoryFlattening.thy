@@ -2,13 +2,15 @@ theory MemoryFlattening
   imports FlatMemory "../08HeapMemory/HeapConversion" "../09ChainedEnvironment/Chaining"
 begin
 
-primrec flatten_closure :: "closure\<^sub>v \<Rightarrow> nat list" where
-  "flatten_closure (Const\<^sub>v k) = [1, k, 0]"
-| "flatten_closure (Lam\<^sub>v p pc) = [0, 2 * p, pc]"
+section \<open>Memory Flattening\<close>
 
-primrec flatten_closure' :: "closure\<^sub>v \<Rightarrow> closure\<^sub>v" where
-  "flatten_closure' (Const\<^sub>v k) = Const\<^sub>v k"
-| "flatten_closure' (Lam\<^sub>v p pc) = Lam\<^sub>v (2 * p) pc"
+text \<open>The conversion here is one of the few that could go either direction - any (valid) flat state
+is equivalent to exactly one chained state, and vice versa. To make correctness the simpler proof 
+(and avoid having to define a validity predicate), we define the conversion running forward.\<close>
+
+primrec flatten_closure :: "closure\<^sub>v \<Rightarrow> nat list" where
+  "flatten_closure (Const\<^sub>v n) = [1, n, 0]"
+| "flatten_closure (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>) = [0, 2 * p\<^sub>\<Delta>, p\<^sub>\<C>]"
 
 abbreviation flatten_values :: "closure\<^sub>v heap \<Rightarrow> nat heap" where
   "flatten_values h \<equiv> hsplay flatten_closure h"
@@ -20,37 +22,22 @@ abbreviation flatten_environment :: "(ptr \<times> ptr) heap \<Rightarrow> ptr h
   "flatten_environment h \<equiv> hsplay flatten_env h"
 
 abbreviation flatten_vals :: "ptr list \<Rightarrow> ptr list" where
-  "flatten_vals vs \<equiv> map ((*) 3) vs"
+  "flatten_vals \<V> \<equiv> map ((*) 3) \<V>"
 
 primrec flatten_frame :: "(ptr \<times> nat) \<Rightarrow> nat list" where
-  "flatten_frame (a, b) = [b, 2 * a]"
+  "flatten_frame (p\<^sub>\<Delta>, p\<^sub>\<C>) = [p\<^sub>\<C>, 2 * p\<^sub>\<Delta>]"
 
 abbreviation flatten_stack :: "(ptr \<times> nat) list \<Rightarrow> nat list" where
-  "flatten_stack sfs \<equiv> concat (map flatten_frame sfs)"
+  "flatten_stack s \<equiv> concat (map flatten_frame s)"
 
 primrec flatten :: "state\<^sub>v \<Rightarrow> state\<^sub>f" where
-  "flatten (S\<^sub>v h env vs sfs) = 
-      S\<^sub>f (flatten_values h) (flatten_environment env) (flatten_vals vs) (flatten_stack sfs)"
+  "flatten (S\<^sub>v h \<Delta> \<V> s) = 
+    S\<^sub>f (flatten_values h) (flatten_environment \<Delta>) (flatten_vals \<V>) (flatten_stack s)"
 
-fun get_closure :: "nat heap \<Rightarrow> ptr \<Rightarrow> closure\<^sub>v" where
-  "get_closure h p = (case hlookup h p of
-      0 \<Rightarrow> Lam\<^sub>v (hlookup h (Suc p)) (hlookup h (Suc (Suc p)))
-    | Suc _ \<Rightarrow> Const\<^sub>v (hlookup h (Suc p)))"
-
-lemma [simp]: "length (flatten_closure c) = 3"
+lemma length_flat_closure [simp]: "length (flatten_closure c) = 3"
   by (induction c) simp_all
 
-lemma [simp]: "flatten_closure c ! 0 = (case c of Lam\<^sub>v _ _ \<Rightarrow> 0 | Const\<^sub>v _ \<Rightarrow> 1)"
-  by (simp split: closure\<^sub>v.splits)
-
-lemma flatten_c1 [simp]: "flatten_closure c ! Suc 0 = (case c of Const\<^sub>v k \<Rightarrow> k | Lam\<^sub>v p _ \<Rightarrow> 2 * p)"
-  by (simp split: closure\<^sub>v.splits)
-
-lemma flatten_c2 [simp]: "flatten_closure c ! Suc (Suc 0) = 
-    (case c of Const\<^sub>v k \<Rightarrow> 0 | Lam\<^sub>v _ pc \<Rightarrow> pc)"
-  by (simp split: closure\<^sub>v.splits)
-
-lemma [simp]: "hcontains h v \<Longrightarrow> 
+lemma lookup_flat_closure_0 [simp]: "hcontains h v \<Longrightarrow> 
   hlookup (flatten_values h) (3 * v) = (case hlookup h v of Lam\<^sub>v _ _ \<Rightarrow> 0 | Const\<^sub>v _ \<Rightarrow> 1)"
 proof -
   assume "hcontains h v"
@@ -60,7 +47,7 @@ proof -
   ultimately show ?thesis by (metis hlookup_hsplay zero_less_numeral add_0)
 qed
 
-lemma [simp]: "hcontains h v \<Longrightarrow> hlookup (flatten_values h) (Suc (3 * v)) = 
+lemma lookup_flat_closure_1 [simp]: "hcontains h v \<Longrightarrow> hlookup (flatten_values h) (Suc (3 * v)) = 
   (case hlookup h v of Lam\<^sub>v p\<^sub>\<Delta> _ \<Rightarrow> 2 * p\<^sub>\<Delta> | Const\<^sub>v n \<Rightarrow> n)"
 proof -
   assume "hcontains h v"
@@ -71,8 +58,9 @@ proof -
   ultimately show ?thesis by (metis hlookup_hsplay plus_1_eq_Suc)
 qed
 
-lemma [simp]: "hcontains h v \<Longrightarrow> hlookup (flatten_values h) (Suc (Suc (3 * v))) = 
-  (case hlookup h v of Lam\<^sub>v _ p\<^sub>\<C> \<Rightarrow> p\<^sub>\<C> | Const\<^sub>v _ \<Rightarrow> 0)"
+lemma lookup_flat_closure_2 [simp]: "hcontains h v \<Longrightarrow> 
+  hlookup (flatten_values h) (Suc (Suc (3 * v))) = 
+    (case hlookup h v of Lam\<^sub>v _ p\<^sub>\<C> \<Rightarrow> p\<^sub>\<C> | Const\<^sub>v _ \<Rightarrow> 0)"
 proof -
   assume "hcontains h v"
   moreover have "(2::nat) < 3" by simp
@@ -82,220 +70,203 @@ proof -
   ultimately show ?thesis by (metis hlookup_hsplay plus_1_eq_Suc Suc_1 add_Suc)
 qed
 
-lemma [simp]: "hcontains h v \<Longrightarrow> 
-    get_closure (flatten_values h) (3 * v) = flatten_closure' (hlookup h v)"
-  by (simp split: closure\<^sub>v.splits)
-
-lemma [dest]: "hcontains h v \<Longrightarrow> get_closure (flatten_values h) (3 * v) = Const\<^sub>v k \<Longrightarrow> 
-    hlookup h v = Const\<^sub>v k"
-  by (cases "hlookup h v") (simp_all del: get_closure.simps)
-
-lemma [dest]: "hcontains h v \<Longrightarrow> get_closure (flatten_values h) (3 * v) = Lam\<^sub>v p pc \<Longrightarrow> 
-    \<exists>p'. hlookup h v = Lam\<^sub>v p' pc \<and> p = 2 * p'"
-  by (cases "hlookup h v") (simp_all del: get_closure.simps)
-
-lemma [simp]: "length (flatten_env e) = 2"
-  by (induction e) simp_all
-
-lemma flatten_e0 [simp]: "(flatten_env e ! 0) = 3 * fst e"
-  by (induction e) simp_all
-
-lemma flatten_e1 [simp]: "(flatten_env e ! 1) = 2 * snd e"
-  by (induction e) simp_all
-
-lemma [simp]: "chained_heap_pointer env p \<Longrightarrow> chain_structured h env \<Longrightarrow>
-  flat_lookup (flatten_environment env) (2 * p) x = map_option ((*) 3) (chain_lookup env p x)"
-proof (induction env p x rule: chain_lookup.induct)
-  case (2 env p)
-  hence "hcontains env p" by auto
-  hence "\<And>k g. (\<And>a. flatten_env a ! k = g a) \<Longrightarrow> k < 2 \<Longrightarrow>
-    hlookup (hsplay flatten_env env) (k + 2 * p) = g (hlookup env p)" by simp
-  hence "hlookup (hsplay flatten_env env) (2 * p) = 3 * fst (hlookup env p)" 
-    using flatten_e0 by force
-  thus ?case by (simp split: prod.splits)
-next
-  case (3 env p x)
-  hence P: "hcontains env p" by auto
-  hence "\<And>k g. (\<And>a. flatten_env a ! k = g a) \<Longrightarrow> k < 2 \<Longrightarrow>
-    hlookup (hsplay flatten_env env) (k + 2 * p) = g (hlookup env p)" by simp
-  moreover have "\<And>a. (flatten_env a ! 1) = 2 * snd a \<and> (1::nat) < 2" by auto
-  ultimately have X: "hlookup (hsplay flatten_env env) (1 + 2 * p) = 2 * snd (hlookup env p)" 
-    by meson
-  obtain a b where A: "hlookup env p = (a, b)" by (cases "hlookup env p")
-  with 3 P have "b \<le> p" using hlookup_all by fast
-  with P have "chained_heap_pointer env b" by auto
-  with 3 X A show ?case by simp
-qed simp_all
-
-lemma flatten_halloc [simp]: "halloc h c = (h', v) \<Longrightarrow> 
-    halloc_list (flatten_values h) (flatten_closure c) = (flatten_values h', 3 * v)"
-  by simp
-
 lemma flatten_lt_3: "hcontains h x \<Longrightarrow> flatten_values h = H h' hp \<Longrightarrow> Suc (3 * x) < hp"
   by simp
 
-lemma [dest]: "S\<^sub>f h env vs sfs = flatten \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow> \<exists>h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e. \<Sigma>\<^sub>c\<^sub>e = S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e \<and> 
-  h = flatten_values h\<^sub>c\<^sub>e \<and> env = flatten_environment env\<^sub>c\<^sub>e \<and> vs = flatten_vals vs\<^sub>c\<^sub>e \<and> 
-    sfs = flatten_stack sfs\<^sub>c\<^sub>e"
-  by (induction \<Sigma>\<^sub>c\<^sub>e) simp_all
+lemma length_flat_env [simp]: "length (flatten_env e) = 2"
+  by (induction e) simp_all
 
-lemma [dest]: "pc # p # sfs = flatten_stack sfs\<^sub>c\<^sub>e \<Longrightarrow> \<exists>p\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e'. sfs\<^sub>c\<^sub>e = (p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e' \<and> 
-  sfs = flatten_stack sfs\<^sub>c\<^sub>e' \<and> p = 2 * p\<^sub>c\<^sub>e"
-proof (induction sfs\<^sub>c\<^sub>e)
-  case (Cons sf\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e)
-  thus ?case by (cases sf\<^sub>c\<^sub>e) simp_all
+lemma flatten_env_0 [simp]: "(flatten_env e ! 0) = 3 * fst e"
+  by (induction e) simp_all
+
+lemma flatten_env_1 [simp]: "(flatten_env e ! 1) = 2 * snd e"
+  by (induction e) simp_all
+
+text \<open>Most of the facts for correctness are simple and self-contained, but the relation between 
+\<open>flat_lookup\<close> and \<open>chain_lookup\<close> requires that all pointers followed be contained in the heap. 
+Fortunately, we already have this property from the previous stage: \<open>chain_structured\<close> is exactly 
+what we need. This does mean we need to use \<open>chained_state\<close> as a well-formedness condition in our 
+completeness and correctness theorems, though.\<close>
+
+lemma flat_lookup_flatten [simp]: "chained_heap_pointer \<Delta> p \<Longrightarrow> chain_structured h \<Delta> \<Longrightarrow>
+  flat_lookup (flatten_environment \<Delta>) (2 * p) x = map_option ((*) 3) (chain_lookup \<Delta> p x)"
+proof (induction \<Delta> p x rule: chain_lookup.induct)
+  case (2 \<Delta> p)
+  hence "hcontains \<Delta> p" by auto
+  hence "\<And>k g. (\<And>a. flatten_env a ! k = g a) \<Longrightarrow> k < 2 \<Longrightarrow>
+    hlookup (hsplay flatten_env \<Delta>) (k + 2 * p) = g (hlookup \<Delta> p)" by simp
+  hence "hlookup (hsplay flatten_env \<Delta>) (2 * p) = 3 * fst (hlookup \<Delta> p)" 
+    using flatten_env_0 by fastforce
+  thus ?case by (simp split: prod.splits)
+next
+  case (3 \<Delta> p x)
+  hence P: "hcontains \<Delta> p" by auto
+  hence "\<And>k g. (\<And>a. flatten_env a ! k = g a) \<Longrightarrow> k < 2 \<Longrightarrow>
+    hlookup (hsplay flatten_env \<Delta>) (k + 2 * p) = g (hlookup \<Delta> p)" by simp
+  moreover have "\<And>a. (flatten_env a ! 1) = 2 * snd a \<and> (1::nat) < 2" by auto
+  ultimately have X: "hlookup (hsplay flatten_env \<Delta>) (1 + 2 * p) = 2 * snd (hlookup \<Delta> p)" 
+    by meson
+  obtain a b where A: "hlookup \<Delta> p = (a, b)" by (cases "hlookup \<Delta> p")
+  with 3 P have "b \<le> p" using hlookup_all by fast
+  with P have "chained_heap_pointer \<Delta> b" by auto
+  with 3 X A show ?case by simp
 qed simp_all
 
-lemma [dest]: "halloc_list (flatten_values h\<^sub>c\<^sub>e) (flatten_closure c) = (h', v) \<Longrightarrow> 
-  \<exists>h\<^sub>c\<^sub>e' v\<^sub>c\<^sub>e. h' = hsplay flatten_closure h\<^sub>c\<^sub>e' \<and> v = 3 * v\<^sub>c\<^sub>e \<and> halloc h\<^sub>c\<^sub>e c = (h\<^sub>c\<^sub>e', v\<^sub>c\<^sub>e)"
-proof -
-  obtain h\<^sub>c\<^sub>e' v\<^sub>c\<^sub>e where "halloc h\<^sub>c\<^sub>e c = (h\<^sub>c\<^sub>e', v\<^sub>c\<^sub>e)" by fastforce
-  moreover assume "halloc_list (flatten_values h\<^sub>c\<^sub>e) (flatten_closure c) = (h', v)"
-  ultimately show ?thesis by auto
-qed
+lemma flatten_halloc: "halloc h c = (h', v) \<Longrightarrow> 
+    halloc_list (flatten_values h) (flatten_closure c) = (flatten_values h', 3 * v)"
+  by simp
 
-lemma [simp]: "halloc env (v, p) = (env', p') \<Longrightarrow> 
-  halloc_list (flatten_environment env) [3 * v, 2 * p] = (flatten_environment env', 2 * p')" 
+lemma halloc_flatten_env [simp]: "halloc \<Delta> (v, p) = (\<Delta>', p') \<Longrightarrow> 
+  halloc_list (flatten_environment \<Delta>) [3 * v, 2 * p] = (flatten_environment \<Delta>', 2 * p')" 
 proof -
-  assume "halloc env (v, p) = (env', p')"
+  assume "halloc \<Delta> (v, p) = (\<Delta>', p')"
   moreover have "\<And>x. length (flatten_env x) = 2" by simp
-  ultimately have "halloc_list (flatten_environment env) (flatten_env (v, p)) = 
-    (flatten_environment env', 2 * p')" by (metis halloc_list_hsplay)
+  ultimately have "halloc_list (flatten_environment \<Delta>) (flatten_env (v, p)) = 
+    (flatten_environment \<Delta>', 2 * p')" by (metis halloc_list_hsplay)
   thus ?thesis by simp
 qed
 
-theorem correctf: "cd \<tturnstile> flatten \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow> 
-  \<exists>\<Sigma>\<^sub>c\<^sub>e'. (cd \<tturnstile> \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>v \<Sigma>\<^sub>c\<^sub>e') \<and> flatten \<Sigma>\<^sub>c\<^sub>e' = \<Sigma>\<^sub>f'" 
-proof (induction "flatten \<Sigma>\<^sub>c\<^sub>e" \<Sigma>\<^sub>f' rule: eval\<^sub>f.induct)
-  case (ev\<^sub>f_lookup cd pc x env p v h vs sfs)
-  then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e p\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where S: "\<Sigma>\<^sub>c\<^sub>e = S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<and> 
-    h = flatten_values h\<^sub>c\<^sub>e \<and> env = flatten_environment env\<^sub>c\<^sub>e \<and> vs = flatten_vals vs\<^sub>c\<^sub>e \<and> 
-      sfs = flatten_stack sfs\<^sub>c\<^sub>e \<and> p = 2 * p\<^sub>c\<^sub>e" by fastforce
-  with ev\<^sub>f_lookup obtain v\<^sub>c\<^sub>e where V: "chain_lookup env\<^sub>c\<^sub>e p\<^sub>c\<^sub>e x = Some v\<^sub>c\<^sub>e \<and> v = 3 * v\<^sub>c\<^sub>e" by fastforce
-  with S have X: "flatten (S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)) = 
-    S\<^sub>f h env (v # vs) (pc # p # sfs)" by simp
-  from ev\<^sub>f_lookup V have "cd \<tturnstile> S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>v 
-    S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)" by simp
-  with S X show ?case by blast
+theorem correct\<^sub>f [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>v \<leadsto>\<^sub>v \<Sigma>\<^sub>v' \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow> \<C> \<tturnstile> flatten \<Sigma>\<^sub>v \<leadsto>\<^sub>f flatten \<Sigma>\<^sub>v'" 
+proof (induction \<Sigma>\<^sub>v \<Sigma>\<^sub>v' rule: eval\<^sub>v.induct)
+  case ev\<^sub>v_pushcon
+  thus ?case using flatten_halloc by fastforce
 next
-  case (ev\<^sub>f_pushcon cd pc k h h' v env vs p sfs)
-  then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e p\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where S: "\<Sigma>\<^sub>c\<^sub>e = S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<and> 
-    h = flatten_values h\<^sub>c\<^sub>e \<and> env = flatten_environment env\<^sub>c\<^sub>e \<and> vs = flatten_vals vs\<^sub>c\<^sub>e \<and> 
-      sfs = flatten_stack sfs\<^sub>c\<^sub>e \<and> p = 2 * p\<^sub>c\<^sub>e" by fastforce
-  with ev\<^sub>f_pushcon have "halloc_list (hsplay flatten_closure h\<^sub>c\<^sub>e) (flatten_closure (Const\<^sub>v k)) = 
-    (h', v)" by simp
-  then obtain h\<^sub>c\<^sub>e' v\<^sub>c\<^sub>e where H: "h' = hsplay flatten_closure h\<^sub>c\<^sub>e' \<and> v = 3 * v\<^sub>c\<^sub>e \<and> 
-    halloc h\<^sub>c\<^sub>e (Const\<^sub>v k) = (h\<^sub>c\<^sub>e', v\<^sub>c\<^sub>e)" by fastforce
-  with S have X: "flatten (S\<^sub>v h\<^sub>c\<^sub>e' env\<^sub>c\<^sub>e (v\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)) = 
-    S\<^sub>f h' env (v # vs) (pc # p # sfs)" by simp
-  from ev\<^sub>f_pushcon H have "cd \<tturnstile> S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>v 
-    S\<^sub>v h\<^sub>c\<^sub>e' env\<^sub>c\<^sub>e (v\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)" by simp
-  with S X show ?case by blast
+  case ev\<^sub>v_pushlam
+  thus ?case using flatten_halloc by fastforce
 next
-  case (ev\<^sub>f_pushlam cd pc pc' h p h' v env vs sfs)
-  then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e p\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where S: "\<Sigma>\<^sub>c\<^sub>e = S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<and> 
-    h = flatten_values h\<^sub>c\<^sub>e \<and> env = flatten_environment env\<^sub>c\<^sub>e \<and> vs = flatten_vals vs\<^sub>c\<^sub>e \<and> 
-      sfs = flatten_stack sfs\<^sub>c\<^sub>e \<and> p = 2 * p\<^sub>c\<^sub>e" by fastforce
-  with ev\<^sub>f_pushlam have "halloc_list (hsplay flatten_closure h\<^sub>c\<^sub>e) (flatten_closure (Lam\<^sub>v p\<^sub>c\<^sub>e pc')) = 
-    (h', v)" by simp
-  then obtain h\<^sub>c\<^sub>e' v\<^sub>c\<^sub>e where H: "h' = hsplay flatten_closure h\<^sub>c\<^sub>e' \<and> v = 3 * v\<^sub>c\<^sub>e \<and> 
-    halloc h\<^sub>c\<^sub>e (Lam\<^sub>v p\<^sub>c\<^sub>e pc') = (h\<^sub>c\<^sub>e', v\<^sub>c\<^sub>e)" by fastforce
-  with S have X: "flatten (S\<^sub>v h\<^sub>c\<^sub>e' env\<^sub>c\<^sub>e (v\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)) = 
-    S\<^sub>f h' env (v # vs) (pc # p # sfs)" by simp
-  from ev\<^sub>f_pushlam S H have "cd \<tturnstile> S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>v 
-    S\<^sub>v h\<^sub>c\<^sub>e' env\<^sub>c\<^sub>e (v\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)" by simp
-  with S X show ?case by blast
-next
-  case (ev\<^sub>f_apply cd pc h v2 env v1 env' p2 vs p sfs)
-  then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e v1\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e p\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where S: "
-    \<Sigma>\<^sub>c\<^sub>e = S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e # v2\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<and> h = flatten_values h\<^sub>c\<^sub>e \<and> 
-      env = flatten_environment env\<^sub>c\<^sub>e \<and> v1 = 3 * v1\<^sub>c\<^sub>e \<and> v2 = 3 * v2\<^sub>c\<^sub>e \<and> vs = flatten_vals vs\<^sub>c\<^sub>e \<and> 
-        sfs = flatten_stack sfs\<^sub>c\<^sub>e \<and> p = 2 * p\<^sub>c\<^sub>e" by fastforce
-  let ?p' = "hlookup (flatten_values h\<^sub>c\<^sub>e) (Suc (3 * v2\<^sub>c\<^sub>e))"
-  let ?pc' = "hlookup (flatten_values h\<^sub>c\<^sub>e) (Suc (Suc (3 * v2\<^sub>c\<^sub>e)))"
-  from ev\<^sub>f_apply S have "get_closure (flatten_values h\<^sub>c\<^sub>e) (3 * v2\<^sub>c\<^sub>e) = Lam\<^sub>v ?p' ?pc'" by simp
-  moreover from ev\<^sub>f_apply S have "hcontains h\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e" by simp
-  ultimately obtain p\<^sub>c\<^sub>e' where P: "hlookup h\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e = Lam\<^sub>v p\<^sub>c\<^sub>e' ?pc' \<and> ?p' = 2 * p\<^sub>c\<^sub>e'" by blast
-  obtain env\<^sub>c\<^sub>e' p2\<^sub>c\<^sub>e where E: "halloc env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e, p\<^sub>c\<^sub>e') = (env\<^sub>c\<^sub>e', p2\<^sub>c\<^sub>e)" by fastforce
-  with ev\<^sub>f_apply S P have X: "flatten (S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs\<^sub>c\<^sub>e ((Suc p2\<^sub>c\<^sub>e, ?pc') # (p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)) = 
-    S\<^sub>f h env' vs (?pc' # Suc (Suc p2) # pc # p # sfs)" by simp
-  from ev\<^sub>f_apply P E have "cd \<tturnstile> S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e # v2\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>v 
-    S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs\<^sub>c\<^sub>e ((Suc p2\<^sub>c\<^sub>e, ?pc') # (p\<^sub>c\<^sub>e, pc) # sfs\<^sub>c\<^sub>e)" by simp
-  with S X show ?case by blast
-next
-  case (ev\<^sub>f_return cd pc h env vs p sfs)
-  then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e p\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where S: "\<Sigma>\<^sub>c\<^sub>e = S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<and> 
-    h = flatten_values h\<^sub>c\<^sub>e \<and> env = flatten_environment env\<^sub>c\<^sub>e \<and> vs = flatten_vals vs\<^sub>c\<^sub>e \<and> 
-      sfs = flatten_stack sfs\<^sub>c\<^sub>e \<and> p = 2 * p\<^sub>c\<^sub>e" by fastforce
-  hence X: "flatten (S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e) = S\<^sub>f h env vs sfs" by simp
-  from ev\<^sub>f_return have "cd \<tturnstile> S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>v 
-    S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e" by simp
-  with S X show ?case by blast
-next
-  case (ev\<^sub>f_jump cd pc h v2 env v1 env' p2 vs p sfs)
-  then obtain h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e v1\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e vs\<^sub>c\<^sub>e p\<^sub>c\<^sub>e sfs\<^sub>c\<^sub>e where S: "
-    \<Sigma>\<^sub>c\<^sub>e = S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e # v2\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<and> h = flatten_values h\<^sub>c\<^sub>e \<and> 
-      env = flatten_environment env\<^sub>c\<^sub>e \<and> v1 = 3 * v1\<^sub>c\<^sub>e \<and> v2 = 3 * v2\<^sub>c\<^sub>e \<and> vs = flatten_vals vs\<^sub>c\<^sub>e \<and> 
-        sfs = flatten_stack sfs\<^sub>c\<^sub>e \<and> p = 2 * p\<^sub>c\<^sub>e" by fastforce
-  let ?p' = "hlookup (flatten_values h\<^sub>c\<^sub>e) (Suc (3 * v2\<^sub>c\<^sub>e))"
-  let ?pc' = "hlookup (flatten_values h\<^sub>c\<^sub>e) (Suc (Suc (3 * v2\<^sub>c\<^sub>e)))"
-  from ev\<^sub>f_jump S have "get_closure (flatten_values h\<^sub>c\<^sub>e) (3 * v2\<^sub>c\<^sub>e) = Lam\<^sub>v ?p' ?pc'" by simp
-  moreover from ev\<^sub>f_jump S have "hcontains h\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e" by simp
-  ultimately obtain p\<^sub>c\<^sub>e' where P: "hlookup h\<^sub>c\<^sub>e v2\<^sub>c\<^sub>e = Lam\<^sub>v p\<^sub>c\<^sub>e' ?pc' \<and> ?p' = 2 * p\<^sub>c\<^sub>e'" by blast
-  obtain env\<^sub>c\<^sub>e' p2\<^sub>c\<^sub>e where E: "halloc env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e, p\<^sub>c\<^sub>e') = (env\<^sub>c\<^sub>e', p2\<^sub>c\<^sub>e)" by fastforce
-  with ev\<^sub>f_jump S P have X: "flatten (S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs\<^sub>c\<^sub>e ((Suc p2\<^sub>c\<^sub>e, ?pc') # sfs\<^sub>c\<^sub>e)) = 
-    S\<^sub>f h env' vs (?pc' # Suc (Suc p2) # sfs)" by simp
-  from ev\<^sub>f_jump P E have "cd \<tturnstile> S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e (v1\<^sub>c\<^sub>e # v2\<^sub>c\<^sub>e # vs\<^sub>c\<^sub>e) ((p\<^sub>c\<^sub>e, Suc pc) # sfs\<^sub>c\<^sub>e) \<leadsto>\<^sub>v 
-    S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>c\<^sub>e' vs\<^sub>c\<^sub>e ((Suc p2\<^sub>c\<^sub>e, ?pc') # sfs\<^sub>c\<^sub>e)" by simp
-  with S X show ?case by blast
-qed
-
-theorem completef [simp]: "cd \<tturnstile> \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>v \<Sigma>\<^sub>c\<^sub>e' \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow> 
-  cd \<tturnstile> flatten \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>f flatten \<Sigma>\<^sub>c\<^sub>e'" 
-proof (induction \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' rule: eval\<^sub>v.induct)
-  case (ev\<^sub>v_pushcon cd pc k h h' v env vs p sfs)
-  moreover hence "halloc_list (flatten_values h) [1, k, 0] = (flatten_values h', 3 * v)"
-    using flatten_halloc by fastforce
-  ultimately show ?case by simp
-next
-  case (ev\<^sub>v_pushlam cd pc pc' h p h' v env vs sfs)
-  moreover hence "halloc_list (flatten_values h) [0, 2 * p, pc'] = (flatten_values h', 3 * v)" 
-    using flatten_halloc by fastforce
-  ultimately show ?case by simp
-next
-  case (ev\<^sub>v_apply \<C> p\<^sub>\<C> h v2 p' pc' env v1 env' p'' vs p\<^sub>\<Delta> sfs)
-  moreover hence "halloc_list (flatten_environment env) 
-    [3 * v1, hlookup (flatten_values h) (Suc (3 * v2))] = (flatten_environment env', 2 * p'')" 
+  case (ev\<^sub>v_apply \<C> p\<^sub>\<C> h v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' \<Delta> v\<^sub>1 \<Delta>' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> s)
+  moreover hence "halloc_list (flatten_environment \<Delta>) 
+    [3 * v\<^sub>1, hlookup (flatten_values h) (Suc (3 * v\<^sub>2))] = (flatten_environment \<Delta>', 2 * p\<^sub>\<Delta>'')" 
       by simp
-  moreover from ev\<^sub>v_apply have "hlookup (flatten_values h) (3 * v2) = 0" by simp
-  ultimately have "\<C> \<tturnstile> S\<^sub>f (flatten_values h) (flatten_environment env) 
-      (3 * v1 # 3 * v2 # flatten_vals vs) (Suc p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # flatten_stack sfs) \<leadsto>\<^sub>f 
-    S\<^sub>f (flatten_values h) (flatten_environment env') (flatten_vals vs) 
-      (hlookup (flatten_values h) (Suc (Suc (3 * v2))) # Suc (Suc (2 * p'')) # p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # 
-        flatten_stack sfs)"
+  moreover from ev\<^sub>v_apply have "hlookup (flatten_values h) (3 * v\<^sub>2) = 0" by simp
+  ultimately have "\<C> \<tturnstile> S\<^sub>f (flatten_values h) (flatten_environment \<Delta>) 
+      (3 * v\<^sub>1 # 3 * v\<^sub>2 # flatten_vals \<V>) (Suc p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # flatten_stack s) \<leadsto>\<^sub>f 
+    S\<^sub>f (flatten_values h) (flatten_environment \<Delta>') (flatten_vals \<V>) 
+      (hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2))) # Suc (Suc (2 * p\<^sub>\<Delta>'')) # p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # 
+        flatten_stack s)"
     by (metis ev\<^sub>f_apply)
   with ev\<^sub>v_apply show ?case by simp
 next
-  case (ev\<^sub>v_jump \<C> p\<^sub>\<C> h v2 p' pc' env v1 env' p'' vs p\<^sub>\<Delta> sfs)
-  moreover hence "halloc_list (flatten_environment env) 
-    [3 * v1, hlookup (flatten_values h) (Suc (3 * v2))] = (flatten_environment env', 2 * p'')" 
+  case (ev\<^sub>v_jump \<C> p\<^sub>\<C> h v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' \<Delta> v\<^sub>1 \<Delta>' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> s)
+  moreover hence "halloc_list (flatten_environment \<Delta>) 
+    [3 * v\<^sub>1, hlookup (flatten_values h) (Suc (3 * v\<^sub>2))] = (flatten_environment \<Delta>', 2 * p\<^sub>\<Delta>'')" 
       by simp
-  moreover from ev\<^sub>v_jump have "hlookup (flatten_values h) (3 * v2) = 0" by simp
-  ultimately have "\<C> \<tturnstile> S\<^sub>f (flatten_values h) (flatten_environment env) 
-      (3 * v1 # 3 * v2 # flatten_vals vs) (Suc p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # flatten_stack sfs) \<leadsto>\<^sub>f 
-    S\<^sub>f (flatten_values h) (flatten_environment env') (flatten_vals vs) 
-      (hlookup (flatten_values h) (Suc (Suc (3 * v2))) # Suc (Suc (2 * p'')) # flatten_stack sfs)"
+  moreover from ev\<^sub>v_jump have "hlookup (flatten_values h) (3 * v\<^sub>2) = 0" by simp
+  ultimately have "\<C> \<tturnstile> S\<^sub>f (flatten_values h) (flatten_environment \<Delta>) 
+      (3 * v\<^sub>1 # 3 * v\<^sub>2 # flatten_vals \<V>) (Suc p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # flatten_stack s) \<leadsto>\<^sub>f 
+    S\<^sub>f (flatten_values h) (flatten_environment \<Delta>') (flatten_vals \<V>) 
+      (hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2))) # Suc (Suc (2 * p\<^sub>\<Delta>'')) # flatten_stack s)"
     by (metis ev\<^sub>f_jump)
   with ev\<^sub>v_jump show ?case by simp
 qed fastforce+
 
-lemma completef_iter [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>v) \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' \<Longrightarrow> chained_state \<Sigma>\<^sub>c\<^sub>e \<Longrightarrow>
-  iter (\<tturnstile> cd \<leadsto>\<^sub>f) (flatten \<Sigma>\<^sub>c\<^sub>e) (flatten \<Sigma>\<^sub>c\<^sub>e')"
-proof (induction \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' rule: iter.induct)
-  case (iter_step \<Sigma>\<^sub>c\<^sub>e \<Sigma>\<^sub>c\<^sub>e' \<Sigma>\<^sub>c\<^sub>e'')
-  hence "iter (\<tturnstile> cd \<leadsto>\<^sub>f) (flatten \<Sigma>\<^sub>c\<^sub>e') (flatten \<Sigma>\<^sub>c\<^sub>e'')" by simp
-  moreover from iter_step have "cd \<tturnstile> flatten \<Sigma>\<^sub>c\<^sub>e \<leadsto>\<^sub>f flatten \<Sigma>\<^sub>c\<^sub>e'" by simp
+lemma correct\<^sub>f_iter [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>v) \<Sigma>\<^sub>v \<Sigma>\<^sub>v' \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow>
+  iter (\<tturnstile> \<C> \<leadsto>\<^sub>f) (flatten \<Sigma>\<^sub>v) (flatten \<Sigma>\<^sub>v')"
+proof (induction \<Sigma>\<^sub>v \<Sigma>\<^sub>v' rule: iter.induct)
+  case (iter_step \<Sigma>\<^sub>v \<Sigma>\<^sub>v' \<Sigma>\<^sub>v'')
+  hence "iter (\<tturnstile> \<C> \<leadsto>\<^sub>f) (flatten \<Sigma>\<^sub>v') (flatten \<Sigma>\<^sub>v'')" by simp
+  moreover from iter_step have "\<C> \<tturnstile> flatten \<Sigma>\<^sub>v \<leadsto>\<^sub>f flatten \<Sigma>\<^sub>v'" by simp
   ultimately show ?case by simp
 qed simp_all
+
+text \<open>The simplicity of the conversion means our reconstruction lemmas are few and simple too.\<close>
+
+lemma flatten_to_state [dest]: "S\<^sub>f h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f s\<^sub>f = flatten \<Sigma>\<^sub>v \<Longrightarrow> 
+  \<exists>h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v s\<^sub>v. \<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v s\<^sub>v \<and> h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> 
+    \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> s\<^sub>f = flatten_stack s\<^sub>v"
+  by (induction \<Sigma>\<^sub>v) simp_all
+
+lemma flatten_to_stack [dest]: "p\<^sub>\<C> # p\<^sub>\<Delta>\<^sub>f # s\<^sub>f = flatten_stack s\<^sub>v \<Longrightarrow> 
+  \<exists>p\<^sub>\<Delta>\<^sub>v s\<^sub>v'. s\<^sub>v = (p\<^sub>\<Delta>\<^sub>v, p\<^sub>\<C>) # s\<^sub>v' \<and> s\<^sub>f = flatten_stack s\<^sub>v' \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>\<Delta>\<^sub>v"
+proof (induction s\<^sub>v)
+  case (Cons f\<^sub>v s\<^sub>v)
+  thus ?case by (cases f\<^sub>v) simp_all
+qed simp_all
+
+lemma halloc_list_flatten_closure [dest]: "
+  halloc_list (flatten_values h\<^sub>v) (flatten_closure c) = (h\<^sub>f', v\<^sub>h) \<Longrightarrow> 
+    \<exists>h\<^sub>v' v\<^sub>v. h\<^sub>f' = hsplay flatten_closure h\<^sub>v' \<and> v\<^sub>h = 3 * v\<^sub>v \<and> halloc h\<^sub>v c = (h\<^sub>v', v\<^sub>v)"
+  by (cases "halloc h\<^sub>v c") simp_all
+
+text \<open>And we prove completeness:\<close>
+
+theorem complete\<^sub>f: "\<C> \<tturnstile> flatten \<Sigma>\<^sub>v \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow> 
+  \<exists>\<Sigma>\<^sub>v'. (\<C> \<tturnstile> \<Sigma>\<^sub>v \<leadsto>\<^sub>v \<Sigma>\<^sub>v') \<and> flatten \<Sigma>\<^sub>v' = \<Sigma>\<^sub>f'" 
+proof (induction "flatten \<Sigma>\<^sub>v" \<Sigma>\<^sub>f' rule: eval\<^sub>f.induct)
+  case (ev\<^sub>f_lookup \<C> p\<^sub>\<C> x \<Delta>\<^sub>f p\<^sub>\<Delta>\<^sub>f v\<^sub>f h\<^sub>f \<V>\<^sub>f s\<^sub>f)
+  then obtain h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v p\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
+    h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> 
+    s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>v" by fastforce
+  with ev\<^sub>f_lookup obtain v\<^sub>v where V: "chain_lookup \<Delta>\<^sub>v p\<^sub>v x = Some v\<^sub>v \<and> v\<^sub>f = 3 * v\<^sub>v" by fastforce
+  with S have X: "flatten (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>v # \<V>\<^sub>v) ((p\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)) = S\<^sub>f h\<^sub>f \<Delta>\<^sub>f (v\<^sub>f # \<V>\<^sub>f) (p\<^sub>\<C> # p\<^sub>\<Delta>\<^sub>f # s\<^sub>f)" 
+    by simp
+  from ev\<^sub>f_lookup V have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>v # \<V>\<^sub>v) ((p\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)" 
+    by simp
+  with S X show ?case by blast
+next
+  case (ev\<^sub>f_pushcon \<C> p\<^sub>\<C> n h\<^sub>f h\<^sub>f' v\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
+  then obtain h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v p\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
+    h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> 
+    s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>v" by fastforce
+  with ev\<^sub>f_pushcon have "halloc_list (flatten_values h\<^sub>v) (flatten_closure (Const\<^sub>v n)) = (h\<^sub>f', v\<^sub>f)" 
+    by simp
+  then obtain h\<^sub>v' v\<^sub>v where H: "h\<^sub>f' = flatten_values h\<^sub>v' \<and> v\<^sub>f = 3 * v\<^sub>v \<and> 
+    halloc h\<^sub>v (Const\<^sub>v n) = (h\<^sub>v', v\<^sub>v)" by fastforce
+  with S have X: "flatten (S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v\<^sub>v # \<V>\<^sub>v) ((p\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)) = S\<^sub>f h\<^sub>f' \<Delta>\<^sub>f (v\<^sub>f # \<V>\<^sub>f) (p\<^sub>\<C> # p\<^sub>\<Delta>\<^sub>f # s\<^sub>f)" 
+    by simp
+  from ev\<^sub>f_pushcon H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v\<^sub>v # \<V>\<^sub>v) ((p\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)" 
+    by simp
+  with S X show ?case by blast
+next
+  case (ev\<^sub>f_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' h\<^sub>f p\<^sub>\<Delta>\<^sub>f h\<^sub>f' v\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f s\<^sub>f)
+  then obtain h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v p\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
+    h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> 
+    s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>v" by fastforce
+  with ev\<^sub>f_pushlam have "halloc_list (flatten_values h\<^sub>v) (flatten_closure (Lam\<^sub>v p\<^sub>v p\<^sub>\<C>')) = (h\<^sub>f', v\<^sub>f)" 
+    by simp
+  then obtain h\<^sub>v' v\<^sub>v where H: "h\<^sub>f' = flatten_values h\<^sub>v' \<and> v\<^sub>f = 3 * v\<^sub>v \<and> 
+    halloc h\<^sub>v (Lam\<^sub>v p\<^sub>v p\<^sub>\<C>') = (h\<^sub>v', v\<^sub>v)" by fastforce
+  with S have X: "flatten (S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v\<^sub>v # \<V>\<^sub>v) ((p\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)) = S\<^sub>f h\<^sub>f' \<Delta>\<^sub>f (v\<^sub>f # \<V>\<^sub>f) (p\<^sub>\<C> # p\<^sub>\<Delta>\<^sub>f # s\<^sub>f)" 
+    by simp
+  from ev\<^sub>f_pushlam S H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
+    S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v\<^sub>v # \<V>\<^sub>v) ((p\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)" by simp
+  with S X show ?case by blast
+next
+  case (ev\<^sub>f_apply \<C> p\<^sub>\<C> h\<^sub>f v\<^sub>2\<^sub>f \<Delta>\<^sub>f v\<^sub>1\<^sub>f \<Delta>\<^sub>f' p\<^sub>\<Delta>\<^sub>f' \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
+  then obtain h\<^sub>v \<Delta>\<^sub>v v\<^sub>1\<^sub>v v\<^sub>2\<^sub>v \<V>\<^sub>v p\<^sub>\<Delta>\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1\<^sub>v # v\<^sub>2\<^sub>v # \<V>\<^sub>v) ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
+    h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> v\<^sub>1\<^sub>f = 3 * v\<^sub>1\<^sub>v \<and> v\<^sub>2\<^sub>f = 3 * v\<^sub>2\<^sub>v \<and> 
+    \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>\<Delta>\<^sub>v" by fastforce
+  let ?p\<^sub>\<C>' = "hlookup (flatten_values h\<^sub>v) (Suc (Suc (3 * v\<^sub>2\<^sub>v)))"
+  from ev\<^sub>f_apply S obtain p\<^sub>\<Delta>\<^sub>v' where P: "hlookup h\<^sub>v v\<^sub>2\<^sub>v = Lam\<^sub>v p\<^sub>\<Delta>\<^sub>v' ?p\<^sub>\<C>' \<and> 
+    hlookup (flatten_values h\<^sub>v) (Suc (3 * v\<^sub>2\<^sub>v)) = 2 * p\<^sub>\<Delta>\<^sub>v'" by (cases "hlookup h\<^sub>v v\<^sub>2\<^sub>v") simp_all
+  obtain \<Delta>\<^sub>v' p\<^sub>\<Delta>\<^sub>v'' where E: "halloc \<Delta>\<^sub>v (v\<^sub>1\<^sub>v, p\<^sub>\<Delta>\<^sub>v') = (\<Delta>\<^sub>v', p\<^sub>\<Delta>\<^sub>v'')" by fastforce
+  with ev\<^sub>f_apply S P have X: "flatten (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', ?p\<^sub>\<C>') # (p\<^sub>\<Delta>\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)) = 
+    S\<^sub>f h\<^sub>f \<Delta>\<^sub>f' \<V>\<^sub>f (?p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>\<^sub>f') # p\<^sub>\<C> # p\<^sub>\<Delta>\<^sub>f # s\<^sub>f)" by simp
+  from ev\<^sub>f_apply P E have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1\<^sub>v # v\<^sub>2\<^sub>v # \<V>\<^sub>v) ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
+    S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', ?p\<^sub>\<C>') # (p\<^sub>\<Delta>\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)" by simp
+  with S X show ?case by blast
+next
+  case (ev\<^sub>f_return \<C> p\<^sub>\<C> h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
+  then obtain h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v p\<^sub>\<Delta>\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
+    h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> 
+    s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>\<Delta>\<^sub>v" by fastforce
+  hence X: "flatten (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v s\<^sub>v) = S\<^sub>f h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f s\<^sub>f" by simp
+  from ev\<^sub>f_return have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v s\<^sub>v" by simp
+  with S X show ?case by blast
+next
+  case (ev\<^sub>f_jump \<C> p\<^sub>\<C> h\<^sub>f v\<^sub>2\<^sub>f \<Delta>\<^sub>f v\<^sub>1\<^sub>f \<Delta>' p\<^sub>\<Delta>\<^sub>f' \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
+  then obtain h\<^sub>v \<Delta>\<^sub>v v\<^sub>1\<^sub>v v\<^sub>2\<^sub>v \<V>\<^sub>v p\<^sub>\<Delta>\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1\<^sub>v # v\<^sub>2\<^sub>v # \<V>\<^sub>v) ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
+    h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> v\<^sub>1\<^sub>f = 3 * v\<^sub>1\<^sub>v \<and> v\<^sub>2\<^sub>f = 3 * v\<^sub>2\<^sub>v \<and> 
+    \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>\<Delta>\<^sub>v" by fastforce
+  let ?p\<^sub>\<C>' = "hlookup (flatten_values h\<^sub>v) (Suc (Suc (3 * v\<^sub>2\<^sub>v)))"
+  from ev\<^sub>f_jump S obtain p\<^sub>\<Delta>\<^sub>v' where P: "hlookup h\<^sub>v v\<^sub>2\<^sub>v = Lam\<^sub>v p\<^sub>\<Delta>\<^sub>v' ?p\<^sub>\<C>' \<and> 
+    hlookup (flatten_values h\<^sub>v) (Suc (3 * v\<^sub>2\<^sub>v)) = 2 * p\<^sub>\<Delta>\<^sub>v'" by (cases "hlookup h\<^sub>v v\<^sub>2\<^sub>v") simp_all
+  obtain \<Delta>\<^sub>v' p\<^sub>\<Delta>\<^sub>v'' where E: "halloc \<Delta>\<^sub>v (v\<^sub>1\<^sub>v, p\<^sub>\<Delta>\<^sub>v') = (\<Delta>\<^sub>v', p\<^sub>\<Delta>\<^sub>v'')" by fastforce
+  with ev\<^sub>f_jump S P have X: "flatten (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', ?p\<^sub>\<C>') # s\<^sub>v)) = 
+    S\<^sub>f h\<^sub>f \<Delta>' \<V>\<^sub>f (?p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>\<^sub>f') # s\<^sub>f)" by simp
+  from ev\<^sub>f_jump P E have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1\<^sub>v # v\<^sub>2\<^sub>v # \<V>\<^sub>v) ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
+    S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', ?p\<^sub>\<C>') # s\<^sub>v)" by simp
+  with S X show ?case by blast
+qed
 
 end

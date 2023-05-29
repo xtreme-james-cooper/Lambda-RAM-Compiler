@@ -77,7 +77,7 @@ proof -
   let ?nmem = "\<lambda>x. undefined"
   have CS: "chained_state (S\<^sub>v hempty hempty [] [(0, length ?cd)])" by simp
   with ECE VCE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (S\<^sub>v hempty hempty [] [(0, length ?cd)]))
-    (flatten (S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis completef_iter)
+    (flatten (S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis correct\<^sub>f_iter)
   hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (S\<^sub>f (H ?nmem 0) (H ?nmem 0) [] [length ?cd, 0])
      (S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [])" by (simp add: hempty_def)
   with ECE CS have "chained_state \<Sigma>\<^sub>c\<^sub>e'" by (metis preserve_chained)
