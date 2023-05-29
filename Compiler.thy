@@ -1,5 +1,5 @@
 theory Compiler
-  imports Printing "04Stack/StackConversion" "11UnstructuredMemory/Unstructuring" 
+  imports Printing "04Stack/StackConversion" "11UnstructuredState/Unstructuring"
 begin
 
 abbreviation code_compile :: "ty expr\<^sub>s \<Rightarrow> mach list" where

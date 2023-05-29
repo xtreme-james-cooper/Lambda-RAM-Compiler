@@ -1,5 +1,5 @@
 theory Assemble
-  imports AssemblyCode "../11UnstructuredMemory/UnstructuredMemory" "../00Utils/Utils"
+  imports AssemblyCode "../11UnstructuredState/UnstructuredState" "../00Utils/Utils"
 begin
 
 primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
@@ -125,7 +125,7 @@ definition assemble_stack :: "(nat \<Rightarrow> nat) \<Rightarrow> (nat \<Right
     if x \<ge> sp then (Con 0, 0) else if even x then (PC 0, mp (s x)) else (Reg Env, s x))"
 
 primrec assemble_state :: "(nat \<Rightarrow> nat) \<Rightarrow> unstr_state \<Rightarrow> assm_state" where
-  "assemble_state mp (US h hp e ep vs vp sh sp pc) = 
+  "assemble_state mp (S\<^sub>u h hp e ep vs vp sh sp pc) = 
     AS (case_register (assemble_heap mp h hp) (assemble_env e ep) (assemble_vals vs vp) 
       (assemble_stack mp sh sp)) (case_register hp ep vp sp) 0 (Con 0) (mp pc)"
 
@@ -507,14 +507,14 @@ qed simp_all
 
 theorem correcta [simp]: "cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow> 
   \<exists>n. iter_evala (assemble_code cd\<^sub>b) n (assm_state cd\<^sub>b \<Sigma>\<^sub>u) = Some (assm_state cd\<^sub>b \<Sigma>\<^sub>u')"
-proof (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induct)
-  case (evu_lookup cd pc x e sh sp y h hp ep vs vp)
+proof (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: eval\<^sub>u.induct)
+  case (ev\<^sub>u_lookup cd pc x e sh sp y h hp ep vs vp)
   moreover hence "odd sp" by simp
-  moreover from evu_lookup have "lookup (assemble_code cd) (7 + 2 * x + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_lookup have "lookup (assemble_code cd) (7 + 2 * x + assembly_map cd pc) = 
     Some (AMov (Reg Stk))" by simp
-  moreover from evu_lookup have "lookup (assemble_code cd) (6 + 2 * x + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_lookup have "lookup (assemble_code cd) (6 + 2 * x + assembly_map cd pc) = 
     Some (ASub (Acc (Reg Stk)) 1)" by simp
-  moreover from evu_lookup have "lookup (assemble_code cd) (5 + 2 * x + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_lookup have "lookup (assemble_code cd) (5 + 2 * x + assembly_map cd pc) = 
     Some (AGet (Acc (Reg Stk)) (Reg Env))" by simp
   ultimately have X: "iter_evala (assemble_code cd) 3 
     (AS (case_register (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
@@ -523,8 +523,8 @@ proof (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induc
           (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp))) 
             (case_register hp ep vp (Suc sp)) (sh sp) (Reg Env) (5 + 2 * x + assembly_map cd pc))" 
     by (simp add: numeral_def)
-  from evu_lookup have "sh sp \<le> ep" by auto
-  with evu_lookup have "iter_evala (assemble_code cd) (5 + 2 * x) 
+  from ev\<^sub>u_lookup have "sh sp \<le> ep" by auto
+  with ev\<^sub>u_lookup have "iter_evala (assemble_code cd) (5 + 2 * x) 
     (AS (case_register (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
       (assm_stk cd sh (Suc sp))) (case_register hp ep vp (Suc sp)) (sh sp) (Reg Env) 
         (5 + 2 * x + assembly_map cd pc)) = Some (AS (case_register (assm_hp cd h hp) 
@@ -545,20 +545,20 @@ proof (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: evalu.induc
           (assemble_env e ep) (assemble_vals (vs(vp := y)) (Suc vp)) (assm_stk cd sh (Suc sp))) 
             (case_register hp ep (Suc vp) (Suc sp)) 0 (Con 0) (assembly_map cd pc))"
     by (simp add: add.assoc)
-  with evu_lookup show ?case by auto
+  with ev\<^sub>u_lookup show ?case by auto
 next
-  case (evu_pushcon cd pc k h hp e ep vs vp sh sp)
-  moreover from evu_pushcon have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
+  case (ev\<^sub>u_pushcon cd pc k h hp e ep vs vp sh sp)
+  moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
     Some (APut Vals (Reg Hp))" by simp
-  moreover from evu_pushcon have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
     Some (AAdd (Reg Vals) 1)" by simp
-  moreover from evu_pushcon have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (APut Hp (Con 1))" by simp 
-  moreover from evu_pushcon have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
     Some (AAdd (Reg Hp) 1)" by simp 
-  moreover from evu_pushcon have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (APut Hp (Con k))" by simp 
-  moreover from evu_pushcon have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AAdd (Reg Hp) 1)" by (simp del: add_2_eq_Suc)
   ultimately have "iter_evala (assemble_code cd) 8 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp))) 
@@ -569,26 +569,26 @@ next
     by (auto simp add: numeral_def)
   thus ?case by auto
 next
-  case (evu_pushlam cd pc pc' h hp e ep vs vp sh sp)
-  moreover from evu_pushlam have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
+  case (ev\<^sub>u_pushlam cd pc pc' h hp e ep vs vp sh sp)
+  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
     Some (APut Vals (Reg Hp))" by simp
-  moreover from evu_pushlam have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
     Some (AAdd (Reg Vals) 1)" by simp
-  moreover from evu_pushlam have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
     Some (AMov (Reg Stk))" by simp
-  moreover from evu_pushlam have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
     Some (ASub (Acc (Reg Stk)) 1)" by simp
-  moreover from evu_pushlam have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
     Some (AGet (Acc (Reg Stk)) (Reg Env))" by simp
-  moreover from evu_pushlam have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
     Some (APut Hp (Con 0))" by simp
-  moreover from evu_pushlam have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (AAdd (Reg Hp) 1)" by simp
-  moreover from evu_pushlam have "lookup (assemble_code cd) (4 + assembly_map cd pc) =
+  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (4 + assembly_map cd pc) =
     Some (APut Hp (Acc (Con 0)))" by simp
-  moreover from evu_pushlam have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (AAdd (Reg Hp) 1)" by simp
-  moreover from evu_pushlam have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AMov (Con 0))" by (simp del: add_2_eq_Suc)
   ultimately have "iter_evala (assemble_code cd) 12 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp))) 
@@ -599,51 +599,51 @@ next
     by (auto simp add: numeral_def)
   thus ?case by auto
 next
-  case (evu_apply cd pc h vs vp hp e ep sh sp)
+  case (ev\<^sub>u_apply cd pc h vs vp hp e ep sh sp)
   moreover hence "even ep" by auto
-  moreover from evu_apply have "lookup (assemble_code cd) (23 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (23 + assembly_map cd pc) = 
     Some (ASub (Reg Vals) 1)" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (22 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (22 + assembly_map cd pc) = 
     Some (AGet (Reg Vals) (Reg Hp))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (21 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (21 + assembly_map cd pc) = 
     Some (APut Vals (Con 0))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (20 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (20 + assembly_map cd pc) = 
     Some (APut Env (Acc (Con 0)))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
     Some (AAdd (Reg Env) 1)" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
     Some (AMov (PC 0))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
     Some (ASub (Acc (PC 0)) 18)" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
     Some (APut Stk (Acc (Con 0)))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
     Some (AAdd (Reg Stk) 1)" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
     Some (AMov (Reg Env))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
     Some (AAdd (Acc (Reg Env)) 1)" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
     Some (APut Stk (Acc (Con 0)))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
     Some (AAdd (Reg Stk) 1)" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
     Some (ASub (Reg Vals) 1)" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
     Some (AGet (Reg Vals) (Reg Hp))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
     Some (AAdd (Acc (Reg Hp)) 1)" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
     Some (AGet (Acc (Reg Hp)) (Reg Env))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
     Some (APut Env (Acc (Con 0)))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (AAdd (Reg Env) 1)" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
     Some (AGet (Reg Vals) (Reg Hp))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (APut Vals (Con 0))" by simp
-  moreover from evu_apply have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AAdd (Acc (Reg Hp)) 2)" by (simp del: add_2_eq_Suc)
   ultimately have "iter_evala (assemble_code cd) 24 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp))) 
@@ -656,14 +656,14 @@ next
     by (auto simp add: numeral_def assemble_vals_def)
   thus ?case by auto
 next
-  case (evu_return cd pc h hp e ep vs vp sh sp)
-  moreover from evu_return have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
+  case (ev\<^sub>u_return cd pc h hp e ep vs vp sh sp)
+  moreover from ev\<^sub>u_return have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (ASub (Reg Stk) 1)" by simp
-  moreover from evu_return have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_return have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
     Some (APut Stk (Con 0))" by simp
-  moreover from evu_return have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_return have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (ASub (Reg Stk) 1)" by simp
-  moreover from evu_return have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_return have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AGet (Reg Stk) (PC 0))" by (simp del: add_2_eq_Suc)
   ultimately have "iter_evala (assemble_code cd) 6 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc (Suc sp)))) 
@@ -673,45 +673,45 @@ next
     by (simp add: numeral_def split: prod.splits)
   thus ?case by auto
 next
-  case (evu_jump cd pc h vs vp hp e ep sh sp)
+  case (ev\<^sub>u_jump cd pc h vs vp hp e ep sh sp)
   moreover hence "even ep" by auto
-  moreover from evu_jump have "lookup (assemble_code cd) (20 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (20 + assembly_map cd pc) = 
     Some (ASub (Reg Vals) 1)" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
     Some (AGet (Reg Vals) (Reg Hp))" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
     Some (APut Vals (Con 0))" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
     Some (APut Env (Acc (Con 0)))" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
     Some (AAdd (Reg Env) 1)" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
     Some (AMov (Reg Env))" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
     Some (AAdd (Acc (Reg Env)) 1)" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
     Some (ASub (Reg Stk) 1)" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
     Some (APut Stk (Acc (Con 0)))" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (11 + assembly_map cd pc) =
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (11 + assembly_map cd pc) =
     Some (AAdd (Reg Stk) 1)" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
     Some (ASub (Reg Vals) 1)" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
     Some (AGet (Reg Vals) (Reg Hp))" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
     Some (AAdd (Acc (Reg Hp)) 1)" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
     Some (AGet (Acc (Reg Hp)) (Reg Env))" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
     Some (APut Env (Acc (Con 0)))" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (AAdd (Reg Env) 1)" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
     Some (AGet (Reg Vals) (Reg Hp))" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (APut Vals (Con 0))" by simp
-  moreover from evu_jump have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AAdd (Acc (Reg Hp)) 2)" by (simp del: add_2_eq_Suc)
   ultimately have "iter_evala (assemble_code cd) 21 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp))) 

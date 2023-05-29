@@ -6,7 +6,7 @@ Goals:
 - do reverse of type-saftey for conversions
 - Do reverse proofs for typechecking, assembly, machine?
 - Modularize code with classes
-- Remove runtime tags
+- Remove runtime tags (need tags for code pointers in late stages)
 - Add Parser?
 - Add pairs, sums, unit, void, nats, primrec? sructured types?
 - Make printing part of the code
