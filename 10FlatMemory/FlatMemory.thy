@@ -1,14 +1,20 @@
 theory FlatMemory
-  imports "../09ChainedEnvironment/ChainedEnvironment"
+  imports "../07ByteCode/ByteCode" "../08HeapMemory/Heap"
 begin
 
-datatype flat_state = 
-  FS "nat heap" "ptr heap" "ptr list" "nat list"
+text \<open>The chained memory stage is quite low-level, but it still possesses some structured data: 
+pairs in the stack and the environment heap, and tagged closure-values in the value heap. We now 
+reduce all of these to contiguous series of numbers. The pairs are just listed, first component 
+first; the closures are flattened to sequences of data. A \<open>Const\<^sub>v n\<close> value becomes \<open>[1, n, 0]\<close>; a 
+\<open>Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>\<close> becomes \<open>[0, p\<^sub>\<Delta>, p\<^sub>\<C>]\<close>. The first element is a tag indicating what sort of value we have;
+intuitively, we shouldn't need it (we could just stop testing the tag in \<open>ev\<^sub>f_apply\<close> and \<open>ev\<^sub>f_jump\<close>)
+but in fact it will be necessary for some of the future stages. Specifically, we need to know when a
+number is a code pointer to be treated differently than data or data pointers, and that requires 
+knowing when a block of data is a lambda-value. (The padding 0 on the numerical values is just to 
+keep all values the same size, greatly easing some of the proofs.)\<close>
 
-fun get_closure :: "nat heap \<Rightarrow> nat \<Rightarrow> closure\<^sub>v" where
-  "get_closure h p = (case hlookup h p of
-      0 \<Rightarrow> Lam\<^sub>v (hlookup h (Suc p)) (hlookup h (Suc (Suc p)))
-    | Suc x \<Rightarrow> Const\<^sub>v (hlookup h (Suc p)))"
+datatype state\<^sub>f = 
+  S\<^sub>f "nat heap" "ptr heap" "ptr list" "nat list"
 
 fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonup> ptr" where
   "flat_lookup h 0 x = None"
@@ -17,49 +23,43 @@ fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonu
 | "flat_lookup h (Suc (Suc p)) (Suc x) = (
     if even p then flat_lookup h (hlookup h (Suc p)) x else None)"
 
-inductive evalf :: "code\<^sub>b list \<Rightarrow> flat_state \<Rightarrow> flat_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>f" 50) where
-  evf_lookup [simp]: "lookup cd pc = Some (Lookup\<^sub>b x) \<Longrightarrow> flat_lookup env p x = Some v \<Longrightarrow> 
-    cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env (v # vs) (pc # p # sfs)"
-| evf_pushcon [simp]: "lookup cd pc = Some (PushCon\<^sub>b k) \<Longrightarrow> halloc_list h [1, k, 0] = (h', v) \<Longrightarrow>
-    cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs)"
-| evf_pushlam [simp]: "lookup cd pc = Some (PushLam\<^sub>b pc') \<Longrightarrow> 
-    halloc_list h [0, p, pc'] = (h', v) \<Longrightarrow> 
-      cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h' env (v # vs) (pc # p # sfs)"
-| evf_apply [simp]: "lookup cd pc = Some Apply\<^sub>b \<Longrightarrow> get_closure h v2 = Lam\<^sub>v p' pc' \<Longrightarrow>
-    halloc_list env [v1, p'] = (env', p2) \<Longrightarrow> 
-      cd \<tturnstile> FS h env (v1 # v2 # vs) (Suc pc # p # sfs) \<leadsto>\<^sub>f 
-        FS h env' vs (pc' # Suc (Suc p2) # pc # p # sfs)"
-| evf_return [simp]: "lookup cd pc = Some Return\<^sub>b \<Longrightarrow> 
-    cd \<tturnstile> FS h env vs (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env vs sfs"
-| evf_jump [simp]: "lookup cd pc = Some Jump\<^sub>b \<Longrightarrow> get_closure h v2 = Lam\<^sub>v p' pc' \<Longrightarrow>
-    halloc_list env [v1, p'] = (env', p2) \<Longrightarrow> 
-      cd \<tturnstile> FS h env (v1 # v2 # vs) (Suc pc # p # sfs) \<leadsto>\<^sub>f FS h env' vs (pc' # Suc (Suc p2) # sfs)"
+inductive eval\<^sub>f :: "code\<^sub>b list \<Rightarrow> state\<^sub>f \<Rightarrow> state\<^sub>f \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>f" 50) where
+  ev\<^sub>f_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x) \<Longrightarrow> flat_lookup \<Delta> p\<^sub>\<Delta> x = Some v \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta> (v # \<V>) (p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
+| ev\<^sub>f_pushcon [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushCon\<^sub>b n) \<Longrightarrow> halloc_list h [1, n, 0] = (h', v) \<Longrightarrow>
+    \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h' \<Delta> (v # \<V>) (p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
+| ev\<^sub>f_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>') \<Longrightarrow> halloc_list h [0, p\<^sub>\<Delta>, p\<^sub>\<C>'] = (h', v) \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h' \<Delta> (v # \<V>) (p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
+| ev\<^sub>f_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = 0 \<Longrightarrow> 
+    halloc_list \<Delta> [v\<^sub>1, hlookup h (Suc v\<^sub>2)] = (\<Delta>', p\<^sub>\<Delta>') \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f 
+      S\<^sub>f h \<Delta>' \<V> (hlookup h (Suc (Suc v\<^sub>2)) # Suc (Suc p\<^sub>\<Delta>') # p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
+| ev\<^sub>f_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta> \<V> s"
+| ev\<^sub>f_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = 0 \<Longrightarrow> 
+    halloc_list \<Delta> [v\<^sub>1, hlookup h (Suc v\<^sub>2)] = (\<Delta>', p\<^sub>\<Delta>') \<Longrightarrow> 
+      \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f 
+        S\<^sub>f h \<Delta>' \<V> (hlookup h (Suc (Suc v\<^sub>2)) # Suc (Suc p\<^sub>\<Delta>') # s)"
 
-theorem determinismf: "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
-proof (induction \<Sigma> \<Sigma>' rule: evalf.induct)
-  case (evf_lookup cd pc x env p v h vs sfs)
-  from evf_lookup(3, 1, 2) show ?case 
-    by (induction cd "FS h env vs (Suc pc # p # sfs)" \<Sigma>'' rule: evalf.induct) simp_all 
+theorem determinismf: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
+proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>f.induct)
+  case ev\<^sub>f_lookup
+  from ev\<^sub>f_lookup(3, 1, 2) show ?case by (induction rule: eval\<^sub>f.cases) simp_all 
 next
-  case (evf_pushcon cd pc k h h' v env vs p sfs)
-  from evf_pushcon(3, 1, 2) show ?case 
-    by (induction cd "FS h env vs (Suc pc # p # sfs)" \<Sigma>'' rule: evalf.induct) simp_all 
+  case ev\<^sub>f_pushcon
+  from ev\<^sub>f_pushcon(3, 1, 2) show ?case by (induction rule: eval\<^sub>f.cases) simp_all 
 next
-  case (evf_pushlam cd pc pc' h p h' v env vs sfs)
-  from evf_pushlam(3, 1, 2) show ?case 
-    by (induction cd "FS h env vs (Suc pc # p # sfs)" \<Sigma>'' rule: evalf.induct) simp_all 
+  case ev\<^sub>f_pushlam
+  from ev\<^sub>f_pushlam(3, 1, 2) show ?case by (induction rule: eval\<^sub>f.cases) simp_all  
 next
-  case (evf_apply cd pc h v2 p' pc' env v1 env' p2 vs p sfs)
-  from evf_apply(4, 1, 2, 3) show ?case 
-    by (induction cd "FS h env (v1 # v2 # vs) (Suc pc # p # sfs)" \<Sigma>'' rule: evalf.induct) simp_all 
+  case ev\<^sub>f_apply
+  from ev\<^sub>f_apply(4, 1, 2, 3) show ?case by (induction rule: eval\<^sub>f.cases) simp_all  
 next
-  case (evf_return cd pc h env vs p sfs)
-  from evf_return(2, 1) show ?case 
-    by (induction cd "FS h env vs (Suc pc # p # sfs)" \<Sigma>'' rule: evalf.induct) simp_all 
+  case ev\<^sub>f_return
+  from ev\<^sub>f_return(2, 1) show ?case by (induction rule: eval\<^sub>f.cases) simp_all 
 next
-  case (evf_jump cd pc h v2 p' pc' env v1 env' p2 vs p sfs)
-  from evf_jump(4, 1, 2, 3) show ?case 
-    by (induction cd "FS h env (v1 # v2 # vs) (Suc pc # p # sfs)" \<Sigma>'' rule: evalf.induct) simp_all 
+  case ev\<^sub>f_jump
+  from ev\<^sub>f_jump(4, 1, 2, 3) show ?case by (induction rule: eval\<^sub>f.cases) simp_all 
 qed
 
 end

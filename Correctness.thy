@@ -78,18 +78,18 @@ proof -
   have CS: "chained_state (S\<^sub>v hempty hempty [] [(0, length ?cd)])" by simp
   with ECE VCE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (S\<^sub>v hempty hempty [] [(0, length ?cd)]))
     (flatten (S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis completef_iter)
-  hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (FS (H ?nmem 0) (H ?nmem 0) [] [length ?cd, 0])
-     (FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [])" by (simp add: hempty_def)
+  hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (S\<^sub>f (H ?nmem 0) (H ?nmem 0) [] [length ?cd, 0])
+     (S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [])" by (simp add: hempty_def)
   with ECE CS have "chained_state \<Sigma>\<^sub>c\<^sub>e'" by (metis preserve_chained)
   with VCE have VH: "hcontains h\<^sub>c\<^sub>e v\<^sub>h" by simp
   have R: "restructurable (US ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) ?cd" 
     by simp
   with EF have "\<exists>\<Sigma>\<^sub>u'. 
     iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and>
-      FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by simp_all
+      S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by simp_all
   then obtain \<Sigma>\<^sub>u' where EU:
     "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (US ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
-      FS (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by blast
+      S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by blast
   moreover with R have R': "restructurable \<Sigma>\<^sub>u' ?cd" by fastforce
   moreover with EU obtain h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u where VU:
     "\<Sigma>\<^sub>u' = US h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u 0 0 \<and> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<and> 
