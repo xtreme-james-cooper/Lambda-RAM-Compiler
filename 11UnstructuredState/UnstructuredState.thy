@@ -1,5 +1,5 @@
 theory UnstructuredState
-  imports "../07ByteCode/CodeFlattening"
+  imports "../07ByteCode/CodeFlattening" "../10FlatMemory/PointerTag"
 begin
 
 section \<open>Unstructured State\<close>
@@ -16,7 +16,7 @@ tail of the callstack into the memory map, and keep the head (which is the curre
 its own register.\<close>
 
 datatype unstr_state = 
-  S\<^sub>u "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat nat
+  S\<^sub>u "nat \<Rightarrow> pointer_tag \<times> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat nat
 
 fun unstr_lookup :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<rightharpoonup> nat" where
   "unstr_lookup h 0 x = None"
@@ -29,23 +29,23 @@ inductive eval\<^sub>u :: "code\<^sub>b list \<Rightarrow> unstr_state \<Rightar
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> (\<V>(p\<^sub>\<V> := y)) (Suc p\<^sub>\<V>) s (Suc p\<^sub>s) p\<^sub>\<C>"
 | ev\<^sub>u_pushcon [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushCon\<^sub>b n) \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
-      S\<^sub>u (h(p\<^sub>h := 1, Suc p\<^sub>h := n, Suc (Suc p\<^sub>h) := 0)) (3 + p\<^sub>h) \<Delta> p\<^sub>\<Delta> 
+      S\<^sub>u (h(p\<^sub>h := (PConst, 1), Suc p\<^sub>h := (PConst, n), Suc (Suc p\<^sub>h) := (PConst, 0))) (3 + p\<^sub>h) \<Delta> p\<^sub>\<Delta> 
         (\<V>(p\<^sub>\<V> := p\<^sub>h)) (Suc p\<^sub>\<V>) s (Suc p\<^sub>s) p\<^sub>\<C>"
 | ev\<^sub>u_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>') \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
-      S\<^sub>u (h(p\<^sub>h := 0, Suc p\<^sub>h := s p\<^sub>s, Suc (Suc p\<^sub>h) := p\<^sub>\<C>')) (3 + p\<^sub>h) \<Delta> p\<^sub>\<Delta> 
+      S\<^sub>u (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, s p\<^sub>s), Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>'))) (3 + p\<^sub>h) \<Delta> p\<^sub>\<Delta> 
         (\<V>(p\<^sub>\<V> := p\<^sub>h)) (Suc p\<^sub>\<V>) s (Suc p\<^sub>s) p\<^sub>\<C>"
-| ev\<^sub>u_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> h (\<V> p\<^sub>\<V>) = 0 \<Longrightarrow> 
+| ev\<^sub>u_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> (Suc (Suc p\<^sub>\<V>)) s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
-      S\<^sub>u h p\<^sub>h (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := h (Suc (\<V> p\<^sub>\<V>)))) (2 + p\<^sub>\<Delta>) \<V> p\<^sub>\<V>
-        (s(Suc p\<^sub>s := p\<^sub>\<C>, Suc (Suc p\<^sub>s) := Suc (Suc p\<^sub>\<Delta>))) (2 + Suc p\<^sub>s) (h (Suc (Suc (\<V> p\<^sub>\<V>))))"
+      S\<^sub>u h p\<^sub>h (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) (2 + p\<^sub>\<Delta>) \<V> p\<^sub>\<V>
+        (s(Suc p\<^sub>s := p\<^sub>\<C>, Suc (Suc p\<^sub>s) := Suc (Suc p\<^sub>\<Delta>))) (2 + Suc p\<^sub>s) (snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))))"
 | ev\<^sub>u_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s (Suc (Suc p\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
       S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s p\<^sub>s (s p\<^sub>s)"
-| ev\<^sub>u_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> h (\<V> p\<^sub>\<V>) = 0 \<Longrightarrow> 
+| ev\<^sub>u_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> (Suc (Suc p\<^sub>\<V>)) s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
-      S\<^sub>u h p\<^sub>h (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := h (Suc (\<V> p\<^sub>\<V>)))) (2 + p\<^sub>\<Delta>) \<V> p\<^sub>\<V>
-        (s(p\<^sub>s := Suc (Suc p\<^sub>\<Delta>))) (Suc p\<^sub>s) (h (Suc (Suc (\<V> p\<^sub>\<V>))))"
+      S\<^sub>u h p\<^sub>h (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) (2 + p\<^sub>\<Delta>) \<V> p\<^sub>\<V>
+        (s(p\<^sub>s := Suc (Suc p\<^sub>\<Delta>))) (Suc p\<^sub>s) (snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))))"
 
 theorem determinismu: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>u \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>u \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<C> \<Sigma> \<Sigma>' rule: eval\<^sub>u.induct)
@@ -79,9 +79,10 @@ qed
 
 
 
-definition restructurable_heap :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
-  "restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd = (3 dvd p\<^sub>h \<and> (\<forall>x < p\<^sub>h. 3 dvd x \<longrightarrow> h x = 0 \<longrightarrow> 
-    (even (h (Suc x)) \<and> h (Suc x) \<le> p\<^sub>\<Delta> \<and> h (Suc (Suc x)) \<noteq> 0 \<and> h (Suc (Suc x)) \<le> lcd)))"
+definition restructurable_heap :: "(nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
+  "restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd = (3 dvd p\<^sub>h \<and> (\<forall>x < p\<^sub>h. 3 dvd x \<longrightarrow> snd (h x) = 0 \<longrightarrow> 
+    (even (snd (h (Suc x))) \<and> snd (h (Suc x)) \<le> p\<^sub>\<Delta> \<and> snd (h (Suc (Suc x))) \<noteq> 0 \<and> 
+      snd (h (Suc (Suc x))) \<le> lcd)))"
 
 definition restructurable_env :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
   "restructurable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h = (even p\<^sub>\<Delta> \<and>
@@ -134,28 +135,31 @@ lemma [elim]: "restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrighta
   by (simp add: restructurable_heap_def)
 
 lemma [simp]: "restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
-    restructurable_heap (h(p\<^sub>h := Suc 0, Suc p\<^sub>h := k, Suc (Suc p\<^sub>h) := 0)) (3 + p\<^sub>h) p\<^sub>\<Delta> lcd"
+    restructurable_heap (h(p\<^sub>h := (PConst, Suc 0), Suc p\<^sub>h := (PConst, k), Suc (Suc p\<^sub>h) := (PConst, 0))) 
+      (3 + p\<^sub>h) p\<^sub>\<Delta> lcd"
   by (auto simp add: restructurable_heap_def)
 
 lemma [simp]: "restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> lcd \<noteq> 0 \<Longrightarrow>
-  restructurable_heap (h(p\<^sub>h := 0, Suc p\<^sub>h := k, Suc (Suc p\<^sub>h) := p\<^sub>\<C>)) (3 + p\<^sub>h) p\<^sub>\<Delta> lcd = 
-    (even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd)"
+  restructurable_heap (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k), Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>))) 
+    (3 + p\<^sub>h) p\<^sub>\<Delta> lcd = (even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd)"
 proof
-  let ?f = "\<lambda>x. if x = Suc (Suc p\<^sub>h) then p\<^sub>\<C> else (h(p\<^sub>h := 0, Suc p\<^sub>h := k)) x"
-  let ?g = "\<lambda>x. if x = Suc p\<^sub>h then p\<^sub>\<C> else (h(p\<^sub>h := 0, Suc p\<^sub>h := k)) (Suc x)"
-  let ?h = "\<lambda>x. if x = p\<^sub>h then p\<^sub>\<C> else (h(p\<^sub>h := 0, Suc p\<^sub>h := k)) (Suc (Suc x))"
-  assume H: "restructurable_heap (h(p\<^sub>h := 0, Suc p\<^sub>h := k, Suc (Suc p\<^sub>h) := p\<^sub>\<C>)) (3 + p\<^sub>h) p\<^sub>\<Delta> lcd"
-  moreover hence "\<And>x. x < 3 + p\<^sub>h \<Longrightarrow> 3 dvd x \<Longrightarrow> ?f x = 0 \<Longrightarrow> 
-    even (?g x) \<and> ?g x \<le> p\<^sub>\<Delta> \<and> 0 < ?h x \<and> ?h x \<le> lcd" by (simp add: restructurable_heap_def)
+  let ?f = "\<lambda>x. if x = Suc (Suc p\<^sub>h) then (PCode, p\<^sub>\<C>) else (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k))) x"
+  let ?g = "\<lambda>x. if x = Suc p\<^sub>h then (PCode, p\<^sub>\<C>) else (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k))) (Suc x)"
+  let ?h = "\<lambda>x. if x = p\<^sub>h then (PCode, p\<^sub>\<C>) else (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k))) (Suc (Suc x))"
+  assume H: "restructurable_heap (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k), 
+    Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>))) (3 + p\<^sub>h) p\<^sub>\<Delta> lcd"
+  moreover hence "\<And>x. x < 3 + p\<^sub>h \<Longrightarrow> 3 dvd x \<Longrightarrow> snd (?f x) = 0 \<Longrightarrow> 
+    even (snd (?g x)) \<and> snd (?g x) \<le> p\<^sub>\<Delta> \<and> 0 < snd (?h x) \<and> snd (?h x) \<le> lcd" 
+    by (simp add: restructurable_heap_def)
   moreover from H have "3 dvd p\<^sub>h" by (simp add: restructurable_heap_def)
-  ultimately have "p\<^sub>h < 3 + p\<^sub>h \<Longrightarrow> ?f p\<^sub>h = 0 \<Longrightarrow> 
-    even (?g p\<^sub>h) \<and> ?g p\<^sub>h \<le> p\<^sub>\<Delta> \<and> 0 < ?h p\<^sub>h \<and> ?h p\<^sub>h \<le> lcd" by blast
+  ultimately have "p\<^sub>h < 3 + p\<^sub>h \<Longrightarrow> snd (?f p\<^sub>h) = 0 \<Longrightarrow> 
+    even (snd (?g p\<^sub>h)) \<and> snd (?g p\<^sub>h) \<le> p\<^sub>\<Delta> \<and> 0 < snd (?h p\<^sub>h) \<and> snd (?h p\<^sub>h) \<le> lcd" by blast
   moreover assume "lcd \<noteq> 0"
   ultimately show "even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd" by simp
 next
   assume "restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd" and "even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd"
-  thus "restructurable_heap (h(p\<^sub>h := 0, Suc p\<^sub>h := k, Suc (Suc p\<^sub>h) := p\<^sub>\<C>)) (3 + p\<^sub>h) p\<^sub>\<Delta> lcd" 
-    by (auto simp add: restructurable_heap_def)
+  thus "restructurable_heap (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k), Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>))) 
+    (3 + p\<^sub>h) p\<^sub>\<Delta> lcd" by (auto simp add: restructurable_heap_def)
 qed
 
 lemma [simp]: "restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> restructurable_heap h p\<^sub>h (Suc (Suc p\<^sub>\<Delta>)) lcd"
@@ -168,23 +172,24 @@ lemma [elim]: "p < p\<^sub>\<Delta> \<Longrightarrow> odd p \<Longrightarrow> re
   by (simp add: restructurable_env_def)
 
 lemma [simp]: "restructurable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> restructurable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> 
-  restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> h (\<V> p\<^sub>\<V>) = 0 \<Longrightarrow>
-    restructurable_env (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := h (Suc (\<V> p\<^sub>\<V>)))) (Suc (Suc p\<^sub>\<Delta>)) p\<^sub>h"
+  restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow>
+    restructurable_env (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) (Suc (Suc p\<^sub>\<Delta>)) p\<^sub>h"
 proof (unfold restructurable_env_def restructurable_vals_def restructurable_heap_def, 
        rule, simp, rule, rule)
   fix y 
-  assume "3 dvd p\<^sub>h \<and> (\<forall>x < p\<^sub>h. 3 dvd x \<longrightarrow> h x = 0 \<longrightarrow> 
-    even (h (Suc x)) \<and> h (Suc x) \<le> p\<^sub>\<Delta> \<and> h (Suc (Suc x)) \<noteq> 0 \<and> h (Suc (Suc x)) \<le> lcd)"
-     and "h (\<V> p\<^sub>\<V>) = 0" and "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
-  hence "even (h (Suc (\<V> p\<^sub>\<V>))) \<and> h (Suc (\<V> p\<^sub>\<V>)) \<le> p\<^sub>\<Delta>" by simp
+  assume "3 dvd p\<^sub>h \<and> (\<forall>x < p\<^sub>h. 3 dvd x \<longrightarrow> snd (h x) = 0 \<longrightarrow> 
+    even (snd (h (Suc x))) \<and> snd (h (Suc x)) \<le> p\<^sub>\<Delta> \<and> snd (h (Suc (Suc x))) \<noteq> 0 \<and> 
+      snd (h (Suc (Suc x))) \<le> lcd)"
+     and "snd (h (\<V> p\<^sub>\<V>)) = 0" and "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
+  hence "even (snd (h (Suc (\<V> p\<^sub>\<V>)))) \<and> snd (h (Suc (\<V> p\<^sub>\<V>))) \<le> p\<^sub>\<Delta>" by simp
   moreover assume "even p\<^sub>\<Delta> \<and> 
     (\<forall>x < p\<^sub>\<Delta>. if even x then 3 dvd \<Delta> x \<and> \<Delta> x < p\<^sub>h else even (\<Delta> x) \<and> \<Delta> x < p\<^sub>\<Delta>)"
               and "y < Suc (Suc p\<^sub>\<Delta>)" and "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
   ultimately show "if even y
-        then 3 dvd (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := h (Suc (\<V> p\<^sub>\<V>)))) y \<and> 
-          (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := h (Suc (\<V> p\<^sub>\<V>)))) y < p\<^sub>h
-        else even ((\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := h (Suc (\<V> p\<^sub>\<V>)))) y) \<and>
-          (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := h (Suc (\<V> p\<^sub>\<V>)))) y < Suc (Suc p\<^sub>\<Delta>)" by auto
+        then 3 dvd (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y \<and> 
+          (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y < p\<^sub>h
+        else even ((\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y) \<and>
+          (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y < Suc (Suc p\<^sub>\<Delta>)" by auto
 qed
 
 lemma [simp]: "restructurable_vals \<V> p\<^sub>\<V> p\<^sub>h \<Longrightarrow> 
@@ -260,12 +265,12 @@ proof (unfold restructurable_stack_def)
     by auto
 qed
 
-lemma [simp]: "h (\<V> p\<^sub>\<V>) = 0 \<Longrightarrow> restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
-    restructurable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> 0 < h (Suc (Suc (\<V> p\<^sub>\<V>)))"
+lemma [simp]: "snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow> restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
+    restructurable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> 0 < snd (h (Suc (Suc (\<V> p\<^sub>\<V>))))"
   by (simp add: restructurable_heap_def restructurable_vals_def)
 
-lemma [simp]: "h (\<V> p\<^sub>\<V>) = 0 \<Longrightarrow> restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
-    restructurable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> h (Suc (Suc (\<V> p\<^sub>\<V>))) \<le> lcd"
+lemma [simp]: "snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow> restructurable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
+    restructurable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))) \<le> lcd"
   by (simp add: restructurable_heap_def restructurable_vals_def)
 
 lemma [elim]: "unstr_lookup \<Delta> p x = Some y \<Longrightarrow> p \<le> p\<^sub>\<Delta> \<Longrightarrow> even p \<Longrightarrow> restructurable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> 
@@ -308,8 +313,8 @@ proof -
   ultimately show "3 dvd y" by auto
 qed
 
-lemma [simp]: "h (\<V> p\<^sub>\<V>) = 0 \<Longrightarrow> restructurable_heap h p\<^sub>h p\<^sub>\<Delta> (length \<C>) \<Longrightarrow> 
-    restructurable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> h (Suc (Suc (\<V> p\<^sub>\<V>))) \<noteq> 0"
+lemma [simp]: "snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow> restructurable_heap h p\<^sub>h p\<^sub>\<Delta> (length \<C>) \<Longrightarrow> 
+    restructurable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))) \<noteq> 0"
   by simp
 
 lemma [elim]: "restructurable_stack s (Suc (Suc p\<^sub>s)) p\<^sub>\<Delta> lcd \<Longrightarrow> restructurable_stack s p\<^sub>s p\<^sub>\<Delta> lcd"

@@ -108,11 +108,12 @@ fun assembly_map :: "code\<^sub>b list \<Rightarrow> nat \<Rightarrow> nat" wher
 definition assemble_code :: "code\<^sub>b list \<Rightarrow> assm list" where
   "assemble_code cd = concat (map (assemble_op (assembly_map cd)) cd)"
 
-definition assemble_heap :: "(nat \<Rightarrow> nat) \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" where
+definition assemble_heap :: "(nat \<Rightarrow> nat) \<Rightarrow> (nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> 
+    pseudoreg \<times> nat" where
   "assemble_heap mp h hp x = (if x \<ge> hp then (Con 0, 0) else case x mod 3 of
-      0 \<Rightarrow> (Con 0, h x)
-    | Suc 0 \<Rightarrow> (if h (x - 1) = 0 then Reg Env else Con 0, h x)
-    | Suc (Suc 0) \<Rightarrow> if h (x - 2) = 0 then (PC 0, mp (h x)) else (Con 0, h x))"
+      0 \<Rightarrow> (Con 0, snd (h x))
+    | Suc 0 \<Rightarrow> (if snd (h (x - 1)) = 0 then Reg Env else Con 0, snd (h x))
+    | Suc (Suc 0) \<Rightarrow> if snd (h (x - 2)) = 0 then (PC 0, mp (snd (h x))) else (Con 0, snd (h x)))"
 
 definition assemble_env :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" where
   "assemble_env e ep x = (if x \<ge> ep then (Con 0, 0) else (Reg (if even x then Hp else Env), e x))"
@@ -129,7 +130,8 @@ primrec assemble_state :: "(nat \<Rightarrow> nat) \<Rightarrow> unstr_state \<R
     AS (case_register (assemble_heap mp h hp) (assemble_env e ep) (assemble_vals vs vp) 
       (assemble_stack mp sh sp)) (case_register hp ep vp sp) 0 (Con 0) (mp pc)"
 
-abbreviation assm_hp :: "code\<^sub>b list \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" where
+abbreviation assm_hp :: "code\<^sub>b list \<Rightarrow> (nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" 
+    where
   "assm_hp cd \<equiv> assemble_heap (assembly_map cd)"
 
 abbreviation assm_stk :: "code\<^sub>b list \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" where
@@ -144,58 +146,12 @@ lemma length_assemble_op [simp]: "length (assemble_op mp op) = Suc (assemble_op_
 lemma [simp]: "length \<circ> assemble_op mp = Suc \<circ> assemble_op_len"
   by auto
 
-lemma [simp]: "assemble_code [] \<tturnstile>\<^sub>a \<Sigma> = None"
-  by (induction \<Sigma>) (simp_all add: assemble_code_def split: nat.splits)
-
 lemma [simp]: "assembly_map cd 0 = 0"
   by (induction cd) simp_all
 
 lemma assembly_map_postpend [simp]: "
     assembly_map (cd @ cd') (length cd) = assembly_map cd (length cd)"
   by (induction cd) simp_all
-
-lemma assm_map_to_suc' [simp]: "assembly_map cd\<^sub>b pc\<^sub>b = Suc pc\<^sub>a \<Longrightarrow> pc\<^sub>b \<le> length cd\<^sub>b \<Longrightarrow> 
-  \<exists>pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a''. pc\<^sub>b = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
-    pc\<^sub>a = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and> 
-      concat (map (assemble_op (assembly_map (cd\<^sub>b' @ cd\<^sub>b))) cd\<^sub>b) = 
-        cd\<^sub>a' @ assemble_op (assembly_map (cd\<^sub>b' @ cd\<^sub>b)) op\<^sub>b @ cd\<^sub>a''"
-proof (induction cd\<^sub>b pc\<^sub>b arbitrary: pc\<^sub>a cd\<^sub>b' rule: assembly_map.induct)
-  case (3 op\<^sub>b cd\<^sub>b pc\<^sub>b)
-  thus ?case
-  proof (induction pc\<^sub>b)
-    case (Suc pc\<^sub>b)
-    then obtain op\<^sub>b' cd\<^sub>b'' where C: "cd\<^sub>b = op\<^sub>b' # cd\<^sub>b''" by (cases cd\<^sub>b) simp_all
-    hence A: "assembly_map cd\<^sub>b (Suc pc\<^sub>b) = Suc (assemble_op_len op\<^sub>b' + assembly_map cd\<^sub>b'' pc\<^sub>b)"
-      by simp
-    from Suc have "Suc pc\<^sub>b \<le> length cd\<^sub>b" by simp
-    with Suc(2) A obtain op\<^sub>b'' cd\<^sub>a' cd\<^sub>a'' where O: "lookup cd\<^sub>b pc\<^sub>b = Some op\<^sub>b'' \<and>
-      assemble_op_len op\<^sub>b' + assembly_map cd\<^sub>b'' pc\<^sub>b = length cd\<^sub>a' + assemble_op_len op\<^sub>b'' \<and>
-        concat (map (assemble_op (assembly_map ((cd\<^sub>b' @ [op\<^sub>b]) @ cd\<^sub>b))) cd\<^sub>b) =
-          cd\<^sub>a' @ assemble_op (assembly_map ((cd\<^sub>b' @ [op\<^sub>b]) @ cd\<^sub>b)) op\<^sub>b'' @ cd\<^sub>a''" by blast
-    hence X: "lookup (op\<^sub>b # cd\<^sub>b) (Suc pc\<^sub>b) = Some op\<^sub>b''" by simp
-    let ?mp = "assembly_map (cd\<^sub>b' @ op\<^sub>b # cd\<^sub>b)"
-    from Suc have "pc\<^sub>a = assemble_op_len op\<^sub>b + assembly_map cd\<^sub>b (Suc pc\<^sub>b)" by simp
-    with C O have Y: "pc\<^sub>a = length (assemble_op ?mp op\<^sub>b @ cd\<^sub>a') + assemble_op_len op\<^sub>b''" by simp
-    from O have "concat (map (assemble_op ?mp) (op\<^sub>b # cd\<^sub>b)) = 
-      (assemble_op ?mp op\<^sub>b @ cd\<^sub>a') @ assemble_op ?mp op\<^sub>b'' @ cd\<^sub>a''" by simp
-    with X Y show ?case by blast
-  qed simp_all
-qed simp_all
-
-lemma assm_map_to_suc [simp]: "assembly_map cd\<^sub>b pc\<^sub>b = Suc pc\<^sub>a \<Longrightarrow> pc\<^sub>b \<le> length cd\<^sub>b \<Longrightarrow> 
-  \<exists>pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a''. pc\<^sub>b = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
-    pc\<^sub>a = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and>
-      assemble_code cd\<^sub>b = cd\<^sub>a' @ assemble_op (assembly_map cd\<^sub>b) op\<^sub>b @ cd\<^sub>a''"
-proof (unfold assemble_code_def)
-  assume "assembly_map cd\<^sub>b pc\<^sub>b = Suc pc\<^sub>a" and "pc\<^sub>b \<le> length cd\<^sub>b"
-  hence "\<exists>pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a''. pc\<^sub>b = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
-    pc\<^sub>a = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and> 
-      concat (map (assemble_op (assembly_map ([] @ cd\<^sub>b))) cd\<^sub>b) = 
-        cd\<^sub>a' @ assemble_op (assembly_map ([] @ cd\<^sub>b)) op\<^sub>b @ cd\<^sub>a''" by (metis assm_map_to_suc')
-  thus "\<exists>pc\<^sub>b' op\<^sub>b cd\<^sub>a' cd\<^sub>a''. pc\<^sub>b = Suc pc\<^sub>b' \<and> lookup cd\<^sub>b pc\<^sub>b' = Some op\<^sub>b \<and> 
-    pc\<^sub>a = length cd\<^sub>a' + assemble_op_len op\<^sub>b \<and> concat (map (assemble_op (assembly_map cd\<^sub>b)) cd\<^sub>b) = 
-      cd\<^sub>a' @ assemble_op (assembly_map cd\<^sub>b) op\<^sub>b @ cd\<^sub>a''" by simp
-qed
 
 lemma [simp]: "Suc x \<le> y \<Longrightarrow> lookup (concat (replicate y [a, b])) (2 * x) = Some a"
 proof (induction y arbitrary: x)
@@ -217,10 +173,6 @@ lemma [simp]: "lookup (concat (replicate x [a, b]) @ bs) (Suc (2 * x)) = lookup 
 
 lemma [simp]: "lookup (concat (replicate x [a, b]) @ bs) (Suc (Suc (2 * x))) = lookup bs (Suc 1)"
   by (induction x) simp_all
-
-lemma [simp]: "lookup (assemble_op mp op @ cd) (assemble_op_len op) = 
-    Some (last (assemble_op mp op))"
-  by (induction op) simp_all
 
 lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 
   assembly_map cd (Suc pc) = Suc (assemble_op_len op + assembly_map cd pc)"
@@ -276,78 +228,32 @@ lemma [simp]: "lookup cd pc = Some op \<Longrightarrow>
     lookup (assemble_code cd) (assembly_map cd pc) = lookup (assemble_op (assembly_map cd) op) 0"
   using assemble_code_lookup by fastforce
 
-lemma [simp]: "m Hp = h \<Longrightarrow> m Env = e \<Longrightarrow> m Vals = vs \<Longrightarrow> m Stk = sh \<Longrightarrow> 
-    m = case_register h e vs sh" 
-  by rule (simp split: register.splits)
-
-lemma assm_hp_lemma1: "3 dvd x \<Longrightarrow> x < hp \<Longrightarrow> assemble_heap mp h hp x = (Con 0, h x)"
+lemma assm_hp_lemma1: "3 dvd x \<Longrightarrow> x < hp \<Longrightarrow> assemble_heap mp h hp x = (Con 0, snd (h x))"
   by (simp add: assemble_heap_def)
 
-lemma assm_hp_lemma2: "x mod 3 = 1 \<Longrightarrow> h (x - 1) \<noteq> 0 \<Longrightarrow> x < hp \<Longrightarrow> 
-    assemble_heap mp h hp x = (Con 0, h x)"
+lemma assm_hp_lemma2: "x mod 3 = 1 \<Longrightarrow> snd (h (x - 1)) \<noteq> 0 \<Longrightarrow> x < hp \<Longrightarrow> 
+    assemble_heap mp h hp x = (Con 0, snd (h x))"
   by (simp add: assemble_heap_def)
 
-lemma assm_hp_lemma3: "x mod 3 = 1 \<Longrightarrow> h (x - 1) = 0 \<Longrightarrow> x < hp \<Longrightarrow>
-    assemble_heap mp h hp x = (Reg Env, h x)"
+lemma assm_hp_lemma3: "x mod 3 = 1 \<Longrightarrow> snd (h (x - 1)) = 0 \<Longrightarrow> x < hp \<Longrightarrow>
+    assemble_heap mp h hp x = (Reg Env, snd (h x))"
   by (simp add: assemble_heap_def)
 
-lemma assm_hp_lemma4: "x mod 3 = 2 \<Longrightarrow> h (x - 2) \<noteq> 0 \<Longrightarrow> x < hp \<Longrightarrow> 
-    assemble_heap mp h hp x = (Con 0, h x)"
+lemma assm_hp_lemma4: "x mod 3 = 2 \<Longrightarrow> snd (h (x - 2)) \<noteq> 0 \<Longrightarrow> x < hp \<Longrightarrow> 
+    assemble_heap mp h hp x = (Con 0, snd (h x))"
   by (simp add: assemble_heap_def)
 
-lemma assm_hp_lemma5: "x mod 3 = 2 \<Longrightarrow> h (x - 2) = 0 \<Longrightarrow> x < hp \<Longrightarrow> 
-    assemble_heap mp h hp x = (PC 0, mp (h x))"
+lemma assm_hp_lemma5: "x mod 3 = 2 \<Longrightarrow> snd (h (x - 2)) = 0 \<Longrightarrow> x < hp \<Longrightarrow> 
+    assemble_heap mp h hp x = (PC 0, mp (snd (h x)))"
   by (simp add: assemble_heap_def)
 
 lemma [simp]: "x \<noteq> hp \<Longrightarrow> assm_hp cd (h(hp := a)) (Suc hp) x = assm_hp cd h hp x"
   by (induction x rule: x_mod_3_induct) (simp_all add: assemble_heap_def, linarith+)
 
-lemma assemble_heap_update_lemma2 [simp]: "3 dvd hp \<Longrightarrow> x \<noteq> hp \<Longrightarrow> x \<noteq> Suc hp \<Longrightarrow> 
-  x \<noteq> Suc (Suc hp) \<Longrightarrow> x mod 3 = 2 \<Longrightarrow> 
-    (h(hp := a, Suc hp := b, Suc (Suc hp) := c)) (x - 2) = h (x - 2)"
-proof (induction x)
-  case (Suc x)
-  from Suc(2, 3, 4, 5, 6) show ?case 
-  proof (induction x)
-    case (Suc x)
-    from Suc(6) have "3 dvd x" by presburger
-    with Suc(2, 3, 4, 5, 6) show ?case by auto
-  qed simp_all
-qed simp_all
-
-lemma [simp]: "3 dvd hp \<Longrightarrow> x \<noteq> hp \<Longrightarrow> x \<noteq> Suc hp \<Longrightarrow> x \<noteq> Suc (Suc hp) \<Longrightarrow> 
-  assm_hp cd (h(hp := a, Suc hp := b, Suc (Suc hp) := c)) hp x = assm_hp cd h hp x"
-proof (cases "x mod 3")
-  case (Suc m) note S = Suc
-  assume A: "3 dvd hp" and B: "x \<noteq> hp" and C: "x \<noteq> Suc hp" and D: "x \<noteq> Suc (Suc hp)"
-  thus ?thesis 
-  proof (cases m)
-    case 0
-    from Suc C have X1: "x - 1 \<noteq> hp" by simp
-    from Suc D have X2: "x - 1 \<noteq> Suc hp" by simp
-    from Suc A 0 have X3: "x - 1 \<noteq> Suc (Suc hp)" by presburger
-    from B C D X1 X2 X3 have "(if (h(hp := a, Suc hp := b, Suc (Suc hp) := c)) (x - 1) = 0 
-      then Reg Env else Con 0, (h(hp := a, Suc hp := b, Suc (Suc hp) := c)) x) =
-        (if h (x - 1) = 0 then Reg Env else Con 0, h x)" 
-      by simp
-    with Suc 0 show ?thesis by (simp add: assemble_heap_def)
-  next
-    case (Suc m')
-    with S have M: "x mod 3 = Suc (Suc 0)" by simp
-    from D M have X1: "x - 2 \<noteq> hp" by simp
-    from A M have X2: "x - 2 \<noteq> Suc hp" by presburger
-    from A M have X3: "x - 2 \<noteq> Suc (Suc hp)" by presburger
-    from B C D X1 X2 X3 have "(if (h(hp := a, Suc hp := b, Suc (Suc hp) := c)) (x - 2) = 0
-         then (PC 0, assembly_map cd ((h(hp := a, Suc hp := b, Suc (Suc hp) := c)) x))
-         else (Con 0, (h(hp := a, Suc hp := b, Suc (Suc hp) := c)) x)) =
-    (if h (x - 2) = 0 then (PC 0, assembly_map cd (h x)) else (Con 0, h x))" by simp
-    with M show ?thesis by (simp add: assemble_heap_def)
-  qed
-qed (simp_all add: assemble_heap_def)
-
 lemma [simp]: "restructurable_heap h hp ep (length cd) \<Longrightarrow> (assm_hp cd h hp)
   (hp := (Con 0, Suc a), Suc hp := (Con 0, b), Suc (Suc hp) := (Con 0, c)) = 
-    assm_hp cd (h(hp := Suc a, Suc hp := b, Suc (Suc hp) := c)) (Suc (Suc (Suc hp)))"
+    assm_hp cd (h(hp := (PConst, Suc a), Suc hp := (PConst, b), Suc (Suc hp) := (PConst, c))) 
+      (Suc (Suc (Suc hp)))"
 proof
   fix x
   assume "restructurable_heap h hp ep (length cd)"
@@ -356,13 +262,15 @@ proof
   moreover hence "Suc (Suc hp) mod 3 = 2" by presburger
   ultimately show "((assm_hp cd h hp)
     (hp := (Con 0, Suc a), Suc hp := (Con 0, b), Suc (Suc hp) := (Con 0, c))) x =
-      assm_hp cd (h(hp := Suc a, Suc hp := b, Suc (Suc hp) := c)) (Suc (Suc (Suc hp))) x" 
+      assm_hp cd (h(hp := (PConst, Suc a), Suc hp := (PConst, b), Suc (Suc hp) := (PConst, c))) 
+        (Suc (Suc (Suc hp))) x" 
     by (simp add: assm_hp_lemma1 assm_hp_lemma2 assm_hp_lemma3 assm_hp_lemma4 assm_hp_lemma5)
 qed
 
 lemma [simp]: "restructurable_heap h hp ep (length cd) \<Longrightarrow> (assm_hp cd h hp)
   (hp := (Con 0, 0), Suc hp := (Reg Env, a), Suc (Suc hp) := (PC 0, assembly_map cd b)) = 
-    assm_hp cd (h(hp := 0, Suc hp := a, Suc (Suc hp) := b)) (Suc (Suc (Suc hp)))"
+    assm_hp cd (h(hp := (PConst, 0), Suc hp := (PEnv, a), Suc (Suc hp) := (PCode, b))) 
+      (Suc (Suc (Suc hp)))"
 proof
   fix x
   assume "restructurable_heap h hp ep (length cd)"
@@ -371,55 +279,56 @@ proof
   moreover hence "Suc (Suc hp) mod 3 = 2" by presburger
   ultimately show "((assm_hp cd h hp)(hp := (Con 0, 0), Suc hp := (Reg Env, a), 
     Suc (Suc hp) := (PC 0, assembly_map cd b))) x =
-      assm_hp cd (h(hp := 0, Suc hp := a, Suc (Suc hp) := b)) (Suc (Suc (Suc hp))) x" 
+      assm_hp cd (h(hp := (PConst, 0), Suc hp := (PEnv, a), Suc (Suc hp) := (PCode, b))) 
+        (Suc (Suc (Suc hp))) x" 
     by (simp add: assm_hp_lemma1 assm_hp_lemma2 assm_hp_lemma3 assm_hp_lemma4 assm_hp_lemma5)
 qed
 
 lemma [simp]: "restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> 
-  assemble_heap mp h hp (Suc (vs vp)) = (if h (vs vp) = 0 then Reg Env else Con 0, h (Suc (vs vp)))"
+  assemble_heap mp h hp (Suc (vs vp)) = 
+    (if snd (h (vs vp)) = 0 then Reg Env else Con 0, snd (h (Suc (vs vp))))"
 proof (unfold assemble_heap_def restructurable_vals_def)
   assume "3 dvd hp \<and> (\<forall>x<Suc (Suc vp). 3 dvd vs x \<and> vs x < hp)"
   moreover hence X: "3 dvd vs vp \<and> vs vp < hp" by simp
   ultimately have "Suc (vs vp) < hp" by fastforce
   moreover from X have "Suc (vs vp) mod 3 = 1" by presburger
   ultimately show "(if Suc (vs vp) \<ge> hp then (Con 0, 0) else case Suc (vs vp) mod 3 of 
-       0 \<Rightarrow> (Con 0, h (Suc (vs vp)))
-     | Suc 0 \<Rightarrow> (if h (Suc (vs vp) - 1) = 0 then Reg Env else Con 0, h (Suc (vs vp)))
-     | Suc (Suc 0) \<Rightarrow> if h (Suc (vs vp) - 2) = 0 then (PC 0, mp (h (Suc (vs vp)))) 
-        else (Con 0, h (Suc (vs vp)))
-     | Suc (Suc (Suc x)) \<Rightarrow> undefined) = (if h (vs vp) = 0 then Reg Env else Con 0, h (Suc (vs vp)))" 
+       0 \<Rightarrow> (Con 0, snd (h (Suc (vs vp))))
+     | Suc 0 \<Rightarrow> (if snd (h (Suc (vs vp) - 1)) = 0 then Reg Env else Con 0, snd (h (Suc (vs vp))))
+     | Suc (Suc 0) \<Rightarrow> if snd (h (Suc (vs vp) - 2)) = 0 then (PC 0, mp (snd (h (Suc (vs vp))))) 
+        else (Con 0, snd (h (Suc (vs vp))))
+     | Suc (Suc (Suc x)) \<Rightarrow> undefined) = (if snd (h (vs vp)) = 0 then Reg Env 
+        else Con 0, snd (h (Suc (vs vp))))" 
     by simp
 qed
 
-lemma [simp]: "restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> h (vs vp) = 0 \<Longrightarrow> 
+lemma [simp]: "restructurable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> snd (h (vs vp)) = 0 \<Longrightarrow> 
   restructurable_heap h hp ep lcd \<Longrightarrow>
-    assemble_heap mp h hp (Suc (Suc (vs vp))) = (PC 0, mp (h (Suc (Suc (vs vp)))))"
+    assemble_heap mp h hp (Suc (Suc (vs vp))) = (PC 0, mp (snd (h (Suc (Suc (vs vp))))))"
 proof (unfold assemble_heap_def restructurable_vals_def)
   assume "3 dvd hp \<and> (\<forall>x<Suc (Suc vp). 3 dvd vs x \<and> vs x < hp)"
   hence "3 dvd vs vp \<and> vs vp < hp" by simp
   moreover assume "restructurable_heap h hp ep lcd"
   moreover hence "3 dvd hp" by auto
   ultimately have "Suc (Suc (vs vp)) mod 3 = 2 \<and> Suc (Suc (vs vp)) < hp" by presburger
-  moreover assume "h (vs vp) = 0"
+  moreover assume "snd (h (vs vp)) = 0"
   ultimately show "(if (Suc (Suc (vs vp))) \<ge> hp then (Con 0, 0) else case Suc (Suc (vs vp)) mod 3 of 
-       0 \<Rightarrow> (Con 0, h (Suc (Suc (vs vp))))
-     | Suc 0 \<Rightarrow> (if h (Suc (Suc (vs vp)) - 1) = 0 then Reg Env else Con 0, h (Suc (Suc (vs vp))))
+       0 \<Rightarrow> (Con 0, snd (h (Suc (Suc (vs vp)))))
+     | Suc 0 \<Rightarrow> (if snd (h (Suc (Suc (vs vp)) - 1)) = 0 then Reg Env 
+        else Con 0, snd (h (Suc (Suc (vs vp)))))
      | Suc (Suc 0) \<Rightarrow>
-         if h (Suc (Suc (vs vp)) - 2) = 0 then (PC 0, mp (h (Suc (Suc (vs vp))))) 
-        else (Con 0, h (Suc (Suc (vs vp))))
-     | Suc (Suc (Suc x)) \<Rightarrow> undefined) = (PC 0, mp (h (Suc (Suc (vs vp)))))" 
+         if snd (h (Suc (Suc (vs vp)) - 2)) = 0 then (PC 0, mp (snd (h (Suc (Suc (vs vp))))))
+        else (Con 0, snd (h (Suc (Suc (vs vp)))))
+     | Suc (Suc (Suc x)) \<Rightarrow> undefined) = (PC 0, mp (snd (h (Suc (Suc (vs vp))))))" 
     by simp
 qed
 
 lemma [simp]: "Suc (Suc (vs vp)) mod 3 \<noteq> Suc (Suc (Suc x))" 
   by simp
 
-lemma [simp]: "h (vs vp) = Suc x \<Longrightarrow> vs vp mod 3 = 0 \<Longrightarrow> Suc (Suc (vs vp)) < hp \<Longrightarrow>
-    assemble_heap mp h hp (Suc (Suc (vs vp))) = (Con 0, h (Suc (Suc (vs vp))))"
+lemma [simp]: "snd (h (vs vp)) = Suc x \<Longrightarrow> vs vp mod 3 = 0 \<Longrightarrow> Suc (Suc (vs vp)) < hp \<Longrightarrow>
+    assemble_heap mp h hp (Suc (Suc (vs vp))) = (Con 0, snd (h (Suc (Suc (vs vp)))))"
   by (simp add: assemble_heap_def split: nat.splits) presburger
-
-lemma [simp]: "even sp \<Longrightarrow> assm_stk cd sh (Suc (Suc sp)) (Suc sp) = (Reg Env, sh (Suc sp))"
-  by (simp add: assemble_stack_def)
 
 lemma [simp]: "even sp \<Longrightarrow> 
   (assm_stk cd sh sp)(sp := (PC 0, assembly_map cd pc), Suc sp := (Reg Env, a)) = 
@@ -427,20 +336,7 @@ lemma [simp]: "even sp \<Longrightarrow>
   by (auto simp add: assemble_stack_def)
 
 lemma [simp]: "even (Suc sp) \<Longrightarrow> 
-  (assm_stk cd sh (Suc sp))(Suc sp := (PC 0, assembly_map cd pc), Suc (Suc sp) := (Reg Env, k)) =
-    (assm_stk cd (sh(Suc sp := pc, Suc (Suc sp) := k)) (Suc (Suc (Suc sp))))"
-  by (auto simp add: assemble_stack_def)
-
-lemma [simp]: "even (Suc sp) \<Longrightarrow> 
-    (assm_stk cd sh sp)(sp := (Reg Env, k)) = assm_stk cd (sh(sp := k)) (Suc sp)"
-  by (auto simp add: assemble_stack_def)
-
-lemma [simp]: "even (Suc sp) \<Longrightarrow> 
     (assm_stk cd sh (Suc sp))(sp := (Reg Env, k)) = assm_stk cd (sh(sp := k)) (Suc sp)"
-  by (auto simp add: assemble_stack_def)
-
-lemma [simp]: "even (Suc (Suc sp)) \<Longrightarrow> 
-    (assm_stk cd sh sp)(sp := (PC 0, 0)) = assm_stk cd (sh(sp := 0)) (Suc sp)"
   by (auto simp add: assemble_stack_def)
 
 lemma [simp]: "even (Suc sp) \<Longrightarrow> assm_stk cd sh (Suc sp) sp = (Reg Env, sh sp)"
@@ -563,9 +459,10 @@ next
   ultimately have "iter_evala (assemble_code cd) 8 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp))) 
       (case_register hp ep vp (Suc sp)) 0 (Con 0) (assembly_map cd (Suc pc))) = Some (AS 
-        (case_register (assm_hp cd (h(hp := Suc 0, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp)) 
-          (assemble_env e ep) (assemble_vals (vs(vp := hp)) (Suc vp)) (assm_stk cd sh (Suc sp))) 
-            (case_register (3 + hp) ep (Suc vp) (Suc sp)) 0 (Con 0) (assembly_map cd pc))" 
+        (case_register (assm_hp cd (h(hp := (PConst, Suc 0), Suc hp := (PConst, k), 
+          Suc (Suc hp) := (PConst, 0))) (3 + hp)) (assemble_env e ep) (assemble_vals (vs(vp := hp)) 
+            (Suc vp)) (assm_stk cd sh (Suc sp))) (case_register (3 + hp) ep (Suc vp) (Suc sp)) 0 
+              (Con 0) (assembly_map cd pc))" 
     by (auto simp add: numeral_def)
   thus ?case by auto
 next
@@ -593,9 +490,10 @@ next
   ultimately have "iter_evala (assemble_code cd) 12 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp))) 
       (case_register hp ep vp (Suc sp)) 0 (Con 0) (assembly_map cd (Suc pc))) = Some (AS 
-        (case_register (assm_hp cd (h(hp := 0, Suc hp := sh sp, Suc (Suc hp) := pc')) (3 + hp)) 
-          (assemble_env e ep) (assemble_vals (vs(vp := hp)) (Suc vp)) (assm_stk cd sh (Suc sp))) 
-            (case_register (3 + hp) ep (Suc vp) (Suc sp)) 0 (Con 0) (assembly_map cd pc))" 
+        (case_register (assm_hp cd (h(hp := (PConst, 0), Suc hp := (PEnv, sh sp), 
+          Suc (Suc hp) := (PCode, pc'))) (3 + hp)) (assemble_env e ep) (assemble_vals (vs(vp := hp)) 
+            (Suc vp)) (assm_stk cd sh (Suc sp))) (case_register (3 + hp) ep (Suc vp) (Suc sp)) 0 
+              (Con 0) (assembly_map cd pc))" 
     by (auto simp add: numeral_def)
   thus ?case by auto
 next
@@ -649,10 +547,10 @@ next
     (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp))) 
       (case_register hp ep (Suc (Suc vp)) (Suc sp)) 0 (Con 0) (assembly_map cd (Suc pc))) = 
         Some (AS (case_register (assm_hp cd h hp) (assemble_env (e(ep := vs (Suc vp), 
-          Suc ep := h (Suc (vs vp)))) (Suc (Suc ep))) (assemble_vals vs vp) 
+          Suc ep := snd (h (Suc (vs vp))))) (Suc (Suc ep))) (assemble_vals vs vp) 
             (assm_stk cd (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (Suc (Suc (Suc sp))))) 
               (case_register hp (Suc (Suc ep)) vp (Suc (Suc (Suc sp)))) 0 (Con 0) 
-                (assembly_map cd (h (Suc (Suc (vs vp))))))"
+                (assembly_map cd (snd (h (Suc (Suc (vs vp)))))))"
     by (auto simp add: numeral_def assemble_vals_def)
   thus ?case by auto
 next
@@ -717,9 +615,9 @@ next
     (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp))) 
       (case_register hp ep (Suc (Suc vp)) (Suc sp)) 0 (Con 0) (assembly_map cd (Suc pc))) = 
         Some (AS (case_register (assm_hp cd h hp) (assemble_env (e(ep := vs (Suc vp), 
-          Suc ep := h (Suc (vs vp)))) (Suc (Suc ep))) (assemble_vals vs vp) 
+          Suc ep := snd (h (Suc (vs vp))))) (Suc (Suc ep))) (assemble_vals vs vp) 
             (assm_stk cd (sh(sp := Suc (Suc ep))) (Suc sp))) (case_register hp 
-              (Suc (Suc ep)) vp (Suc sp)) 0 (Con 0) (assembly_map cd (h (Suc (Suc (vs vp))))))"
+              (Suc (Suc ep)) vp (Suc sp)) 0 (Con 0) (assembly_map cd (snd (h (Suc (Suc (vs vp)))))))"
     by (auto simp add: numeral_def assemble_vals_def)
   thus ?case by auto
 qed
@@ -743,7 +641,7 @@ next
   thus ?case by blast
 qed
 
-theorem correcta_iter [simp]: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow> 
+theorem correct\<^sub>a_iter [simp]: "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow> 
   iter (\<tturnstile> assemble_code cd\<^sub>b \<leadsto>\<^sub>a) (assm_state cd\<^sub>b \<Sigma>\<^sub>u) (assm_state cd\<^sub>b \<Sigma>\<^sub>u')"
 proof -
   assume "iter (\<tturnstile> cd\<^sub>b \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u'" and "restructurable \<Sigma>\<^sub>u cd\<^sub>b"

@@ -106,7 +106,7 @@ proof -
   let ?rs = "case_register hp\<^sub>u ep\<^sub>u (Suc 0) 0"
   from R EU have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
     (assemble_state ?mp (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd))) 
-      (assemble_state ?mp (S\<^sub>u h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correcta_iter)
+      (assemble_state ?mp (S\<^sub>u h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correct\<^sub>a_iter)
   hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (AS (case_register (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
     (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2)) (case_register 0 0 0 2) 0 
       (Con 0) (length ?cd')) (AS ?mem ?rs 0 (Con 0) 0)" by simp
@@ -129,11 +129,11 @@ proof -
   with VCE VH have "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by (metis print_ce)
   with VH have "print_ceclosure (get_closure (flatten_values h\<^sub>c\<^sub>e) (3 * v\<^sub>h)) = print_nexpr (erase v\<^sub>t)" 
     by (simp del: get_closure.simps)
-  with VU VSU have PU: "print_uval h\<^sub>u (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
+  with VU VSU have PU: "print_uval (snd \<circ> h\<^sub>u) (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
   from VH VU VSU have SH: "Suc (vs\<^sub>u 0) < hp\<^sub>u" by (metis flatten_lt_3)
   from VSU have V3: "3 dvd vs\<^sub>u 0" by simp
-  with SH have PU2: "print_uval (pseudoreg_map \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = print_uval h\<^sub>u (vs\<^sub>u 0)" 
-    by (metis print_a)
+  with SH have PU2: "print_uval (pseudoreg_map \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = 
+    print_uval (snd \<circ> h\<^sub>u) (vs\<^sub>u 0)" by (metis print_a)
   have "unmap_mem' (unmap_mem ?mem 2) = (Hp, vs\<^sub>u 0)" 
   proof (induction "vs\<^sub>u 0")
     case (Suc x)

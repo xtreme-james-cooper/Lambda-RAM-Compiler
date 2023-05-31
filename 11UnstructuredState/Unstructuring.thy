@@ -40,14 +40,14 @@ next
   thus ?case by (cases sp) (auto split: nat.splits)
 next
   case (ev\<^sub>u_apply \<C> p\<^sub>\<C> h vs vp hp e ep sh sp)
-  moreover hence "hlookup (H h hp) (vs vp) = 0" by simp
-  moreover have "halloc_list (H e ep) [vs (Suc vp), hlookup (H h hp) (Suc (vs vp))] = 
-    (H (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (Suc (Suc ep)), ep)" by simp
+  moreover hence "snd (hlookup (H h hp) (vs vp)) = 0" by simp
+  moreover have "halloc_list (H e ep) [vs (Suc vp), snd (hlookup (H h hp) (Suc (vs vp)))] = 
+    (H (e(ep := vs (Suc vp), Suc ep := snd (h (Suc (vs vp))))) (Suc (Suc ep)), ep)" by simp
   ultimately have "\<And>n. \<C> \<tturnstile> S\<^sub>f (H h hp) (H e ep) (vs (Suc vp) # vs vp # listify_heap vs vp) 
       (Suc p\<^sub>\<C> # sh (Suc n) # listify_heap (sh \<circ> Suc) n) \<leadsto>\<^sub>f 
-    S\<^sub>f (H h hp) (H (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (Suc (Suc ep))) 
-      (listify_heap vs vp) (hlookup (H h hp) (Suc (Suc (vs vp))) # Suc (Suc ep) # p\<^sub>\<C> # sh (Suc n) # 
-        listify_heap (sh \<circ> Suc) n)"
+    S\<^sub>f (H h hp) (H (e(ep := vs (Suc vp), Suc ep := snd (h (Suc (vs vp))))) (Suc (Suc ep))) 
+      (listify_heap vs vp) (snd (hlookup (H h hp) (Suc (Suc (vs vp)))) # Suc (Suc ep) # p\<^sub>\<C> # 
+        sh (Suc n) # listify_heap (sh \<circ> Suc) n)"
     by (metis ev\<^sub>f_apply)
   with ev\<^sub>u_apply show ?case by (cases sp) (auto split: nat.splits)
 next
@@ -55,13 +55,13 @@ next
   thus ?case by (cases sp) (auto split: nat.splits)
 next
   case (ev\<^sub>u_jump \<C> p\<^sub>\<C> h vs vp hp e ep sh sp)
-  moreover hence "hlookup (H h hp) (vs vp) = 0" by simp
-  moreover have "halloc_list (H e ep) [vs (Suc vp), hlookup (H h hp) (Suc (vs vp))] = 
-    (H (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (Suc (Suc ep)), ep)" by simp
+  moreover hence "snd (hlookup (H h hp) (vs vp)) = 0" by simp
+  moreover have "halloc_list (H e ep) [vs (Suc vp), snd (hlookup (H h hp) (Suc (vs vp)))] = 
+    (H (e(ep := vs (Suc vp), Suc ep := snd (h (Suc (vs vp))))) (Suc (Suc ep)), ep)" by simp
   ultimately have "\<And>n. \<C> \<tturnstile> S\<^sub>f (H h hp) (H e ep) (vs (Suc vp) # vs vp # listify_heap vs vp) 
       (Suc p\<^sub>\<C> # sh (Suc n) # listify_heap (sh \<circ> Suc) n) \<leadsto>\<^sub>f 
-    S\<^sub>f (H h hp) (H (e(ep := vs (Suc vp), Suc ep := h (Suc (vs vp)))) (Suc (Suc ep))) 
-      (listify_heap vs vp) (hlookup (H h hp) (Suc (Suc (vs vp))) # Suc (Suc ep) # 
+    S\<^sub>f (H h hp) (H (e(ep := vs (Suc vp), Suc ep := snd (h (Suc (vs vp))))) (Suc (Suc ep))) 
+      (listify_heap vs vp) (snd (hlookup (H h hp) (Suc (Suc (vs vp)))) # Suc (Suc ep) # 
         listify_heap (sh \<circ> Suc) n)"
     by (metis ev\<^sub>f_jump)
   with ev\<^sub>u_jump show ?case by (cases sp) (auto split: nat.splits)
@@ -105,13 +105,14 @@ next
     vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
       \<Sigma>\<^sub>u = S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   with ev\<^sub>f_pushcon have "v = hp \<and> 
-    h' = H (hh(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (Suc (Suc (Suc hp)))" by fastforce
+    h' = H (hh(hp := (PConst, 1), Suc hp := (PConst, k), Suc (Suc hp) := (PConst, 0))) 
+      (Suc (Suc (Suc hp)))" by fastforce
   with S have X: "S\<^sub>f h' env (v # vs) (pc # p # sfs) = 
-    restructure (S\<^sub>u (hh(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep 
-      (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc)" by simp
+    restructure (S\<^sub>u (hh(hp := (PConst, 1), Suc hp := (PConst, k), Suc (Suc hp) := (PConst, 0))) 
+      (3 + hp) e ep (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc)" by simp
   from ev\<^sub>f_pushcon have "cd \<tturnstile> S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-    S\<^sub>u (hh(hp := 1, Suc hp := k, Suc (Suc hp) := 0)) (3 + hp) e ep (vs'(vp := hp)) 
-      (Suc vp) sh (Suc (Suc sp)) pc" by (metis ev\<^sub>u_pushcon)
+    S\<^sub>u (hh(hp := (PConst, 1), Suc hp := (PConst, k), Suc (Suc hp) := (PConst, 0))) (3 + hp) e ep 
+      (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc" by (metis ev\<^sub>u_pushcon)
   with S X show ?case by blast
 next
   case (ev\<^sub>f_pushlam cd pc pc' h p h' v env vs sfs)
@@ -119,14 +120,15 @@ next
     vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
       \<Sigma>\<^sub>u = S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   with ev\<^sub>f_pushlam have "v = hp \<and> 
-    h' = H (hh(hp := 0, Suc hp := sh (Suc sp), Suc (Suc hp) := pc')) (Suc (Suc (Suc hp)))" 
-      by fastforce
+    h' = H (hh(hp := (PConst, 0), Suc hp := (PEnv, sh (Suc sp)), Suc (Suc hp) := (PCode, pc'))) 
+      (Suc (Suc (Suc hp)))" by fastforce
   with S have X: "S\<^sub>f h' env (v # vs) (pc # p # sfs) = 
-    restructure (S\<^sub>u (hh(hp := 0, Suc hp := p, Suc (Suc hp) := pc')) (3 + hp) e ep 
-      (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc)" by simp
+    restructure (S\<^sub>u (hh(hp := (PConst, 0), Suc hp := (PEnv, sh (Suc sp)), 
+      Suc (Suc hp) := (PCode, pc'))) (3 + hp) e ep (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc)" 
+        by simp
   from ev\<^sub>f_pushlam S have "cd \<tturnstile> S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-    S\<^sub>u (hh(hp := 0, Suc hp := sh (Suc sp), Suc (Suc hp) := pc')) (3 + hp) e ep (vs'(vp := hp)) 
-      (Suc vp) sh (Suc (Suc sp)) pc" by (metis ev\<^sub>u_pushlam)
+    S\<^sub>u (hh(hp := (PConst, 0), Suc hp := (PEnv, sh (Suc sp)), Suc (Suc hp) := (PCode, pc'))) (3 + hp) 
+      e ep (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc" by (metis ev\<^sub>u_pushlam)
   with S X show ?case by blast
 next
   case (ev\<^sub>f_apply cd pc h v2 env v1 env' p2 vs p sfs)
@@ -135,9 +137,9 @@ next
       \<Sigma>\<^sub>u = S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
     vs = listify_heap vs' vp'" by fastforce
-  let ?p' = "h' (Suc (vs' vp'))"
-  let ?pc' = "h' (Suc (Suc (vs' vp')))"
-  from ev\<^sub>f_apply S V have H: "h' (vs' vp') = 0" by (cases "h' (vs' vp')") simp_all
+  let ?p' = "snd (h' (Suc (vs' vp')))"
+  let ?pc' = "snd (h' (Suc (Suc (vs' vp'))))"
+  from ev\<^sub>f_apply S V have H: "snd (h' (vs' vp')) = 0" by (cases "h' (vs' vp')") simp_all
   from ev\<^sub>f_apply S V have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := ?p')) (Suc (Suc p2))" by auto
   with S V have X: "S\<^sub>f h env' vs (?pc' # Suc (Suc p2) # pc # p # sfs) = 
     restructure (S\<^sub>u h' hp (e(ep := v1, Suc ep := ?p')) (2 + ep) vs' vp' 
@@ -165,9 +167,9 @@ next
       \<Sigma>\<^sub>u = S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
     vs = listify_heap vs' vp'" by fastforce
-  let ?p' = "h' (Suc (vs' vp'))"
-  let ?pc' = "h' (Suc (Suc (vs' vp')))"
-  from ev\<^sub>f_jump S V have H: "h' (vs' vp') = 0" by (cases "h' (vs' vp')") simp_all
+  let ?p' = "snd (h' (Suc (vs' vp')))"
+  let ?pc' = "snd (h' (Suc (Suc (vs' vp'))))"
+  from ev\<^sub>f_jump S V have H: "snd (h' (vs' vp')) = 0" by (cases "h' (vs' vp')") simp_all
   from ev\<^sub>f_jump S V have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := ?p')) (Suc (Suc p2))" by auto
   with S V have X: "S\<^sub>f h env' vs (?pc' # Suc (Suc p2) # sfs) = 
     restructure (S\<^sub>u h' hp (e(ep := v1, Suc ep := ?p')) (2 + ep) vs' vp' 

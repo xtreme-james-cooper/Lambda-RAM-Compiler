@@ -89,4 +89,7 @@ qed
 lemma list_all_elem [elim]: "list_all f env \<Longrightarrow> x \<in> set env \<Longrightarrow> f x"
   by (induction env) auto
 
+lemma snd_pair [simp]: "(a, b) = f x \<Longrightarrow> snd (f x) = b"
+  by (metis snd_conv)
+
 end

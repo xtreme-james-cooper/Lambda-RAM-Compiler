@@ -81,19 +81,23 @@ lemma print_ce [simp]: "hcontains h x \<Longrightarrow>
   by (cases "hlookup h x") simp_all
 
 lemma print_a [simp]: "3 dvd x \<Longrightarrow> Suc x < hp \<Longrightarrow> 
-  print_uval (pseudoreg_map \<circ> assm_hp cd h hp) x = print_uval h x"
+  print_uval (pseudoreg_map \<circ> assm_hp cd h hp) x = print_uval (snd \<circ> h) x"
 proof (induction "h x")
-  case (Suc nat)
-  hence "h x = Suc nat" by simp
-  moreover from Suc have "3 dvd x" and "Suc x < hp" by simp_all
-  moreover from Suc have "Suc x mod 3 = 1" by presburger
-  ultimately show ?case by (simp add: assm_hp_lemma1 assm_hp_lemma2 split: nat.splits)
-qed (simp_all add: assemble_heap_def)
+  case (Pair t n)
+  thus ?case 
+  proof (induction n)
+    case (Suc nat)
+    hence "snd (h x) = Suc nat" by simp
+    moreover from Suc have "3 dvd x" and "Suc x < hp" by simp_all
+    moreover from Suc have "Suc x mod 3 = 1" by presburger
+    ultimately show ?case by (simp add: assm_hp_lemma1 assm_hp_lemma2 split: nat.splits)
+  qed (simp_all add: assemble_heap_def)
+qed
 
-fun get_closure :: "nat heap \<Rightarrow> ptr \<Rightarrow> closure\<^sub>v" where
-  "get_closure h p = (case hlookup h p of
-      0 \<Rightarrow> Lam\<^sub>v (hlookup h (Suc p)) (hlookup h (Suc (Suc p)))
-    | Suc _ \<Rightarrow> Const\<^sub>v (hlookup h (Suc p)))"
+fun get_closure :: "(pointer_tag \<times> nat) heap \<Rightarrow> ptr \<Rightarrow> closure\<^sub>v" where
+  "get_closure h p = (case snd (hlookup h p) of
+      0 \<Rightarrow> Lam\<^sub>v (snd (hlookup h (Suc p))) (snd (hlookup h (Suc (Suc p))))
+    | Suc _ \<Rightarrow> Const\<^sub>v (snd (hlookup h (Suc p))))"
 
 primrec flatten_closure' :: "closure\<^sub>v \<Rightarrow> closure\<^sub>v" where
   "flatten_closure' (Const\<^sub>v k) = Const\<^sub>v k"
@@ -106,8 +110,8 @@ lemma [simp]: "hcontains h v \<Longrightarrow>
     get_closure (flatten_values h) (3 * v) = flatten_closure' (hlookup h v)"
   by (simp split: closure\<^sub>v.splits)
 
-lemma print_u [simp]: "print_uval h p = print_ceclosure (get_closure (H h hp) p)"
-  by (cases "h p") simp_all
+lemma print_u [simp]: "print_uval (snd \<circ> h) p = print_ceclosure (get_closure (H h hp) p)"
+  by (cases "h p") (simp_all split: nat.splits)
 
 lemma print_m [simp]: "unmap_mem' p = (a, b) \<Longrightarrow> 
     print_mval (unmap_mem mem) p = print_uval (pseudoreg_map \<circ> mem a) b"
