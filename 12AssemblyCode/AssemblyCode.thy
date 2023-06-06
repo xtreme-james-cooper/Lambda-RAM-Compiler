@@ -8,55 +8,61 @@ datatype pseudoreg = Reg register | PC nat | Con nat | Acc pseudoreg
 
 datatype assm = 
   AMov pseudoreg
-  | AGet pseudoreg pseudoreg
+  | AGet pseudoreg
   | APut register pseudoreg
   | ASub pseudoreg nat
   | AAdd pseudoreg nat
   | AJmp
 
 datatype assm_state = 
-  AS "register \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" "register \<Rightarrow> nat" nat pseudoreg nat
+  AS "register \<Rightarrow> nat \<Rightarrow> register option \<times> nat" "register \<Rightarrow> nat" nat "register option" nat
 
-fun mem_upd :: "(register \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat) \<Rightarrow> register \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat \<Rightarrow> 
-    register \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat" where
+fun mem_upd :: "(register \<Rightarrow> nat \<Rightarrow> register option \<times> nat) \<Rightarrow> register \<Rightarrow> nat \<Rightarrow> 
+    register option \<times> nat \<Rightarrow> register \<Rightarrow> nat \<Rightarrow> register option \<times> nat" where
   "mem_upd mem m mp k m' x = (if m = m' \<and> mp = x then k else mem m' x)"
 
-fun assm_step :: "(register \<Rightarrow> nat \<Rightarrow> pseudoreg \<times> nat) \<Rightarrow> (register \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> pseudoreg \<Rightarrow> 
-    nat \<Rightarrow> assm \<rightharpoonup> assm_state" where
-  "assm_step mem ps a act pc (AMov (Reg r)) = Some (AS mem ps (ps r) (Reg r) pc)"
-| "assm_step mem ps a act pc (AMov (PC _)) = Some (AS mem ps pc (PC 0) pc)"
-| "assm_step mem ps a act pc (AMov (Con k)) = Some (AS mem ps k (Con 0) pc)"
+fun match_regs :: "register option \<Rightarrow> pseudoreg \<Rightarrow> bool" where
+  "match_regs (Some r) (Reg r') = (r = r')"
+| "match_regs (Some r) _ = False"
+| "match_regs None (Reg r) = False"
+| "match_regs None _ = True"
+
+fun assm_step :: "(register \<Rightarrow> nat \<Rightarrow> register option \<times> nat) \<Rightarrow> (register \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
+    register option \<Rightarrow> nat \<Rightarrow> assm \<rightharpoonup> assm_state" where
+  "assm_step mem ps a act pc (AMov (Reg r)) = Some (AS mem ps (ps r) (Some r) pc)"
+| "assm_step mem ps a act pc (AMov (PC _)) = Some (AS mem ps pc None pc)"
+| "assm_step mem ps a act pc (AMov (Con k)) = Some (AS mem ps k None pc)"
 | "assm_step mem ps a act pc (AMov (Acc _)) = None"
-| "assm_step mem ps a act pc (AGet (Reg r) t) = (case mem r (ps r) of
-      (t', b) \<Rightarrow> if t = t' then Some (AS mem ps b t pc) else None)"
-| "assm_step mem ps a act pc (AGet (PC _) t) = None"
-| "assm_step mem ps a act pc (AGet (Con k) t) = None"
-| "assm_step mem ps a act pc (AGet (Acc (Reg r)) t) = (case mem r a of
-      (t', b) \<Rightarrow> if act = Reg r \<and> t = t' then Some (AS mem ps b t pc) else None)"
-| "assm_step mem ps a act pc (AGet (Acc (PC _)) t) = None"
-| "assm_step mem ps a act pc (AGet (Acc (Con k)) t) = None"
-| "assm_step mem ps a act pc (AGet (Acc (Acc r)) t) = None"
+| "assm_step mem ps a act pc (AGet (Reg r)) = (case mem r (ps r) of
+      (t, b) \<Rightarrow> Some (AS mem ps b t pc))"
+| "assm_step mem ps a act pc (AGet (PC _)) = None"
+| "assm_step mem ps a act pc (AGet (Con k)) = None"
+| "assm_step mem ps a act pc (AGet (Acc (Reg r))) = (case mem r a of
+      (t, b) \<Rightarrow> if act = Some r then Some (AS mem ps b t pc) else None)"
+| "assm_step mem ps a act pc (AGet (Acc (PC _))) = None"
+| "assm_step mem ps a act pc (AGet (Acc (Con k))) = None"
+| "assm_step mem ps a act pc (AGet (Acc (Acc r))) = None"
 | "assm_step mem ps a act pc (APut r (Reg r')) = 
-    Some (AS (mem_upd mem r (ps r) (Reg r', ps r')) ps a act pc)"
+    Some (AS (mem_upd mem r (ps r) (Some r', ps r')) ps a act pc)"
 | "assm_step mem ps a act pc (APut r (PC k)) = 
-    Some (AS (mem_upd mem r (ps r) (PC 0, k)) ps a act pc)"
+    Some (AS (mem_upd mem r (ps r) (None, k)) ps a act pc)"
 | "assm_step mem ps a act pc (APut r (Con k)) = 
-    Some (AS (mem_upd mem r (ps r) (Con 0, k)) ps a act pc)"
-| "assm_step mem ps a act pc (APut r (Acc _)) = 
-    Some (AS (mem_upd mem r (ps r) (act, a)) ps a act pc)"
+    Some (AS (mem_upd mem r (ps r) (None, k)) ps a act pc)"
+| "assm_step mem ps a act pc (APut r (Acc t)) = 
+    Some (AS (mem_upd mem r (ps r) (act, a)) ps a act pc)" 
 | "assm_step mem ps a act pc (ASub (Reg r) k) = 
     (if ps r \<ge> k then Some (AS mem (ps(r := ps r - k)) a act pc) else None)"
 | "assm_step mem ps a act pc (ASub (PC _) k) = None"
 | "assm_step mem ps a act pc (ASub (Con m) k) = None"
 | "assm_step mem ps a act pc (ASub (Acc t) k) =
-    (if t = act \<and> a \<ge> k then Some (AS mem ps (a - k) act pc) else None)"
+    (if match_regs act t \<and> a \<ge> k then Some (AS mem ps (a - k) act pc) else None)"
 | "assm_step mem ps a act pc (AAdd (Reg r) k) = Some (AS mem (ps(r := ps r + k)) a act pc)"
 | "assm_step mem ps a act pc (AAdd (PC _) k) = None"
 | "assm_step mem ps a act pc (AAdd (Con m) k) = None"
 | "assm_step mem ps a act pc (AAdd (Acc t) k) =
-    (if t = act then Some (AS mem ps (a + k) act pc) else None)"
+    (if match_regs act t then Some (AS mem ps (a + k) act pc) else None)"
 | "assm_step mem ps a act pc AJmp = 
-    (if act = PC 0 then Some (AS mem ps 0 (Con 0) a) else None)"
+    (if act = None then Some (AS mem ps 0 None a) else None)"
 
 fun alg_evala :: "assm list \<Rightarrow> assm_state \<rightharpoonup> assm_state" (infix "\<tturnstile>\<^sub>a" 50) where
   "cd \<tturnstile>\<^sub>a AS mem ps a act pc = (case pc of
@@ -69,33 +75,33 @@ primrec iter_evala :: "assm list \<Rightarrow> nat \<Rightarrow> assm_state \<ri
 
 inductive evala :: "assm list \<Rightarrow> assm_state \<Rightarrow> assm_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>a" 50) where
   eva_movr [simp]: "lookup cd pc = Some (AMov (Reg r)) \<Longrightarrow> 
-    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem ps (ps r) (Reg r) pc"
+    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem ps (ps r) (Some r) pc"
 | eva_movp [simp]: "lookup cd pc = Some (AMov (PC _)) \<Longrightarrow> 
-    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem ps pc (PC 0) pc"
+    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem ps pc None pc"
 | eva_movk [simp]: "lookup cd pc = Some (AMov (Con k)) \<Longrightarrow> 
-    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem ps k (Con 0) pc"
-| eva_get [simp]: "lookup cd pc = Some (AGet (Reg r) t) \<Longrightarrow> mem r (ps r) = (t, b) \<Longrightarrow> 
+    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem ps k None pc"
+| eva_get [simp]: "lookup cd pc = Some (AGet (Reg r)) \<Longrightarrow> mem r (ps r) = (t, b) \<Longrightarrow> 
     cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem ps b t pc"
-| eva_geta [simp]: "lookup cd pc = Some (AGet (Acc (Reg m)) t) \<Longrightarrow> mem m a = (t, b) \<Longrightarrow>
-    cd \<tturnstile> AS mem ps a (Reg m) (Suc pc) \<leadsto>\<^sub>a AS mem ps b t pc"
+| eva_geta [simp]: "lookup cd pc = Some (AGet (Acc (Reg m))) \<Longrightarrow> mem m a = (t, b) \<Longrightarrow>
+    cd \<tturnstile> AS mem ps a (Some m) (Suc pc) \<leadsto>\<^sub>a AS mem ps b t pc"
 | eva_putr [simp]: "lookup cd pc = Some (APut r (Reg r')) \<Longrightarrow>
-    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) (Reg r', ps r')) ps a act pc"
+    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) (Some r', ps r')) ps a act pc"
 | eva_putk [simp]: "lookup cd pc = Some (APut r (Con k)) \<Longrightarrow>
-    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) (Con 0, k)) ps a act pc"
+    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) (None, k)) ps a act pc"
 | eva_putp [simp]: "lookup cd pc = Some (APut r (PC k)) \<Longrightarrow>
-    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) (PC 0, k)) ps a act pc"
-| eva_puta [simp]: "lookup cd pc = Some (APut r (Acc _)) \<Longrightarrow> 
+    cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) (None, k)) ps a act pc"
+| eva_puta [simp]: "lookup cd pc = Some (APut r (Acc t)) \<Longrightarrow> 
     cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS (mem_upd mem r (ps r) (act, a)) ps a act pc"
-| eva_suba [simp]: "lookup cd pc = Some (ASub (Acc act) k) \<Longrightarrow> a \<ge> k \<Longrightarrow>
+| eva_suba [simp]: "lookup cd pc = Some (ASub (Acc p) k) \<Longrightarrow> a \<ge> k \<Longrightarrow> match_regs act p \<Longrightarrow>
     cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem ps (a - k) act pc"
 | eva_sub [simp]: "lookup cd pc = Some (ASub (Reg r) k) \<Longrightarrow> ps r \<ge> k \<Longrightarrow>
     cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem (ps(r := ps r - k)) a act pc"
 | eva_add [simp]: "lookup cd pc = Some (AAdd (Reg r) k) \<Longrightarrow> 
     cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem (ps(r := ps r + k)) a act pc"
-| eva_adda [simp]: "lookup cd pc = Some (AAdd (Acc act) k) \<Longrightarrow>
+| eva_adda [simp]: "lookup cd pc = Some (AAdd (Acc p) k) \<Longrightarrow> match_regs act p \<Longrightarrow>
     cd \<tturnstile> AS mem ps a act (Suc pc) \<leadsto>\<^sub>a AS mem ps (a + k) act pc"
 | eva_jmp [simp]: "lookup cd pc = Some AJmp \<Longrightarrow> 
-    cd \<tturnstile> AS mem ps a (PC 0) (Suc pc) \<leadsto>\<^sub>a AS mem ps 0 (Con 0) a"
+    cd \<tturnstile> AS mem ps a None (Suc pc) \<leadsto>\<^sub>a AS mem ps 0 None a"
 
 lemma [simp]: "mem_upd (case_register h e vs sh) Hp x y = case_register (h(x := y)) e vs sh"
   by (rule+) (simp_all split: register.splits)

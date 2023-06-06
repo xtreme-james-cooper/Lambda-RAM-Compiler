@@ -109,15 +109,15 @@ proof -
       (assemble_state ?mp (S\<^sub>u h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correct\<^sub>a_iter)
   hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (AS (case_register (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
     (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2)) (case_register 0 0 0 2) 0 
-      (Con 0) (length ?cd')) (AS ?mem ?rs 0 (Con 0) 0)" by simp
+      None (length ?cd')) (AS ?mem ?rs 0 None 0)" by simp
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) 
     (disassemble_state (AS (case_register (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
       (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2)) (case_register 0 0 0 2) 0 
-        (Con 0) (length ?cd'))) (disassemble_state (AS ?mem ?rs 0 (Con 0) 0))" 
+        None (length ?cd'))) (disassemble_state (AS ?mem ?rs 0 None 0))" 
     by (metis correctm_iter)
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0)
-    (unmap_mem (case_register (\<lambda>x. (Con 0, 0)) (\<lambda>x. (Con 0, 0)) (\<lambda>x. (Con 0, 0)) 
-      ((\<lambda>x. (Con 0, 0))(0 := (PC 0, 0), Suc 0 := (Reg Env, 0))))) (length ?cd')) 
+    (unmap_mem (case_register (\<lambda>x. (None, 0)) (\<lambda>x. (None, 0)) (\<lambda>x. (None, 0)) 
+      ((\<lambda>x. (None, 0))(0 := (None, 0), Suc 0 := (Some Env, 0))))) (length ?cd')) 
         (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" 
     by simp
   with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) ((\<lambda>x. 0)(7 := 1)) 
