@@ -18,7 +18,7 @@ primrec pseudoreg_size :: "pseudoreg \<Rightarrow> nat" where
   "pseudoreg_size (Reg r) = 4"
 | "pseudoreg_size (PC _) = 1"
 | "pseudoreg_size (Con k) = 1"
-| "pseudoreg_size (Acc _) = 1"
+| "pseudoreg_size (PAcc _) = 1"
 
 fun pseudoreg_map :: "register option \<times> nat \<Rightarrow> nat" where
   "pseudoreg_map (Some r, x) = 4 * x + register_offset r"
@@ -28,23 +28,14 @@ fun disassemble' :: "assm \<Rightarrow> mach" where
   "disassemble' (AMov (Reg r)) = MOV R5 (register_map r)"
 | "disassemble' (AMov (PC _)) = MVP R5"
 | "disassemble' (AMov (Con k)) = LDI R5 k"
-| "disassemble' (AMov (Acc _)) = undefined"
-| "disassemble' (AGet (Reg r)) = LOD R5 (register_map r)"
-| "disassemble' (AGet (PC _)) = undefined"
-| "disassemble' (AGet (Con k)) = undefined"
-| "disassemble' (AGet (Acc r)) = LOD R5 R5"
+| "disassemble' (AMov (PAcc _)) = undefined"
+| "disassemble' (AGet r) = LOD R5 (case r of Some r \<Rightarrow> register_map r | None \<Rightarrow> R5)"
 | "disassemble' (APut r (Reg r')) = STO (register_map r) (register_map r')"
 | "disassemble' (APut r (PC k)) = STI (register_map r) k"
 | "disassemble' (APut r (Con k)) = STI (register_map r) k"
-| "disassemble' (APut r (Acc _)) = STO (register_map r) R5"
-| "disassemble' (ASub (Reg r) k) = SUB (register_map r) (4 * k)"
-| "disassemble' (ASub (PC _) k) = undefined"
-| "disassemble' (ASub (Con m) k) = undefined"
-| "disassemble' (ASub (Acc t) k) = SUB R5 (pseudoreg_size t * k)"
-| "disassemble' (AAdd (Reg r) k) = ADD (register_map r) (4 * k)"
-| "disassemble' (AAdd (PC _) k) = undefined"
-| "disassemble' (AAdd (Con m) k) = undefined"
-| "disassemble' (AAdd (Acc t) k) = ADD R5 (pseudoreg_size t * k)"
+| "disassemble' (APut r (PAcc _)) = STO (register_map r) R5"
+| "disassemble' (ASub r k) = SUB (case r of Some r \<Rightarrow> register_map r | None \<Rightarrow> R5) (4 * k)"
+| "disassemble' (AAdd r k) = ADD (case r of Some r \<Rightarrow> register_map r | None \<Rightarrow> R5) (4 * k)"
 | "disassemble' AJmp = JMP R5"
 
 definition disassemble :: "assm list \<Rightarrow> mach list" where
@@ -170,18 +161,12 @@ proof
     by (induction x) auto
 qed
 
-lemma [simp]: "match_regs act t \<Longrightarrow>
-  (inv_register_map ps a act) (R5 := pseudoreg_map (act, a) + pseudoreg_size t * k) = 
-    inv_register_map ps (a + k) act"
+lemma [simp]: "(inv_register_map ps a (Some r)) (R5 := 4 * a + register_offset r + 4 * k) = 
+  inv_register_map ps (a + k) (Some r)"
 proof
   fix x
-  assume "match_regs act t"
-  thus "((inv_register_map ps a act) (R5 := pseudoreg_map (act, a) + pseudoreg_size t * k)) x =
-    inv_register_map ps (a + k) act x" 
-  proof (induction x)
-    case R5
-    thus ?case by (induction act t rule: match_regs.induct) simp_all
-  qed simp_all
+  show "((inv_register_map ps a (Some r)) (R5 := 4 * a + register_offset r + 4 * k)) x =
+    inv_register_map ps (a + k) (Some r) x" by (induction x) simp_all
 qed
 
 lemma [simp]: "ps r \<ge> k \<Longrightarrow>
@@ -196,19 +181,15 @@ proof
     by (induction x) auto
 qed
 
-lemma [simp]: "a \<ge> k \<Longrightarrow> match_regs act t \<Longrightarrow>
-  (inv_register_map ps a act) (R5 := pseudoreg_map (act, a) - pseudoreg_size t * k) = 
-    inv_register_map ps (a - k) act"
+lemma [simp]: "a \<ge> k \<Longrightarrow> 
+  (inv_register_map ps a (Some r)) (R5 := 4 * a + register_offset r - 4 * k) = 
+    inv_register_map ps (a - k) (Some r)"
 proof
   fix x
-  assume "a \<ge> k" and "match_regs act t"
-  thus "((inv_register_map ps a act)
-    (R5 := pseudoreg_map (act, a) - pseudoreg_size t * k)) x =
-      inv_register_map ps (a - k) act x" 
-  proof (induction x)
-    case R5
-    thus ?case by (induction act t rule: match_regs.induct) simp_all
-  qed simp_all
+  assume "a \<ge> k"
+  thus "((inv_register_map ps a (Some r))
+    (R5 := 4 * a + register_offset r - 4 * k)) x = inv_register_map ps (a - k) (Some r) x" 
+    by (induction x) simp_all
 qed
 
 lemma [simp]: "unmap_mem mem (inv_register_map ps a (Some r) (register_map r)) = 
@@ -301,7 +282,7 @@ next
     MS ((inv_register_map ps a act)(R5 := k)) (unmap_mem mem) pc" by simp
   thus ?case by (simp add: inv_reg_map_none)
 next
-  case (eva_geta cd pc m mem a t b ps) 
+  case (eva_geta cd pc mem m a t b ps) 
   hence "disassemble cd ! pc = LOD R5 R5" by simp
   hence "disassemble cd \<tturnstile> MS (inv_register_map ps a (Some m)) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m 
     MS ((inv_register_map ps a (Some m))(R5 := unmap_mem mem (inv_register_map ps a (Some m) R5))) 
@@ -343,17 +324,17 @@ next
       ((unmap_mem mem)(inv_register_map ps a act (register_map r) := k)) pc" by (metis evm_sti)
   thus ?case by (simp add: unmap_upd_k)
 next
-  case (eva_suba cd pc t k a act mem ps)
-  hence "disassemble cd ! pc = SUB R5 (pseudoreg_size t * k)" by simp
-  hence "disassemble cd \<tturnstile> MS (inv_register_map ps a act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m 
-    MS ((inv_register_map ps a act)(R5 := inv_register_map ps a act R5 - pseudoreg_size t * k)) 
+  case (eva_suba cd pc k a mem ps r)
+  hence "disassemble cd ! pc = SUB R5 (4 * k)" by simp
+  hence "disassemble cd \<tturnstile> MS (inv_register_map ps a (Some r)) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m 
+    MS ((inv_register_map ps a (Some r))(R5 := inv_register_map ps a (Some r) R5 - 4 * k)) 
       (unmap_mem mem) pc" by (metis evm_sub)
   with eva_suba show ?case by simp
 next
-  case (eva_adda cd pc t k act mem ps a)
-  hence "disassemble cd ! pc = ADD R5 (pseudoreg_size t * k)" by simp
-  hence "disassemble cd \<tturnstile> MS (inv_register_map ps a act) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m 
-    MS ((inv_register_map ps a act)(R5 := inv_register_map ps a act R5 + pseudoreg_size t * k)) 
+  case (eva_adda cd pc k mem ps a r)
+  hence "disassemble cd ! pc = ADD R5 (4 * k)" by simp
+  hence "disassemble cd \<tturnstile> MS (inv_register_map ps a (Some r)) (unmap_mem mem) (Suc pc) \<leadsto>\<^sub>m 
+    MS ((inv_register_map ps a (Some r))(R5 := inv_register_map ps a (Some r) R5 + 4 * k)) 
       (unmap_mem mem) pc" by (metis evm_add)
   with eva_adda show ?case by simp
 next

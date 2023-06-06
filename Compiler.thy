@@ -82,40 +82,40 @@ fun assembly_mapb :: "code\<^sub>b list \<Rightarrow> nat \<Rightarrow> nat" whe
 | "assembly_mapb (Lookup\<^sub>b k # cd) (Suc x) = 8 + 2 * k + assembly_mapb cd x"
 | "assembly_mapb (PushCon\<^sub>b k # cd) (Suc x) = 8 + assembly_mapb cd x"
 | "assembly_mapb (PushLam\<^sub>b pc # cd) (Suc x) = 12 + assembly_mapb cd x"
-| "assembly_mapb (Apply\<^sub>b # cd) (Suc x) = 24 + assembly_mapb cd x"
+| "assembly_mapb (Apply\<^sub>b # cd) (Suc x) = 22 + assembly_mapb cd x"
 | "assembly_mapb (Return\<^sub>b # cd) (Suc x) = 6 + assembly_mapb cd x"
 | "assembly_mapb (Jump\<^sub>b # cd) (Suc x) = 21 + assembly_mapb cd x"
 
-fun alg_assemble :: "(nat \<Rightarrow> nat) \<Rightarrow> code\<^sub>b list \<Rightarrow> mach list" where
-  "alg_assemble mp [] = []"
-| "alg_assemble mp (Lookup\<^sub>b x # cd) = 
+fun alg_assemble :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> code\<^sub>b list \<Rightarrow> mach list" where
+  "alg_assemble mp ix [] = []"
+| "alg_assemble mp ix (Lookup\<^sub>b x # cd) = 
     [LDI R5 0, ADD R3 4, STO R3 R5, LOD R5 R5, SUB R5 8] @ 
       concat (replicate x [LOD R5 R5, SUB R5 4]) @ 
       [LOD R5 R5, SUB R5 4, MOV R5 R4] @ 
-      alg_assemble mp cd"
-| "alg_assemble mp (PushCon\<^sub>b k # cd) = 
+      alg_assemble mp (Suc ix) cd"
+| "alg_assemble mp ix (PushCon\<^sub>b k # cd) = 
     [ADD R1 4, STO R1 R5, ADD R1 4, STI R1 k, ADD R1 4, STI R1 1, ADD R3 4, STO R3 R1] @ 
-      alg_assemble mp cd"
-| "alg_assemble mp (PushLam\<^sub>b pc # cd) = 
+      alg_assemble mp (Suc ix) cd"
+| "alg_assemble mp ix (PushLam\<^sub>b pc # cd) = 
     [ADD R1 4, STI R1 (mp pc), LDI R5 0, ADD R1 4, 
       STO R1 R5, ADD R1 4, STI R1 0, LOD R5 R5, SUB R5 4, MOV R5 R4, ADD R3 4, STO R3 R1] @ 
-      alg_assemble mp cd"
-| "alg_assemble mp (Apply\<^sub>b # cd) = 
+      alg_assemble mp (Suc ix) cd"
+| "alg_assemble mp ix (Apply\<^sub>b # cd) = 
     [JMP R5, LOD R5 R5, ADD R5 8, STI R3 0, LOD R5 R3, ADD R2 4, STO R2 R5, LOD R5 R5, ADD R5 4, 
-      LOD R5 R3, SUB R3 4, ADD R4 4, STO R4 R5, ADD R5 4, MOV R5 R2, ADD R4 4, STO R4 R5, SUB R5 18, 
-      MVP R5, ADD R2 4, STO R2 R5, STI R3 0, LOD R5 R3, SUB R3 4] @ 
-      alg_assemble mp cd"
-| "alg_assemble mp (Return\<^sub>b # cd) = 
+      LOD R5 R3, SUB R3 4, ADD R4 4, STO R4 R5, ADD R5 4, MOV R5 R2, ADD R4 4, STI R4 (mp ix), 
+      ADD R2 4, STO R2 R5, STI R3 0, LOD R5 R3, SUB R3 4] @ 
+      alg_assemble mp (Suc ix) cd"
+| "alg_assemble mp ix (Return\<^sub>b # cd) = 
     [JMP R5, STI R4 0, LOD R5 R4, SUB R4 4, STI R4 0, SUB R4 4] @ 
-      alg_assemble mp cd"
-| "alg_assemble mp (Jump\<^sub>b # cd) = 
+      alg_assemble mp (Suc ix) cd"
+| "alg_assemble mp ix (Jump\<^sub>b # cd) = 
     [JMP R5, LOD R5 R5, ADD R5 8, STI R3 0, LOD R5 R3, ADD R2 4, STO R2 R5, LOD R5 R5, ADD R5 4, 
       LOD R5 R3, SUB R3 4, ADD R4 4, STO R4 R5, SUB R4 4, ADD R5 4, MOV R5 R2, ADD R2 4, STO R2 R5, 
       STI R3 0, LOD R5 R3, SUB R3 4] @ 
-      alg_assemble mp cd"
+      alg_assemble mp (Suc ix) cd"
 
 definition alg_compile3 :: "code\<^sub>b list \<Rightarrow> mach list" where
-  "alg_compile3 cd = alg_assemble (assembly_mapb cd) cd"
+  "alg_compile3 cd = alg_assemble (assembly_mapb cd) 0 cd"
 
 definition alg_compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where
   "alg_compile e = (
@@ -158,9 +158,9 @@ proof (induction lib cd acc rule: alg_compile2.induct)
   thus ?case by (induction op) simp_all
 qed simp_all
 
-lemma alg_assemble_simp [simp]: "alg_assemble mp cd = 
-    disassemble (concat (map (assemble_op mp) cd))"
-  by (induction mp cd rule: alg_assemble.induct) (simp_all add: disassemble_def)
+lemma alg_assemble_simp [simp]: "alg_assemble mp ix cd = 
+    disassemble (concat (map_with_idx (\<lambda>x. assemble_op mp (ix + x)) cd))"
+  by (induction mp ix cd rule: alg_assemble.induct) (simp_all add: disassemble_def)
 
 lemma [simp]: "assembly_mapb cd x = assembly_map cd x"
   by (induction cd x rule: assembly_mapb.induct) simp_all

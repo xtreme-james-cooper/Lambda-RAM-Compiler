@@ -11,14 +11,26 @@ subsection \<open>Utilities\<close>
 text \<open>In this section we have a number of miscellaneous functions and lemmas about the standard 
 library that do not fit anywhere else. This can be skimmed or skipped on a first read.\<close>
 
+primrec map_with_idx :: "(nat \<Rightarrow> 'a \<Rightarrow> 'b) \<Rightarrow> 'a list \<Rightarrow> 'b list" where
+  "map_with_idx f [] = []"
+| "map_with_idx f (a # as) = f 0 a # map_with_idx (f \<circ> Suc) as"
+
+lemma len_conc_map_ix_lemma' [simp]: "((\<lambda>x. f (ix + x)) \<circ> Suc) = (\<lambda>x. f (Suc (ix + x)))"
+  by auto
+
+lemma len_conc_map_ix_lemma [simp]: "((\<lambda>ix a. length (f ix a)) \<circ> Suc) = 
+    (\<lambda>ix a. length (f (Suc ix) a))"
+  by auto
+
+lemma length_concat_map_with_idx [simp]: "length (concat (map_with_idx f as)) = 
+    sum_list (map_with_idx (\<lambda>ix a. length (f ix a)) as)"
+  by (induction as arbitrary: f) simp_all
+
 lemma dom_expanded_fun_upd [simp]: "dom (\<lambda>a. if a = x then Some y else f a) = insert x (dom f)"
   by (auto simp add: dom_if)
 
 lemma ran_of_map_option [simp]: "ran (map_option f \<circ> g) = f ` ran g"
   by (auto simp add: ran_def)
-
-lemma length_concat_map [simp]: "length (concat (map f as)) = sum_list (map (length \<circ> f) as)"
-  by (induction as) simp_all
 
 lemma length_neq_map_neq [simp]: "length as \<noteq> length bs \<Longrightarrow> map f as \<noteq> map f bs"
 proof (induction as arbitrary: bs)
@@ -91,5 +103,8 @@ lemma list_all_elem [elim]: "list_all f env \<Longrightarrow> x \<in> set env \<
 
 lemma snd_pair [simp]: "(a, b) = f x \<Longrightarrow> snd (f x) = b"
   by (metis snd_conv)
+
+lemma plus_zero [simp]: "(+) (0::nat) = id"
+  by auto
 
 end
