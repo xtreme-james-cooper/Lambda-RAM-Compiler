@@ -114,7 +114,7 @@ lemma print_u [simp]: "print_uval (snd \<circ> h) p = print_ceclosure (get_closu
   by (cases "h p") (simp_all split: nat.splits)
 
 lemma print_m [simp]: "unmap_mem' p = (a, b) \<Longrightarrow> 
-    print_mval (unmap_mem mem) p = print_uval (pseudoreg_map \<circ> mem a) b"
+    print_mval (unmap_mem mem) p = print_uval (pseudoreg_map \<circ> mem (Some a)) b"
   by (induction p rule: unmap_mem'.induct) 
      (auto simp add: unmap_mem_def numeral_def split: nat.splits)
 

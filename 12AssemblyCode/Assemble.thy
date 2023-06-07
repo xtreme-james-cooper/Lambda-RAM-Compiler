@@ -12,9 +12,9 @@ primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
 
 primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> code\<^sub>b \<Rightarrow> assm list" where
   "assemble_op mp ix (Lookup\<^sub>b x) = [
-    AMov (Con 0),
+    APut None (Con 0),
     AAdd (Some Vals) 1,
-    APut Vals (PAcc (Reg Hp)),
+    APut (Some Vals) (Reg None),
     AGet None,
     ASub None 2] @
     concat (replicate x [
@@ -22,79 +22,79 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
     ASub None 1]) @ [
     AGet None,
     ASub None 1,
-    AMov (Reg Stk)]"
+    APut None (Reg (Some Stk))]"
 | "assemble_op mp ix (PushCon\<^sub>b k) = [
     AAdd (Some Hp) 1, 
-    APut Hp (PAcc (Con 0)),
+    APut (Some Hp) (Reg None),
     AAdd (Some Hp) 1,  
-    APut Hp (Con k),
+    APut (Some Hp) (Con k),
     AAdd (Some Hp) 1,  
-    APut Hp (Con 1), 
+    APut (Some Hp) (Con 1), 
     AAdd (Some Vals) 1,
-    APut Vals (Reg Hp)]"
+    APut (Some Vals) (Reg (Some Hp))]"
 | "assemble_op mp ix (PushLam\<^sub>b pc) = [
     AAdd (Some Hp) 1, 
-    APut Hp (PC (mp pc)), 
-    AMov (Con 0),
+    APut (Some Hp) (Con (mp pc)), 
+    APut None (Con 0),
     AAdd (Some Hp) 1, 
-    APut Hp (PAcc (Reg Env)),
+    APut (Some Hp) (Reg None),
     AAdd (Some Hp) 1, 
-    APut Hp (Con 0),
+    APut (Some Hp) (Con 0),
     AGet None, 
     ASub None 1,
-    AMov (Reg Stk),
+    APut None (Reg (Some Stk)),
     AAdd (Some Vals) 1,
-    APut Vals (Reg Hp)]"
+    APut (Some Vals) (Reg (Some Hp))]"
 | "assemble_op mp ix Apply\<^sub>b = [
     AJmp,
     AGet None,
     AAdd None 2,
-    APut Vals (Con 0),
+    APut (Some Vals) (Con 0),
     AGet (Some Vals),
     AAdd (Some Env) 1,
-    APut Env (PAcc (Reg Env)),
+    APut (Some Env) (Reg None),
     AGet None,
     AAdd None 1,
     AGet (Some Vals),
     ASub (Some Vals) 1,
     AAdd (Some Stk) 1,
-    APut Stk (PAcc (Reg Env)),
+    APut (Some Stk) (Reg None),
     AAdd None 1,
-    AMov (Reg Env),
+    APut None (Reg (Some Env)),
     AAdd (Some Stk) 1,
-    APut Stk (PC (mp ix)),
+    APut (Some Stk) (Con (mp ix)),
     AAdd (Some Env) 1,
-    APut Env (PAcc (Reg Hp)),
-    APut Vals (Con 0),
+    APut (Some Env) (Reg None),
+    APut (Some Vals) (Con 0),
     AGet (Some Vals),
     ASub (Some Vals) 1]"
 | "assemble_op mp ix Return\<^sub>b = [
     AJmp,
-    APut Stk (Con 0),
+    APut (Some Stk) (Con 0),
     AGet (Some Stk),
     ASub (Some Stk) 1,
-    APut Stk (Con 0),
+    APut (Some Stk) (Con 0),
     ASub (Some Stk) 1]"
 | "assemble_op mp ix Jump\<^sub>b = [
     AJmp,
     AGet None,
     AAdd None 2,
-    APut Vals (Con 0),
+    APut (Some Vals) (Con 0),
     AGet (Some Vals),
     AAdd (Some Env) 1,
-    APut Env (PAcc (Reg Env)),
+    APut (Some Env) (Reg None),
     AGet None,
     AAdd None 1,
     AGet (Some Vals),
     ASub (Some Vals) 1,
     AAdd (Some Stk) 1,
-    APut Stk (PAcc (Reg Env)),
+    APut (Some Stk) (Reg None),
     ASub (Some Stk) 1,
     AAdd None 1,
-    AMov (Reg Env),
+    APut None (Reg (Some Env)),
     AAdd (Some Env) 1,
-    APut Env (PAcc (Reg Hp)),
-    APut Vals (Con 0),
+    APut (Some Env) (Reg None),
+    APut (Some Vals) (Con 0),
     AGet (Some Vals),
     ASub (Some Vals) 1]"
 
@@ -125,9 +125,9 @@ definition assemble_stack :: "(nat \<Rightarrow> nat) \<Rightarrow> (nat \<Right
 
 primrec assemble_state :: "(nat \<Rightarrow> nat) \<Rightarrow> unstr_state \<Rightarrow> assm_state" where
   "assemble_state mp (S\<^sub>u h hp e ep vs vp sh sp pc) = 
-    AS (case_register (assemble_heap mp h hp) (assemble_env e ep) (assemble_vals vs vp) 
-      (assemble_stack mp sh sp)) (case_register hp ep vp sp) 0 None (mp pc)"
-
+    AS (registers_case (assemble_heap mp h hp) (assemble_env e ep) (assemble_vals vs vp) 
+      (assemble_stack mp sh sp) undefined) (registers_case hp ep vp sp 0) None (mp pc)"
+                                     
 abbreviation assm_hp :: "code\<^sub>b list \<Rightarrow> (nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> 
     register option \<times> nat" where
   "assm_hp cd \<equiv> assemble_heap (assembly_map cd)"
@@ -377,11 +377,46 @@ lemma [simp]: "even ep \<Longrightarrow> (assemble_env e ep)(ep := (Some Hp, a),
     assemble_env (e(ep := a, Suc ep := b)) (Suc (Suc ep))"
   by (auto simp add: assemble_env_def)
 
+lemma [simp]: "(registers_case hp ep vp sp a)(Some Hp := hp') = registers_case hp' ep vp sp a"
+proof
+  fix x
+  show "((registers_case hp ep vp sp a)(Some Hp := hp')) x = registers_case hp' ep vp sp a x"
+    by (induction x) (simp_all split: register.splits)
+qed
+
+lemma [simp]: "(registers_case hp ep vp sp a)(Some Env := ep') = registers_case hp ep' vp sp a"
+proof
+  fix x
+  show "((registers_case hp ep vp sp a)(Some Env := ep')) x = registers_case hp ep' vp sp a x"
+    by (induction x) (simp_all split: register.splits)
+qed
+
+lemma [simp]: "(registers_case hp ep vp sp a)(Some Vals := vp') = registers_case hp ep vp' sp a"
+proof
+  fix x
+  show "((registers_case hp ep vp sp a)(Some Vals := vp')) x = registers_case hp ep vp' sp a x"
+    by (induction x) (simp_all split: register.splits)
+qed
+
+lemma [simp]: "(registers_case hp ep vp sp a)(Some Stk := sp') = registers_case hp ep vp sp' a"
+proof
+  fix x
+  show "((registers_case hp ep vp sp a)(Some Stk := sp')) x = registers_case hp ep vp sp' a x"
+    by (induction x) (simp_all split: register.splits)
+qed
+
+lemma [simp]: "(registers_case hp ep vp sp a)(None := a') = registers_case hp ep vp sp a'"
+proof
+  fix x
+  show "((registers_case hp ep vp sp a)(None := a')) x = registers_case hp ep vp sp a' x"
+    by (induction x) (simp_all split: register.splits)
+qed
+
 lemma [simp]: "unstr_lookup e a x = Some v \<Longrightarrow> lookup cd pc = Some (Lookup\<^sub>b y) \<Longrightarrow> x \<le> y \<Longrightarrow> 
   pc < length cd \<Longrightarrow> a \<le> ep \<Longrightarrow> restructurable_env e ep hp \<Longrightarrow> iter_evala (assemble_code cd) 
-    (5 + 2 * x) (AS (case_register h (assemble_env e ep) vs sh) (case_register hp ep vp sp) a 
-      (Some Env) (5 + 2 * x + assembly_map cd pc)) = Some (AS (case_register h (assemble_env e ep)
-        (vs(vp := (Some Hp, v))) sh) (case_register hp ep (Suc vp) sp) 0 None
+    (5 + 2 * x) (AS (registers_case h (assemble_env e ep) vs sh undefined) (registers_case hp ep vp sp a) 
+      (Some Env) (5 + 2 * x + assembly_map cd pc)) = Some (AS (registers_case h (assemble_env e ep)
+        (vs(vp := (Some Hp, v))) sh undefined) (registers_case hp ep (Suc vp) sp 0) None
           (assembly_map cd pc))"
 proof (induction e a x rule: unstr_lookup.induct)
   case (3 e p)
@@ -390,33 +425,34 @@ proof (induction e a x rule: unstr_lookup.induct)
   moreover from 3 have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (AGet None)" by simp
   moreover from 3 have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
-    Some (APut Vals (PAcc (Reg Hp)))" by (simp del: add_2_eq_Suc)
-  ultimately show ?case by (simp add: numeral_def assemble_env_def split: if_splits)
+    Some (APut (Some Vals) (Reg None))" by (simp del: add_2_eq_Suc)
+  ultimately show ?case 
+    by (simp add: numeral_def assemble_env_def split: if_splits) (metis fun_upd_apply)
 next
   case (4 e p x)
   moreover hence "lookup (assemble_code cd) (6 + 2 * x + assembly_map cd pc) = 
     Some (ASub None (Suc 0))" by simp
   moreover from 4 have "lookup (assemble_code cd) (5 + 2 * x + assembly_map cd pc) = 
     Some (AGet None)" by simp
-  ultimately have X: "iter_evala (assemble_code cd) 2 (AS (case_register h (assemble_env e ep) vs 
-    sh) (case_register hp ep vp sp) (Suc (Suc p)) (Some Env)
-      (7 + 2 * x + assembly_map cd pc)) = Some (AS (case_register h (assemble_env e ep) vs sh) 
-        (case_register hp ep vp sp) (e (Suc p)) (Some Env) (5 + 2 * x + assembly_map cd pc))" 
+  ultimately have X: "iter_evala (assemble_code cd) 2 (AS (registers_case h (assemble_env e ep) vs 
+    sh undefined) (registers_case hp ep vp sp (Suc (Suc p))) (Some Env)
+      (7 + 2 * x + assembly_map cd pc)) = Some (AS (registers_case h (assemble_env e ep) vs sh undefined) 
+        (registers_case hp ep vp sp (e (Suc p))) (Some Env) (5 + 2 * x + assembly_map cd pc))" 
     by (simp add: numeral_def assemble_env_def split: if_splits) presburger
   from 4 have "Suc p < ep" and "even p" and "restructurable_env e ep hp" by (auto split: if_splits)
   hence "e (Suc p) < ep" by (auto split: if_splits)
   moreover with 4 have "iter_evala (assemble_code cd) (5 + 2 * x)
-    (AS (case_register h (assemble_env e ep) vs sh) (case_register hp ep vp sp) (e (Suc p)) (Some Env)
-      (5 + 2 * x + assembly_map cd pc)) = Some (AS (case_register h (assemble_env e ep) 
-        (vs(vp := (Some Hp, v))) sh) (case_register hp ep (Suc vp) sp) 0 None
-          (assembly_map cd pc))" by (simp split: if_splits)
+    (AS (registers_case h (assemble_env e ep) vs sh undefined) (registers_case hp ep vp sp (e (Suc p))) (Some Env)
+      (5 + 2 * x + assembly_map cd pc)) = Some (AS (registers_case h (assemble_env e ep) 
+        (vs(vp := (Some Hp, v))) sh undefined) (registers_case hp ep (Suc vp) sp 0) None
+          (assembly_map cd pc))" by (simp split: if_splits) (metis fun_upd_apply)
   with X have "iter_evala (assemble_code cd) (2 + (5 + 2 * x))
-    (AS (case_register h (assemble_env e ep) vs sh) (case_register hp ep vp sp) (Suc (Suc p)) (
-      Some Env) (7 + 2 * x + assembly_map cd pc)) = Some (AS (case_register h (assemble_env e ep) 
-        (vs(vp := (Some Hp, v))) sh) (case_register hp ep (Suc vp) sp) 0 None
+    (AS (registers_case h (assemble_env e ep) vs sh undefined) (registers_case hp ep vp sp (Suc (Suc p))) (
+      Some Env) (7 + 2 * x + assembly_map cd pc)) = Some (AS (registers_case h (assemble_env e ep) 
+        (vs(vp := (Some Hp, v))) sh undefined) (registers_case hp ep (Suc vp) sp 0) None
           (assembly_map cd pc))" 
     using iter_evala_combine by blast
-  thus ?case by simp
+  thus ?case by simp (metis fun_upd_apply)
 qed simp_all
 
 theorem correcta [simp]: "cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd\<^sub>b \<Longrightarrow> 
@@ -425,92 +461,92 @@ proof (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: eval\<^sub>
   case (ev\<^sub>u_lookup cd pc x e sh sp y h hp ep vs vp)
   moreover hence "odd sp" by simp
   moreover from ev\<^sub>u_lookup have "lookup (assemble_code cd) (7 + 2 * x + assembly_map cd pc) = 
-    Some (AMov (Reg Stk))" by simp
+    Some (APut None (Reg (Some Stk)))" by simp
   moreover from ev\<^sub>u_lookup have "lookup (assemble_code cd) (6 + 2 * x + assembly_map cd pc) = 
     Some (ASub None 1)" by simp
   moreover from ev\<^sub>u_lookup have "lookup (assemble_code cd) (5 + 2 * x + assembly_map cd pc) = 
     Some (AGet None)" by simp
   ultimately have X: "iter_evala (assemble_code cd) 3 
-    (AS (case_register (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
-      (assm_stk cd sh (Suc sp))) (case_register hp ep vp (Suc sp)) 0 None
-        (8 + 2 * x + assembly_map cd pc)) = Some (AS (case_register (assm_hp cd h hp) 
-          (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp))) 
-            (case_register hp ep vp (Suc sp)) (sh sp) (Some Env) (5 + 2 * x + assembly_map cd pc))" 
+    (AS (registers_case (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
+      (assm_stk cd sh (Suc sp)) undefined ) (registers_case hp ep vp (Suc sp) 0) None
+        (8 + 2 * x + assembly_map cd pc)) = Some (AS (registers_case (assm_hp cd h hp) 
+          (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp)) undefined) 
+            (registers_case hp ep vp (Suc sp) (sh sp)) (Some Env) (5 + 2 * x + assembly_map cd pc))" 
     by (simp add: numeral_def)
   from ev\<^sub>u_lookup have "sh sp \<le> ep" by auto
   with ev\<^sub>u_lookup have "iter_evala (assemble_code cd) (5 + 2 * x) 
-    (AS (case_register (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
-      (assm_stk cd sh (Suc sp))) (case_register hp ep vp (Suc sp)) (sh sp) (Some Env) 
-        (5 + 2 * x + assembly_map cd pc)) = Some (AS (case_register (assm_hp cd h hp) 
-          (assemble_env e ep) (assemble_vals (vs(vp := y)) (Suc vp)) (assm_stk cd sh (Suc sp))) 
-            (case_register hp ep (Suc vp) (Suc sp)) 0 None (assembly_map cd pc))" 
-    by simp
+    (AS (registers_case (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
+      (assm_stk cd sh (Suc sp)) undefined) (registers_case hp ep vp (Suc sp) (sh sp)) (Some Env) 
+        (5 + 2 * x + assembly_map cd pc)) = Some (AS (registers_case (assm_hp cd h hp) 
+          (assemble_env e ep) (assemble_vals (vs(vp := y)) (Suc vp)) (assm_stk cd sh (Suc sp)) undefined) 
+            (registers_case hp ep (Suc vp) (Suc sp) 0) None (assembly_map cd pc))" 
+    by auto
   with X have "iter_evala (assemble_code cd) (3 + (5 + 2 * x)) 
-    (AS (case_register (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
-      (assm_stk cd sh (Suc sp))) (case_register hp ep vp (Suc sp)) 0 None
-        (8 + 2 * x + assembly_map cd pc)) = Some (AS (case_register (assm_hp cd h hp) 
-          (assemble_env e ep) (assemble_vals (vs(vp := y)) (Suc vp)) (assm_stk cd sh (Suc sp))) 
-            (case_register hp ep (Suc vp) (Suc sp)) 0 None (assembly_map cd pc))" 
+    (AS (registers_case (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
+      (assm_stk cd sh (Suc sp)) undefined) (registers_case hp ep vp (Suc sp) 0) None
+        (8 + 2 * x + assembly_map cd pc)) = Some (AS (registers_case (assm_hp cd h hp) 
+          (assemble_env e ep) (assemble_vals (vs(vp := y)) (Suc vp)) (assm_stk cd sh (Suc sp)) undefined) 
+            (registers_case hp ep (Suc vp) (Suc sp) 0) None (assembly_map cd pc))" 
     using iter_evala_combine by blast
   hence "iter_evala (assemble_code cd) (3 + (5 + 2 * x)) 
-    (AS (case_register (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
-      (assm_stk cd sh (Suc sp))) (case_register hp ep vp (Suc sp)) 0 None
-        (8 + (2 * x + assembly_map cd pc))) = Some (AS (case_register (assm_hp cd h hp) 
-          (assemble_env e ep) (assemble_vals (vs(vp := y)) (Suc vp)) (assm_stk cd sh (Suc sp))) 
-            (case_register hp ep (Suc vp) (Suc sp)) 0 None (assembly_map cd pc))"
+    (AS (registers_case (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
+      (assm_stk cd sh (Suc sp)) undefined) (registers_case hp ep vp (Suc sp) 0) None
+        (8 + (2 * x + assembly_map cd pc))) = Some (AS (registers_case (assm_hp cd h hp) 
+          (assemble_env e ep) (assemble_vals (vs(vp := y)) (Suc vp)) (assm_stk cd sh (Suc sp)) undefined) 
+            (registers_case hp ep (Suc vp) (Suc sp) 0) None (assembly_map cd pc))"
     by (simp add: add.assoc)
   with ev\<^sub>u_lookup show ?case by auto
 next
   case (ev\<^sub>u_pushcon cd pc k h hp e ep vs vp sh sp)
   moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
-    Some (APut Vals (Reg Hp))" by simp
+    Some (APut (Some Vals) (Reg (Some Hp)))" by simp
   moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
     Some (AAdd (Some Vals) 1)" by simp
   moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
-    Some (APut Hp (Con 1))" by simp 
+    Some (APut (Some Hp) (Con 1))" by simp 
   moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
     Some (AAdd (Some Hp) 1)" by simp 
   moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
-    Some (APut Hp (Con k))" by simp 
+    Some (APut (Some Hp) (Con k))" by simp 
   moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AAdd (Some Hp) 1)" by (simp del: add_2_eq_Suc)
-  ultimately have "iter_evala (assemble_code cd) 8 (AS (case_register (assm_hp cd h hp) 
-    (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp))) 
-      (case_register hp ep vp (Suc sp)) 0 None (assembly_map cd (Suc pc))) = Some (AS 
-        (case_register (assm_hp cd (h(hp := (PConst, Suc 0), Suc hp := (PConst, k), 
+  ultimately have "iter_evala (assemble_code cd) 8 (AS (registers_case (assm_hp cd h hp) 
+    (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp)) undefined) 
+      (registers_case hp ep vp (Suc sp) 0) None (assembly_map cd (Suc pc))) = Some (AS 
+        (registers_case (assm_hp cd (h(hp := (PConst, Suc 0), Suc hp := (PConst, k), 
           Suc (Suc hp) := (PConst, 0))) (3 + hp)) (assemble_env e ep) (assemble_vals (vs(vp := hp)) 
-            (Suc vp)) (assm_stk cd sh (Suc sp))) (case_register (3 + hp) ep (Suc vp) (Suc sp)) 0 
+            (Suc vp)) (assm_stk cd sh (Suc sp)) undefined) (registers_case (3 + hp) ep (Suc vp) (Suc sp) 0) 
               None (assembly_map cd pc))" 
     by (auto simp add: numeral_def)
   thus ?case by auto
 next
   case (ev\<^sub>u_pushlam cd pc pc' h hp e ep vs vp sh sp)
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
-    Some (APut Vals (Reg Hp))" by simp
+    Some (APut (Some Vals) (Reg (Some Hp)))" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
     Some (AAdd (Some Vals) 1)" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
-    Some (AMov (Reg Stk))" by simp
+    Some (APut None (Reg (Some Stk)))" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
     Some (ASub None 1)" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
     Some (AGet None)" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
-    Some (APut Hp (Con 0))" by simp
+    Some (APut (Some Hp) (Con 0))" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (AAdd (Some Hp) 1)" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (4 + assembly_map cd pc) =
-    Some (APut Hp (PAcc (Reg Env)))" by simp
+    Some (APut (Some Hp) (Reg None))" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (AAdd (Some Hp) 1)" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
-    Some (AMov (Con 0))" by (simp del: add_2_eq_Suc)
-  ultimately have "iter_evala (assemble_code cd) 12 (AS (case_register (assm_hp cd h hp) 
-    (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp))) 
-      (case_register hp ep vp (Suc sp)) 0 None (assembly_map cd (Suc pc))) = Some (AS 
-        (case_register (assm_hp cd (h(hp := (PConst, 0), Suc hp := (PEnv, sh sp), 
+    Some (APut None (Con 0))" by (simp del: add_2_eq_Suc)
+  ultimately have "iter_evala (assemble_code cd) 12 (AS (registers_case (assm_hp cd h hp) 
+    (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp)) undefined) 
+      (registers_case hp ep vp (Suc sp) 0) None (assembly_map cd (Suc pc))) = Some (AS 
+        (registers_case (assm_hp cd (h(hp := (PConst, 0), Suc hp := (PEnv, sh sp), 
           Suc (Suc hp) := (PCode, pc'))) (3 + hp)) (assemble_env e ep) (assemble_vals (vs(vp := hp)) 
-            (Suc vp)) (assm_stk cd sh (Suc sp))) (case_register (3 + hp) ep (Suc vp) (Suc sp)) 0 
+            (Suc vp)) (assm_stk cd sh (Suc sp)) undefined) (registers_case (3 + hp) ep (Suc vp) (Suc sp) 0) 
               None (assembly_map cd pc))" 
     by (auto simp add: numeral_def)
   thus ?case by auto
@@ -522,21 +558,21 @@ next
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (20 + assembly_map cd pc) = 
     Some (AGet (Some Vals))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
-    Some (APut Vals (Con 0))" by simp
+    Some (APut (Some Vals) (Con 0))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
-    Some (APut Env (PAcc (Reg Hp)))" by simp
+    Some (APut (Some Env) (Reg None))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
     Some (AAdd (Some Env) 1)" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
-    Some (APut Stk (PC (assembly_map cd pc)))" by simp
+    Some (APut (Some Stk) (Con (assembly_map cd pc)))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
     Some (AAdd (Some Stk) 1)" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
-    Some (AMov (Reg Env))" by simp
+    Some (APut None (Reg (Some Env)))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
     Some (AAdd None 1)" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
-    Some (APut Stk (PAcc (Reg Env)))" by simp
+    Some (APut (Some Stk) (Reg None))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
     Some (AAdd (Some Stk) 1)" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
@@ -548,22 +584,22 @@ next
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
     Some (AGet None)" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
-    Some (APut Env (PAcc (Reg Env)))" by simp
+    Some (APut (Some Env) (Reg None))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (AAdd (Some Env) 1)" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
     Some (AGet (Some Vals))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
-    Some (APut Vals (Con 0))" by simp
+    Some (APut (Some Vals) (Con 0))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AAdd None 2)" by (simp del: add_2_eq_Suc)
-  ultimately have "iter_evala (assemble_code cd) 22 (AS (case_register (assm_hp cd h hp) 
-    (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp))) 
-      (case_register hp ep (Suc (Suc vp)) (Suc sp)) 0 None (assembly_map cd (Suc pc))) = 
-        Some (AS (case_register (assm_hp cd h hp) (assemble_env (e(ep := vs (Suc vp), 
+  ultimately have "iter_evala (assemble_code cd) 22 (AS (registers_case (assm_hp cd h hp) 
+    (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp)) undefined) 
+      (registers_case hp ep (Suc (Suc vp)) (Suc sp) 0) None (assembly_map cd (Suc pc))) = 
+        Some (AS (registers_case (assm_hp cd h hp) (assemble_env (e(ep := vs (Suc vp), 
           Suc ep := snd (h (Suc (vs vp))))) (Suc (Suc ep))) (assemble_vals vs vp) 
-            (assm_stk cd (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (Suc (Suc (Suc sp))))) 
-              (case_register hp (Suc (Suc ep)) vp (Suc (Suc (Suc sp)))) 0 None
+            (assm_stk cd (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (Suc (Suc (Suc sp)))) undefined) 
+              (registers_case hp (Suc (Suc ep)) vp (Suc (Suc (Suc sp))) 0) None
                 (assembly_map cd (snd (h (Suc (Suc (vs vp)))))))"
     by (auto simp add: numeral_def assemble_vals_def)
   thus ?case by auto
@@ -572,16 +608,16 @@ next
   moreover from ev\<^sub>u_return have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (ASub (Some Stk) 1)" by simp
   moreover from ev\<^sub>u_return have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
-    Some (APut Stk (Con 0))" by simp
+    Some (APut (Some Stk) (Con 0))" by simp
   moreover from ev\<^sub>u_return have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (ASub (Some Stk) 1)" by simp
   moreover from ev\<^sub>u_return have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AGet (Some Stk))" by (simp del: add_2_eq_Suc)
-  ultimately have "iter_evala (assemble_code cd) 6 (AS (case_register (assm_hp cd h hp) 
-    (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc (Suc sp)))) 
-      (case_register hp ep vp (Suc (Suc sp))) 0 None (assembly_map cd (Suc pc))) = 
-        Some (AS (case_register (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
-          (assm_stk cd sh sp)) (case_register hp ep vp sp) 0 None (assembly_map cd (sh sp)))"
+  ultimately have "iter_evala (assemble_code cd) 6 (AS (registers_case (assm_hp cd h hp) 
+    (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc (Suc sp))) undefined) 
+      (registers_case hp ep vp (Suc (Suc sp)) 0) None (assembly_map cd (Suc pc))) = 
+        Some (AS (registers_case (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
+          (assm_stk cd sh sp) undefined) (registers_case hp ep vp sp 0) None (assembly_map cd (sh sp)))"
     by (simp add: numeral_def split: prod.splits)
   thus ?case by auto
 next
@@ -592,19 +628,19 @@ next
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
     Some (AGet (Some Vals))" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
-    Some (APut Vals (Con 0))" by simp
+    Some (APut (Some Vals) (Con 0))" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
-    Some (APut Env (PAcc (Reg Hp)))" by simp
+    Some (APut (Some Env) (Reg None))" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
     Some (AAdd (Some Env) 1)" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
-    Some (AMov (Reg Env))" by simp
+    Some (APut None (Reg (Some Env)))" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
     Some (AAdd None 1)" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
     Some (ASub (Some Stk) 1)" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
-    Some (APut Stk (PAcc (Reg Env)))" by simp
+    Some (APut (Some Stk) (Reg None))" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (11 + assembly_map cd pc) =
     Some (AAdd (Some Stk) 1)" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
@@ -616,22 +652,22 @@ next
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
     Some (AGet None)" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
-    Some (APut Env (PAcc (Reg Env)))" by simp
+    Some (APut (Some Env) (Reg None))" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (AAdd (Some Env) 1)" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
     Some (AGet (Some Vals))" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
-    Some (APut Vals (Con 0))" by simp
+    Some (APut (Some Vals) (Con 0))" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AAdd None 2)" by (simp del: add_2_eq_Suc)
-  ultimately have "iter_evala (assemble_code cd) 21 (AS (case_register (assm_hp cd h hp) 
-    (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp))) 
-      (case_register hp ep (Suc (Suc vp)) (Suc sp)) 0 None (assembly_map cd (Suc pc))) = 
-        Some (AS (case_register (assm_hp cd h hp) (assemble_env (e(ep := vs (Suc vp), 
+  ultimately have "iter_evala (assemble_code cd) 21 (AS (registers_case (assm_hp cd h hp) 
+    (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp)) undefined) 
+      (registers_case hp ep (Suc (Suc vp)) (Suc sp) 0) None (assembly_map cd (Suc pc))) = 
+        Some (AS (registers_case (assm_hp cd h hp) (assemble_env (e(ep := vs (Suc vp), 
           Suc ep := snd (h (Suc (vs vp))))) (Suc (Suc ep))) (assemble_vals vs vp) 
-            (assm_stk cd (sh(sp := Suc (Suc ep))) (Suc sp))) (case_register hp 
-              (Suc (Suc ep)) vp (Suc sp)) 0 None (assembly_map cd (snd (h (Suc (Suc (vs vp)))))))"
+            (assm_stk cd (sh(sp := Suc (Suc ep))) (Suc sp)) undefined) (registers_case hp 
+              (Suc (Suc ep)) vp (Suc sp) 0) None (assembly_map cd (snd (h (Suc (Suc (vs vp)))))))"
     by (auto simp add: numeral_def assemble_vals_def)
   thus ?case by auto
 qed

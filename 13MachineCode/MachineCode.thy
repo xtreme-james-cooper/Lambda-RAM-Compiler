@@ -10,7 +10,6 @@ datatype mach =
   | STO reg reg (* M[$R\<^sub>1] := $R\<^sub>2 *)
   | STI reg nat (* M[$R] := k *)
   | MOV reg reg (* $R\<^sub>1 := $R\<^sub>2 *)
-  | MVP reg     (* $R := $PC *)
   | ADD reg nat (* $R := $R + k *)
   | SUB reg nat (* $R := $R - k *)
   | JMP reg     (* $PC := $R (indirect jump) *)
@@ -28,8 +27,6 @@ inductive evalm :: "mach list \<Rightarrow> mach_state \<Rightarrow> mach_state 
     cd \<tturnstile> MS rs mem (Suc pc) \<leadsto>\<^sub>m MS rs (mem(rs ptr := k)) pc"
 | evm_mov [simp]: "cd ! pc = MOV r1 r2 \<Longrightarrow> 
     cd \<tturnstile> MS rs mem (Suc pc) \<leadsto>\<^sub>m MS (rs(r1 := rs r2)) mem pc"
-| evm_mvp [simp]: "cd ! pc = MVP r \<Longrightarrow> 
-    cd \<tturnstile> MS rs mem (Suc pc) \<leadsto>\<^sub>m MS (rs(r := pc)) mem pc"
 | evm_add [simp]: "cd ! pc = ADD r k \<Longrightarrow> 
     cd \<tturnstile> MS rs mem (Suc pc) \<leadsto>\<^sub>m MS (rs(r := rs r + k)) mem pc"
 | evm_sub [simp]: "cd ! pc = SUB r k \<Longrightarrow> 
@@ -59,10 +56,6 @@ next
   from evm_mov(2, 1) show ?case 
     by (induction cd "MS rs mem (Suc pc)" \<Sigma>'' rule: evalm.induct) simp_all
 next
-  case (evm_mvp cd pc r rs mem)
-  from evm_mvp(2, 1) show ?case 
-    by (induction cd "MS rs mem (Suc pc)" \<Sigma>'' rule: evalm.induct) simp_all
-next
   case (evm_add cd pc r k rs mem)
   from evm_add(2, 1) show ?case 
     by (induction cd "MS rs mem (Suc pc)" \<Sigma>'' rule: evalm.induct) simp_all
@@ -75,5 +68,8 @@ next
   from evm_jmp(2, 1) show ?case 
     by (induction cd "MS rs mem (Suc pc)" \<Sigma>'' rule: evalm.induct) simp_all
 qed
+
+lemma [simp]: "cd ! pc = MOV R5 R5 \<Longrightarrow> cd \<tturnstile> MS rs mem (Suc pc) \<leadsto>\<^sub>m MS rs mem pc"
+  using evm_mov by fastforce
 
 end
