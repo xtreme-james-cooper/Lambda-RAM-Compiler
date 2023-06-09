@@ -107,4 +107,7 @@ lemma snd_pair [simp]: "(a, b) = f x \<Longrightarrow> snd (f x) = b"
 lemma plus_zero [simp]: "(+) (0::nat) = id"
   by auto
 
+lemma [simp]: "odd (x::nat) \<Longrightarrow> 0 < x"
+  by (cases x) simp_all
+
 end

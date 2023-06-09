@@ -27,8 +27,18 @@ primrec restructure :: "unstr_state \<Rightarrow> state\<^sub>f" where
 lemma [simp]: "flat_lookup (H h hp) p x = unstr_lookup h p x"
   by (induction h p x rule: unstr_lookup.induct) simp_all
 
-theorem completeu [simp]: "cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd \<Longrightarrow> 
-    cd \<tturnstile> restructure \<Sigma>\<^sub>u \<leadsto>\<^sub>f restructure \<Sigma>\<^sub>u'"
+primrec restructurable :: "unstr_state \<Rightarrow> bool" where
+  "restructurable (S\<^sub>u h hp e ep vs vp sh sp pc) = (even sp \<and> sh 0 = 0 \<and> (sp = 0 \<longrightarrow> pc = 0))"
+
+lemma restructurable_persists [simp]: "cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u \<Longrightarrow> restructurable \<Sigma>\<^sub>u'"
+  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: eval\<^sub>u.induct) simp_all
+
+lemma restructurable_persists_iter [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u \<Longrightarrow> 
+    restructurable \<Sigma>\<^sub>u'"
+  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: iter.induct) simp_all
+
+theorem completeu [simp]: "cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u \<Longrightarrow>
+  cd \<tturnstile> restructure \<Sigma>\<^sub>u \<leadsto>\<^sub>f restructure \<Sigma>\<^sub>u'"
 proof (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: eval\<^sub>u.induct)
   case (ev\<^sub>u_lookup cd pc x e sh sp y h hp ep vs vp)
   thus ?case by (cases sp) (auto split: nat.splits)
@@ -67,10 +77,6 @@ next
   with ev\<^sub>u_jump show ?case by (cases sp) (auto split: nat.splits)
 qed
 
-lemma [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd \<Longrightarrow> 
-    iter (\<tturnstile> cd \<leadsto>\<^sub>f) (restructure \<Sigma>\<^sub>u) (restructure \<Sigma>\<^sub>u')" 
-  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: iter.induct) (simp, metis completeu iter_step preserve_restructure)
-
 lemma [dest]: "S\<^sub>f h env vs (pc # p # sfs) = restructure \<Sigma> \<Longrightarrow> \<exists>h' hp e ep vs' vp sh sp. 
   \<Sigma> = S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) pc \<and> h = H h' hp \<and> env = H e ep \<and> 
     vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp"
@@ -83,12 +89,12 @@ proof (induction \<Sigma>)
   qed (simp_all split: nat.splits)
 qed
 
-lemma [dest]: "S\<^sub>f h env vs [] = restructure \<Sigma> \<Longrightarrow> restructurable \<Sigma> cd \<Longrightarrow> \<exists>h' hp e ep vs' vp sh sp. 
+lemma [dest]: "S\<^sub>f h env vs [] = restructure \<Sigma> \<Longrightarrow> restructurable \<Sigma> \<Longrightarrow> \<exists>h' hp e ep vs' vp sh. 
     \<Sigma> = S\<^sub>u h' hp e ep vs' vp sh 0 0 \<and> h = H h' hp \<and> env = H e ep \<and> vs = listify_heap vs' vp"
   by (induction \<Sigma>) (simp split: nat.splits)
 
-theorem correctu [simp]: "cd \<tturnstile> restructure \<Sigma>\<^sub>u \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd \<Longrightarrow> 
-    \<exists>\<Sigma>\<^sub>u'. (cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u') \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>u'"
+theorem correctu [simp]: "cd \<tturnstile> restructure \<Sigma>\<^sub>u \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> 
+  \<exists>\<Sigma>\<^sub>u'. (cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u') \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>u'"
 proof (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' rule: eval\<^sub>f.induct)
   case (ev\<^sub>f_lookup cd pc x env p v h vs sfs)
   then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> 
@@ -181,9 +187,9 @@ next
   with S V X show ?case by auto
 qed
 
-theorem correctu_iter [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>f) (restructure \<Sigma>\<^sub>u) \<Sigma>\<^sub>f' \<Longrightarrow> restructurable \<Sigma>\<^sub>u cd \<Longrightarrow>
+theorem correctu_iter [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>f) (restructure \<Sigma>\<^sub>u) \<Sigma>\<^sub>f' \<Longrightarrow> 
     \<exists>\<Sigma>\<^sub>u'. iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>u'"
   by (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' arbitrary: \<Sigma>\<^sub>u rule: iter.induct) 
-     (force, metis correctu iter_step preserve_restructure)
+     (force, metis correctu iter_step)
 
 end
