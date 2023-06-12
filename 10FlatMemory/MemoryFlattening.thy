@@ -137,31 +137,28 @@ next
   thus ?case using flatten_halloc by fastforce
 next
   case (ev\<^sub>v_apply \<C> p\<^sub>\<C> h v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' \<Delta> v\<^sub>1 \<Delta>' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> s)
-  moreover hence "halloc_list (flatten_environment \<Delta>) 
-    [3 * v\<^sub>1, snd (hlookup (flatten_values h) (Suc (3 * v\<^sub>2)))] = (flatten_environment \<Delta>', 2 * p\<^sub>\<Delta>'')" 
-      by simp
-  moreover from ev\<^sub>v_apply have "fst (hlookup (flatten_values h) (Suc (3 * v\<^sub>2))) = PEnv" by simp
-  moreover from ev\<^sub>v_apply have "fst (hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2)))) = PCode" 
+  moreover hence "halloc_list (flatten_environment \<Delta>) [3 * v\<^sub>1, 2 * p\<^sub>\<Delta>'] = 
+    (flatten_environment \<Delta>', 2 * p\<^sub>\<Delta>'')" by simp
+  moreover from ev\<^sub>v_apply have "hlookup (flatten_values h) (Suc (3 * v\<^sub>2)) = (PEnv, 2 * p\<^sub>\<Delta>')" by simp
+  moreover from ev\<^sub>v_apply have "hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2))) = (PCode, p\<^sub>\<C>')" 
     by simp
   ultimately have "\<C> \<tturnstile> S\<^sub>f (flatten_values h) (flatten_environment \<Delta>) 
       (3 * v\<^sub>1 # 3 * v\<^sub>2 # flatten_vals \<V>) (Suc p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # flatten_stack s) \<leadsto>\<^sub>f 
     S\<^sub>f (flatten_values h) (flatten_environment \<Delta>') (flatten_vals \<V>) 
-      (snd (hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2)))) # Suc (Suc (2 * p\<^sub>\<Delta>'')) # p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # 
-        flatten_stack s)"
+      (p\<^sub>\<C>' # Suc (Suc (2 * p\<^sub>\<Delta>'')) # p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # flatten_stack s)"
     by (metis ev\<^sub>f_apply)
   with ev\<^sub>v_apply show ?case by simp
 next
   case (ev\<^sub>v_jump \<C> p\<^sub>\<C> h v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' \<Delta> v\<^sub>1 \<Delta>' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> s)
-  moreover hence "halloc_list (flatten_environment \<Delta>) 
-    [3 * v\<^sub>1, snd (hlookup (flatten_values h) (Suc (3 * v\<^sub>2)))] = (flatten_environment \<Delta>', 2 * p\<^sub>\<Delta>'')" 
-      by simp
-  moreover from ev\<^sub>v_jump have "fst (hlookup (flatten_values h) (Suc (3 * v\<^sub>2))) = PEnv" by simp
-  moreover from ev\<^sub>v_jump have "fst (hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2)))) = PCode" 
+  moreover hence "halloc_list (flatten_environment \<Delta>) [3 * v\<^sub>1, 2 * p\<^sub>\<Delta>'] = 
+    (flatten_environment \<Delta>', 2 * p\<^sub>\<Delta>'')" by simp
+  moreover from ev\<^sub>v_jump have "hlookup (flatten_values h) (Suc (3 * v\<^sub>2)) = (PEnv, 2 * p\<^sub>\<Delta>')" by simp
+  moreover from ev\<^sub>v_jump have "hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2))) = (PCode, p\<^sub>\<C>')" 
     by simp
   ultimately have "\<C> \<tturnstile> S\<^sub>f (flatten_values h) (flatten_environment \<Delta>)
       (3 * v\<^sub>1 # 3 * v\<^sub>2 # flatten_vals \<V>) (Suc p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # flatten_stack s) \<leadsto>\<^sub>f 
     S\<^sub>f (flatten_values h) (flatten_environment \<Delta>') (flatten_vals \<V>) 
-      (snd (hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2)))) # Suc (Suc (2 * p\<^sub>\<Delta>'')) # flatten_stack s)"
+      (p\<^sub>\<C>' # Suc (Suc (2 * p\<^sub>\<Delta>'')) # flatten_stack s)"
     by (metis ev\<^sub>f_jump)
   with ev\<^sub>v_jump show ?case by simp
 qed fastforce+
@@ -238,18 +235,17 @@ next
     S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v\<^sub>v # \<V>\<^sub>v) ((p\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)" by simp
   with S X show ?case by blast
 next
-  case (ev\<^sub>f_apply \<C> p\<^sub>\<C> h\<^sub>f v\<^sub>2\<^sub>f \<Delta>\<^sub>f v\<^sub>1\<^sub>f \<Delta>\<^sub>f' p\<^sub>\<Delta>\<^sub>f' \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
+  case (ev\<^sub>f_apply \<C> p\<^sub>\<C> h\<^sub>f v\<^sub>2\<^sub>f p\<^sub>\<Delta>\<^sub>f' p\<^sub>\<C>' \<Delta>\<^sub>f v\<^sub>1\<^sub>f \<Delta>\<^sub>f' p\<^sub>\<Delta>\<^sub>f'' \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
   then obtain h\<^sub>v \<Delta>\<^sub>v v\<^sub>1\<^sub>v v\<^sub>2\<^sub>v \<V>\<^sub>v p\<^sub>\<Delta>\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1\<^sub>v # v\<^sub>2\<^sub>v # \<V>\<^sub>v) ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
     h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> v\<^sub>1\<^sub>f = 3 * v\<^sub>1\<^sub>v \<and> v\<^sub>2\<^sub>f = 3 * v\<^sub>2\<^sub>v \<and> 
     \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>\<Delta>\<^sub>v" by fastforce
-  let ?p\<^sub>\<C>' = "snd (hlookup (flatten_values h\<^sub>v) (Suc (Suc (3 * v\<^sub>2\<^sub>v))))"
-  from ev\<^sub>f_apply S obtain p\<^sub>\<Delta>\<^sub>v' where P: "hlookup h\<^sub>v v\<^sub>2\<^sub>v = Lam\<^sub>v p\<^sub>\<Delta>\<^sub>v' ?p\<^sub>\<C>' \<and> 
-    snd (hlookup (flatten_values h\<^sub>v) (Suc (3 * v\<^sub>2\<^sub>v))) = 2 * p\<^sub>\<Delta>\<^sub>v'" by (cases "hlookup h\<^sub>v v\<^sub>2\<^sub>v") simp_all
+  with ev\<^sub>f_apply obtain p\<^sub>\<Delta>\<^sub>v' where P: "hlookup h\<^sub>v v\<^sub>2\<^sub>v = Lam\<^sub>v p\<^sub>\<Delta>\<^sub>v' p\<^sub>\<C>' \<and> p\<^sub>\<Delta>\<^sub>f' = 2 * p\<^sub>\<Delta>\<^sub>v'" 
+      by (cases "hlookup h\<^sub>v v\<^sub>2\<^sub>v") auto
   obtain \<Delta>\<^sub>v' p\<^sub>\<Delta>\<^sub>v'' where E: "halloc \<Delta>\<^sub>v (v\<^sub>1\<^sub>v, p\<^sub>\<Delta>\<^sub>v') = (\<Delta>\<^sub>v', p\<^sub>\<Delta>\<^sub>v'')" by fastforce
-  with ev\<^sub>f_apply S P have X: "flatten (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', ?p\<^sub>\<C>') # (p\<^sub>\<Delta>\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)) = 
-    S\<^sub>f h\<^sub>f \<Delta>\<^sub>f' \<V>\<^sub>f (?p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>\<^sub>f') # p\<^sub>\<C> # p\<^sub>\<Delta>\<^sub>f # s\<^sub>f)" by simp
+  with ev\<^sub>f_apply S P have X: "flatten (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', p\<^sub>\<C>') # (p\<^sub>\<Delta>\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)) = 
+    S\<^sub>f h\<^sub>f \<Delta>\<^sub>f' \<V>\<^sub>f (p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>\<^sub>f'') # p\<^sub>\<C> # p\<^sub>\<Delta>\<^sub>f # s\<^sub>f)" by simp
   from ev\<^sub>f_apply P E have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1\<^sub>v # v\<^sub>2\<^sub>v # \<V>\<^sub>v) ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
-    S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', ?p\<^sub>\<C>') # (p\<^sub>\<Delta>\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)" by simp
+    S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', p\<^sub>\<C>') # (p\<^sub>\<Delta>\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)" by simp
   with S X show ?case by blast
 next
   case (ev\<^sub>f_return \<C> p\<^sub>\<C> h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
@@ -260,18 +256,17 @@ next
   from ev\<^sub>f_return have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v s\<^sub>v" by simp
   with S X show ?case by blast
 next
-  case (ev\<^sub>f_jump \<C> p\<^sub>\<C> h\<^sub>f v\<^sub>2\<^sub>f \<Delta>\<^sub>f v\<^sub>1\<^sub>f \<Delta>' p\<^sub>\<Delta>\<^sub>f' \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
+  case (ev\<^sub>f_jump \<C> p\<^sub>\<C> h\<^sub>f v\<^sub>2\<^sub>f p\<^sub>\<Delta>\<^sub>f' p\<^sub>\<C>' \<Delta>\<^sub>f v\<^sub>1\<^sub>f \<Delta>' p\<^sub>\<Delta>\<^sub>f'' \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
   then obtain h\<^sub>v \<Delta>\<^sub>v v\<^sub>1\<^sub>v v\<^sub>2\<^sub>v \<V>\<^sub>v p\<^sub>\<Delta>\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1\<^sub>v # v\<^sub>2\<^sub>v # \<V>\<^sub>v) ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
     h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> v\<^sub>1\<^sub>f = 3 * v\<^sub>1\<^sub>v \<and> v\<^sub>2\<^sub>f = 3 * v\<^sub>2\<^sub>v \<and> 
     \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>\<Delta>\<^sub>v" by fastforce
-  let ?p\<^sub>\<C>' = "snd (hlookup (flatten_values h\<^sub>v) (Suc (Suc (3 * v\<^sub>2\<^sub>v))))"
-  from ev\<^sub>f_jump S obtain p\<^sub>\<Delta>\<^sub>v' where P: "hlookup h\<^sub>v v\<^sub>2\<^sub>v = Lam\<^sub>v p\<^sub>\<Delta>\<^sub>v' ?p\<^sub>\<C>' \<and> 
-    snd (hlookup (flatten_values h\<^sub>v) (Suc (3 * v\<^sub>2\<^sub>v))) = 2 * p\<^sub>\<Delta>\<^sub>v'" by (cases "hlookup h\<^sub>v v\<^sub>2\<^sub>v") simp_all
+  from ev\<^sub>f_jump S obtain p\<^sub>\<Delta>\<^sub>v' where P: "hlookup h\<^sub>v v\<^sub>2\<^sub>v = Lam\<^sub>v p\<^sub>\<Delta>\<^sub>v' p\<^sub>\<C>' \<and> p\<^sub>\<Delta>\<^sub>f' = 2 * p\<^sub>\<Delta>\<^sub>v'" 
+    by (cases "hlookup h\<^sub>v v\<^sub>2\<^sub>v") auto
   obtain \<Delta>\<^sub>v' p\<^sub>\<Delta>\<^sub>v'' where E: "halloc \<Delta>\<^sub>v (v\<^sub>1\<^sub>v, p\<^sub>\<Delta>\<^sub>v') = (\<Delta>\<^sub>v', p\<^sub>\<Delta>\<^sub>v'')" by fastforce
-  with ev\<^sub>f_jump S P have X: "flatten (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', ?p\<^sub>\<C>') # s\<^sub>v)) = 
-    S\<^sub>f h\<^sub>f \<Delta>' \<V>\<^sub>f (?p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>\<^sub>f') # s\<^sub>f)" by simp
+  with ev\<^sub>f_jump S P have X: "flatten (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', p\<^sub>\<C>') # s\<^sub>v)) = 
+    S\<^sub>f h\<^sub>f \<Delta>' \<V>\<^sub>f (p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>\<^sub>f'') # s\<^sub>f)" by simp
   from ev\<^sub>f_jump P E have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1\<^sub>v # v\<^sub>2\<^sub>v # \<V>\<^sub>v) ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
-    S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', ?p\<^sub>\<C>') # s\<^sub>v)" by simp
+    S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', p\<^sub>\<C>') # s\<^sub>v)" by simp
   with S X show ?case by blast
 qed
 

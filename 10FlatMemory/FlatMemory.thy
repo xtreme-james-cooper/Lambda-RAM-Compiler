@@ -8,10 +8,11 @@ reduce all of these to contiguous series of numbers. The pairs are just listed, 
 first; the closures are flattened to sequences of data. A \<open>Const\<^sub>v n\<close> value becomes \<open>[n, 0]\<close>; a 
 \<open>Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>\<close> becomes \<open>[p\<^sub>\<Delta>, p\<^sub>\<C>]\<close>. We tag the code pointers because we need to recognize them later, 
 when we move to assembly code and alter all the codeblock addresses; besides that, in losing the 
-tags on values, we have now discarded our last scrap of type-safety. The \<open>ev\<^sub>f_apply\<close> and \<open>ev\<^sub>f_jump\<close> 
-operations assume they've been given a function-closure, but no longer have a way of checking it. 
-(The padding 0 on the numerical values is just to keep all values the same size, greatly easing some 
-of the proofs.)\<close>
+tags on values, we have now discarded our last scrap of source-level type-safety. The \<open>ev\<^sub>f_apply\<close> 
+and \<open>ev\<^sub>f_jump\<close> operations assume they've been given a function-closure, and check that they have 
+environment and code pointers, but the memory itself no longer records as such that there is a 
+function stored there. (The padding 0 on the numerical values is just to keep all values the same 
+size, greatly easing some of the proofs.)\<close>
 
 datatype state\<^sub>f = 
   S\<^sub>f "(pointer_tag \<times> nat) heap" "ptr heap" "ptr list" "nat list"
@@ -32,18 +33,14 @@ inductive eval\<^sub>f :: "code\<^sub>b list \<Rightarrow> state\<^sub>f \<Right
 | ev\<^sub>f_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>') \<Longrightarrow> 
     halloc_list h [(PConst, 0), (PEnv, p\<^sub>\<Delta>), (PCode, p\<^sub>\<C>')] = (h', v) \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h' \<Delta> (v # \<V>) (p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
-| ev\<^sub>f_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> fst (hlookup h (Suc v\<^sub>2)) = PEnv \<Longrightarrow> 
-    fst (hlookup h (Suc (Suc v\<^sub>2))) = PCode \<Longrightarrow> 
-    halloc_list \<Delta> [v\<^sub>1, snd (hlookup h (Suc v\<^sub>2))] = (\<Delta>', p\<^sub>\<Delta>') \<Longrightarrow> 
-    \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f 
-      S\<^sub>f h \<Delta>' \<V> (snd (hlookup h (Suc (Suc v\<^sub>2))) # Suc (Suc p\<^sub>\<Delta>') # p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
+| ev\<^sub>f_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> hlookup h (Suc v\<^sub>2) = (PEnv, p\<^sub>\<Delta>') \<Longrightarrow> 
+    hlookup h (Suc (Suc v\<^sub>2)) = (PCode, p\<^sub>\<C>') \<Longrightarrow> halloc_list \<Delta> [v\<^sub>1, p\<^sub>\<Delta>'] = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow> 
+      \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta>' \<V> (p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>'') # p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
 | ev\<^sub>f_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta> \<V> s"
-| ev\<^sub>f_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> fst (hlookup h (Suc v\<^sub>2)) = PEnv \<Longrightarrow> 
-    fst (hlookup h (Suc (Suc v\<^sub>2))) = PCode \<Longrightarrow> 
-    halloc_list \<Delta> [v\<^sub>1, snd (hlookup h (Suc v\<^sub>2))] = (\<Delta>', p\<^sub>\<Delta>') \<Longrightarrow> 
-      \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f 
-        S\<^sub>f h \<Delta>' \<V> (snd (hlookup h (Suc (Suc v\<^sub>2))) # Suc (Suc p\<^sub>\<Delta>') # s)"
+| ev\<^sub>f_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> hlookup h (Suc v\<^sub>2) = (PEnv, p\<^sub>\<Delta>') \<Longrightarrow> 
+    hlookup h (Suc (Suc v\<^sub>2)) = (PCode, p\<^sub>\<C>') \<Longrightarrow> halloc_list \<Delta> [v\<^sub>1, p\<^sub>\<Delta>'] = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow> 
+      \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta>' \<V> (p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>'') # s)"
 
 theorem determinismf: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>f.induct)

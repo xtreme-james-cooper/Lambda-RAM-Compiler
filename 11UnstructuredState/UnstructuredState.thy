@@ -35,19 +35,19 @@ inductive eval\<^sub>u :: "code\<^sub>b list \<Rightarrow> unstr_state \<Rightar
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
       S\<^sub>u (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, s p\<^sub>s), Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>'))) (3 + p\<^sub>h) \<Delta> p\<^sub>\<Delta> 
         (\<V>(p\<^sub>\<V> := p\<^sub>h)) (Suc p\<^sub>\<V>) s (Suc p\<^sub>s) p\<^sub>\<C>"
-| ev\<^sub>u_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> fst (h (Suc (\<V> p\<^sub>\<V>))) = PEnv \<Longrightarrow> 
-    fst (h (Suc (Suc (\<V> p\<^sub>\<V>)))) = PCode \<Longrightarrow>
+| ev\<^sub>u_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> h (Suc (\<V> p\<^sub>\<V>)) = (PEnv, p\<^sub>\<Delta>') \<Longrightarrow> 
+    h (Suc (Suc (\<V> p\<^sub>\<V>))) = (PCode, p\<^sub>\<C>') \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> (Suc (Suc p\<^sub>\<V>)) s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
-      S\<^sub>u h p\<^sub>h (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) (2 + p\<^sub>\<Delta>) \<V> p\<^sub>\<V>
-        (s(Suc p\<^sub>s := p\<^sub>\<C>, Suc (Suc p\<^sub>s) := Suc (Suc p\<^sub>\<Delta>))) (2 + Suc p\<^sub>s) (snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))))"
+      S\<^sub>u h p\<^sub>h (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) (2 + p\<^sub>\<Delta>) \<V> p\<^sub>\<V>
+        (s(Suc p\<^sub>s := p\<^sub>\<C>, Suc (Suc p\<^sub>s) := Suc (Suc p\<^sub>\<Delta>))) (2 + Suc p\<^sub>s) p\<^sub>\<C>'"
 | ev\<^sub>u_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s (Suc (Suc p\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
       S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s p\<^sub>s (s p\<^sub>s)"
-| ev\<^sub>u_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> fst (h (Suc (\<V> p\<^sub>\<V>))) = PEnv \<Longrightarrow> 
-    fst (h (Suc (Suc (\<V> p\<^sub>\<V>)))) = PCode \<Longrightarrow> 
+| ev\<^sub>u_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> h (Suc (\<V> p\<^sub>\<V>)) = (PEnv, p\<^sub>\<Delta>') \<Longrightarrow> 
+    h (Suc (Suc (\<V> p\<^sub>\<V>))) = (PCode, p\<^sub>\<C>') \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> (Suc (Suc p\<^sub>\<V>)) s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
-      S\<^sub>u h p\<^sub>h (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) (2 + p\<^sub>\<Delta>) \<V> p\<^sub>\<V>
-        (s(p\<^sub>s := Suc (Suc p\<^sub>\<Delta>))) (Suc p\<^sub>s) (snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))))"
+      S\<^sub>u h p\<^sub>h (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) (2 + p\<^sub>\<Delta>) \<V> p\<^sub>\<V>
+        (s(p\<^sub>s := Suc (Suc p\<^sub>\<Delta>))) (Suc p\<^sub>s) p\<^sub>\<C>'"
 
 theorem determinismu: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>u \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>u \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<C> \<Sigma> \<Sigma>' rule: eval\<^sub>u.induct)
