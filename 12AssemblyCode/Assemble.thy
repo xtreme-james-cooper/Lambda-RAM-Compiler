@@ -109,10 +109,10 @@ definition assemble_code :: "code\<^sub>b list \<Rightarrow> assm list" where
 
 definition assemble_heap :: "(nat \<Rightarrow> nat) \<Rightarrow> (nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> 
     register \<times> nat" where
-  "assemble_heap mp h hp x = (if x \<ge> hp then (Acc, 0) else case x mod 3 of
-      0 \<Rightarrow> (Acc, snd (h x))
-    | Suc 0 \<Rightarrow> (if snd (h (x - 1)) = 0 then Env else Acc, snd (h x))
-    | Suc (Suc 0) \<Rightarrow> if snd (h (x - 2)) = 0 then (Acc, mp (snd (h x))) else (Acc, snd (h x)))"
+  "assemble_heap mp h hp x = (if x \<ge> hp then (Acc, 0) else case h x of
+      (PConst, y) \<Rightarrow> (Acc, y)
+    | (PCode, y) \<Rightarrow> (Acc, mp y)
+    | (PEnv, y) \<Rightarrow> (Env, y))"
 
 definition assemble_env :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> register \<times> nat" where
   "assemble_env e ep x = (if x \<ge> ep then (Acc, 0) else (if even x then Hp else Env, e x))"
@@ -247,29 +247,8 @@ lemma [simp]: "lookup cd pc = Some op \<Longrightarrow>
     lookup (assemble_code cd) (assembly_map cd pc) = lookup (assemble_op (assembly_map cd) pc op) 0"
   using assemble_code_lookup by fastforce
 
-lemma assm_hp_lemma1: "3 dvd x \<Longrightarrow> x < hp \<Longrightarrow> assemble_heap mp h hp x = (Acc, snd (h x))"
-  by (simp add: assemble_heap_def)
-
-lemma assm_hp_lemma2: "x mod 3 = 1 \<Longrightarrow> snd (h (x - 1)) \<noteq> 0 \<Longrightarrow> x < hp \<Longrightarrow> 
-    assemble_heap mp h hp x = (Acc, snd (h x))"
-  by (simp add: assemble_heap_def)
-
-lemma assm_hp_lemma3: "x mod 3 = 1 \<Longrightarrow> snd (h (x - 1)) = 0 \<Longrightarrow> x < hp \<Longrightarrow>
-    assemble_heap mp h hp x = (Env, snd (h x))"
-  by (simp add: assemble_heap_def)
-
-lemma assm_hp_lemma4: "x mod 3 = 2 \<Longrightarrow> snd (h (x - 2)) \<noteq> 0 \<Longrightarrow> x < hp \<Longrightarrow> 
-    assemble_heap mp h hp x = (Acc, snd (h x))"
-  by (simp add: assemble_heap_def)
-
-lemma assm_hp_lemma5: "x mod 3 = 2 \<Longrightarrow> snd (h (x - 2)) = 0 \<Longrightarrow> x < hp \<Longrightarrow> 
-    assemble_heap mp h hp x = (Acc, mp (snd (h x)))"
-  by (simp add: assemble_heap_def)
-
 lemma [simp]: "x \<noteq> hp \<Longrightarrow> assm_hp cd (h(hp := a)) (Suc hp) x = assm_hp cd h hp x"
-  by (induction x rule: x_mod_3_induct) (simp_all add: assemble_heap_def, linarith+)
-
-
+  by (simp add: assemble_heap_def)
 
 
 
@@ -283,9 +262,9 @@ lemma [simp]: "x \<noteq> hp \<Longrightarrow> assm_hp cd (h(hp := a)) (Suc hp) 
 
 
 definition assembleable_heap :: "(nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
-  "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd = (3 dvd p\<^sub>h \<and> (\<forall>x < p\<^sub>h. 3 dvd x \<longrightarrow> snd (h x) = 0 \<longrightarrow> 
-    (even (snd (h (Suc x))) \<and> snd (h (Suc x)) \<le> p\<^sub>\<Delta> \<and> snd (h (Suc (Suc x))) \<noteq> 0 \<and> 
-      snd (h (Suc (Suc x))) \<le> lcd)))"
+  "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd = (3 dvd p\<^sub>h \<and>
+    (\<forall>x < p\<^sub>h. fst (h x) = PEnv \<longrightarrow> even (snd (h x)) \<and> snd (h x) \<le> p\<^sub>\<Delta>) \<and> 
+    (\<forall>x < p\<^sub>h. fst (h x) = PCode \<longrightarrow> snd (h x) \<noteq> 0 \<and> snd (h x) \<le> lcd))"
 
 definition assembleable_env :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
   "assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h = (even p\<^sub>\<Delta> \<and>
@@ -343,23 +322,23 @@ lemma [simp]: "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarr
   assembleable_heap (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k), Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>))) 
     (3 + p\<^sub>h) p\<^sub>\<Delta> lcd = (even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd)"
 proof
-  let ?f = "\<lambda>x. if x = Suc (Suc p\<^sub>h) then (PCode, p\<^sub>\<C>) else (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k))) x"
-  let ?g = "\<lambda>x. if x = Suc p\<^sub>h then (PCode, p\<^sub>\<C>) else (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k))) (Suc x)"
-  let ?h = "\<lambda>x. if x = p\<^sub>h then (PCode, p\<^sub>\<C>) else (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k))) (Suc (Suc x))"
+  let ?f = 
+    "\<lambda>x. (if x = Suc (Suc p\<^sub>h) then (PCode, p\<^sub>\<C>) else (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k))) x)"
   assume H: "assembleable_heap (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k), 
     Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>))) (3 + p\<^sub>h) p\<^sub>\<Delta> lcd"
-  moreover hence "\<And>x. x < 3 + p\<^sub>h \<Longrightarrow> 3 dvd x \<Longrightarrow> snd (?f x) = 0 \<Longrightarrow> 
-    even (snd (?g x)) \<and> snd (?g x) \<le> p\<^sub>\<Delta> \<and> 0 < snd (?h x) \<and> snd (?h x) \<le> lcd" 
+  hence "\<And>x. x < 3 + p\<^sub>h \<Longrightarrow> fst (?f x) = PEnv \<Longrightarrow> even (snd (?f x)) \<and> snd (?f x) \<le> p\<^sub>\<Delta>" 
     by (simp add: assembleable_heap_def)
-  moreover from H have "3 dvd p\<^sub>h" by (simp add: assembleable_heap_def)
-  ultimately have "p\<^sub>h < 3 + p\<^sub>h \<Longrightarrow> snd (?f p\<^sub>h) = 0 \<Longrightarrow> 
-    even (snd (?g p\<^sub>h)) \<and> snd (?g p\<^sub>h) \<le> p\<^sub>\<Delta> \<and> 0 < snd (?h p\<^sub>h) \<and> snd (?h p\<^sub>h) \<le> lcd" by blast
-  moreover assume "lcd \<noteq> 0"
-  ultimately show "even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd" by simp
+  hence X: "Suc p\<^sub>h < 3 + p\<^sub>h \<Longrightarrow> fst (?f (Suc p\<^sub>h)) = PEnv \<Longrightarrow> 
+    even (snd (?f (Suc p\<^sub>h))) \<and> snd (?f (Suc p\<^sub>h)) \<le> p\<^sub>\<Delta>" by blast
+  from H have "\<And>x. x < 3 + p\<^sub>h \<Longrightarrow> fst (?f x) = PCode \<Longrightarrow> 0 < snd (?f x) \<and> snd (?f x) \<le> lcd" 
+    by (simp add: assembleable_heap_def)
+  hence "Suc (Suc p\<^sub>h) < 3 + p\<^sub>h \<Longrightarrow> fst (?f (Suc (Suc p\<^sub>h))) = PCode \<Longrightarrow> 
+    0 < snd (?f (Suc (Suc p\<^sub>h))) \<and> snd (?f (Suc (Suc p\<^sub>h))) \<le> lcd" by blast
+  with X show "even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd" by simp
 next
   assume "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd" and "even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd"
   thus "assembleable_heap (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k), Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>))) 
-    (3 + p\<^sub>h) p\<^sub>\<Delta> lcd" by (auto simp add: assembleable_heap_def)
+    (3 + p\<^sub>h) p\<^sub>\<Delta> lcd" by (simp add: assembleable_heap_def)
 qed
 
 lemma [simp]: "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> assembleable_heap h p\<^sub>h (Suc (Suc p\<^sub>\<Delta>)) lcd"
@@ -372,24 +351,26 @@ lemma [elim]: "p < p\<^sub>\<Delta> \<Longrightarrow> odd p \<Longrightarrow> as
   by (simp add: assembleable_env_def)
 
 lemma [simp]: "assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> assembleable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> 
-  assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow>
+  assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> fst (h (Suc (\<V> p\<^sub>\<V>))) = PEnv \<Longrightarrow>
     assembleable_env (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) (Suc (Suc p\<^sub>\<Delta>)) p\<^sub>h"
 proof (unfold assembleable_env_def assembleable_vals_def assembleable_heap_def, 
        rule, simp, rule, rule)
   fix y 
-  assume "3 dvd p\<^sub>h \<and> (\<forall>x < p\<^sub>h. 3 dvd x \<longrightarrow> snd (h x) = 0 \<longrightarrow> 
-    even (snd (h (Suc x))) \<and> snd (h (Suc x)) \<le> p\<^sub>\<Delta> \<and> snd (h (Suc (Suc x))) \<noteq> 0 \<and> 
-      snd (h (Suc (Suc x))) \<le> lcd)"
-     and "snd (h (\<V> p\<^sub>\<V>)) = 0" and "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
-  hence "even (snd (h (Suc (\<V> p\<^sub>\<V>)))) \<and> snd (h (Suc (\<V> p\<^sub>\<V>))) \<le> p\<^sub>\<Delta>" by simp
+  assume "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
+  hence "3 dvd p\<^sub>h \<and> 3 dvd \<V> (p\<^sub>\<V>) \<and> \<V> (p\<^sub>\<V>) < p\<^sub>h" by simp
+  moreover assume "3 dvd p\<^sub>h \<and>
+         (\<forall>x<p\<^sub>h. fst (h x) = PEnv \<longrightarrow> even (snd (h x)) \<and> snd (h x) \<le> p\<^sub>\<Delta>) \<and>
+         (\<forall>x<p\<^sub>h. fst (h x) = PCode \<longrightarrow> snd (h x) \<noteq> 0 \<and> snd (h x) \<le> lcd)"
+    and "fst (h (Suc (\<V> p\<^sub>\<V>))) = PEnv" 
+  ultimately have "even (snd (h (Suc (\<V> p\<^sub>\<V>)))) \<and> snd (h (Suc (\<V> p\<^sub>\<V>))) \<le> p\<^sub>\<Delta>" by fastforce
   moreover assume "even p\<^sub>\<Delta> \<and> 
     (\<forall>x < p\<^sub>\<Delta>. if even x then 3 dvd \<Delta> x \<and> \<Delta> x < p\<^sub>h else even (\<Delta> x) \<and> \<Delta> x < p\<^sub>\<Delta>)"
               and "y < Suc (Suc p\<^sub>\<Delta>)" and "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
   ultimately show "if even y
-        then 3 dvd (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y \<and> 
-          (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y < p\<^sub>h
-        else even ((\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y) \<and>
-          (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y < Suc (Suc p\<^sub>\<Delta>)" by auto
+    then 3 dvd (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y \<and>
+      (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y < p\<^sub>h
+    else even ((\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y) \<and>
+      (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) y < Suc (Suc p\<^sub>\<Delta>)" by auto
 qed
 
 lemma [simp]: "assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h \<Longrightarrow> 
@@ -465,13 +446,31 @@ proof (unfold assembleable_stack_def)
     by auto
 qed
 
-lemma [simp]: "snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow> assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
-    assembleable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> 0 < snd (h (Suc (Suc (\<V> p\<^sub>\<V>))))"
-  by (simp add: assembleable_heap_def assembleable_vals_def)
+lemma [simp]: "fst (h (Suc (Suc (\<V> p\<^sub>\<V>)))) = PCode \<Longrightarrow> assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
+  assembleable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> 0 < snd (h (Suc (Suc (\<V> p\<^sub>\<V>))))"
+proof (unfold assembleable_heap_def assembleable_vals_def)
+  assume "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
+  hence "3 dvd p\<^sub>h \<and> 3 dvd \<V> p\<^sub>\<V> \<and> \<V> p\<^sub>\<V> < p\<^sub>h" by simp
+  hence "Suc (Suc (\<V> p\<^sub>\<V>)) < p\<^sub>h" by fastforce
+  moreover assume "3 dvd p\<^sub>h \<and>
+    (\<forall>x<p\<^sub>h. fst (h x) = PEnv \<longrightarrow> even (snd (h x)) \<and> snd (h x) \<le> p\<^sub>\<Delta>) \<and>
+    (\<forall>x<p\<^sub>h. fst (h x) = PCode \<longrightarrow> snd (h x) \<noteq> 0 \<and> snd (h x) \<le> lcd)"
+     and "fst (h (Suc (Suc (\<V> p\<^sub>\<V>)))) = PCode"
+  ultimately show "0 < snd (h (Suc (Suc (\<V> p\<^sub>\<V>))))" by simp
+qed
 
-lemma [simp]: "snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow> assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
+lemma [simp]: "fst (h (Suc (Suc (\<V> p\<^sub>\<V>)))) = PCode \<Longrightarrow> assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
     assembleable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))) \<le> lcd"
-  by (simp add: assembleable_heap_def assembleable_vals_def)
+proof (unfold assembleable_heap_def assembleable_vals_def)
+  assume "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
+  hence "3 dvd p\<^sub>h \<and> 3 dvd \<V> p\<^sub>\<V> \<and> \<V> p\<^sub>\<V> < p\<^sub>h" by simp
+  hence "Suc (Suc (\<V> p\<^sub>\<V>)) < p\<^sub>h" by fastforce
+  moreover assume "3 dvd p\<^sub>h \<and>
+    (\<forall>x<p\<^sub>h. fst (h x) = PEnv \<longrightarrow> even (snd (h x)) \<and> snd (h x) \<le> p\<^sub>\<Delta>) \<and>
+    (\<forall>x<p\<^sub>h. fst (h x) = PCode \<longrightarrow> snd (h x) \<noteq> 0 \<and> snd (h x) \<le> lcd)"
+     and "fst (h (Suc (Suc (\<V> p\<^sub>\<V>)))) = PCode"
+  ultimately show "snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))) \<le> lcd" by simp
+qed
 
 lemma [elim]: "unstr_lookup \<Delta> p x = Some y \<Longrightarrow> p \<le> p\<^sub>\<Delta> \<Longrightarrow> even p \<Longrightarrow> assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> 
   y < p\<^sub>h"
@@ -513,10 +512,6 @@ proof -
   ultimately show "3 dvd y" by auto
 qed
 
-lemma [simp]: "snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow> assembleable_heap h p\<^sub>h p\<^sub>\<Delta> (length \<C>) \<Longrightarrow> 
-    assembleable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))) \<noteq> 0"
-  by simp
-
 lemma [elim]: "assembleable_stack s (Suc (Suc p\<^sub>s)) p\<^sub>\<Delta> lcd \<Longrightarrow> assembleable_stack s p\<^sub>s p\<^sub>\<Delta> lcd"
   by (unfold assembleable_stack_def, rule) simp
 
@@ -539,92 +534,36 @@ lemma [simp]: "assembleable_vals nmem 0 0"
 lemma [simp]: "assembleable_stack (nmem(0 := 0, Suc 0 := 0)) 2 0 lcd"
   by (simp only: assembleable_stack_def) simp_all
 
-
-
-
-
-
-
-
-lemma [simp]: "assembleable_heap h hp ep (length cd) \<Longrightarrow> (assm_hp cd h hp)
-  (hp := (Acc, Suc a), Suc hp := (Acc, b), Suc (Suc hp) := (Acc, c)) = 
-    assm_hp cd (h(hp := (PConst, Suc a), Suc hp := (PConst, b), Suc (Suc hp) := (PConst, c))) 
-      (Suc (Suc (Suc hp)))"
-proof
-  fix x
-  assume "assembleable_heap h hp ep (length cd)"
-  hence "3 dvd hp" by (simp add: assembleable_heap_def)
-  moreover hence "Suc hp mod 3 = 1" by presburger
-  moreover hence "Suc (Suc hp) mod 3 = 2" by presburger
-  ultimately show "((assm_hp cd h hp)
-    (hp := (Acc, Suc a), Suc hp := (Acc, b), Suc (Suc hp) := (Acc, c))) x =
-      assm_hp cd (h(hp := (PConst, Suc a), Suc hp := (PConst, b), Suc (Suc hp) := (PConst, c))) 
-        (Suc (Suc (Suc hp))) x" 
-    by (simp add: assm_hp_lemma1 assm_hp_lemma2 assm_hp_lemma3 assm_hp_lemma4 assm_hp_lemma5)
+lemma [simp]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> Suc (vs vp) < hp"
+proof (unfold assembleable_vals_def)
+  assume "3 dvd hp \<and> (\<forall>x<Suc (Suc vp). 3 dvd vs x \<and> vs x < hp)"
+  hence "3 dvd hp \<and> 3 dvd vs vp \<and> vs vp < hp" by simp
+  thus ?thesis by fastforce
 qed
 
-lemma [simp]: "assembleable_heap h hp ep (length cd) \<Longrightarrow> (assm_hp cd h hp)
-  (hp := (Acc, 0), Suc hp := (Env, a), Suc (Suc hp) := (Acc, assembly_map cd b)) = 
+lemma [simp]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> Suc (Suc (vs vp)) < hp"
+proof (unfold assembleable_vals_def)
+  assume "3 dvd hp \<and> (\<forall>x<Suc (Suc vp). 3 dvd vs x \<and> vs x < hp)"
+  hence "3 dvd hp \<and> 3 dvd vs vp \<and> vs vp < hp" by simp
+  thus ?thesis by fastforce
+qed
+
+
+
+
+
+
+
+lemma [simp]: "(assm_hp cd h hp)(hp := (Acc, Suc a), Suc hp := (Acc, b), Suc (Suc hp) := (Acc, c)) = 
+  assm_hp cd (h(hp := (PConst, Suc a), Suc hp := (PConst, b), Suc (Suc hp) := (PConst, c))) 
+    (Suc (Suc (Suc hp)))"
+  by (auto simp add: assemble_heap_def)
+
+lemma [simp]: "(assm_hp cd h hp) (hp := (Acc, 0), Suc hp := (Env, a), 
+  Suc (Suc hp) := (Acc, assembly_map cd b)) = 
     assm_hp cd (h(hp := (PConst, 0), Suc hp := (PEnv, a), Suc (Suc hp) := (PCode, b))) 
       (Suc (Suc (Suc hp)))"
-proof
-  fix x
-  assume "assembleable_heap h hp ep (length cd)"
-  hence H: "3 dvd hp" by (simp add: assembleable_heap_def)
-  moreover hence "Suc hp mod 3 = 1" by presburger
-  moreover hence "Suc (Suc hp) mod 3 = 2" by presburger
-  ultimately show "((assm_hp cd h hp)(hp := (Acc, 0), Suc hp := (Env, a), 
-    Suc (Suc hp) := (Acc, assembly_map cd b))) x =
-      assm_hp cd (h(hp := (PConst, 0), Suc hp := (PEnv, a), Suc (Suc hp) := (PCode, b))) 
-        (Suc (Suc (Suc hp))) x" 
-    by (simp add: assm_hp_lemma1 assm_hp_lemma2 assm_hp_lemma3 assm_hp_lemma4 assm_hp_lemma5)
-qed
-
-lemma [simp]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> 
-  assemble_heap mp h hp (Suc (vs vp)) = 
-    (if snd (h (vs vp)) = 0 then Env else Acc, snd (h (Suc (vs vp))))"
-proof (unfold assemble_heap_def assembleable_vals_def)
-  assume "3 dvd hp \<and> (\<forall>x<Suc (Suc vp). 3 dvd vs x \<and> vs x < hp)"
-  moreover hence X: "3 dvd vs vp \<and> vs vp < hp" by simp
-  ultimately have "Suc (vs vp) < hp" by fastforce
-  moreover from X have "Suc (vs vp) mod 3 = 1" by presburger
-  ultimately show "(if Suc (vs vp) \<ge> hp then (Acc, 0) else case Suc (vs vp) mod 3 of 
-       0 \<Rightarrow> (Acc, snd (h (Suc (vs vp))))
-     | Suc 0 \<Rightarrow> (if snd (h (Suc (vs vp) - 1)) = 0 then Env else Acc, snd (h (Suc (vs vp))))
-     | Suc (Suc 0) \<Rightarrow> if snd (h (Suc (vs vp) - 2)) = 0 then (Acc, mp (snd (h (Suc (vs vp))))) 
-        else (Acc, snd (h (Suc (vs vp))))
-     | Suc (Suc (Suc x)) \<Rightarrow> undefined) = (if snd (h (vs vp)) = 0 then Env else Acc, 
-        snd (h (Suc (vs vp))))" 
-    by simp
-qed
-
-lemma [simp]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> snd (h (vs vp)) = 0 \<Longrightarrow> 
-  assembleable_heap h hp ep lcd \<Longrightarrow>
-    assemble_heap mp h hp (Suc (Suc (vs vp))) = (Acc, mp (snd (h (Suc (Suc (vs vp))))))"
-proof (unfold assemble_heap_def assembleable_vals_def)
-  assume "3 dvd hp \<and> (\<forall>x<Suc (Suc vp). 3 dvd vs x \<and> vs x < hp)"
-  hence "3 dvd vs vp \<and> vs vp < hp" by simp
-  moreover assume "assembleable_heap h hp ep lcd"
-  moreover hence "3 dvd hp" by auto
-  ultimately have "Suc (Suc (vs vp)) mod 3 = 2 \<and> Suc (Suc (vs vp)) < hp" by presburger
-  moreover assume "snd (h (vs vp)) = 0"
-  ultimately show "(if (Suc (Suc (vs vp))) \<ge> hp then (Acc, 0) else case Suc (Suc (vs vp)) mod 3 of 
-       0 \<Rightarrow> (Acc, snd (h (Suc (Suc (vs vp)))))
-     | Suc 0 \<Rightarrow> (if snd (h (Suc (Suc (vs vp)) - 1)) = 0 then Env 
-        else Acc, snd (h (Suc (Suc (vs vp)))))
-     | Suc (Suc 0) \<Rightarrow>
-         if snd (h (Suc (Suc (vs vp)) - 2)) = 0 then (Acc, mp (snd (h (Suc (Suc (vs vp))))))
-        else (Acc, snd (h (Suc (Suc (vs vp)))))
-     | Suc (Suc (Suc x)) \<Rightarrow> undefined) = (Acc, mp (snd (h (Suc (Suc (vs vp))))))" 
-    by simp
-qed
-
-lemma [simp]: "Suc (Suc (vs vp)) mod 3 \<noteq> Suc (Suc (Suc x))" 
-  by simp
-
-lemma [simp]: "snd (h (vs vp)) = Suc x \<Longrightarrow> vs vp mod 3 = 0 \<Longrightarrow> Suc (Suc (vs vp)) < hp \<Longrightarrow>
-    assemble_heap mp h hp (Suc (Suc (vs vp))) = (Acc, snd (h (Suc (Suc (vs vp)))))"
-  by (simp add: assemble_heap_def split: nat.splits) presburger
+  by (auto simp add: assemble_heap_def)
 
 lemma [simp]: "even sp \<Longrightarrow> 
   (assm_stk cd sh sp)(sp := (Acc, assembly_map cd pc), Suc sp := (Env, a)) = 
@@ -651,9 +590,43 @@ lemma [simp]: "(assemble_vals vs vp)(vp := (Hp, y)) = assemble_vals (vs(vp := y)
 lemma [simp]: "(assemble_vals vs (Suc vp))(vp := (Acc, 0)) = assemble_vals vs vp"
   by rule (simp add: assemble_vals_def)
 
-lemma [simp]: "even ep \<Longrightarrow> (assemble_env e ep)(ep := (Hp, a), Suc ep := (Env, b)) = 
-    assemble_env (e(ep := a, Suc ep := b)) (Suc (Suc ep))"
-  by (auto simp add: assemble_env_def)
+lemma [elim]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> fst (h (Suc (vs vp))) = PEnv \<Longrightarrow> 
+    assm_hp cd h hp (Suc (vs vp)) = (a, b) \<Longrightarrow> a = Env"
+proof - 
+  assume "assembleable_vals vs (Suc (Suc vp)) hp"
+  hence "Suc (vs vp) < hp" by simp
+  thus "fst (h (Suc (vs vp))) = PEnv \<Longrightarrow> assm_hp cd h hp (Suc (vs vp)) = (a, b) \<Longrightarrow> a = Env"
+    by (simp add: assemble_heap_def split: if_splits prod.splits)
+qed
+
+lemma [simp]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> fst (h (Suc (vs vp))) = PEnv \<Longrightarrow> 
+  even ep \<Longrightarrow> assm_hp cd h hp (Suc (vs vp)) = (k, b) \<Longrightarrow> 
+    (assemble_env e ep)(ep := (Hp, a), Suc ep := (k, b)) = 
+      assemble_env (e(ep := a, Suc ep := snd (h (Suc (vs vp))))) (Suc (Suc ep))"
+proof (rule, unfold assemble_env_def)
+  fix y
+  assume "assembleable_vals vs (Suc (Suc vp)) hp" 
+     and "fst (h (Suc (vs vp))) = PEnv"
+     and "assm_hp cd h hp (Suc (vs vp)) = (k, b)"
+  moreover hence "k = Env" by auto
+  moreover assume "even ep"
+  ultimately show "((\<lambda>x. if ep \<le> x then (Acc, 0) else (if even x then Hp else Env, e x)) 
+    (ep := (Hp, a), Suc ep := (k, b))) y =
+      (if Suc (Suc ep) \<le> y then (Acc, 0)
+        else (if even y then Hp else Env, (e(ep := a, Suc ep := snd (h (Suc (vs vp))))) y))" 
+    by (simp add: assemble_heap_def split: if_splits prod.splits)
+qed
+
+lemma assm_hp_code: "fst (h (Suc (Suc (vs vp)))) = PCode \<Longrightarrow> even ep \<Longrightarrow> 
+  assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow>
+    assm_hp cd h hp (Suc (Suc (vs vp))) = (Acc, assembly_map cd (snd (h (Suc (Suc (vs vp))))))"
+proof -
+  assume "assembleable_vals vs (Suc (Suc vp)) hp"
+  hence "Suc (Suc (vs vp)) < hp" by simp
+  thus "fst (h (Suc (Suc (vs vp)))) = PCode \<Longrightarrow> even ep \<Longrightarrow> 
+    assm_hp cd h hp (Suc (Suc (vs vp))) = (Acc, assembly_map cd (snd (h (Suc (Suc (vs vp))))))"
+      by (auto simp add: assemble_heap_def split: prod.splits pointer_tag.splits)
+  qed
 
 lemma [simp]: "(case_register hp ep vp sp a)(Hp := hp') = case_register hp' ep vp sp a"
   by rule (simp split: register.splits)
@@ -851,6 +824,9 @@ next
     Some (APut Vals (Con 0))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AAdd Acc 2)" by (simp del: add_2_eq_Suc)
+  moreover from ev\<^sub>u_apply have "assm_hp cd h hp (Suc (Suc (vs vp))) = 
+    (Acc, assembly_map cd (snd (h (Suc (Suc (vs vp))))))" 
+      by (metis assm_hp_code assembleable.simps)
   ultimately have "iter_evala (assemble_code cd) 22 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp)) undefined) 
       (case_register hp ep (Suc (Suc vp)) (Suc sp) 0) Acc (assembly_map cd (Suc pc))) = 
@@ -859,7 +835,7 @@ next
             (assm_stk cd (sh(Suc sp := pc, Suc (Suc sp) := Suc (Suc ep))) (Suc (Suc (Suc sp)))) undefined) 
               (case_register hp (Suc (Suc ep)) vp (Suc (Suc (Suc sp))) 0) Acc
                 (assembly_map cd (snd (h (Suc (Suc (vs vp)))))))"
-    by (auto simp add: numeral_def assemble_vals_def)
+    by (auto simp add: numeral_def assemble_vals_def split: prod.splits)
   thus ?case by auto
 next
   case (ev\<^sub>u_return cd pc h hp e ep vs vp sh sp)
@@ -919,6 +895,9 @@ next
     Some (APut Vals (Con 0))" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AAdd Acc 2)" by (simp del: add_2_eq_Suc)
+  moreover from ev\<^sub>u_jump have "assm_hp cd h hp (Suc (Suc (vs vp))) = 
+    (Acc, assembly_map cd (snd (h (Suc (Suc (vs vp))))))" 
+      by (metis assm_hp_code assembleable.simps)
   ultimately have "iter_evala (assemble_code cd) 21 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp)) undefined) 
       (case_register hp ep (Suc (Suc vp)) (Suc sp) 0) Acc (assembly_map cd (Suc pc))) = 
@@ -926,7 +905,7 @@ next
           Suc ep := snd (h (Suc (vs vp))))) (Suc (Suc ep))) (assemble_vals vs vp) 
             (assm_stk cd (sh(sp := Suc (Suc ep))) (Suc sp)) undefined) (case_register hp 
               (Suc (Suc ep)) vp (Suc sp) 0) Acc (assembly_map cd (snd (h (Suc (Suc (vs vp)))))))"
-    by (auto simp add: numeral_def assemble_vals_def)
+    by (auto simp add: numeral_def assemble_vals_def split: prod.splits)
   thus ?case by auto
 qed
 

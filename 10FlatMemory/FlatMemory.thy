@@ -32,13 +32,15 @@ inductive eval\<^sub>f :: "code\<^sub>b list \<Rightarrow> state\<^sub>f \<Right
 | ev\<^sub>f_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>') \<Longrightarrow> 
     halloc_list h [(PConst, 0), (PEnv, p\<^sub>\<Delta>), (PCode, p\<^sub>\<C>')] = (h', v) \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h' \<Delta> (v # \<V>) (p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
-| ev\<^sub>f_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> snd (hlookup h v\<^sub>2) = 0 \<Longrightarrow> 
+| ev\<^sub>f_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> fst (hlookup h (Suc v\<^sub>2)) = PEnv \<Longrightarrow> 
+    fst (hlookup h (Suc (Suc v\<^sub>2))) = PCode \<Longrightarrow> 
     halloc_list \<Delta> [v\<^sub>1, snd (hlookup h (Suc v\<^sub>2))] = (\<Delta>', p\<^sub>\<Delta>') \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f 
       S\<^sub>f h \<Delta>' \<V> (snd (hlookup h (Suc (Suc v\<^sub>2))) # Suc (Suc p\<^sub>\<Delta>') # p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
 | ev\<^sub>f_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta> \<V> s"
-| ev\<^sub>f_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> snd (hlookup h v\<^sub>2) = 0 \<Longrightarrow> 
+| ev\<^sub>f_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> fst (hlookup h (Suc v\<^sub>2)) = PEnv \<Longrightarrow> 
+    fst (hlookup h (Suc (Suc v\<^sub>2))) = PCode \<Longrightarrow> 
     halloc_list \<Delta> [v\<^sub>1, snd (hlookup h (Suc v\<^sub>2))] = (\<Delta>', p\<^sub>\<Delta>') \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f 
         S\<^sub>f h \<Delta>' \<V> (snd (hlookup h (Suc (Suc v\<^sub>2))) # Suc (Suc p\<^sub>\<Delta>') # s)"
@@ -55,13 +57,13 @@ next
   from ev\<^sub>f_pushlam(3, 1, 2) show ?case by (induction rule: eval\<^sub>f.cases) simp_all  
 next
   case ev\<^sub>f_apply
-  from ev\<^sub>f_apply(4, 1, 2, 3) show ?case by (induction rule: eval\<^sub>f.cases) simp_all  
+  from ev\<^sub>f_apply(5, 1, 2, 3, 4) show ?case by (induction rule: eval\<^sub>f.cases) simp_all  
 next
   case ev\<^sub>f_return
   from ev\<^sub>f_return(2, 1) show ?case by (induction rule: eval\<^sub>f.cases) simp_all 
 next
   case ev\<^sub>f_jump
-  from ev\<^sub>f_jump(4, 1, 2, 3) show ?case by (induction rule: eval\<^sub>f.cases) simp_all 
+  from ev\<^sub>f_jump(5, 1, 2, 3, 4) show ?case by (induction rule: eval\<^sub>f.cases) simp_all 
 qed
 
 end

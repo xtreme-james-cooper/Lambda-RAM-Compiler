@@ -140,7 +140,9 @@ next
   moreover hence "halloc_list (flatten_environment \<Delta>) 
     [3 * v\<^sub>1, snd (hlookup (flatten_values h) (Suc (3 * v\<^sub>2)))] = (flatten_environment \<Delta>', 2 * p\<^sub>\<Delta>'')" 
       by simp
-  moreover from ev\<^sub>v_apply have "snd (hlookup (flatten_values h) (3 * v\<^sub>2)) = 0" by simp
+  moreover from ev\<^sub>v_apply have "fst (hlookup (flatten_values h) (Suc (3 * v\<^sub>2))) = PEnv" by simp
+  moreover from ev\<^sub>v_apply have "fst (hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2)))) = PCode" 
+    by simp
   ultimately have "\<C> \<tturnstile> S\<^sub>f (flatten_values h) (flatten_environment \<Delta>) 
       (3 * v\<^sub>1 # 3 * v\<^sub>2 # flatten_vals \<V>) (Suc p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # flatten_stack s) \<leadsto>\<^sub>f 
     S\<^sub>f (flatten_values h) (flatten_environment \<Delta>') (flatten_vals \<V>) 
@@ -153,8 +155,10 @@ next
   moreover hence "halloc_list (flatten_environment \<Delta>) 
     [3 * v\<^sub>1, snd (hlookup (flatten_values h) (Suc (3 * v\<^sub>2)))] = (flatten_environment \<Delta>', 2 * p\<^sub>\<Delta>'')" 
       by simp
-  moreover from ev\<^sub>v_jump have "snd (hlookup (flatten_values h) (3 * v\<^sub>2)) = 0" by simp
-  ultimately have "\<C> \<tturnstile> S\<^sub>f (flatten_values h) (flatten_environment \<Delta>) 
+  moreover from ev\<^sub>v_jump have "fst (hlookup (flatten_values h) (Suc (3 * v\<^sub>2))) = PEnv" by simp
+  moreover from ev\<^sub>v_jump have "fst (hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2)))) = PCode" 
+    by simp
+  ultimately have "\<C> \<tturnstile> S\<^sub>f (flatten_values h) (flatten_environment \<Delta>)
       (3 * v\<^sub>1 # 3 * v\<^sub>2 # flatten_vals \<V>) (Suc p\<^sub>\<C> # 2 * p\<^sub>\<Delta> # flatten_stack s) \<leadsto>\<^sub>f 
     S\<^sub>f (flatten_values h) (flatten_environment \<Delta>') (flatten_vals \<V>) 
       (snd (hlookup (flatten_values h) (Suc (Suc (3 * v\<^sub>2)))) # Suc (Suc (2 * p\<^sub>\<Delta>'')) # flatten_stack s)"

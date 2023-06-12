@@ -82,10 +82,6 @@ lemma suc_mult_lt_lemma [simp]: "x < y \<Longrightarrow> 1 < k \<Longrightarrow>
   by (metis One_nat_def Suc_lessE Suc_lessI Suc_mult_less_cancel1 Suc_times_mod_eq 
             mod_mult_self1_is_0 nat.simps(3))
 
-lemma x_mod_3_induct [case_names 0 1 2]: "((x::nat) mod 3 = 0 \<Longrightarrow> P x) \<Longrightarrow> (x mod 3 = 1 \<Longrightarrow> P x) \<Longrightarrow> 
-    (x mod 3 = 2 \<Longrightarrow> P x) \<Longrightarrow> P x"
-  by linarith
-
 lemma upd_the [simp]: "the \<circ> (f(x \<mapsto> a)) = (the \<circ> f)(x := a)"
   by auto
 

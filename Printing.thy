@@ -39,18 +39,16 @@ primrec print_ceclosure :: "closure\<^sub>v \<Rightarrow> print" where
   "print_ceclosure (Const\<^sub>v n) = Number n"
 | "print_ceclosure (Lam\<^sub>v cs pc) = Fun"
 
-fun print_uval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print" where
-  "print_uval h p = (case h p of
-      0 \<Rightarrow> Fun
-    | Suc x \<Rightarrow> Number (h (Suc p)))"
+primrec print_uval :: "ty \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print" where
+  "print_uval (Arrow t\<^sub>1 t\<^sub>2) h p = Fun"
+| "print_uval Num h p = Number (h (Suc p))"
 
-fun print_mval :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print" where
-  "print_mval m p = (case m p of
-      0 \<Rightarrow> Fun
-    | Suc x \<Rightarrow> Number (m (4 + p)))"
+primrec print_mval :: "ty \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print" where
+  "print_mval (Arrow t\<^sub>1 t\<^sub>2) m p = Fun"
+| "print_mval Num m p = Number (m (4 + p))"
 
-primrec print_mach_state :: "mach_state \<Rightarrow> print" where
-  "print_mach_state (MS rs mem pc) = print_mval mem (mem 2)"
+primrec print_mach_state :: "ty \<Rightarrow> mach_state \<Rightarrow> print" where
+  "print_mach_state t (MS rs mem pc) = print_mval t mem (mem 2)"
 
 lemma [simp]: "print_nexpr (erase e) = print_nexpr e" 
   by (induction e) simp_all
@@ -80,42 +78,65 @@ lemma print_ce [simp]: "hcontains h x \<Longrightarrow>
     print_ceclosure (hlookup h x) = print_hclosure (hlookup (unchain_heap h env) x)"
   by (cases "hlookup h x") simp_all
 
-lemma print_a [simp]: "3 dvd x \<Longrightarrow> Suc x < hp \<Longrightarrow> 
-  print_uval (pseudoreg_map \<circ> assm_hp cd h hp) x = print_uval (snd \<circ> h) x"
-proof (induction "h x")
-  case (Pair t n)
-  thus ?case 
-  proof (induction n)
-    case (Suc nat)
-    hence "snd (h x) = Suc nat" by simp
-    moreover from Suc have "3 dvd x" and "Suc x < hp" by simp_all
-    moreover from Suc have "Suc x mod 3 = 1" by presburger
-    ultimately show ?case by (simp add: assm_hp_lemma1 assm_hp_lemma2 split: nat.splits)
-  qed (simp_all add: assemble_heap_def)
-qed
+primrec closure_ty :: "closure\<^sub>v \<Rightarrow> ty" where
+  "closure_ty (Const\<^sub>v n) = Num"
+| "closure_ty (Lam\<^sub>v cs pc) = Arrow undefined undefined"
 
-fun get_closure :: "(pointer_tag \<times> nat) heap \<Rightarrow> ptr \<Rightarrow> closure\<^sub>v" where
-  "get_closure h p = (case snd (hlookup h p) of
-      0 \<Rightarrow> Lam\<^sub>v (snd (hlookup h (Suc p))) (snd (hlookup h (Suc (Suc p))))
-    | Suc _ \<Rightarrow> Const\<^sub>v (snd (hlookup h (Suc p))))"
+primrec top_level :: "ty \<Rightarrow> ty" where
+  "top_level (Arrow t\<^sub>1 t\<^sub>2) = Arrow undefined undefined"
+| "top_level Num = Num"
 
-primrec flatten_closure' :: "closure\<^sub>v \<Rightarrow> closure\<^sub>v" where
-  "flatten_closure' (Const\<^sub>v k) = Const\<^sub>v k"
-| "flatten_closure' (Lam\<^sub>v p pc) = Lam\<^sub>v (2 * p) pc"
+primrec get_closure :: "ty \<Rightarrow> (pointer_tag \<times> nat) heap \<Rightarrow> ptr \<Rightarrow> closure\<^sub>v" where
+  "get_closure (Arrow t\<^sub>1 t\<^sub>2) h p = Lam\<^sub>v (snd (hlookup h (Suc p))) (snd (hlookup h (Suc (Suc p))))"
+| "get_closure Num h p = Const\<^sub>v (snd (hlookup h (Suc p)))"
 
-lemma [simp]: "print_ceclosure (flatten_closure' c) = print_ceclosure c"
-  by (induction c) simp_all
+lemma [dest]: "top_level t = Num \<Longrightarrow> t = Num"
+  by (induction t) simp_all
 
-lemma [simp]: "hcontains h v \<Longrightarrow> 
-    get_closure (flatten_values h) (3 * v) = flatten_closure' (hlookup h v)"
-  by (simp split: closure\<^sub>v.splits)
+lemma [dest]: "top_level t = Arrow undefined undefined \<Longrightarrow> \<exists>t\<^sub>1 t\<^sub>2. t = Arrow t\<^sub>1 t\<^sub>2"
+  by (induction t) simp_all
 
-lemma print_u [simp]: "print_uval (snd \<circ> h) p = print_ceclosure (get_closure (H h hp) p)"
-  by (cases "h p") (simp_all split: nat.splits)
+lemma [simp]: "Map.empty \<turnstile>\<^sub>t v\<^sub>t : t \<Longrightarrow> value\<^sub>s v\<^sub>t \<Longrightarrow> print_ceclosure c = print_nexpr v\<^sub>t \<Longrightarrow> 
+  closure_ty c = top_level t"
+proof (induction "Map.empty :: var \<rightharpoonup> ty" v\<^sub>t t rule: typing\<^sub>t.induct)
+  case (tc\<^sub>t_const n)
+  thus ?case by (cases c) simp_all
+next
+  case (tc\<^sub>t_lam x t\<^sub>1 e t\<^sub>2)
+  thus ?case by (cases c) simp_all
+qed simp_all
+
+lemma [simp]: "hcontains h v \<Longrightarrow> top_level t = closure_ty (hlookup h v) \<Longrightarrow>
+  print_ceclosure (get_closure t (flatten_values h) (3 * v)) = 
+    print_ceclosure (hlookup h v)"
+  by (cases "hlookup h v") auto
+
+lemma print_u [simp]: "print_uval t (snd \<circ> h) p = print_ceclosure (get_closure t (H h hp) p)"
+  by (induction t) simp_all
 
 lemma print_m [simp]: "unmap_mem' p = (a, b) \<Longrightarrow> 
-    print_mval (unmap_mem mem) p = print_uval (pseudoreg_map \<circ> mem a) b"
-  by (induction p rule: unmap_mem'.induct) 
-     (auto simp add: unmap_mem_def numeral_def split: nat.splits)
+    print_mval t (unmap_mem mem) p = print_uval t (pseudoreg_map \<circ> mem a) b"
+  by (induction t) (simp_all add: unmap_mem_def)
+
+primrec hp_tc :: "ty \<Rightarrow> (nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> ptr \<Rightarrow> bool" where
+  "hp_tc (Arrow t\<^sub>1 t\<^sub>2) h p = (fst (h (Suc p)) = PEnv \<and> fst (h (Suc (Suc p))) = PCode)"
+| "hp_tc Num h p = (fst (h (Suc p)) = PConst \<and> fst (h (Suc (Suc p))) = PConst)"
+
+lemma [simp]: "top_level t = closure_ty (hlookup h\<^sub>c\<^sub>e v\<^sub>h) \<Longrightarrow> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<Longrightarrow> 
+  hcontains h\<^sub>c\<^sub>e v\<^sub>h \<Longrightarrow> hp_tc t h\<^sub>u (3 * v\<^sub>h)"
+proof (induction h\<^sub>c\<^sub>e)
+  case (H h\<^sub>c\<^sub>e hp\<^sub>c\<^sub>e)
+  moreover hence "hlookup (H h\<^sub>u hp\<^sub>u) (1 + 3 * v\<^sub>h) = 
+    (case (h\<^sub>c\<^sub>e v\<^sub>h) of Const\<^sub>v n \<Rightarrow> (PConst, n) | Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> \<Rightarrow> (PEnv, 2 * p\<^sub>\<Delta>))" 
+      by (metis lookup_flat_closure_1 plus_1_eq_Suc hlookup.simps)
+  moreover from H have "hlookup (H h\<^sub>u hp\<^sub>u) (2 + 3 * v\<^sub>h) = 
+    (case (hlookup (H h\<^sub>c\<^sub>e hp\<^sub>c\<^sub>e) v\<^sub>h) of Const\<^sub>v n \<Rightarrow> (PConst, 0) | Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> \<Rightarrow> (PCode, p\<^sub>\<C>))" 
+      by (metis add_2_eq_Suc lookup_flat_closure_2)
+  ultimately show ?case by (cases "h\<^sub>c\<^sub>e v\<^sub>h") auto
+qed
+
+lemma print_a [simp]: "Suc x < hp \<Longrightarrow> hp_tc t h x \<Longrightarrow>
+    print_uval t (pseudoreg_map \<circ> assm_hp cd h hp) x = print_uval t (snd \<circ> h) x"
+  by (induction t) (auto simp add: assemble_heap_def split: prod.splits pointer_tag.splits)
 
 end

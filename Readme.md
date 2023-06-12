@@ -19,3 +19,4 @@ Refactorings:
 - Make all definitions abstract outside their file
 - rename closure stuff
 - Make late stage closures (post bytecode) a single parametric datatype?
+- Clean up isabelle - declare x.simps[intros], assumes/shows, patterns in pfs

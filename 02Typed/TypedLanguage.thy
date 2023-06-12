@@ -95,7 +95,7 @@ proof (induction x e' e arbitrary: \<Gamma> t rule: subst\<^sub>s.induct)
   with T show ?case by (simp add: Let_def)
 qed fastforce+
 
-theorem preservation\<^sub>t: "e \<Down>\<^sub>s v \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t v : t"
+theorem preservation\<^sub>t [simp]: "e \<Down>\<^sub>s v \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t v : t"
   by (induction e v arbitrary: t rule: eval\<^sub>s.induct) fastforce+
 
 text \<open>We also prove that the removed-shadow version of an expression typechecks if the original 

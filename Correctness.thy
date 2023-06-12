@@ -29,13 +29,13 @@ lemma [simp]: "properly_terminated\<^sub>e (encode e)"
 
 theorem tc_success: "alg_compile e = Some (cd, t) \<Longrightarrow> \<exists>e\<^sub>t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> erase e\<^sub>t = e \<and>
   (\<exists>v. value\<^sub>s v \<and> e \<Down>\<^sub>s v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
-    print_mach_state \<Sigma> = print_nexpr v))"
+    print_mach_state t \<Sigma> = print_nexpr v))"
 proof -
   assume C: "alg_compile e = Some (cd, t)"
   then obtain e\<^sub>t where T: "typecheck e = Some (e\<^sub>t, t)" by (auto split: option.splits prod.splits)
   hence TN: "(Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> e = erase e\<^sub>t" by simp
   then obtain v\<^sub>t where ET: "e\<^sub>t \<Down>\<^sub>s v\<^sub>t" by fastforce
-  hence VT: "value\<^sub>s v\<^sub>t" by simp
+  with TN have VT: "value\<^sub>s v\<^sub>t \<and> Map.empty \<turnstile>\<^sub>t v\<^sub>t : t" by simp
   hence VN: "value\<^sub>s (erase v\<^sub>t)" by simp
   from ET have EN: "erase e\<^sub>t \<Down>\<^sub>s erase v\<^sub>t" by simp
   from TN have TD: "[] \<turnstile>\<^sub>d unname e\<^sub>t : t" by simp
@@ -125,23 +125,26 @@ proof -
   moreover from EB have "print_bclosure v\<^sub>b = print_eclosure (tco_val (encode_closure c))" by simp
   ultimately have "print_bclosure v\<^sub>b = print_nexpr (erase v\<^sub>t)" by simp
   with SH have "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by simp
-  with VCE VH have "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by (metis print_ce)
-  with VH have "print_ceclosure (get_closure (flatten_values h\<^sub>c\<^sub>e) (3 * v\<^sub>h)) = print_nexpr (erase v\<^sub>t)" 
-    by (simp del: get_closure.simps)
-  with VU VSU have PU: "print_uval (snd \<circ> h\<^sub>u) (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
+  with VCE VH have PH: "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" 
+    by (metis print_ce)
+  with VT have TT: "top_level t = closure_ty (hlookup h\<^sub>c\<^sub>e v\<^sub>h)" by auto
+  with VH PH have "print_ceclosure (get_closure t (flatten_values h\<^sub>c\<^sub>e) (3 * v\<^sub>h)) = 
+    print_nexpr (erase v\<^sub>t)" by simp
+  with VU VSU have PU: "print_uval t (snd \<circ> h\<^sub>u) (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
   from VH VU VSU have SH: "Suc (vs\<^sub>u 0) < hp\<^sub>u" by (metis flatten_lt_3)
   from VSU have V3: "3 dvd vs\<^sub>u 0" by simp
-  with SH have PU2: "print_uval (pseudoreg_map \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = 
-    print_uval (snd \<circ> h\<^sub>u) (vs\<^sub>u 0)" by (metis print_a)
+  from VU VSU VH TT have "hp_tc t h\<^sub>u (vs\<^sub>u 0)" by simp
+  with SH V3 have PU2: "print_uval t (pseudoreg_map \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = 
+    print_uval t (snd \<circ> h\<^sub>u) (vs\<^sub>u 0)" by (metis print_a)
   have "unmap_mem' (unmap_mem ?mem 2) = (Hp, vs\<^sub>u 0)" 
   proof (induction "vs\<^sub>u 0")
     case (Suc x)
     hence "vs\<^sub>u 0 = Suc x" by simp
     thus ?case by (auto simp add: unmap_mem_def assemble_vals_def split: prod.splits)
   qed (simp add: unmap_mem_def assemble_vals_def)
-  hence "print_mval (unmap_mem ?mem) (unmap_mem ?mem 2) = 
-    print_uval (pseudoreg_map \<circ> ?mem Hp) (vs\<^sub>u 0)" using print_m by blast
-  with PU PU2 have PM: "print_mach_state (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) 
+  hence "print_mval t (unmap_mem ?mem) (unmap_mem ?mem 2) = 
+    print_uval t (pseudoreg_map \<circ> ?mem Hp) (vs\<^sub>u 0)" using print_m by blast
+  with PU PU2 have PM: "print_mach_state t (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) 
     (unmap_mem ?mem) 0) = print_nexpr (erase v\<^sub>t)" by simp
   have "final_state (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" by simp
   with VN TN EN EM PM show ?thesis by blast

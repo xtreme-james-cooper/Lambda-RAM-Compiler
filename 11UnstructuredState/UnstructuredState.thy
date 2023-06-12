@@ -35,14 +35,16 @@ inductive eval\<^sub>u :: "code\<^sub>b list \<Rightarrow> unstr_state \<Rightar
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
       S\<^sub>u (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, s p\<^sub>s), Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>'))) (3 + p\<^sub>h) \<Delta> p\<^sub>\<Delta> 
         (\<V>(p\<^sub>\<V> := p\<^sub>h)) (Suc p\<^sub>\<V>) s (Suc p\<^sub>s) p\<^sub>\<C>"
-| ev\<^sub>u_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow> 
+| ev\<^sub>u_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> fst (h (Suc (\<V> p\<^sub>\<V>))) = PEnv \<Longrightarrow> 
+    fst (h (Suc (Suc (\<V> p\<^sub>\<V>)))) = PCode \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> (Suc (Suc p\<^sub>\<V>)) s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
       S\<^sub>u h p\<^sub>h (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) (2 + p\<^sub>\<Delta>) \<V> p\<^sub>\<V>
         (s(Suc p\<^sub>s := p\<^sub>\<C>, Suc (Suc p\<^sub>s) := Suc (Suc p\<^sub>\<Delta>))) (2 + Suc p\<^sub>s) (snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))))"
 | ev\<^sub>u_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s (Suc (Suc p\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
       S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> p\<^sub>\<V> s p\<^sub>s (s p\<^sub>s)"
-| ev\<^sub>u_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> snd (h (\<V> p\<^sub>\<V>)) = 0 \<Longrightarrow> 
+| ev\<^sub>u_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> fst (h (Suc (\<V> p\<^sub>\<V>))) = PEnv \<Longrightarrow> 
+    fst (h (Suc (Suc (\<V> p\<^sub>\<V>)))) = PCode \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>u h p\<^sub>h \<Delta> p\<^sub>\<Delta> \<V> (Suc (Suc p\<^sub>\<V>)) s (Suc p\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>u 
       S\<^sub>u h p\<^sub>h (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := snd (h (Suc (\<V> p\<^sub>\<V>))))) (2 + p\<^sub>\<Delta>) \<V> p\<^sub>\<V>
         (s(p\<^sub>s := Suc (Suc p\<^sub>\<Delta>))) (Suc p\<^sub>s) (snd (h (Suc (Suc (\<V> p\<^sub>\<V>)))))"
@@ -60,13 +62,13 @@ next
   from ev\<^sub>u_pushlam(2, 1) show ?case by (induction rule: eval\<^sub>u.cases) simp_all
 next
   case ev\<^sub>u_apply
-  from ev\<^sub>u_apply(3, 1, 2) show ?case by (induction rule: eval\<^sub>u.cases) simp_all
+  from ev\<^sub>u_apply(4, 1, 2, 3) show ?case by (induction rule: eval\<^sub>u.cases) simp_all
 next
   case ev\<^sub>u_return
   from ev\<^sub>u_return(2, 1) show ?case by (induction rule: eval\<^sub>u.cases) simp_all
 next
   case ev\<^sub>u_jump
-  from ev\<^sub>u_jump(3, 1, 2) show ?case by (induction rule: eval\<^sub>u.cases) simp_all
+  from ev\<^sub>u_jump(4, 1, 2, 3) show ?case by (induction rule: eval\<^sub>u.cases) simp_all
 qed
 
 end
