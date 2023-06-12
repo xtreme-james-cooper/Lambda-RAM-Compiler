@@ -26,7 +26,6 @@ lemma [simp]: "properly_terminated\<^sub>e (e1 @ [Return\<^sub>e]) \<Longrightar
 lemma [simp]: "properly_terminated\<^sub>e (encode e)"
   by (induction e) (simp_all add: encode_def)
 
-
 theorem tc_success: "alg_compile e = Some (cd, t) \<Longrightarrow> \<exists>e\<^sub>t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> erase e\<^sub>t = e \<and>
   (\<exists>v. value\<^sub>s v \<and> e \<Down>\<^sub>s v \<and> (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>\<^sub>m) (initial_state cd) \<Sigma> \<and> 
     print_mach_state t \<Sigma> = print_nexpr v))"
@@ -79,19 +78,19 @@ proof -
   with ECE VCE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (S\<^sub>v hempty hempty [] [(0, length ?cd)]))
     (flatten (S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] []))" by (metis correct\<^sub>f_iter)
   hence EF: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (S\<^sub>f (H ?nmem 0) (H ?nmem 0) [] [length ?cd, 0])
-     (S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [])" by (simp add: hempty_def)
+     (S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [2 * v\<^sub>h] [])" by (simp add: hempty_def)
   with ECE CS have "chained_state \<Sigma>\<^sub>c\<^sub>e'" by (metis preserve_chained)
   with VCE have VH: "hcontains h\<^sub>c\<^sub>e v\<^sub>h" by simp
   with EF have "\<exists>\<Sigma>\<^sub>u'. 
     iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and>
-      S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by simp_all
+      S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [2 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by simp_all
   then obtain \<Sigma>\<^sub>u' where EU:
     "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
-      S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [3 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by blast
+      S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [2 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by blast
   moreover then obtain h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u where VU:
     "\<Sigma>\<^sub>u' = S\<^sub>u h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u 0 0 \<and> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<and> 
-      flatten_environment env\<^sub>h = H e\<^sub>u ep\<^sub>u \<and> listify_heap vs\<^sub>u vp\<^sub>u = 3 * v\<^sub>h # []" by auto
-  moreover hence VSU: "vs\<^sub>u 0 = 3 * v\<^sub>h \<and> vp\<^sub>u = 1" by auto
+      flatten_environment env\<^sub>h = H e\<^sub>u ep\<^sub>u \<and> listify_heap vs\<^sub>u vp\<^sub>u = 2 * v\<^sub>h # []" by auto
+  moreover hence VSU: "vs\<^sub>u 0 = 2 * v\<^sub>h \<and> vp\<^sub>u = 1" by auto
   ultimately have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 
     (length ?cd)) (S\<^sub>u h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   hence EU: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) 
@@ -128,11 +127,11 @@ proof -
   with VCE VH have PH: "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" 
     by (metis print_ce)
   with VT have TT: "top_level t = closure_ty (hlookup h\<^sub>c\<^sub>e v\<^sub>h)" by auto
-  with VH PH have "print_ceclosure (get_closure t (flatten_values h\<^sub>c\<^sub>e) (3 * v\<^sub>h)) = 
+  with VH PH have "print_ceclosure (get_closure t (flatten_values h\<^sub>c\<^sub>e) (2 * v\<^sub>h)) = 
     print_nexpr (erase v\<^sub>t)" by simp
   with VU VSU have PU: "print_uval t (snd \<circ> h\<^sub>u) (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
   from VH VU VSU have SH: "Suc (vs\<^sub>u 0) < hp\<^sub>u" by (metis flatten_lt_3)
-  from VSU have V3: "3 dvd vs\<^sub>u 0" by simp
+  from VSU have V3: "even (vs\<^sub>u 0)" by simp
   from VU VSU VH TT have "hp_tc t h\<^sub>u (vs\<^sub>u 0)" by simp
   with SH V3 have PU2: "print_uval t (pseudoreg_map \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = 
     print_uval t (snd \<circ> h\<^sub>u) (vs\<^sub>u 0)" by (metis print_a)

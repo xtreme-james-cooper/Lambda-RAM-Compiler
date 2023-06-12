@@ -5,11 +5,11 @@ begin
 
 primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
   "assemble_op_len (Lookup\<^sub>b x) = 7 + 2 * x"
-| "assemble_op_len (PushCon\<^sub>b k) = 7"
-| "assemble_op_len (PushLam\<^sub>b pc) = 11"
-| "assemble_op_len Apply\<^sub>b = 21"
+| "assemble_op_len (PushCon\<^sub>b k) = 5"
+| "assemble_op_len (PushLam\<^sub>b pc) = 9"
+| "assemble_op_len Apply\<^sub>b = 20"
 | "assemble_op_len Return\<^sub>b = 5"
-| "assemble_op_len Jump\<^sub>b = 20"
+| "assemble_op_len Jump\<^sub>b = 19"
 
 primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> code\<^sub>b \<Rightarrow> assm list" where
   "assemble_op mp ix (Lookup\<^sub>b x) = [
@@ -26,11 +26,9 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
     APut Acc (Reg Stk)]"
 | "assemble_op mp ix (PushCon\<^sub>b k) = [
     AAdd Hp 1, 
-    APut Hp (Reg Acc),
+    APut Hp (Con 0),
     AAdd Hp 1,  
     APut Hp (Con k),
-    AAdd Hp 1,  
-    APut Hp (Con 1), 
     AAdd Vals 1,
     APut Vals (Reg Hp)]"
 | "assemble_op mp ix (PushLam\<^sub>b pc) = [
@@ -39,8 +37,6 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
     APut Acc (Con 0),
     AAdd Hp 1, 
     APut Hp (Reg Acc),
-    AAdd Hp 1, 
-    APut Hp (Con 0),
     AGet Acc, 
     ASub Acc 1,
     APut Acc (Reg Stk),
@@ -49,13 +45,12 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
 | "assemble_op mp ix Apply\<^sub>b = [
     AJmp,
     AGet Acc,
-    AAdd Acc 2,
+    AAdd Acc 1,
     APut Vals (Con 0),
     AGet Vals,
     AAdd Env 1,
     APut Env (Reg Acc),
     AGet Acc,
-    AAdd Acc 1,
     AGet Vals,
     ASub Vals 1,
     AAdd Stk 1,
@@ -79,13 +74,12 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
 | "assemble_op mp ix Jump\<^sub>b = [
     AJmp,
     AGet Acc,
-    AAdd Acc 2,
+    AAdd Acc 1,
     APut Vals (Con 0),
     AGet Vals,
     AAdd Env 1,
     APut Env (Reg Acc),
     AGet Acc,
-    AAdd Acc 1,
     AGet Vals,
     ASub Vals 1,
     AAdd Stk 1,
@@ -262,16 +256,16 @@ lemma [simp]: "x \<noteq> hp \<Longrightarrow> assm_hp cd (h(hp := a)) (Suc hp) 
 
 
 definition assembleable_heap :: "(nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
-  "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd = (3 dvd p\<^sub>h \<and>
+  "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd = (even p\<^sub>h \<and>
     (\<forall>x < p\<^sub>h. fst (h x) = PEnv \<longrightarrow> even (snd (h x)) \<and> snd (h x) \<le> p\<^sub>\<Delta>) \<and> 
     (\<forall>x < p\<^sub>h. fst (h x) = PCode \<longrightarrow> snd (h x) \<noteq> 0 \<and> snd (h x) \<le> lcd))"
 
 definition assembleable_env :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
   "assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h = (even p\<^sub>\<Delta> \<and>
-    (\<forall>x < p\<^sub>\<Delta>. if even x then 3 dvd \<Delta> x \<and> \<Delta> x < p\<^sub>h else even (\<Delta> x) \<and> \<Delta> x < p\<^sub>\<Delta>))"
+    (\<forall>x < p\<^sub>\<Delta>. even (\<Delta> x) \<and> (if even x then \<Delta> x < p\<^sub>h else \<Delta> x < p\<^sub>\<Delta>)))"
 
 definition assembleable_vals :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
-  "assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h = (3 dvd p\<^sub>h \<and> (\<forall>x < p\<^sub>\<V>. 3 dvd \<V> x \<and> \<V> x < p\<^sub>h))"
+  "assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h = (even p\<^sub>h \<and> (\<forall>x < p\<^sub>\<V>. even (\<V> x) \<and> \<V> x < p\<^sub>h))"
 
 definition assembleable_stack :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> bool" where
   "assembleable_stack s p\<^sub>s p\<^sub>\<Delta> lcd = (\<forall>x < p\<^sub>s. 
@@ -301,85 +295,74 @@ lemma [dest]: "x \<noteq> y \<Longrightarrow> x < Suc y \<Longrightarrow> x < y"
 lemma [dest]: "x \<noteq> y \<Longrightarrow> x \<noteq> Suc y \<Longrightarrow> x < Suc (Suc y) \<Longrightarrow> x < y"
   by presburger
 
-lemma [simp]: "3 dvd x \<Longrightarrow> 3 dvd Suc x = False"
-  by presburger
-
-lemma [simp]: "3 dvd x \<Longrightarrow> 3 dvd Suc (Suc x) = False"
-  by presburger
-
 lemma [elim]: "assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> even p\<^sub>\<Delta>"
   by (simp add: assembleable_env_def)
 
-lemma [elim]: "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 3 dvd p\<^sub>h"
+lemma [elim]: "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> even p\<^sub>h"
   by (simp add: assembleable_heap_def)
 
 lemma [simp]: "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
-    assembleable_heap (h(p\<^sub>h := (PConst, Suc 0), Suc p\<^sub>h := (PConst, k), Suc (Suc p\<^sub>h) := (PConst, 0))) 
-      (3 + p\<^sub>h) p\<^sub>\<Delta> lcd"
+    assembleable_heap (h(p\<^sub>h := (PConst, k), Suc p\<^sub>h := (PConst, 0))) (Suc (Suc p\<^sub>h)) p\<^sub>\<Delta> lcd"
   by (auto simp add: assembleable_heap_def)
 
-lemma [simp]: "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> lcd \<noteq> 0 \<Longrightarrow>
-  assembleable_heap (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k), Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>))) 
-    (3 + p\<^sub>h) p\<^sub>\<Delta> lcd = (even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd)"
+lemma [simp]: "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
+  assembleable_heap (h(p\<^sub>h := (PEnv, k), Suc p\<^sub>h := (PCode, p\<^sub>\<C>))) (Suc (Suc p\<^sub>h)) p\<^sub>\<Delta> lcd = 
+    (even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd)"
 proof
-  let ?f = 
-    "\<lambda>x. (if x = Suc (Suc p\<^sub>h) then (PCode, p\<^sub>\<C>) else (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k))) x)"
-  assume H: "assembleable_heap (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k), 
-    Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>))) (3 + p\<^sub>h) p\<^sub>\<Delta> lcd"
-  hence "\<And>x. x < 3 + p\<^sub>h \<Longrightarrow> fst (?f x) = PEnv \<Longrightarrow> even (snd (?f x)) \<and> snd (?f x) \<le> p\<^sub>\<Delta>" 
-    by (simp add: assembleable_heap_def)
-  hence X: "Suc p\<^sub>h < 3 + p\<^sub>h \<Longrightarrow> fst (?f (Suc p\<^sub>h)) = PEnv \<Longrightarrow> 
-    even (snd (?f (Suc p\<^sub>h))) \<and> snd (?f (Suc p\<^sub>h)) \<le> p\<^sub>\<Delta>" by blast
-  from H have "\<And>x. x < 3 + p\<^sub>h \<Longrightarrow> fst (?f x) = PCode \<Longrightarrow> 0 < snd (?f x) \<and> snd (?f x) \<le> lcd" 
-    by (simp add: assembleable_heap_def)
-  hence "Suc (Suc p\<^sub>h) < 3 + p\<^sub>h \<Longrightarrow> fst (?f (Suc (Suc p\<^sub>h))) = PCode \<Longrightarrow> 
-    0 < snd (?f (Suc (Suc p\<^sub>h))) \<and> snd (?f (Suc (Suc p\<^sub>h))) \<le> lcd" by blast
-  with X show "even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd" by simp
+  let ?f = "\<lambda>x. if x = Suc p\<^sub>h then (PCode, p\<^sub>\<C>) else (h(p\<^sub>h := (PEnv, k))) x"
+
+  assume "assembleable_heap (h(p\<^sub>h := (PEnv, k), Suc p\<^sub>h := (PCode, p\<^sub>\<C>))) (Suc (Suc p\<^sub>h)) p\<^sub>\<Delta> lcd"
+  hence X: "even p\<^sub>h \<and>
+    (\<forall>x<Suc (Suc p\<^sub>h). fst (?f x) = PEnv \<longrightarrow> even (snd (?f x)) \<and> snd (?f x) \<le> p\<^sub>\<Delta>) \<and>
+    (\<forall>x<Suc (Suc p\<^sub>h). fst (?f x) = PCode \<longrightarrow> 0 < snd (?f x) \<and> snd (?f x) \<le> lcd)" 
+      by (simp add: assembleable_heap_def)
+  hence "p\<^sub>h < Suc (Suc p\<^sub>h) \<Longrightarrow> fst (?f p\<^sub>h) = PEnv \<Longrightarrow> even (snd (?f p\<^sub>h)) \<and> snd (?f p\<^sub>h) \<le> p\<^sub>\<Delta>" by blast
+  moreover from X have "Suc p\<^sub>h < Suc (Suc p\<^sub>h) \<Longrightarrow> fst (?f (Suc p\<^sub>h)) = PCode \<Longrightarrow> 
+    0 < snd (?f (Suc p\<^sub>h)) \<and> snd (?f (Suc p\<^sub>h)) \<le> lcd" by blast
+  ultimately show "even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd" by simp
 next
   assume "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd" and "even k \<and> k \<le> p\<^sub>\<Delta> \<and> p\<^sub>\<C> \<noteq> 0 \<and> p\<^sub>\<C> \<le> lcd"
-  thus "assembleable_heap (h(p\<^sub>h := (PConst, 0), Suc p\<^sub>h := (PEnv, k), Suc (Suc p\<^sub>h) := (PCode, p\<^sub>\<C>))) 
-    (3 + p\<^sub>h) p\<^sub>\<Delta> lcd" by (simp add: assembleable_heap_def)
+  thus "assembleable_heap (h(p\<^sub>h := (PEnv, k), Suc p\<^sub>h := (PCode, p\<^sub>\<C>))) (Suc (Suc p\<^sub>h)) p\<^sub>\<Delta> lcd" 
+    by (simp add: assembleable_heap_def)
 qed
 
 lemma [simp]: "assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> assembleable_heap h p\<^sub>h (Suc (Suc p\<^sub>\<Delta>)) lcd"
   by (auto simp add: assembleable_heap_def)
 
-lemma [simp]: "assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> assembleable_env \<Delta> p\<^sub>\<Delta> (3 + p\<^sub>h)"
+lemma [simp]: "assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> assembleable_env \<Delta> p\<^sub>\<Delta> (Suc (Suc p\<^sub>h))"
   by (auto simp add: assembleable_env_def)
 
 lemma [elim]: "p < p\<^sub>\<Delta> \<Longrightarrow> odd p \<Longrightarrow> assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> \<Delta> p < p\<^sub>\<Delta>"
   by (simp add: assembleable_env_def)
 
 lemma [simp]: "assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> assembleable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> 
-  assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> h (Suc (\<V> p\<^sub>\<V>)) = (PEnv, p\<^sub>\<Delta>') \<Longrightarrow>
+  assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> h (\<V> p\<^sub>\<V>) = (PEnv, p\<^sub>\<Delta>') \<Longrightarrow>
     assembleable_env (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) (Suc (Suc p\<^sub>\<Delta>)) p\<^sub>h"
 proof (unfold assembleable_env_def assembleable_vals_def assembleable_heap_def, 
        rule, simp, rule, rule)
   fix y 
-  assume "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
-  hence "3 dvd p\<^sub>h \<and> 3 dvd \<V> p\<^sub>\<V> \<and> \<V> p\<^sub>\<V> < p\<^sub>h" by simp
-  moreover assume "3 dvd p\<^sub>h \<and>
+  assume "even p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). even (\<V> x) \<and> \<V> x < p\<^sub>h)"
+  hence "even p\<^sub>h \<and> even (\<V> p\<^sub>\<V>) \<and> \<V> p\<^sub>\<V> < p\<^sub>h" by simp
+  moreover assume "even p\<^sub>h \<and>
          (\<forall>x<p\<^sub>h. fst (h x) = PEnv \<longrightarrow> even (snd (h x)) \<and> snd (h x) \<le> p\<^sub>\<Delta>) \<and>
          (\<forall>x<p\<^sub>h. fst (h x) = PCode \<longrightarrow> snd (h x) \<noteq> 0 \<and> snd (h x) \<le> lcd)"
-  ultimately have "fst (h (Suc (\<V> p\<^sub>\<V>))) = PEnv \<Longrightarrow> 
-    even (snd (h (Suc (\<V> p\<^sub>\<V>)))) \<and> snd (h (Suc (\<V> p\<^sub>\<V>))) \<le> p\<^sub>\<Delta>" by fastforce
-  moreover assume "h (Suc (\<V> p\<^sub>\<V>)) = (PEnv, p\<^sub>\<Delta>')" 
-    and "even p\<^sub>\<Delta> \<and> 
-    (\<forall>x < p\<^sub>\<Delta>. if even x then 3 dvd \<Delta> x \<and> \<Delta> x < p\<^sub>h else even (\<Delta> x) \<and> \<Delta> x < p\<^sub>\<Delta>)"
-              and "y < Suc (Suc p\<^sub>\<Delta>)" and "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
-  ultimately show "if even y
-    then 3 dvd (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) y \<and> 
-      (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) y < p\<^sub>h
-    else even ((\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) y) \<and> 
-      (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) y < Suc (Suc p\<^sub>\<Delta>)" by auto
+  ultimately have "fst (h (\<V> p\<^sub>\<V>)) = PEnv \<Longrightarrow> 
+    even (snd (h (\<V> p\<^sub>\<V>))) \<and> snd (h (\<V> p\<^sub>\<V>)) \<le> p\<^sub>\<Delta>" by fastforce
+  moreover assume "h (\<V> p\<^sub>\<V>) = (PEnv, p\<^sub>\<Delta>')" 
+    and "even p\<^sub>\<Delta> \<and> (\<forall>x < p\<^sub>\<Delta>. even (\<Delta> x) \<and> (if even x then \<Delta> x < p\<^sub>h else \<Delta> x < p\<^sub>\<Delta>))"
+    and "y < Suc (Suc p\<^sub>\<Delta>)" 
+    and "even p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). even (\<V> x) \<and> \<V> x < p\<^sub>h)"
+  ultimately show "even ((\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) y) \<and> (if even y
+    then (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) y < p\<^sub>h
+    else (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) y < Suc (Suc p\<^sub>\<Delta>))" by auto
 qed
 
 lemma [simp]: "assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h \<Longrightarrow> 
-    assembleable_vals (\<V>(p\<^sub>\<V> := k)) (Suc p\<^sub>\<V>) p\<^sub>h = (3 dvd p\<^sub>h \<and> k < p\<^sub>h \<and> 3 dvd k)"
+    assembleable_vals (\<V>(p\<^sub>\<V> := k)) (Suc p\<^sub>\<V>) p\<^sub>h = (even p\<^sub>h \<and> k < p\<^sub>h \<and> even k)"
   by (auto simp add: assembleable_vals_def)
 
 lemma [simp]: "assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h \<Longrightarrow> 
-    assembleable_vals (\<V>(p\<^sub>\<V> := k)) (Suc p\<^sub>\<V>) (3 + p\<^sub>h) = (3 dvd p\<^sub>h \<and> k < 3 + p\<^sub>h \<and> 3 dvd k)"
+    assembleable_vals (\<V>(p\<^sub>\<V> := k)) (Suc p\<^sub>\<V>) (Suc (Suc p\<^sub>h)) = (even p\<^sub>h \<and> k < Suc (Suc p\<^sub>h) \<and> even k)"
   by (auto simp add: assembleable_vals_def)
 
 lemma [elim]: "assembleable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h"
@@ -447,29 +430,29 @@ proof (unfold assembleable_stack_def)
     by auto
 qed
 
-lemma [simp]: "h (Suc (Suc (\<V> p\<^sub>\<V>))) = (PCode, p\<^sub>\<C>) \<Longrightarrow> assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
-  assembleable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> 0 < p\<^sub>\<C>"
+lemma [simp]: "h (Suc (\<V> p\<^sub>\<V>)) = (PCode, p\<^sub>\<C>) \<Longrightarrow> assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
+  assembleable_vals \<V> (Suc p\<^sub>\<V>) p\<^sub>h \<Longrightarrow> 0 < p\<^sub>\<C>"
 proof (unfold assembleable_heap_def assembleable_vals_def)
-  assume "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
-  hence "3 dvd p\<^sub>h \<and> 3 dvd \<V> p\<^sub>\<V> \<and> \<V> p\<^sub>\<V> < p\<^sub>h" by simp
-  hence "Suc (Suc (\<V> p\<^sub>\<V>)) < p\<^sub>h" by fastforce
-  moreover assume "3 dvd p\<^sub>h \<and>
+  assume "even p\<^sub>h \<and> (\<forall>x < Suc p\<^sub>\<V>. even (\<V> x) \<and> \<V> x < p\<^sub>h)"
+  hence "even p\<^sub>h \<and> even (\<V> p\<^sub>\<V>) \<and> \<V> p\<^sub>\<V> < p\<^sub>h" by simp
+  hence "Suc (\<V> p\<^sub>\<V>) < p\<^sub>h" by fastforce
+  moreover assume "even p\<^sub>h \<and>
     (\<forall>x<p\<^sub>h. fst (h x) = PEnv \<longrightarrow> even (snd (h x)) \<and> snd (h x) \<le> p\<^sub>\<Delta>) \<and>
     (\<forall>x<p\<^sub>h. fst (h x) = PCode \<longrightarrow> snd (h x) \<noteq> 0 \<and> snd (h x) \<le> lcd)"
-     and "h (Suc (Suc (\<V> p\<^sub>\<V>))) = (PCode, p\<^sub>\<C>)"
+     and "h (Suc (\<V> p\<^sub>\<V>)) = (PCode, p\<^sub>\<C>)"
   ultimately show "0 < p\<^sub>\<C>" by auto
 qed
 
-lemma [simp]: "h (Suc (Suc (\<V> p\<^sub>\<V>))) = (PCode, p\<^sub>\<C>) \<Longrightarrow> assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
+lemma [simp]: "h (Suc (\<V> p\<^sub>\<V>)) = (PCode, p\<^sub>\<C>) \<Longrightarrow> assembleable_heap h p\<^sub>h p\<^sub>\<Delta> lcd \<Longrightarrow> 
     assembleable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> p\<^sub>\<C> \<le> lcd"
 proof (unfold assembleable_heap_def assembleable_vals_def)
-  assume "3 dvd p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). 3 dvd \<V> x \<and> \<V> x < p\<^sub>h)"
-  hence "3 dvd p\<^sub>h \<and> 3 dvd \<V> p\<^sub>\<V> \<and> \<V> p\<^sub>\<V> < p\<^sub>h" by simp
-  hence "Suc (Suc (\<V> p\<^sub>\<V>)) < p\<^sub>h" by fastforce
-  moreover assume "3 dvd p\<^sub>h \<and>
+  assume "even p\<^sub>h \<and> (\<forall>x < Suc (Suc p\<^sub>\<V>). even (\<V> x) \<and> \<V> x < p\<^sub>h)"
+  hence "even p\<^sub>h \<and> even (\<V> p\<^sub>\<V>) \<and> \<V> p\<^sub>\<V> < p\<^sub>h" by simp
+  hence "Suc (\<V> p\<^sub>\<V>) < p\<^sub>h" by fastforce
+  moreover assume "even p\<^sub>h \<and>
     (\<forall>x<p\<^sub>h. fst (h x) = PEnv \<longrightarrow> even (snd (h x)) \<and> snd (h x) \<le> p\<^sub>\<Delta>) \<and>
     (\<forall>x<p\<^sub>h. fst (h x) = PCode \<longrightarrow> snd (h x) \<noteq> 0 \<and> snd (h x) \<le> lcd)"
-     and "h (Suc (Suc (\<V> p\<^sub>\<V>))) = (PCode, p\<^sub>\<C>)"
+     and "h (Suc (\<V> p\<^sub>\<V>)) = (PCode, p\<^sub>\<C>)"
   ultimately show "p\<^sub>\<C> \<le> lcd" by auto
 qed
 
@@ -482,7 +465,7 @@ proof (induction \<Delta> p x rule: unstr_lookup.induct)
 qed (auto simp add: assembleable_env_def)
 
 lemma [elim]: "unstr_lookup \<Delta> p x = Some y \<Longrightarrow> p \<le> p\<^sub>\<Delta> \<Longrightarrow> even p \<Longrightarrow> assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> 
-  3 dvd y"
+  even y"
 proof (induction \<Delta> p x rule: unstr_lookup.induct) 
   case (4 \<Delta> p x)
   moreover hence "even (\<Delta> (Suc p)) \<and> \<Delta> (Suc p) < p\<^sub>\<Delta>" by (simp add: assembleable_env_def)
@@ -505,12 +488,12 @@ proof -
 qed
 
 lemma [elim]: "unstr_lookup \<Delta> (s p\<^sub>s) x = Some y \<Longrightarrow> assembleable_stack s (Suc p\<^sub>s) p\<^sub>\<Delta> lcd \<Longrightarrow> 
-  assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> odd p\<^sub>s \<Longrightarrow> 3 dvd y"
+  assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> odd p\<^sub>s \<Longrightarrow> even y"
 proof -
   assume "odd p\<^sub>s" and "assembleable_stack s (Suc p\<^sub>s) p\<^sub>\<Delta> lcd"  
   hence "s p\<^sub>s \<le> p\<^sub>\<Delta> \<and> even (s p\<^sub>s)" by simp
   moreover assume "unstr_lookup \<Delta> (s p\<^sub>s) x = Some y" and "assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h"
-  ultimately show "3 dvd y" by auto
+  ultimately show "even y" by auto
 qed
 
 lemma [elim]: "assembleable_stack s (Suc (Suc p\<^sub>s)) p\<^sub>\<Delta> lcd \<Longrightarrow> assembleable_stack s p\<^sub>s p\<^sub>\<Delta> lcd"
@@ -535,17 +518,17 @@ lemma [simp]: "assembleable_vals nmem 0 0"
 lemma [simp]: "assembleable_stack (nmem(0 := 0, Suc 0 := 0)) 2 0 lcd"
   by (simp only: assembleable_stack_def) simp_all
 
+lemma [simp]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> vs vp < hp"
+proof (unfold assembleable_vals_def)
+  assume "even hp \<and> (\<forall>x<Suc (Suc vp). even (vs x) \<and> vs x < hp)"
+  hence "even hp \<and> even (vs vp) \<and> vs vp < hp" by simp
+  thus ?thesis by fastforce
+qed
+
 lemma [simp]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> Suc (vs vp) < hp"
 proof (unfold assembleable_vals_def)
-  assume "3 dvd hp \<and> (\<forall>x<Suc (Suc vp). 3 dvd vs x \<and> vs x < hp)"
-  hence "3 dvd hp \<and> 3 dvd vs vp \<and> vs vp < hp" by simp
-  thus ?thesis by fastforce
-qed
-
-lemma [simp]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> Suc (Suc (vs vp)) < hp"
-proof (unfold assembleable_vals_def)
-  assume "3 dvd hp \<and> (\<forall>x<Suc (Suc vp). 3 dvd vs x \<and> vs x < hp)"
-  hence "3 dvd hp \<and> 3 dvd vs vp \<and> vs vp < hp" by simp
+  assume "even hp \<and> (\<forall>x<Suc (Suc vp). even (vs x) \<and> vs x < hp)"
+  hence "even hp \<and> even (vs vp) \<and> vs vp < hp" by simp
   thus ?thesis by fastforce
 qed
 
@@ -555,15 +538,12 @@ qed
 
 
 
-lemma [simp]: "(assm_hp cd h hp)(hp := (Acc, Suc a), Suc hp := (Acc, b), Suc (Suc hp) := (Acc, c)) = 
-  assm_hp cd (h(hp := (PConst, Suc a), Suc hp := (PConst, b), Suc (Suc hp) := (PConst, c))) 
-    (Suc (Suc (Suc hp)))"
+lemma [simp]: "(assm_hp cd h hp)(hp := (Acc, a), Suc hp := (Acc, b)) = 
+    assm_hp cd (h(hp := (PConst, a), Suc hp := (PConst, b))) (Suc (Suc hp))"
   by (auto simp add: assemble_heap_def)
 
-lemma [simp]: "(assm_hp cd h hp) (hp := (Acc, 0), Suc hp := (Env, a), 
-  Suc (Suc hp) := (Acc, assembly_map cd b)) = 
-    assm_hp cd (h(hp := (PConst, 0), Suc hp := (PEnv, a), Suc (Suc hp) := (PCode, b))) 
-      (Suc (Suc (Suc hp)))"
+lemma [simp]: "(assm_hp cd h hp) (hp := (Env, a), Suc hp := (Acc, assembly_map cd b)) = 
+    assm_hp cd (h(hp := (PEnv, a), Suc hp := (PCode, b))) (Suc (Suc hp))"
   by (auto simp add: assemble_heap_def)
 
 lemma [simp]: "even sp \<Longrightarrow> 
@@ -591,16 +571,16 @@ lemma [simp]: "(assemble_vals vs vp)(vp := (Hp, y)) = assemble_vals (vs(vp := y)
 lemma [simp]: "(assemble_vals vs (Suc vp))(vp := (Acc, 0)) = assemble_vals vs vp"
   by rule (simp add: assemble_vals_def)
 
-lemma [simp]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> h (Suc (vs vp)) = (PEnv, ep') \<Longrightarrow> 
-  even ep \<Longrightarrow> assm_hp cd h hp (Suc (vs vp)) = (k, b) \<Longrightarrow> 
+lemma [simp]: "assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow> h (vs vp) = (PEnv, ep') \<Longrightarrow> 
+  even ep \<Longrightarrow> assm_hp cd h hp (vs vp) = (k, b) \<Longrightarrow> 
     (assemble_env e ep)(ep := (Hp, a), Suc ep := (k, b)) = 
       assemble_env (e(ep := a, Suc ep := ep')) (Suc (Suc ep))"
 proof (rule, unfold assemble_env_def)
   fix y
   assume "assembleable_vals vs (Suc (Suc vp)) hp" 
   hence "Suc (vs vp) < hp" by simp
-  moreover assume "h (Suc (vs vp)) = (PEnv, ep')"
-     and "assm_hp cd h hp (Suc (vs vp)) = (k, b)"
+  moreover assume "h (vs vp) = (PEnv, ep')"
+     and "assm_hp cd h hp (vs vp) = (k, b)"
   ultimately have "k = Env \<and> b = ep'" by (simp add: assemble_heap_def split: if_splits prod.splits)
   moreover assume "even ep"
   ultimately show "((\<lambda>x. if ep \<le> x then (Acc, 0) else (if even x then Hp else Env, e x)) 
@@ -610,14 +590,14 @@ proof (rule, unfold assemble_env_def)
     by (simp add: assemble_heap_def split: if_splits prod.splits)
 qed
 
-lemma assm_hp_code: "h (Suc (Suc (vs vp))) = (PCode, pc) \<Longrightarrow> even ep \<Longrightarrow> 
+lemma assm_hp_code: "h (Suc (vs vp)) = (PCode, pc) \<Longrightarrow> even ep \<Longrightarrow> 
   assembleable_vals vs (Suc (Suc vp)) hp \<Longrightarrow>
-    assm_hp cd h hp (Suc (Suc (vs vp))) = (Acc, assembly_map cd pc)"
+    assm_hp cd h hp (Suc (vs vp)) = (Acc, assembly_map cd pc)"
 proof -
   assume "assembleable_vals vs (Suc (Suc vp)) hp"
-  hence "Suc (Suc (vs vp)) < hp" by simp
-  thus "h (Suc (Suc (vs vp))) = (PCode, pc) \<Longrightarrow> even ep \<Longrightarrow> 
-    assm_hp cd h hp (Suc (Suc (vs vp))) = (Acc, assembly_map cd pc)"
+  hence "Suc (vs vp) < hp" by simp
+  thus "h (Suc (vs vp)) = (PCode, pc) \<Longrightarrow> even ep \<Longrightarrow> 
+    assm_hp cd h hp (Suc (vs vp)) = (Acc, assembly_map cd pc)"
       by (auto simp add: assemble_heap_def split: prod.splits pointer_tag.splits)
 qed
 
@@ -722,89 +702,79 @@ proof (induction cd\<^sub>b \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: eval\<^sub>
   with ev\<^sub>u_lookup show ?case by auto
 next
   case (ev\<^sub>u_pushcon cd pc k h hp e ep vs vp sh sp)
-  moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
-    Some (APut Vals (Reg Hp))" by simp
-  moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
-    Some (AAdd Vals 1)" by simp
   moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
-    Some (APut Hp (Con 1))" by simp 
+    Some (APut Vals (Reg Hp))" by simp
   moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
-    Some (AAdd Hp 1)" by simp 
+    Some (AAdd Vals 1)" by simp
   moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (APut Hp (Con k))" by simp 
   moreover from ev\<^sub>u_pushcon have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AAdd Hp 1)" by (simp del: add_2_eq_Suc)
-  ultimately have "iter_evala (assemble_code cd) 8 (AS (case_register (assm_hp cd h hp) 
+  ultimately have "iter_evala (assemble_code cd) 6 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp)) undefined) 
       (case_register hp ep vp (Suc sp) 0) Acc (assembly_map cd (Suc pc))) = Some (AS 
-        (case_register (assm_hp cd (h(hp := (PConst, Suc 0), Suc hp := (PConst, k), 
-          Suc (Suc hp) := (PConst, 0))) (3 + hp)) (assemble_env e ep) (assemble_vals (vs(vp := hp)) 
-            (Suc vp)) (assm_stk cd sh (Suc sp)) undefined) (case_register (3 + hp) ep (Suc vp) (Suc sp) 0) 
+        (case_register (assm_hp cd (h(hp := (PConst, k), Suc hp := (PConst, 0))) (2 + hp)) 
+          (assemble_env e ep) (assemble_vals (vs(vp := hp)) (Suc vp)) 
+            (assm_stk cd sh (Suc sp)) undefined) (case_register (2 + hp) ep (Suc vp) (Suc sp) 0) 
               Acc (assembly_map cd pc))" 
     by (auto simp add: numeral_def)
   thus ?case by auto
 next
   case (ev\<^sub>u_pushlam cd pc pc' h hp e ep vs vp sh sp)
-  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
-    Some (APut Vals (Reg Hp))" by simp
-  moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
-    Some (AAdd Vals 1)" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
-    Some (APut Acc (Reg Stk))" by simp
+    Some (APut Vals (Reg Hp))" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
-    Some (ASub Acc 1)" by simp
+    Some (AAdd Vals 1)" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
-    Some (AGet Acc)" by simp
+    Some (APut Acc (Reg Stk))" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
-    Some (APut Hp (Con 0))" by simp
+    Some (ASub Acc 1)" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
-    Some (AAdd Hp 1)" by simp
+    Some (AGet Acc)" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (4 + assembly_map cd pc) =
     Some (APut Hp (Reg Acc))" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (AAdd Hp 1)" by simp
   moreover from ev\<^sub>u_pushlam have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (APut Acc (Con 0))" by (simp del: add_2_eq_Suc)
-  ultimately have "iter_evala (assemble_code cd) 12 (AS (case_register (assm_hp cd h hp) 
+  ultimately have "iter_evala (assemble_code cd) 10 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp)) undefined) 
       (case_register hp ep vp (Suc sp) 0) Acc (assembly_map cd (Suc pc))) = Some (AS 
-        (case_register (assm_hp cd (h(hp := (PConst, 0), Suc hp := (PEnv, sh sp), 
-          Suc (Suc hp) := (PCode, pc'))) (3 + hp)) (assemble_env e ep) (assemble_vals (vs(vp := hp)) 
-            (Suc vp)) (assm_stk cd sh (Suc sp)) undefined) (case_register (3 + hp) ep (Suc vp) (Suc sp) 0) 
+        (case_register (assm_hp cd (h(hp := (PEnv, sh sp), Suc hp := (PCode, pc'))) (2 + hp)) 
+          (assemble_env e ep) (assemble_vals (vs(vp := hp)) (Suc vp)) 
+            (assm_stk cd sh (Suc sp)) undefined) (case_register (2 + hp) ep (Suc vp) (Suc sp) 0) 
               Acc (assembly_map cd pc))" 
     by (auto simp add: numeral_def)
   thus ?case by auto
 next
   case (ev\<^sub>u_apply cd pc h vs vp ep' pc' hp e ep sh sp)
   moreover hence "even ep" by auto
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (21 + assembly_map cd pc) = 
-    Some (ASub Vals 1)" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (20 + assembly_map cd pc) = 
-    Some (AGet Vals)" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
-    Some (APut Vals (Con 0))" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
-    Some (APut Env (Reg Acc))" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
-    Some (AAdd Env 1)" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
-    Some (APut Stk (Con (assembly_map cd pc)))" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
-    Some (AAdd Stk 1)" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
-    Some (APut Acc (Reg Env))" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
-    Some (AAdd Acc 1)" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
-    Some (APut Stk (Reg Acc))" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
-    Some (AAdd Stk 1)" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
     Some (ASub Vals 1)" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
     Some (AGet Vals)" by simp
-  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
+    Some (APut Vals (Con 0))" by simp
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
+    Some (APut Env (Reg Acc))" by simp
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
+    Some (AAdd Env 1)" by simp
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
+    Some (APut Stk (Con (assembly_map cd pc)))" by simp
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
+    Some (AAdd Stk 1)" by simp
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
+    Some (APut Acc (Reg Env))" by simp
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
     Some (AAdd Acc 1)" by simp
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
+    Some (APut Stk (Reg Acc))" by simp
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
+    Some (AAdd Stk 1)" by simp
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
+    Some (ASub Vals 1)" by simp
+  moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
+    Some (AGet Vals)" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
     Some (AGet Acc)" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
@@ -816,10 +786,10 @@ next
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (APut Vals (Con 0))" by simp
   moreover from ev\<^sub>u_apply have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
-    Some (AAdd Acc 2)" by (simp del: add_2_eq_Suc)
-  moreover from ev\<^sub>u_apply have "assm_hp cd h hp (Suc (Suc (vs vp))) = (Acc, assembly_map cd pc')" 
+    Some (AAdd Acc 1)" by (simp del: add_2_eq_Suc)
+  moreover from ev\<^sub>u_apply have "assm_hp cd h hp (Suc (vs vp)) = (Acc, assembly_map cd pc')" 
     by (metis assm_hp_code assembleable.simps)
-  ultimately have "iter_evala (assemble_code cd) 22 (AS (case_register (assm_hp cd h hp) 
+  ultimately have "iter_evala (assemble_code cd) 21 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp)) undefined) 
       (case_register hp ep (Suc (Suc vp)) (Suc sp) 0) Acc (assembly_map cd (Suc pc))) = 
         Some (AS (case_register (assm_hp cd h hp) (assemble_env (e(ep := vs (Suc vp), 
@@ -849,32 +819,30 @@ next
 next
   case (ev\<^sub>u_jump cd pc h vs vp ep' pc' hp e ep sh sp)
   moreover hence "even ep" by auto
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (20 + assembly_map cd pc) = 
-    Some (ASub Vals 1)" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
-    Some (AGet Vals)" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
-    Some (APut Vals (Con 0))" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
-    Some (APut Env (Reg Acc))" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
-    Some (AAdd Env 1)" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
-    Some (APut Acc (Reg Env))" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
-    Some (AAdd Acc 1)" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
-    Some (ASub Stk 1)" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
-    Some (APut Stk (Reg Acc))" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (11 + assembly_map cd pc) =
-    Some (AAdd Stk 1)" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
     Some (ASub Vals 1)" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
     Some (AGet Vals)" by simp
-  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
+    Some (APut Vals (Con 0))" by simp
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
+    Some (APut Env (Reg Acc))" by simp
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
+    Some (AAdd Env 1)" by simp
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
+    Some (APut Acc (Reg Env))" by simp
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
     Some (AAdd Acc 1)" by simp
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
+    Some (ASub Stk 1)" by simp
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
+    Some (APut Stk (Reg Acc))" by simp
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (10 + assembly_map cd pc) =
+    Some (AAdd Stk 1)" by simp
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
+    Some (ASub Vals 1)" by simp
+  moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
+    Some (AGet Vals)" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
     Some (AGet Acc)" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
@@ -886,10 +854,10 @@ next
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (APut Vals (Con 0))" by simp
   moreover from ev\<^sub>u_jump have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
-    Some (AAdd Acc 2)" by (simp del: add_2_eq_Suc)
-  moreover from ev\<^sub>u_jump have "assm_hp cd h hp (Suc (Suc (vs vp))) = (Acc, assembly_map cd pc')" 
+    Some (AAdd Acc 1)" by (simp del: add_2_eq_Suc)
+  moreover from ev\<^sub>u_jump have "assm_hp cd h hp (Suc (vs vp)) = (Acc, assembly_map cd pc')" 
     by (metis assm_hp_code assembleable.simps)
-  ultimately have "iter_evala (assemble_code cd) 21 (AS (case_register (assm_hp cd h hp) 
+  ultimately have "iter_evala (assemble_code cd) 20 (AS (case_register (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs (Suc (Suc vp))) (assm_stk cd sh (Suc sp)) undefined) 
       (case_register hp ep (Suc (Suc vp)) (Suc sp) 0) Acc (assembly_map cd (Suc pc))) = 
         Some (AS (case_register (assm_hp cd h hp) (assemble_env (e(ep := vs (Suc vp), 

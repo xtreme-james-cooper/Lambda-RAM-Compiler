@@ -41,11 +41,11 @@ primrec print_ceclosure :: "closure\<^sub>v \<Rightarrow> print" where
 
 primrec print_uval :: "ty \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print" where
   "print_uval (Arrow t\<^sub>1 t\<^sub>2) h p = Fun"
-| "print_uval Num h p = Number (h (Suc p))"
+| "print_uval Num h p = Number (h p)"
 
 primrec print_mval :: "ty \<Rightarrow> (nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> print" where
   "print_mval (Arrow t\<^sub>1 t\<^sub>2) m p = Fun"
-| "print_mval Num m p = Number (m (4 + p))"
+| "print_mval Num m p = Number (m p)"
 
 primrec print_mach_state :: "ty \<Rightarrow> mach_state \<Rightarrow> print" where
   "print_mach_state t (MS rs mem pc) = print_mval t mem (mem 2)"
@@ -87,8 +87,8 @@ primrec top_level :: "ty \<Rightarrow> ty" where
 | "top_level Num = Num"
 
 primrec get_closure :: "ty \<Rightarrow> (pointer_tag \<times> nat) heap \<Rightarrow> ptr \<Rightarrow> closure\<^sub>v" where
-  "get_closure (Arrow t\<^sub>1 t\<^sub>2) h p = Lam\<^sub>v (snd (hlookup h (Suc p))) (snd (hlookup h (Suc (Suc p))))"
-| "get_closure Num h p = Const\<^sub>v (snd (hlookup h (Suc p)))"
+  "get_closure (Arrow t\<^sub>1 t\<^sub>2) h p = Lam\<^sub>v (snd (hlookup h p)) (snd (hlookup h (Suc p)))"
+| "get_closure Num h p = Const\<^sub>v (snd (hlookup h p))"
 
 lemma [dest]: "top_level t = Num \<Longrightarrow> t = Num"
   by (induction t) simp_all
@@ -107,7 +107,7 @@ next
 qed simp_all
 
 lemma [simp]: "hcontains h v \<Longrightarrow> top_level t = closure_ty (hlookup h v) \<Longrightarrow>
-  print_ceclosure (get_closure t (flatten_values h) (3 * v)) = 
+  print_ceclosure (get_closure t (flatten_values h) (2 * v)) = 
     print_ceclosure (hlookup h v)"
   by (cases "hlookup h v") auto
 
@@ -119,19 +119,19 @@ lemma print_m [simp]: "unmap_mem' p = (a, b) \<Longrightarrow>
   by (induction t) (simp_all add: unmap_mem_def)
 
 primrec hp_tc :: "ty \<Rightarrow> (nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> ptr \<Rightarrow> bool" where
-  "hp_tc (Arrow t\<^sub>1 t\<^sub>2) h p = (fst (h (Suc p)) = PEnv \<and> fst (h (Suc (Suc p))) = PCode)"
-| "hp_tc Num h p = (fst (h (Suc p)) = PConst \<and> fst (h (Suc (Suc p))) = PConst)"
+  "hp_tc (Arrow t\<^sub>1 t\<^sub>2) h p = (fst (h p) = PEnv \<and> fst (h (Suc p)) = PCode)"
+| "hp_tc Num h p = (fst (h p) = PConst \<and> fst (h (Suc p)) = PConst)"
 
 lemma [simp]: "top_level t = closure_ty (hlookup h\<^sub>c\<^sub>e v\<^sub>h) \<Longrightarrow> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<Longrightarrow> 
-  hcontains h\<^sub>c\<^sub>e v\<^sub>h \<Longrightarrow> hp_tc t h\<^sub>u (3 * v\<^sub>h)"
+  hcontains h\<^sub>c\<^sub>e v\<^sub>h \<Longrightarrow> hp_tc t h\<^sub>u (2 * v\<^sub>h)"
 proof (induction h\<^sub>c\<^sub>e)
   case (H h\<^sub>c\<^sub>e hp\<^sub>c\<^sub>e)
-  moreover hence "hlookup (H h\<^sub>u hp\<^sub>u) (1 + 3 * v\<^sub>h) = 
+  moreover hence "hlookup (H h\<^sub>u hp\<^sub>u) (2 * v\<^sub>h) = 
     (case (h\<^sub>c\<^sub>e v\<^sub>h) of Const\<^sub>v n \<Rightarrow> (PConst, n) | Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> \<Rightarrow> (PEnv, 2 * p\<^sub>\<Delta>))" 
-      by (metis lookup_flat_closure_1 plus_1_eq_Suc hlookup.simps)
-  moreover from H have "hlookup (H h\<^sub>u hp\<^sub>u) (2 + 3 * v\<^sub>h) = 
+      by (metis lookup_flat_closure_0 hlookup.simps)
+  moreover from H have "hlookup (H h\<^sub>u hp\<^sub>u) (1 + 2 * v\<^sub>h) = 
     (case (hlookup (H h\<^sub>c\<^sub>e hp\<^sub>c\<^sub>e) v\<^sub>h) of Const\<^sub>v n \<Rightarrow> (PConst, 0) | Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> \<Rightarrow> (PCode, p\<^sub>\<C>))" 
-      by (metis add_2_eq_Suc lookup_flat_closure_2)
+      by (metis plus_1_eq_Suc lookup_flat_closure_1)
   ultimately show ?case by (cases "h\<^sub>c\<^sub>e v\<^sub>h") auto
 qed
 

@@ -50,8 +50,8 @@ next
   thus ?case by (cases sp) (auto split: nat.splits)
 next
   case (ev\<^sub>u_apply \<C> p\<^sub>\<C> h vs vp ep' p\<^sub>\<C>' hp e ep sh sp)
-  moreover hence "hlookup (H h hp) (Suc (vs vp)) = (PEnv, ep')" by simp
-  moreover from ev\<^sub>u_apply have "hlookup (H h hp) (Suc (Suc (vs vp))) = (PCode, p\<^sub>\<C>')" by simp
+  moreover hence "hlookup (H h hp) (vs vp) = (PEnv, ep')" by simp
+  moreover from ev\<^sub>u_apply have "hlookup (H h hp) (Suc (vs vp)) = (PCode, p\<^sub>\<C>')" by simp
   moreover have "halloc_list (H e ep) [vs (Suc vp), ep'] = 
     (H (e(ep := vs (Suc vp), Suc ep := ep')) (Suc (Suc ep)), ep)" by simp
   ultimately have "\<And>n. \<C> \<tturnstile> S\<^sub>f (H h hp) (H e ep) (vs (Suc vp) # vs vp # listify_heap vs vp) 
@@ -65,8 +65,8 @@ next
   thus ?case by (cases sp) (auto split: nat.splits)
 next
   case (ev\<^sub>u_jump \<C> p\<^sub>\<C> h vs vp ep' p\<^sub>\<C>' hp e ep sh sp)
-  moreover hence "hlookup (H h hp) (Suc (vs vp)) = (PEnv, ep')" by simp
-  moreover from ev\<^sub>u_jump have "hlookup (H h hp) (Suc (Suc (vs vp))) = (PCode, p\<^sub>\<C>')" by simp
+  moreover hence "hlookup (H h hp) (vs vp) = (PEnv, ep')" by simp
+  moreover from ev\<^sub>u_jump have "hlookup (H h hp) (Suc (vs vp)) = (PCode, p\<^sub>\<C>')" by simp
   moreover have "halloc_list (H e ep) [vs (Suc vp), ep'] = 
     (H (e(ep := vs (Suc vp), Suc ep := ep')) (Suc (Suc ep)), ep)" by simp
   ultimately have "\<And>n. \<C> \<tturnstile> S\<^sub>f (H h hp) (H e ep) (vs (Suc vp) # vs vp # listify_heap vs vp) 
@@ -111,13 +111,12 @@ next
     vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
       \<Sigma>\<^sub>u = S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   with ev\<^sub>f_pushcon have "v = hp \<and> 
-    h' = H (hh(hp := (PConst, 1), Suc hp := (PConst, k), Suc (Suc hp) := (PConst, 0))) 
-      (Suc (Suc (Suc hp)))" by fastforce
+    h' = H (hh(hp := (PConst, k), Suc hp := (PConst, 0))) (Suc (Suc hp))" by fastforce
   with S have X: "S\<^sub>f h' env (v # vs) (pc # p # sfs) = 
-    restructure (S\<^sub>u (hh(hp := (PConst, 1), Suc hp := (PConst, k), Suc (Suc hp) := (PConst, 0))) 
-      (3 + hp) e ep (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc)" by simp
+    restructure (S\<^sub>u (hh(hp := (PConst, k), Suc hp := (PConst, 0))) 
+      (2 + hp) e ep (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc)" by simp
   from ev\<^sub>f_pushcon have "cd \<tturnstile> S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-    S\<^sub>u (hh(hp := (PConst, 1), Suc hp := (PConst, k), Suc (Suc hp) := (PConst, 0))) (3 + hp) e ep 
+    S\<^sub>u (hh(hp := (PConst, k), Suc hp := (PConst, 0))) (2 + hp) e ep 
       (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc" by (metis ev\<^sub>u_pushcon)
   with S X show ?case by blast
 next
@@ -126,14 +125,13 @@ next
     vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
       \<Sigma>\<^sub>u = S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   with ev\<^sub>f_pushlam have "v = hp \<and> 
-    h' = H (hh(hp := (PConst, 0), Suc hp := (PEnv, sh (Suc sp)), Suc (Suc hp) := (PCode, pc'))) 
-      (Suc (Suc (Suc hp)))" by fastforce
+    h' = H (hh(hp := (PEnv, sh (Suc sp)), Suc hp := (PCode, pc'))) (Suc (Suc hp))" by fastforce
   with S have X: "S\<^sub>f h' env (v # vs) (pc # p # sfs) = 
-    restructure (S\<^sub>u (hh(hp := (PConst, 0), Suc hp := (PEnv, sh (Suc sp)), 
-      Suc (Suc hp) := (PCode, pc'))) (3 + hp) e ep (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc)" 
+    restructure (S\<^sub>u (hh(hp := (PEnv, sh (Suc sp)), Suc hp := (PCode, pc'))) (2 + hp) e ep
+      (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc)" 
         by simp
   from ev\<^sub>f_pushlam S have "cd \<tturnstile> S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-    S\<^sub>u (hh(hp := (PConst, 0), Suc hp := (PEnv, sh (Suc sp)), Suc (Suc hp) := (PCode, pc'))) (3 + hp) 
+    S\<^sub>u (hh(hp := (PEnv, sh (Suc sp)), Suc hp := (PCode, pc'))) (2 + hp) 
       e ep (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc" by (metis ev\<^sub>u_pushlam)
   with S X show ?case by blast
 next
@@ -143,8 +141,8 @@ next
       \<Sigma>\<^sub>u = S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
     vs = listify_heap vs' vp'" by fastforce
-  from ev\<^sub>f_apply S V have H1: "h' (Suc (vs' vp')) = (PEnv, p\<^sub>\<Delta>')" by simp
-  from ev\<^sub>f_apply S V have H2: "h' (Suc (Suc (vs' vp'))) = (PCode, p\<^sub>\<C>')" by simp
+  from ev\<^sub>f_apply S V have H1: "h' (vs' vp') = (PEnv, p\<^sub>\<Delta>')" by simp
+  from ev\<^sub>f_apply S V have H2: "h' (Suc (vs' vp')) = (PCode, p\<^sub>\<C>')" by simp
   from ev\<^sub>f_apply S V have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := p\<^sub>\<Delta>')) (Suc (Suc p2))" by auto
   with S V have X: "S\<^sub>f h env' vs (p\<^sub>\<C>' # Suc (Suc p2) # pc # p # sfs) = 
     restructure (S\<^sub>u h' hp (e(ep := v1, Suc ep := p\<^sub>\<Delta>')) (2 + ep) vs' vp' 
@@ -172,8 +170,8 @@ next
       \<Sigma>\<^sub>u = S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
   then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
     vs = listify_heap vs' vp'" by fastforce
-  from ev\<^sub>f_jump S V have H1: "h' (Suc (vs' vp')) = (PEnv, p\<^sub>\<Delta>')" by simp
-  from ev\<^sub>f_jump S V have H2: "h' (Suc (Suc (vs' vp'))) = (PCode, p\<^sub>\<C>')" by simp
+  from ev\<^sub>f_jump S V have H1: "h' (vs' vp') = (PEnv, p\<^sub>\<Delta>')" by simp
+  from ev\<^sub>f_jump S V have H2: "h' (Suc (vs' vp')) = (PCode, p\<^sub>\<C>')" by simp
   from ev\<^sub>f_jump S V have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := p\<^sub>\<Delta>')) (Suc (Suc p2))" by auto
   with S V have X: "S\<^sub>f h env' vs (p\<^sub>\<C>' # Suc (Suc p2) # sfs) = 
     restructure (S\<^sub>u h' hp (e(ep := v1, Suc ep := p\<^sub>\<Delta>')) (2 + ep) vs' vp' 
