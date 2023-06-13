@@ -2,7 +2,7 @@ theory MemoryFlattening
   imports FlatMemory "../08HeapMemory/HeapConversion" "../09ChainedEnvironment/Chaining"
 begin
 
-section \<open>Memory Flattening\<close>
+subsection \<open>Memory Flattening\<close>
 
 text \<open>The conversion here is one of the few that could go either direction - any (valid) flat state
 is equivalent to exactly one chained state, and vice versa. To make correctness the simpler proof 
@@ -16,7 +16,7 @@ abbreviation flatten_values :: "closure\<^sub>v heap \<Rightarrow> (pointer_tag 
   "flatten_values h \<equiv> hsplay flatten_closure h"
 
 primrec flatten_env :: "(ptr \<times> ptr) \<Rightarrow> ptr list" where
-  "flatten_env (a, b) = [2 * a, 2 * b]"
+  "flatten_env (p\<^sub>h, p\<^sub>\<Delta>) = [2 * p\<^sub>h, 2 * p\<^sub>\<Delta>]"
 
 abbreviation flatten_environment :: "(ptr \<times> ptr) heap \<Rightarrow> ptr heap" where
   "flatten_environment h \<equiv> hsplay flatten_env h"
@@ -37,9 +37,8 @@ primrec flatten :: "state\<^sub>v \<Rightarrow> state\<^sub>f" where
 lemma length_flat_closure [simp]: "length (flatten_closure c) = 2"
   by (induction c) simp_all
 
-lemma lookup_flat_closure_0 [simp]: "hcontains h v \<Longrightarrow> 
-  hlookup (flatten_values h) (2 * v) = 
-    (case hlookup h v of Lam\<^sub>v p\<^sub>\<Delta> _ \<Rightarrow> (PEnv, 2 * p\<^sub>\<Delta>) | Const\<^sub>v n \<Rightarrow> (PConst, n))"
+lemma lookup_flat_closure_0 [simp]: "hcontains h v \<Longrightarrow> hlookup (flatten_values h) (2 * v) = 
+  (case hlookup h v of Lam\<^sub>v p\<^sub>\<Delta> _ \<Rightarrow> (PEnv, 2 * p\<^sub>\<Delta>) | Const\<^sub>v n \<Rightarrow> (PConst, n))"
 proof -
   assume "hcontains h v"
   moreover have "(0::nat) < 2" by simp
@@ -49,9 +48,8 @@ proof -
   ultimately show ?thesis by (metis (mono_tags, lifting) hlookup_hsplay add.left_neutral)
 qed
 
-lemma lookup_flat_closure_1 [simp]: "hcontains h v \<Longrightarrow> 
-  hlookup (flatten_values h) (Suc (2 * v)) = 
-    (case hlookup h v of Lam\<^sub>v _ p\<^sub>\<C> \<Rightarrow> (PCode, p\<^sub>\<C>) | Const\<^sub>v _ \<Rightarrow> (PConst, 0))"
+lemma lookup_flat_closure_1 [simp]: "hcontains h v \<Longrightarrow> hlookup (flatten_values h) (Suc (2 * v)) = 
+  (case hlookup h v of Lam\<^sub>v _ p\<^sub>\<C> \<Rightarrow> (PCode, p\<^sub>\<C>) | Const\<^sub>v _ \<Rightarrow> (PConst, 0))"
 proof -
   assume "hcontains h v"
   moreover have "(1::nat) < 2" by simp
@@ -61,16 +59,10 @@ proof -
   ultimately show ?thesis by (metis hlookup_hsplay plus_1_eq_Suc Suc_1)
 qed
 
-lemma flatten_lt_3: "hcontains h x \<Longrightarrow> flatten_values h = H h' hp \<Longrightarrow> Suc (2 * x) < hp"
-  by simp
-
 lemma length_flat_env [simp]: "length (flatten_env e) = 2"
   by (induction e) simp_all
 
 lemma flatten_env_0 [simp]: "(flatten_env e ! 0) = 2 * fst e"
-  by (induction e) simp_all
-
-lemma flatten_env_1 [simp]: "(flatten_env e ! 1) = 2 * snd e"
   by (induction e) simp_all
 
 text \<open>Most of the facts for correctness are simple and self-contained, but the relation between 
@@ -103,7 +95,7 @@ next
   with 3 X A show ?case by simp
 qed simp_all
 
-lemma flatten_halloc: "halloc h c = (h', v) \<Longrightarrow> 
+lemma flatten_halloc [simp]: "halloc h c = (h', v) \<Longrightarrow> 
     halloc_list (flatten_values h) (flatten_closure c) = (flatten_values h', 2 * v)"
   by simp
 
@@ -178,7 +170,13 @@ lemma halloc_list_flatten_closure [dest]: "
     \<exists>h\<^sub>v' v\<^sub>v. h\<^sub>f' = hsplay flatten_closure h\<^sub>v' \<and> v\<^sub>h = 2 * v\<^sub>v \<and> halloc h\<^sub>v c = (h\<^sub>v', v\<^sub>v)"
   by (cases "halloc h\<^sub>v c") simp_all
 
-text \<open>And we prove completeness:\<close>
+text \<open>And we prove completeness. Despite losing the type tags, the pointer tags provide (just) 
+enough information to prove this, but in a larger language this might well simply be false. Consider 
+a simple sum constructor, Inl v | Inr v, which might be represented by [0, v] or [1, v] depending on 
+which constructor was used, and the pair constructor (v1, v2), which would be represented [v1, v2].
+Then projecting the second component of a pair would check that the second address was a pointer to 
+a nested value - but there would be no way of telling if that came from a product value or a sum 
+value, breaking completeness.\<close>
 
 theorem complete\<^sub>f: "\<C> \<tturnstile> flatten \<Sigma>\<^sub>v \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow> 
   \<exists>\<Sigma>\<^sub>v'. (\<C> \<tturnstile> \<Sigma>\<^sub>v \<leadsto>\<^sub>v \<Sigma>\<^sub>v') \<and> flatten \<Sigma>\<^sub>v' = \<Sigma>\<^sub>f'" 

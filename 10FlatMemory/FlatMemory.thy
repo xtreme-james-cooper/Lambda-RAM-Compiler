@@ -6,13 +6,14 @@ text \<open>The chained memory stage is quite low-level, but it still possesses 
 pairs in the stack and the environment heap, and tagged closure-values in the value heap. We now 
 reduce all of these to contiguous series of numbers. The pairs are just listed, first component 
 first; the closures are flattened to sequences of data. A \<open>Const\<^sub>v n\<close> value becomes \<open>[n, 0]\<close>; a 
-\<open>Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>\<close> becomes \<open>[p\<^sub>\<Delta>, p\<^sub>\<C>]\<close>. We tag the code pointers because we need to recognize them later, 
-when we move to assembly code and alter all the codeblock addresses; besides that, in losing the 
-tags on values, we have now discarded our last scrap of source-level type-safety. The \<open>ev\<^sub>f_apply\<close> 
-and \<open>ev\<^sub>f_jump\<close> operations assume they've been given a function-closure, and check that they have 
-environment and code pointers, but the memory itself no longer records as such that there is a 
-function stored there. (The padding 0 on the numerical values is just to keep all values the same 
-size, greatly easing some of the proofs.)\<close>
+\<open>Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>\<close> becomes \<open>[p\<^sub>\<Delta>, p\<^sub>\<C>]\<close>. (The padding 0 on the numerical values is just to keep all values 
+the same size, greatly easing some of the proofs.) We also tag the code and environment pointers 
+because we need to recognize them later, when we move to assembly code and alter all the codeblock 
+addresses; besides that, in losing the value constructors and the implicit tag that goes with that, 
+we have now discarded our last scrap of source-level type-safety. The \<open>ev\<^sub>f_apply\<close> and \<open>ev\<^sub>f_jump\<close> 
+operations assume they've been given a function-closure, and check that they have environment and 
+code pointers, but the memory itself no longer records as such that there is a function stored 
+there.\<close>
 
 datatype state\<^sub>f = 
   S\<^sub>f "(pointer_tag \<times> nat) heap" "ptr heap" "ptr list" "nat list"
@@ -42,7 +43,7 @@ inductive eval\<^sub>f :: "code\<^sub>b list \<Rightarrow> state\<^sub>f \<Right
     hlookup h (Suc v\<^sub>2) = (PCode, p\<^sub>\<C>') \<Longrightarrow> halloc_list \<Delta> [v\<^sub>1, p\<^sub>\<Delta>'] = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta>' \<V> (p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>'') # s)"
 
-theorem determinismf: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
+theorem determinism\<^sub>f: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>f \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>f.induct)
   case ev\<^sub>f_lookup
   from ev\<^sub>f_lookup(3, 1, 2) show ?case by (induction rule: eval\<^sub>f.cases) simp_all 

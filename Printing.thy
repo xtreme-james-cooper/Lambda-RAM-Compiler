@@ -139,4 +139,7 @@ lemma print_a [simp]: "Suc x < hp \<Longrightarrow> hp_tc t h x \<Longrightarrow
     print_uval t (pseudoreg_map \<circ> assm_hp cd h hp) x = print_uval t (snd \<circ> h) x"
   by (induction t) (auto simp add: assemble_heap_def split: prod.splits pointer_tag.splits)
 
+lemma flatten_lt_3: "hcontains h x \<Longrightarrow> flatten_values h = H h' hp \<Longrightarrow> Suc (2 * x) < hp"
+  by simp
+
 end

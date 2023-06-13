@@ -2,190 +2,211 @@ theory Unstructuring
   imports UnstructuredState "../10FlatMemory/FlatMemory"
 begin
 
+subsection \<open>State Unstructuring\<close>
+
+text \<open>The conversion to an unstructured state is almost a complete isomorphism: for every 
+(well-formed) flat-memory state, there exists one and only one (well-formed) unstructured state. We 
+cannot quite make a pair of inverse functions, however, because the well-formedness condition isn't 
+preserved by evaluation. Specifically, the memory map associated with a stack must have some 
+specific value (probably \<open>undefined\<close>) for indexes above its stack pointer; but we don't wipe values 
+when the stack retreats, we simply leave them behind as garbage. So we can only go one way, from 
+unstructured states to flat ones:\<close>
+
 primrec listify_heap :: "(nat \<Rightarrow> 'a) \<Rightarrow> nat \<Rightarrow> 'a list" where
   "listify_heap h 0 = []"
 | "listify_heap h (Suc x) = h x # listify_heap h x"
 
-lemma [dest]: "listify_heap h x = [] \<Longrightarrow> x = 0"
+lemma listify_to_empty [dest]: "listify_heap h x = [] \<Longrightarrow> x = 0"
   by (induction x) simp_all
 
-lemma [dest]: "listify_heap h x = a # as \<Longrightarrow> \<exists>y. x = Suc y \<and> h y = a \<and> listify_heap h y = as"
+lemma listify_to_cons [dest]: "listify_heap h x = a # as \<Longrightarrow> 
+    \<exists>y. x = Suc y \<and> h y = a \<and> listify_heap h y = as"
   by (induction x) simp_all
 
-lemma [simp]: "hp \<le> x \<Longrightarrow> listify_heap (h(x := v)) hp = listify_heap h hp"
-  by (induction hp) simp_all
+lemma fun_upd_listify [simp]: "b\<^sub>h \<le> x \<Longrightarrow> listify_heap (h(x := v)) b\<^sub>h = listify_heap h b\<^sub>h"
+  by (induction b\<^sub>h) simp_all
 
-lemma [simp]: "hp \<le> x \<Longrightarrow> listify_heap (h(Suc x := v) \<circ> Suc) hp = listify_heap (h \<circ> Suc) hp"
-  by (induction hp) auto
+lemma fun_upd_listify_suc [simp]: "b\<^sub>h \<le> x \<Longrightarrow> 
+    listify_heap (h(Suc x := v) \<circ> Suc) b\<^sub>h = listify_heap (h \<circ> Suc) b\<^sub>h"
+  by (induction b\<^sub>h) auto
 
-primrec restructure :: "unstr_state \<Rightarrow> state\<^sub>f" where
-  "restructure (S\<^sub>u h hp e ep vs vp sh sp pc) = 
-    S\<^sub>f (H h hp) (H e ep) (listify_heap vs vp) (case sp of 
+primrec restructure :: "state\<^sub>r \<Rightarrow> state\<^sub>f" where
+  "restructure (S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s p\<^sub>\<C>) = 
+    S\<^sub>f (H h b\<^sub>h) (H \<Delta> b\<^sub>\<Delta>) (listify_heap \<V> b\<^sub>\<V>) (case b\<^sub>s of 
       0 \<Rightarrow> []  
-    | Suc sp' \<Rightarrow> pc # listify_heap (sh \<circ> Suc) sp')"
+    | Suc b\<^sub>s' \<Rightarrow> p\<^sub>\<C> # listify_heap (s \<circ> Suc) b\<^sub>s')"
 
-lemma [simp]: "flat_lookup (H h hp) p x = unstr_lookup h p x"
+lemma flat_unstr_lookup [simp]: "flat_lookup (H h b\<^sub>h) p x = unstr_lookup h p x"
   by (induction h p x rule: unstr_lookup.induct) simp_all
 
-primrec restructurable :: "unstr_state \<Rightarrow> bool" where
-  "restructurable (S\<^sub>u h hp e ep vs vp sh sp pc) = (even sp \<and> sh 0 = 0 \<and> (sp = 0 \<longrightarrow> pc = 0))"
+text \<open>We also need a well-formedness predicate, to make sure that the stack (the only complicated 
+pert of the conversion) is properly set up.\<close>
 
-lemma restructurable_persists [simp]: "cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u \<Longrightarrow> restructurable \<Sigma>\<^sub>u'"
-  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: eval\<^sub>u.induct) simp_all
+primrec restructurable :: "state\<^sub>r \<Rightarrow> bool" where
+  "restructurable (S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s p\<^sub>\<C>) = (even b\<^sub>s \<and> s 0 = 0 \<and> (b\<^sub>s = 0 \<longrightarrow> p\<^sub>\<C> = 0))"
 
-lemma restructurable_persists_iter [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u \<Longrightarrow> 
-    restructurable \<Sigma>\<^sub>u'"
-  by (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: iter.induct) simp_all
+lemma restructurable_persists [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>r \<leadsto>\<^sub>r \<Sigma>\<^sub>r' \<Longrightarrow> restructurable \<Sigma>\<^sub>r \<Longrightarrow> restructurable \<Sigma>\<^sub>r'"
+  by (induction \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>r.induct) simp_all
 
-theorem completeu [simp]: "cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u' \<Longrightarrow> restructurable \<Sigma>\<^sub>u \<Longrightarrow>
-  cd \<tturnstile> restructure \<Sigma>\<^sub>u \<leadsto>\<^sub>f restructure \<Sigma>\<^sub>u'"
-proof (induction \<Sigma>\<^sub>u \<Sigma>\<^sub>u' rule: eval\<^sub>u.induct)
-  case (ev\<^sub>u_lookup cd pc x e sh sp y h hp ep vs vp)
-  thus ?case by (cases sp) (auto split: nat.splits)
+lemma restructurable_persists_iter [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>r) \<Sigma>\<^sub>r \<Sigma>\<^sub>r' \<Longrightarrow> restructurable \<Sigma>\<^sub>r \<Longrightarrow> 
+    restructurable \<Sigma>\<^sub>r'"
+  by (induction \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: iter.induct) simp_all
+
+text \<open>Completeness is a simple induction, now.\<close>
+
+theorem complete\<^sub>r [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>r \<leadsto>\<^sub>r \<Sigma>\<^sub>r' \<Longrightarrow> restructurable \<Sigma>\<^sub>r \<Longrightarrow> 
+  \<C> \<tturnstile> restructure \<Sigma>\<^sub>r \<leadsto>\<^sub>f restructure \<Sigma>\<^sub>r'"
+proof (induction \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>r.induct)
+  case (ev\<^sub>r_lookup \<C> p\<^sub>\<C> x \<Delta> s b\<^sub>s y h b\<^sub>h b\<^sub>\<Delta> \<V> b\<^sub>\<V>\<V>)
+  thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
-  case (ev\<^sub>u_pushcon cd pc k h hp e ep vs vp sh sp)
-  thus ?case by (cases sp) (auto split: nat.splits)
+  case (ev\<^sub>r_pushcon \<C> p\<^sub>\<C> n h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
+  thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
-  case (ev\<^sub>u_pushlam cd pc pc' h hp e ep vs vp sh sp)
-  thus ?case by (cases sp) (auto split: nat.splits)
+  case (ev\<^sub>r_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
+  thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
-  case (ev\<^sub>u_apply \<C> p\<^sub>\<C> h vs vp ep' p\<^sub>\<C>' hp e ep sh sp)
-  moreover hence "hlookup (H h hp) (vs vp) = (PEnv, ep')" by simp
-  moreover from ev\<^sub>u_apply have "hlookup (H h hp) (Suc (vs vp)) = (PCode, p\<^sub>\<C>')" by simp
-  moreover have "halloc_list (H e ep) [vs (Suc vp), ep'] = 
-    (H (e(ep := vs (Suc vp), Suc ep := ep')) (Suc (Suc ep)), ep)" by simp
-  ultimately have "\<And>n. \<C> \<tturnstile> S\<^sub>f (H h hp) (H e ep) (vs (Suc vp) # vs vp # listify_heap vs vp) 
-      (Suc p\<^sub>\<C> # sh (Suc n) # listify_heap (sh \<circ> Suc) n) \<leadsto>\<^sub>f 
-    S\<^sub>f (H h hp) (H (e(ep := vs (Suc vp), Suc ep := ep')) (Suc (Suc ep))) 
-      (listify_heap vs vp) (p\<^sub>\<C>' # Suc (Suc ep) # p\<^sub>\<C> # sh (Suc n) # listify_heap (sh \<circ> Suc) n)"
+  case (ev\<^sub>r_apply \<C> p\<^sub>\<C> h \<V> b\<^sub>\<V> p\<^sub>\<Delta> p\<^sub>\<C>' b\<^sub>h \<Delta> b\<^sub>\<Delta> s b\<^sub>s)
+  moreover hence "hlookup (H h b\<^sub>h) (\<V> b\<^sub>\<V>) = (PEnv, p\<^sub>\<Delta>)" by simp
+  moreover from ev\<^sub>r_apply have "hlookup (H h b\<^sub>h) (Suc (\<V> b\<^sub>\<V>)) = (PCode, p\<^sub>\<C>')" by simp
+  moreover have "halloc_list (H \<Delta> b\<^sub>\<Delta>) [\<V> (Suc b\<^sub>\<V>), p\<^sub>\<Delta>] = 
+    (H (\<Delta>(b\<^sub>\<Delta> := \<V> (Suc b\<^sub>\<V>), Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>)) (Suc (Suc b\<^sub>\<Delta>)), b\<^sub>\<Delta>)" by simp
+  ultimately have "\<And>n. \<C> \<tturnstile> S\<^sub>f (H h b\<^sub>h) (H \<Delta> b\<^sub>\<Delta>) (\<V> (Suc b\<^sub>\<V>) # \<V> b\<^sub>\<V> # listify_heap \<V> b\<^sub>\<V>) 
+      (Suc p\<^sub>\<C> # s (Suc n) # listify_heap (s \<circ> Suc) n) \<leadsto>\<^sub>f 
+    S\<^sub>f (H h b\<^sub>h) (H (\<Delta>(b\<^sub>\<Delta> := \<V> (Suc b\<^sub>\<V>), Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>)) (Suc (Suc b\<^sub>\<Delta>))) 
+      (listify_heap \<V> b\<^sub>\<V>) (p\<^sub>\<C>' # Suc (Suc b\<^sub>\<Delta>) # p\<^sub>\<C> # s (Suc n) # listify_heap (s \<circ> Suc) n)"
     by (metis ev\<^sub>f_apply)
-  with ev\<^sub>u_apply show ?case by (cases sp) (auto split: nat.splits)
+  with ev\<^sub>r_apply show ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
-  case (ev\<^sub>u_return cd pc h hp e ep vs vp sh sp)
-  thus ?case by (cases sp) (auto split: nat.splits)
+  case (ev\<^sub>r_return \<C> p\<^sub>\<C> h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
+  thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
-  case (ev\<^sub>u_jump \<C> p\<^sub>\<C> h vs vp ep' p\<^sub>\<C>' hp e ep sh sp)
-  moreover hence "hlookup (H h hp) (vs vp) = (PEnv, ep')" by simp
-  moreover from ev\<^sub>u_jump have "hlookup (H h hp) (Suc (vs vp)) = (PCode, p\<^sub>\<C>')" by simp
-  moreover have "halloc_list (H e ep) [vs (Suc vp), ep'] = 
-    (H (e(ep := vs (Suc vp), Suc ep := ep')) (Suc (Suc ep)), ep)" by simp
-  ultimately have "\<And>n. \<C> \<tturnstile> S\<^sub>f (H h hp) (H e ep) (vs (Suc vp) # vs vp # listify_heap vs vp) 
-      (Suc p\<^sub>\<C> # sh (Suc n) # listify_heap (sh \<circ> Suc) n) \<leadsto>\<^sub>f 
-    S\<^sub>f (H h hp) (H (e(ep := vs (Suc vp), Suc ep := ep')) (Suc (Suc ep))) 
-      (listify_heap vs vp) (p\<^sub>\<C>' # Suc (Suc ep) # listify_heap (sh \<circ> Suc) n)"
+  case (ev\<^sub>r_jump \<C> p\<^sub>\<C> h \<V> b\<^sub>\<V> p\<^sub>\<Delta> p\<^sub>\<C>' b\<^sub>h \<Delta> b\<^sub>\<Delta> s b\<^sub>s)
+  moreover hence "hlookup (H h b\<^sub>h) (\<V> b\<^sub>\<V>) = (PEnv, p\<^sub>\<Delta>)" by simp
+  moreover from ev\<^sub>r_jump have "hlookup (H h b\<^sub>h) (Suc (\<V> b\<^sub>\<V>)) = (PCode, p\<^sub>\<C>')" by simp
+  moreover have "halloc_list (H \<Delta> b\<^sub>\<Delta>) [\<V> (Suc b\<^sub>\<V>), p\<^sub>\<Delta>] = 
+    (H (\<Delta>(b\<^sub>\<Delta> := \<V> (Suc b\<^sub>\<V>), Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>)) (Suc (Suc b\<^sub>\<Delta>)), b\<^sub>\<Delta>)" by simp
+  ultimately have "\<And>n. \<C> \<tturnstile> S\<^sub>f (H h b\<^sub>h) (H \<Delta> b\<^sub>\<Delta>) (\<V> (Suc b\<^sub>\<V>) # \<V> b\<^sub>\<V> # listify_heap \<V> b\<^sub>\<V>) 
+      (Suc p\<^sub>\<C> # s (Suc n) # listify_heap (s \<circ> Suc) n) \<leadsto>\<^sub>f 
+    S\<^sub>f (H h b\<^sub>h) (H (\<Delta>(b\<^sub>\<Delta> := \<V> (Suc b\<^sub>\<V>), Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>)) (Suc (Suc b\<^sub>\<Delta>))) 
+      (listify_heap \<V> b\<^sub>\<V>) (p\<^sub>\<C>' # Suc (Suc b\<^sub>\<Delta>) # listify_heap (s \<circ> Suc) n)"
     by (metis ev\<^sub>f_jump)
-  with ev\<^sub>u_jump show ?case by (cases sp) (auto split: nat.splits)
+  with ev\<^sub>r_jump show ?case by (cases b\<^sub>s) (auto split: nat.splits)
 qed
 
-lemma [dest]: "S\<^sub>f h env vs (pc # p # sfs) = restructure \<Sigma> \<Longrightarrow> \<exists>h' hp e ep vs' vp sh sp. 
-  \<Sigma> = S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) pc \<and> h = H h' hp \<and> env = H e ep \<and> 
-    vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp"
-proof (induction \<Sigma>)
-  case (S\<^sub>u h' hp e ep vs' vp sh sp pc')
+text \<open>However, the simplicity of our conversion means that correctness is also mostly 
+straightforward.\<close>
+
+lemma restructure_to_state [dest]: "S\<^sub>f h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f (p\<^sub>\<C> # p\<^sub>\<Delta> # s\<^sub>f) = restructure \<Sigma>\<^sub>r \<Longrightarrow> 
+  \<exists>h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s. \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) p\<^sub>\<C> \<and> h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> 
+    \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> \<V>\<^sub>f = listify_heap \<V>\<^sub>r b\<^sub>\<V> \<and> p\<^sub>\<Delta> = s\<^sub>r (Suc b\<^sub>s) \<and> s\<^sub>f = listify_heap (s\<^sub>r \<circ> Suc) b\<^sub>s"
+proof (induction \<Sigma>\<^sub>r)
+  case (S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s p\<^sub>\<C>)
   thus ?case 
-  proof (induction sp)
-    case (Suc sp')
-    thus ?case by (cases sp') (simp_all split: nat.splits, meson comp_apply)
+  proof (induction b\<^sub>s)
+    case (Suc b\<^sub>s)
+    thus ?case by (cases b\<^sub>s) (simp_all split: nat.splits, meson comp_apply)
   qed (simp_all split: nat.splits)
 qed
 
-lemma [dest]: "S\<^sub>f h env vs [] = restructure \<Sigma> \<Longrightarrow> restructurable \<Sigma> \<Longrightarrow> \<exists>h' hp e ep vs' vp sh. 
-    \<Sigma> = S\<^sub>u h' hp e ep vs' vp sh 0 0 \<and> h = H h' hp \<and> env = H e ep \<and> vs = listify_heap vs' vp"
-  by (induction \<Sigma>) (simp split: nat.splits)
+lemma restructure_to_final_state [dest]: "S\<^sub>f h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f [] = restructure \<Sigma>\<^sub>r \<Longrightarrow> restructurable \<Sigma>\<^sub>r \<Longrightarrow> 
+  \<exists>h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r. \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r 0 0 \<and> h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> 
+    \<V>\<^sub>f = listify_heap \<V>\<^sub>r b\<^sub>\<V>"
+  by (induction \<Sigma>\<^sub>r) (simp split: nat.splits)
 
-theorem correctu [simp]: "cd \<tturnstile> restructure \<Sigma>\<^sub>u \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> 
-  \<exists>\<Sigma>\<^sub>u'. (cd \<tturnstile> \<Sigma>\<^sub>u \<leadsto>\<^sub>u \<Sigma>\<^sub>u') \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>u'"
-proof (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' rule: eval\<^sub>f.induct)
-  case (ev\<^sub>f_lookup cd pc x env p v h vs sfs)
-  then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> 
-    vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
-      \<Sigma>\<^sub>u = S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
-  moreover hence "S\<^sub>f h env (v # vs) (pc # p # sfs) = 
-    restructure (S\<^sub>u h' hp e ep (vs'(vp := v)) (Suc vp) sh (Suc (Suc sp)) pc)" by simp
-  moreover from ev\<^sub>f_lookup S have "cd \<tturnstile> S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-    S\<^sub>u h' hp e ep (vs'(vp := v)) (Suc vp) sh (Suc (Suc sp)) pc" by simp
+theorem correct\<^sub>r [simp]: "\<C> \<tturnstile> restructure \<Sigma>\<^sub>r \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> 
+  \<exists>\<Sigma>\<^sub>r'. (\<C> \<tturnstile> \<Sigma>\<^sub>r \<leadsto>\<^sub>r \<Sigma>\<^sub>r') \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>r'"
+proof (induction "restructure \<Sigma>\<^sub>r" \<Sigma>\<^sub>f' rule: eval\<^sub>f.induct)
+  case (ev\<^sub>f_lookup \<C> p\<^sub>\<C> x \<Delta>\<^sub>f p\<^sub>\<Delta> v h\<^sub>f \<V>\<^sub>f s\<^sub>f)
+  then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s where S: "h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> 
+    \<V>\<^sub>f = listify_heap \<V>\<^sub>r b\<^sub>\<V> \<and> p\<^sub>\<Delta> = s\<^sub>r (Suc b\<^sub>s) \<and> s\<^sub>f = listify_heap (s\<^sub>r \<circ> Suc) b\<^sub>s \<and> 
+      \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>)" by fastforce
+  moreover hence "S\<^sub>f h\<^sub>f \<Delta>\<^sub>f (v # \<V>\<^sub>f) (p\<^sub>\<C> # p\<^sub>\<Delta> # s\<^sub>f) = 
+    restructure (S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> (\<V>\<^sub>r(b\<^sub>\<V> := v)) (Suc b\<^sub>\<V>) s\<^sub>r (Suc (Suc b\<^sub>s)) p\<^sub>\<C>)" by simp
+  moreover from ev\<^sub>f_lookup S have "\<C> \<tturnstile> S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
+    S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> (\<V>\<^sub>r(b\<^sub>\<V> := v)) (Suc b\<^sub>\<V>) s\<^sub>r (Suc (Suc b\<^sub>s)) p\<^sub>\<C>" by simp
   ultimately show ?case by blast
 next
-  case (ev\<^sub>f_pushcon cd pc k h h' v env vs p sfs)
-  then obtain hh hp e ep vs' vp sh sp where S: "h = H hh hp \<and> env = H e ep \<and> 
-    vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
-      \<Sigma>\<^sub>u = S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
-  with ev\<^sub>f_pushcon have "v = hp \<and> 
-    h' = H (hh(hp := (PConst, k), Suc hp := (PConst, 0))) (Suc (Suc hp))" by fastforce
-  with S have X: "S\<^sub>f h' env (v # vs) (pc # p # sfs) = 
-    restructure (S\<^sub>u (hh(hp := (PConst, k), Suc hp := (PConst, 0))) 
-      (2 + hp) e ep (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc)" by simp
-  from ev\<^sub>f_pushcon have "cd \<tturnstile> S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-    S\<^sub>u (hh(hp := (PConst, k), Suc hp := (PConst, 0))) (2 + hp) e ep 
-      (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc" by (metis ev\<^sub>u_pushcon)
+  case (ev\<^sub>f_pushcon \<C> p\<^sub>\<C> k h\<^sub>f h\<^sub>f' v \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta> s\<^sub>f)
+  then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s where S: "h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> 
+    \<V>\<^sub>f = listify_heap \<V>\<^sub>r b\<^sub>\<V> \<and> p\<^sub>\<Delta> = s\<^sub>r (Suc b\<^sub>s) \<and> s\<^sub>f = listify_heap (s\<^sub>r \<circ> Suc) b\<^sub>s \<and> 
+      \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>)" by fastforce
+  with ev\<^sub>f_pushcon have "v = b\<^sub>h \<and> 
+    h\<^sub>f' = H (h\<^sub>r(b\<^sub>h := (PConst, k), Suc b\<^sub>h := (PConst, 0))) (Suc (Suc b\<^sub>h))" by fastforce
+  with S have X: "S\<^sub>f h\<^sub>f' \<Delta>\<^sub>f (v # \<V>\<^sub>f) (p\<^sub>\<C> # p\<^sub>\<Delta> # s\<^sub>f) = 
+    restructure (S\<^sub>r (h\<^sub>r(b\<^sub>h := (PConst, k), Suc b\<^sub>h := (PConst, 0))) 
+      (2 + b\<^sub>h) \<Delta>\<^sub>r b\<^sub>\<Delta> (\<V>\<^sub>r(b\<^sub>\<V> := b\<^sub>h)) (Suc b\<^sub>\<V>) s\<^sub>r (Suc (Suc b\<^sub>s)) p\<^sub>\<C>)" by simp
+  from ev\<^sub>f_pushcon have "\<C> \<tturnstile> S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
+    S\<^sub>r (h\<^sub>r(b\<^sub>h := (PConst, k), Suc b\<^sub>h := (PConst, 0))) (2 + b\<^sub>h) \<Delta>\<^sub>r b\<^sub>\<Delta> 
+      (\<V>\<^sub>r(b\<^sub>\<V> := b\<^sub>h)) (Suc b\<^sub>\<V>) s\<^sub>r (Suc (Suc b\<^sub>s)) p\<^sub>\<C>" by (metis ev\<^sub>r_pushcon)
   with S X show ?case by blast
 next
-  case (ev\<^sub>f_pushlam cd pc pc' h p h' v env vs sfs)
-  then obtain hh hp e ep vs' vp sh sp where S: "h = H hh hp \<and> env = H e ep \<and> 
-    vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
-      \<Sigma>\<^sub>u = S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
-  with ev\<^sub>f_pushlam have "v = hp \<and> 
-    h' = H (hh(hp := (PEnv, sh (Suc sp)), Suc hp := (PCode, pc'))) (Suc (Suc hp))" by fastforce
-  with S have X: "S\<^sub>f h' env (v # vs) (pc # p # sfs) = 
-    restructure (S\<^sub>u (hh(hp := (PEnv, sh (Suc sp)), Suc hp := (PCode, pc'))) (2 + hp) e ep
-      (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc)" 
+  case (ev\<^sub>f_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' h\<^sub>f p\<^sub>\<Delta> h\<^sub>f' v \<Delta>\<^sub>f \<V>\<^sub>f s\<^sub>f)
+  then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s where S: "h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> 
+    \<V>\<^sub>f = listify_heap \<V>\<^sub>r b\<^sub>\<V> \<and> p\<^sub>\<Delta> = s\<^sub>r (Suc b\<^sub>s) \<and> s\<^sub>f = listify_heap (s\<^sub>r \<circ> Suc) b\<^sub>s \<and> 
+      \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>)" by fastforce
+  with ev\<^sub>f_pushlam have "v = b\<^sub>h \<and> 
+    h\<^sub>f' = H (h\<^sub>r(b\<^sub>h := (PEnv, s\<^sub>r (Suc b\<^sub>s)), Suc b\<^sub>h := (PCode, p\<^sub>\<C>'))) (Suc (Suc b\<^sub>h))" by fastforce
+  with S have X: "S\<^sub>f h\<^sub>f' \<Delta>\<^sub>f (v # \<V>\<^sub>f) (p\<^sub>\<C> # p\<^sub>\<Delta> # s\<^sub>f) = 
+    restructure (S\<^sub>r (h\<^sub>r(b\<^sub>h := (PEnv, s\<^sub>r (Suc b\<^sub>s)), Suc b\<^sub>h := (PCode, p\<^sub>\<C>'))) (2 + b\<^sub>h) \<Delta>\<^sub>r b\<^sub>\<Delta>
+      (\<V>\<^sub>r(b\<^sub>\<V> := b\<^sub>h)) (Suc b\<^sub>\<V>) s\<^sub>r (Suc (Suc b\<^sub>s)) p\<^sub>\<C>)" 
         by simp
-  from ev\<^sub>f_pushlam S have "cd \<tturnstile> S\<^sub>u hh hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-    S\<^sub>u (hh(hp := (PEnv, sh (Suc sp)), Suc hp := (PCode, pc'))) (2 + hp) 
-      e ep (vs'(vp := hp)) (Suc vp) sh (Suc (Suc sp)) pc" by (metis ev\<^sub>u_pushlam)
+  from ev\<^sub>f_pushlam S have "\<C> \<tturnstile> S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
+    S\<^sub>r (h\<^sub>r(b\<^sub>h := (PEnv, s\<^sub>r (Suc b\<^sub>s)), Suc b\<^sub>h := (PCode, p\<^sub>\<C>'))) (2 + b\<^sub>h) 
+      \<Delta>\<^sub>r b\<^sub>\<Delta> (\<V>\<^sub>r(b\<^sub>\<V> := b\<^sub>h)) (Suc b\<^sub>\<V>) s\<^sub>r (Suc (Suc b\<^sub>s)) p\<^sub>\<C>" by (metis ev\<^sub>r_pushlam)
   with S X show ?case by blast
 next
-  case (ev\<^sub>f_apply cd pc h v2 p\<^sub>\<Delta>' p\<^sub>\<C>' env v1 env' p2 vs p sfs)
-  then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> p = sh (Suc sp) \<and> 
-    sfs = listify_heap (sh \<circ> Suc) sp \<and> listify_heap vs' vp = v1 # v2 # vs \<and> 
-      \<Sigma>\<^sub>u = S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
-  then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
-    vs = listify_heap vs' vp'" by fastforce
-  from ev\<^sub>f_apply S V have H1: "h' (vs' vp') = (PEnv, p\<^sub>\<Delta>')" by simp
-  from ev\<^sub>f_apply S V have H2: "h' (Suc (vs' vp')) = (PCode, p\<^sub>\<C>')" by simp
-  from ev\<^sub>f_apply S V have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := p\<^sub>\<Delta>')) (Suc (Suc p2))" by auto
-  with S V have X: "S\<^sub>f h env' vs (p\<^sub>\<C>' # Suc (Suc p2) # pc # p # sfs) = 
-    restructure (S\<^sub>u h' hp (e(ep := v1, Suc ep := p\<^sub>\<Delta>')) (2 + ep) vs' vp' 
-      (sh(Suc (Suc sp) := pc, Suc (Suc (Suc sp)) := Suc (Suc ep))) (2 + Suc (Suc sp)) p\<^sub>\<C>')" by simp
+  case (ev\<^sub>f_apply \<C> p\<^sub>\<C> h\<^sub>f v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' \<Delta>\<^sub>f v\<^sub>1 \<Delta>\<^sub>f' p2 \<V>\<^sub>f p\<^sub>\<Delta> s\<^sub>f)
+  then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s where S: "h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> p\<^sub>\<Delta> = s\<^sub>r (Suc b\<^sub>s) \<and> 
+    s\<^sub>f = listify_heap (s\<^sub>r \<circ> Suc) b\<^sub>s \<and> listify_heap \<V>\<^sub>r b\<^sub>\<V> = v\<^sub>1 # v\<^sub>2 # \<V>\<^sub>f \<and> 
+      \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>)" by fastforce
+  then obtain vp' where V: "b\<^sub>\<V> = Suc (Suc vp') \<and> v\<^sub>1 = \<V>\<^sub>r (Suc vp') \<and> v\<^sub>2 = \<V>\<^sub>r vp' \<and> 
+    \<V>\<^sub>f = listify_heap \<V>\<^sub>r vp'" by fastforce
+  from ev\<^sub>f_apply S V have H1: "h\<^sub>r (\<V>\<^sub>r vp') = (PEnv, p\<^sub>\<Delta>')" by simp
+  from ev\<^sub>f_apply S V have H2: "h\<^sub>r (Suc (\<V>\<^sub>r vp')) = (PCode, p\<^sub>\<C>')" by simp
+  from ev\<^sub>f_apply S V have "p2 = b\<^sub>\<Delta> \<and> \<Delta>\<^sub>f' = H (\<Delta>\<^sub>r(b\<^sub>\<Delta> := v\<^sub>1, Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>')) (Suc (Suc b\<^sub>\<Delta>))" by auto
+  with S V have X: "S\<^sub>f h\<^sub>f \<Delta>\<^sub>f' \<V>\<^sub>f (p\<^sub>\<C>' # Suc (Suc b\<^sub>\<Delta>) # p\<^sub>\<C> # p\<^sub>\<Delta> # s\<^sub>f) = 
+    restructure (S\<^sub>r h\<^sub>r b\<^sub>h (\<Delta>\<^sub>r(b\<^sub>\<Delta> := v\<^sub>1, Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>')) (2 + b\<^sub>\<Delta>) \<V>\<^sub>r vp' 
+      (s\<^sub>r(Suc (Suc b\<^sub>s) := p\<^sub>\<C>, Suc (Suc (Suc b\<^sub>s)) := Suc (Suc b\<^sub>\<Delta>))) (2 + Suc (Suc b\<^sub>s)) p\<^sub>\<C>')" by simp
   from ev\<^sub>f_apply V H1 H2 have "
-    cd \<tturnstile> S\<^sub>u h' hp e ep vs' (Suc (Suc vp')) sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-      S\<^sub>u h' hp (e(ep := v1, Suc ep := p\<^sub>\<Delta>')) (2 + ep) vs' vp'
-        (sh(Suc (Suc sp) := pc, Suc (Suc (Suc sp)) := Suc (Suc ep))) (2 + Suc (Suc sp)) p\<^sub>\<C>'"
-    by (metis ev\<^sub>u_apply)
-  with S X V show ?case by auto
+    \<C> \<tturnstile> S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r (Suc (Suc vp')) s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
+      S\<^sub>r h\<^sub>r b\<^sub>h (\<Delta>\<^sub>r(b\<^sub>\<Delta> := v\<^sub>1, Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>')) (2 + b\<^sub>\<Delta>) \<V>\<^sub>r vp'
+        (s\<^sub>r(Suc (Suc b\<^sub>s) := p\<^sub>\<C>, Suc (Suc (Suc b\<^sub>s)) := Suc (Suc b\<^sub>\<Delta>))) (2 + Suc (Suc b\<^sub>s)) p\<^sub>\<C>'"
+    by (metis ev\<^sub>r_apply)
+  with ev\<^sub>f_apply S X V show ?case by auto
 next
-  case (ev\<^sub>f_return cd pc h env vs p sfs)
-  then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> 
-    vs = listify_heap vs' vp \<and> p = sh (Suc sp) \<and> sfs = listify_heap (sh \<circ> Suc) sp \<and> 
-      \<Sigma>\<^sub>u = S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
-  moreover with ev\<^sub>f_return have "S\<^sub>f h env vs sfs = 
-    restructure (S\<^sub>u h' hp e ep vs' vp sh sp (sh sp))" by (auto split: nat.splits)
-  moreover from ev\<^sub>f_return have "cd \<tturnstile> S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-    S\<^sub>u h' hp e ep vs' vp sh sp (sh sp)" by (metis ev\<^sub>u_return)
+  case (ev\<^sub>f_return \<C> p\<^sub>\<C> h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta> s\<^sub>f)
+  then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s where S: "h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> 
+    \<V>\<^sub>f = listify_heap \<V>\<^sub>r b\<^sub>\<V> \<and> p\<^sub>\<Delta> = s\<^sub>r (Suc b\<^sub>s) \<and> s\<^sub>f = listify_heap (s\<^sub>r \<circ> Suc) b\<^sub>s \<and> 
+      \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>)" by fastforce
+  moreover with ev\<^sub>f_return have "S\<^sub>f h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f s\<^sub>f = 
+    restructure (S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s (s\<^sub>r b\<^sub>s))" by (auto split: nat.splits)
+  moreover from ev\<^sub>f_return have "\<C> \<tturnstile> S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
+    S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s (s\<^sub>r b\<^sub>s)" by (metis ev\<^sub>r_return)
   ultimately show ?case by blast
 next
-  case (ev\<^sub>f_jump cd pc h v2 p\<^sub>\<Delta>' p\<^sub>\<C>' env v1 env' p2 vs p sfs)
-  then obtain h' hp e ep vs' vp sh sp where S: "h = H h' hp \<and> env = H e ep \<and> p = sh (Suc sp) \<and> 
-    sfs = listify_heap (sh \<circ> Suc) sp \<and> listify_heap vs' vp = v1 # v2 # vs \<and> 
-      \<Sigma>\<^sub>u = S\<^sub>u h' hp e ep vs' vp sh (Suc (Suc sp)) (Suc pc)" by fastforce
-  then obtain vp' where V: "vp = Suc (Suc vp') \<and> v1 = vs' (Suc vp') \<and> v2 = vs' vp' \<and> 
-    vs = listify_heap vs' vp'" by fastforce
-  from ev\<^sub>f_jump S V have H1: "h' (vs' vp') = (PEnv, p\<^sub>\<Delta>')" by simp
-  from ev\<^sub>f_jump S V have H2: "h' (Suc (vs' vp')) = (PCode, p\<^sub>\<C>')" by simp
-  from ev\<^sub>f_jump S V have "p2 = ep \<and> env' = H (e(p2 := v1, Suc p2 := p\<^sub>\<Delta>')) (Suc (Suc p2))" by auto
-  with S V have X: "S\<^sub>f h env' vs (p\<^sub>\<C>' # Suc (Suc p2) # sfs) = 
-    restructure (S\<^sub>u h' hp (e(ep := v1, Suc ep := p\<^sub>\<Delta>')) (2 + ep) vs' vp' 
-      (sh(Suc (Suc sp) - 1 := Suc (Suc ep))) (Suc (Suc sp)) p\<^sub>\<C>')" by simp
+  case (ev\<^sub>f_jump \<C> p\<^sub>\<C> h\<^sub>f v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' \<Delta>\<^sub>f v\<^sub>1 \<Delta>\<^sub>f' p2 \<V>\<^sub>f p\<^sub>\<Delta> s\<^sub>f)
+  then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s where S: "h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> p\<^sub>\<Delta> = s\<^sub>r (Suc b\<^sub>s) \<and> 
+    s\<^sub>f = listify_heap (s\<^sub>r \<circ> Suc) b\<^sub>s \<and> listify_heap \<V>\<^sub>r b\<^sub>\<V> = v\<^sub>1 # v\<^sub>2 # \<V>\<^sub>f \<and> 
+      \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>)" by fastforce
+  then obtain vp' where V: "b\<^sub>\<V> = Suc (Suc vp') \<and> v\<^sub>1 = \<V>\<^sub>r (Suc vp') \<and> v\<^sub>2 = \<V>\<^sub>r vp' \<and> 
+    \<V>\<^sub>f = listify_heap \<V>\<^sub>r vp'" by fastforce
+  from ev\<^sub>f_jump S V have H1: "h\<^sub>r (\<V>\<^sub>r vp') = (PEnv, p\<^sub>\<Delta>')" by simp
+  from ev\<^sub>f_jump S V have H2: "h\<^sub>r (Suc (\<V>\<^sub>r vp')) = (PCode, p\<^sub>\<C>')" by simp
+  from ev\<^sub>f_jump S V have "p2 = b\<^sub>\<Delta> \<and> \<Delta>\<^sub>f' = H (\<Delta>\<^sub>r(b\<^sub>\<Delta> := v\<^sub>1, Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>')) (Suc (Suc b\<^sub>\<Delta>))" by auto
+  with S V have X: "S\<^sub>f h\<^sub>f \<Delta>\<^sub>f' \<V>\<^sub>f (p\<^sub>\<C>' # Suc (Suc b\<^sub>\<Delta>) # s\<^sub>f) = 
+    restructure (S\<^sub>r h\<^sub>r b\<^sub>h (\<Delta>\<^sub>r(b\<^sub>\<Delta> := v\<^sub>1, Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>')) (2 + b\<^sub>\<Delta>) \<V>\<^sub>r vp' 
+      (s\<^sub>r(Suc (Suc b\<^sub>s) - 1 := Suc (Suc b\<^sub>\<Delta>))) (Suc (Suc b\<^sub>s)) p\<^sub>\<C>')" by simp
   from ev\<^sub>f_jump V H1 H2 have "
-        cd \<tturnstile> S\<^sub>u h' hp e ep vs' (Suc (Suc vp')) sh (Suc (Suc sp)) (Suc pc) \<leadsto>\<^sub>u 
-    S\<^sub>u h' hp (e(ep := v1, Suc ep := p\<^sub>\<Delta>')) (2 + ep) vs' vp'
-      (sh(Suc (Suc sp) - 1 := Suc (Suc ep))) (Suc (Suc sp)) p\<^sub>\<C>'" using ev\<^sub>u_jump by fastforce
-  with S V X show ?case by auto
+        \<C> \<tturnstile> S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r (Suc (Suc vp')) s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
+    S\<^sub>r h\<^sub>r b\<^sub>h (\<Delta>\<^sub>r(b\<^sub>\<Delta> := v\<^sub>1, Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>')) (2 + b\<^sub>\<Delta>) \<V>\<^sub>r vp'
+      (s\<^sub>r(Suc (Suc b\<^sub>s) - 1 := Suc (Suc b\<^sub>\<Delta>))) (Suc (Suc b\<^sub>s)) p\<^sub>\<C>'" using ev\<^sub>r_jump by fastforce
+  with ev\<^sub>f_jump S V X show ?case by auto
 qed
 
-theorem correctu_iter [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>f) (restructure \<Sigma>\<^sub>u) \<Sigma>\<^sub>f' \<Longrightarrow> 
-    \<exists>\<Sigma>\<^sub>u'. iter (\<tturnstile> cd \<leadsto>\<^sub>u) \<Sigma>\<^sub>u \<Sigma>\<^sub>u' \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>u'"
-  by (induction "restructure \<Sigma>\<^sub>u" \<Sigma>\<^sub>f' arbitrary: \<Sigma>\<^sub>u rule: iter.induct) 
-     (force, metis correctu iter_step)
+theorem correct\<^sub>r_iter [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>f) (restructure \<Sigma>\<^sub>r) \<Sigma>\<^sub>f' \<Longrightarrow> 
+    \<exists>\<Sigma>\<^sub>r'. iter (\<tturnstile> \<C> \<leadsto>\<^sub>r) \<Sigma>\<^sub>r \<Sigma>\<^sub>r' \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>r'"
+  by (induction "restructure \<Sigma>\<^sub>r" \<Sigma>\<^sub>f' arbitrary: \<Sigma>\<^sub>r rule: iter.induct) 
+     (force, metis correct\<^sub>r iter_step)
 
 end

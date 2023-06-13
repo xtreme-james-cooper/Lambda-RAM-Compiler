@@ -88,7 +88,7 @@ them by heap-stored linked lists using explicit pointers from cons-cell to cons-
 just built our environment linked lists) contain structured data. We flatten them out into 
 sequential naturals (representing real memory locations): a closure 
 `x \<mapsto> Closure code_pointer env_pointer`, for instance, is now represented as 
-`3 * x \<mapsto> 0 [tag indicating a closure] ; 3 * x + 1 \<mapsto> code_pointer ; 3 * x + 2 \<mapsto> env_pointer`.
+`2 * x \<mapsto> code_pointer ; 2 * x + 1 \<mapsto> env_pointer`.
 
 11) Unstructured Memory. The flat memory stage still has lists for the value and call stacks. These 
 are now converted into arrays (represented as `nat \<Rightarrow> nat` functions with associated stack 
@@ -169,7 +169,6 @@ naming system here to, hopefully, keep the profusion of names clear to the reade
 e : an expression
 x, y, z : a variable
 n : a number
-b : an arithmetic operation
 v : a value (an expression in normal form, or later a closure)
 t : a type
 \<Gamma> : a typing context
@@ -181,6 +180,7 @@ s : an evaluation (or call) stack
 \<Delta> : an environment
 p : a code pointer
 h : a heap
+b : a heap or stack bounds pointer
 \<tau> : a unification term
 \<gamma> : a unification constructor tag
 \<sigma> : a unification substitution

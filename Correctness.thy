@@ -82,29 +82,29 @@ proof -
   with ECE CS have "chained_state \<Sigma>\<^sub>c\<^sub>e'" by (metis preserve_chained)
   with VCE have VH: "hcontains h\<^sub>c\<^sub>e v\<^sub>h" by simp
   with EF have "\<exists>\<Sigma>\<^sub>u'. 
-    iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and>
+    iter (\<tturnstile> ?cd \<leadsto>\<^sub>r) (S\<^sub>r ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and>
       S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [2 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by simp_all
   then obtain \<Sigma>\<^sub>u' where EU:
-    "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
+    "iter (\<tturnstile> ?cd \<leadsto>\<^sub>r) (S\<^sub>r ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) \<Sigma>\<^sub>u' \<and> 
       S\<^sub>f (flatten_values h\<^sub>c\<^sub>e) (flatten_environment env\<^sub>h) [2 * v\<^sub>h] [] = restructure \<Sigma>\<^sub>u'" by blast
   moreover then obtain h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u where VU:
-    "\<Sigma>\<^sub>u' = S\<^sub>u h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u 0 0 \<and> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<and> 
+    "\<Sigma>\<^sub>u' = S\<^sub>r h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u vp\<^sub>u sh\<^sub>u 0 0 \<and> flatten_values h\<^sub>c\<^sub>e = H h\<^sub>u hp\<^sub>u \<and> 
       flatten_environment env\<^sub>h = H e\<^sub>u ep\<^sub>u \<and> listify_heap vs\<^sub>u vp\<^sub>u = 2 * v\<^sub>h # []" by auto
   moreover hence VSU: "vs\<^sub>u 0 = 2 * v\<^sub>h \<and> vp\<^sub>u = 1" by auto
-  ultimately have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 
-    (length ?cd)) (S\<^sub>u h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
-  hence EU: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>u) (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) 
-    (S\<^sub>u h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
+  ultimately have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>r) (S\<^sub>r ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 
+    (length ?cd)) (S\<^sub>r h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
+  hence EU: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>r) (S\<^sub>r ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) 
+    (S\<^sub>r h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   let ?cd' = "assemble_code ?cd"
   let ?mp = "assembly_map ?cd"
   let ?mem = "case_register (assm_hp ?cd h\<^sub>u hp\<^sub>u) (assemble_env e\<^sub>u ep\<^sub>u) (assemble_vals vs\<^sub>u 1) 
     (assm_stk ?cd sh\<^sub>u 0) undefined"
   let ?rs = "case_register hp\<^sub>u ep\<^sub>u (Suc 0) 0 0"
-  have "assembleable (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) ?cd" 
+  have "assembleable (S\<^sub>r ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) ?cd" 
     by simp
   with EU have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
-    (assemble_state ?mp (S\<^sub>u ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd))) 
-      (assemble_state ?mp (S\<^sub>u h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correct\<^sub>a_iter)
+    (assemble_state ?mp (S\<^sub>r ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd))) 
+      (assemble_state ?mp (S\<^sub>r h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correct\<^sub>a_iter)
   hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (AS (case_register (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
     (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2) undefined) (case_register 0 0 0 2 0) 
       Acc (length ?cd')) (AS ?mem ?rs Acc 0)" by simp
