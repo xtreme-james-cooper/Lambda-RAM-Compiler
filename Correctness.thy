@@ -97,24 +97,24 @@ proof -
     (S\<^sub>r h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   let ?cd' = "assemble_code ?cd"
   let ?mp = "assembly_map ?cd"
-  let ?mem = "case_register (assm_hp ?cd h\<^sub>u hp\<^sub>u) (assemble_env e\<^sub>u ep\<^sub>u) (assemble_vals vs\<^sub>u 1) 
+  let ?mem = "case_memseg (assm_hp ?cd h\<^sub>u hp\<^sub>u) (assemble_env e\<^sub>u ep\<^sub>u) (assemble_vals vs\<^sub>u 1) 
     (assm_stk ?cd sh\<^sub>u 0) undefined"
-  let ?rs = "case_register hp\<^sub>u ep\<^sub>u (Suc 0) 0 0"
+  let ?rs = "case_memseg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0"
   have "assembleable (S\<^sub>r ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) ?cd" 
     by simp
   with EU have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
     (assemble_state ?mp (S\<^sub>r ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd))) 
       (assemble_state ?mp (S\<^sub>r h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correct\<^sub>a_iter)
-  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (AS (case_register (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
-    (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2) undefined) (case_register 0 0 0 2 0) 
-      Acc (length ?cd')) (AS ?mem ?rs Acc 0)" by simp
+  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (S\<^sub>a (case_memseg (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
+    (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2) undefined) (case_memseg 0 0 0 2 0) 
+      Acc (length ?cd')) (S\<^sub>a ?mem ?rs Acc 0)" by simp
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) 
-    (disassemble_state (AS (case_register (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
-      (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2) undefined) (case_register 0 0 0 2 0) 
-        Acc (length ?cd'))) (disassemble_state (AS ?mem ?rs Acc 0))" 
+    (disassemble_state (S\<^sub>a (case_memseg (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
+      (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2) undefined) (case_memseg 0 0 0 2 0) 
+        Acc (length ?cd'))) (disassemble_state (S\<^sub>a ?mem ?rs Acc 0))" 
     by (metis correctm_iter)
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0)
-    (unmap_mem (case_register (\<lambda>x. (Acc, 0)) (\<lambda>x. (Acc, 0)) (\<lambda>x. (Acc, 0)) 
+    (unmap_mem (case_memseg (\<lambda>x. (Acc, 0)) (\<lambda>x. (Acc, 0)) (\<lambda>x. (Acc, 0)) 
       ((\<lambda>x. (Acc, 0))(0 := (Acc, 0), Suc 0 := (Env, 0))) undefined)) (length ?cd')) 
         (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" 
     by simp
