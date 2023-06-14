@@ -46,7 +46,7 @@ primrec restructurable :: "state\<^sub>r \<Rightarrow> bool" where
   "restructurable (S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s p\<^sub>\<C>) = (even b\<^sub>s \<and> s 0 = 0 \<and> (b\<^sub>s = 0 \<longrightarrow> p\<^sub>\<C> = 0))"
 
 lemma restructurable_persists [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>r \<leadsto>\<^sub>r \<Sigma>\<^sub>r' \<Longrightarrow> restructurable \<Sigma>\<^sub>r \<Longrightarrow> restructurable \<Sigma>\<^sub>r'"
-  by (induction \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>r.induct) simp_all
+  by (induction \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>r.induct) (simp_all add: odd_pos)
 
 lemma restructurable_persists_iter [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>r) \<Sigma>\<^sub>r \<Sigma>\<^sub>r' \<Longrightarrow> restructurable \<Sigma>\<^sub>r \<Longrightarrow> 
     restructurable \<Sigma>\<^sub>r'"

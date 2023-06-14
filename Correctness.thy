@@ -97,29 +97,27 @@ proof -
     (S\<^sub>r h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0)" by simp
   let ?cd' = "assemble_code ?cd"
   let ?mp = "assembly_map ?cd"
-  let ?mem = "case_memseg (assm_hp ?cd h\<^sub>u hp\<^sub>u) (assemble_env e\<^sub>u ep\<^sub>u) (assemble_vals vs\<^sub>u 1) 
-    (assm_stk ?cd sh\<^sub>u 0) undefined"
-  let ?rs = "case_memseg hp\<^sub>u ep\<^sub>u (Suc 0) 0 0"
+  let ?mem = "(case_prod (case_memseg (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
+    (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2) undefined))"
+  let ?mem' = "case_prod (case_memseg (assm_hp ?cd h\<^sub>u hp\<^sub>u) (assemble_env e\<^sub>u ep\<^sub>u) (assemble_vals vs\<^sub>u 1) 
+    (assm_stk ?cd sh\<^sub>u 0) undefined)"
+  let ?rs = "case_memseg (Hp, 0) (Env, 0) (Vals, 0) (Stk, 2) (Acc, 0)"
+  let ?rs' = "case_memseg (Hp, hp\<^sub>u) (Env, ep\<^sub>u) (Vals, Suc 0) (Stk, 0) (Acc, 0)"
   have "assembleable (S\<^sub>r ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd)) ?cd" 
     by simp
   with EU have "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) 
     (assemble_state ?mp (S\<^sub>r ?nmem 0 ?nmem 0 ?nmem 0 (?nmem(0 := 0, 1 := 0)) 2 (length ?cd))) 
       (assemble_state ?mp (S\<^sub>r h\<^sub>u hp\<^sub>u e\<^sub>u ep\<^sub>u vs\<^sub>u 1 sh\<^sub>u 0 0))" by (metis correct\<^sub>a_iter)
-  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (S\<^sub>a (case_memseg (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
-    (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2) undefined) (case_memseg 0 0 0 2 0) 
-      Acc (length ?cd')) (S\<^sub>a ?mem ?rs Acc 0)" by simp
-  hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) 
-    (disassemble_state (S\<^sub>a (case_memseg (assm_hp ?cd ?nmem 0) (assemble_env ?nmem 0)
-      (assemble_vals ?nmem 0) (assm_stk ?cd (?nmem(0 := 0, 1 := 0)) 2) undefined) (case_memseg 0 0 0 2 0) 
-        Acc (length ?cd'))) (disassemble_state (S\<^sub>a ?mem ?rs Acc 0))" 
-    by (metis correctm_iter)
+  hence "iter (\<tturnstile> ?cd' \<leadsto>\<^sub>a) (S\<^sub>a ?mem ?rs (length ?cd')) (S\<^sub>a ?mem' ?rs' 0)" by simp
+  hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (disassemble_state (S\<^sub>a ?mem ?rs (length ?cd'))) 
+    (disassemble_state (S\<^sub>a ?mem' ?rs' 0))" by (metis correctm_iter)
   hence "iter (\<tturnstile> disassemble ?cd' \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0)
-    (unmap_mem (case_memseg (\<lambda>x. (Acc, 0)) (\<lambda>x. (Acc, 0)) (\<lambda>x. (Acc, 0)) 
-      ((\<lambda>x. (Acc, 0))(0 := (Acc, 0), Suc 0 := (Env, 0))) undefined)) (length ?cd')) 
-        (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" 
+    (unmap_mem (case_prod (case_memseg (\<lambda>x. (Acc, 0)) (\<lambda>x. (Acc, 0)) (\<lambda>x. (Acc, 0)) 
+      ((\<lambda>x. (Acc, 0))(0 := (Acc, 0), Suc 0 := (Env, 0))) undefined))) (length ?cd')) 
+        (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem') 0)" 
     by simp
   with C T have EM: "iter (\<tturnstile> cd \<leadsto>\<^sub>m) (MS (case_reg 0 1 2 11 0) ((\<lambda>x. 0)(7 := 1)) 
-    (length cd)) (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" by auto
+    (length cd)) (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem') 0)" by auto
   from EC VT have "print_closure c = print_nexpr (erase v\<^sub>t)" by simp
   moreover from EB have "print_bclosure v\<^sub>b = print_eclosure (tco_val (encode_closure c))" by simp
   ultimately have "print_bclosure v\<^sub>b = print_nexpr (erase v\<^sub>t)" by simp
@@ -135,14 +133,14 @@ proof -
   from VU VSU VH TT have "hp_tc t h\<^sub>u (vs\<^sub>u 0)" by simp
   with SH V3 have PU2: "print_uval t (pseudoreg_map \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = 
     print_uval t (snd \<circ> h\<^sub>u) (vs\<^sub>u 0)" by (metis print_a)
-  have "unmap_mem' (unmap_mem ?mem 2) = (Hp, vs\<^sub>u 0)" 
+  have "unmap_mem' (unmap_mem ?mem' 2) = (Hp, vs\<^sub>u 0)" 
   proof (induction "vs\<^sub>u 0")
     case (Suc x)
     hence "vs\<^sub>u 0 = Suc x" by simp
     thus ?case by (auto simp add: unmap_mem_def assemble_vals_def split: prod.splits)
   qed (simp add: unmap_mem_def assemble_vals_def)
-  hence "print_mval t (unmap_mem ?mem) (unmap_mem ?mem 2) = 
-    print_uval t (pseudoreg_map \<circ> ?mem Hp) (vs\<^sub>u 0)" using print_m by blast
+  hence "print_mval t (unmap_mem ?mem') (unmap_mem ?mem' 2) = 
+    print_uval t (pseudoreg_map \<circ> ?mem' Hp) (vs\<^sub>u 0)" using print_m by blast
   with PU PU2 have PM: "print_mach_state t (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) 
     (unmap_mem ?mem) 0) = print_nexpr (erase v\<^sub>t)" by simp
   have "final_state (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" by simp
