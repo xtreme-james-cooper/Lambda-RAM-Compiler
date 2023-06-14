@@ -131,19 +131,16 @@ proof -
   from VH VU VSU have SH: "Suc (vs\<^sub>u 0) < hp\<^sub>u" by (metis flatten_lt_3)
   from VSU have V3: "even (vs\<^sub>u 0)" by simp
   from VU VSU VH TT have "hp_tc t h\<^sub>u (vs\<^sub>u 0)" by simp
-  with SH V3 have PU2: "print_uval t (pseudoreg_map \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = 
-    print_uval t (snd \<circ> h\<^sub>u) (vs\<^sub>u 0)" by (metis print_a)
-  have "unmap_mem' (unmap_mem ?mem' 2) = (Hp, vs\<^sub>u 0)" 
-  proof (induction "vs\<^sub>u 0")
-    case (Suc x)
-    hence "vs\<^sub>u 0 = Suc x" by simp
-    thus ?case by (auto simp add: unmap_mem_def assemble_vals_def split: prod.splits)
-  qed (simp add: unmap_mem_def assemble_vals_def)
-  hence "print_mval t (unmap_mem ?mem') (unmap_mem ?mem' 2) = 
-    print_uval t (pseudoreg_map \<circ> ?mem' Hp) (vs\<^sub>u 0)" using print_m by blast
-  with PU PU2 have PM: "print_mach_state t (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) 
-    (unmap_mem ?mem) 0) = print_nexpr (erase v\<^sub>t)" by simp
-  have "final_state (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem) 0)" by simp
+  with SH V3 PU have PU2: "print_uval t (pseudoreg_map \<circ> assm_hp ?cd h\<^sub>u hp\<^sub>u) (vs\<^sub>u 0) = 
+    print_nexpr (erase v\<^sub>t)" by (metis print_a)
+  have "unmap_mem' (unmap_mem ?mem' 2) = (Hp, vs\<^sub>u 0)"
+    by (auto simp add: numeral_def split: prod.splits memseg.splits) 
+       (simp add: assemble_vals_def unmap_mem_def)
+  hence "print_mach_state t (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) 
+    (unmap_mem ?mem') 0) = print_uval t (unmap_mem ?mem') (4 * vs\<^sub>u 0)" by simp
+  with PU2 have PM: "print_mach_state t (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) 
+    (unmap_mem ?mem') 0) = print_nexpr (erase v\<^sub>t)" by (metis print_q)
+  have "final_state (MS (case_reg (4 * hp\<^sub>u) (Suc (4 * ep\<^sub>u)) 6 3 0) (unmap_mem ?mem') 0)" by simp
   with VN TN EN EM PM show ?thesis by blast
 qed
 

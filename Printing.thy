@@ -115,8 +115,12 @@ lemma print_u [simp]: "print_uval t (snd \<circ> h) p = print_ceclosure (get_clo
   by (induction t) simp_all
 
 lemma print_m [simp]: "unmap_mem' p = (a, b) \<Longrightarrow> 
-    print_mval t (unmap_mem mem) p = print_uval t (pseudoreg_map \<circ> mem a) b"
-  by (induction t) (simp_all add: unmap_mem_def)
+  print_mval t (unmap_mem mem) p = print_uval t (unmap_mem mem) (4 * b + register_offset a)"
+proof (induction t)
+  case Num
+  moreover hence "a \<noteq> Acc" by auto
+  ultimately show ?case by (simp add: unmap_mem_def)
+qed simp_all
 
 primrec hp_tc :: "ty \<Rightarrow> (nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> ptr \<Rightarrow> bool" where
   "hp_tc (Arrow t\<^sub>1 t\<^sub>2) h p = (fst (h p) = PEnv \<and> fst (h (Suc p)) = PCode)"
@@ -138,6 +142,11 @@ qed
 lemma print_a [simp]: "Suc x < hp \<Longrightarrow> hp_tc t h x \<Longrightarrow>
     print_uval t (pseudoreg_map \<circ> assm_hp cd h hp) x = print_uval t (snd \<circ> h) x"
   by (induction t) (auto simp add: assemble_heap_def split: prod.splits pointer_tag.splits)
+
+lemma print_q [simp]: "
+  print_uval t (unmap_mem (case_prod (case_memseg h e (assemble_vals vs\<^sub>u 1) s a))) (4 * vs\<^sub>u 0) = 
+    print_uval t (pseudoreg_map \<circ> h) (vs\<^sub>u 0)"
+  by (induction t) (simp_all add: unmap_mem_def)
 
 lemma flatten_lt_3: "hcontains h x \<Longrightarrow> flatten_values h = H h' hp \<Longrightarrow> Suc (2 * x) < hp"
   by simp

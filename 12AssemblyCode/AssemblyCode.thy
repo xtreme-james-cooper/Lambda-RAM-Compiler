@@ -55,19 +55,22 @@ datatype assm =
 abbreviation reg_merge :: "memseg \<Rightarrow> memseg \<Rightarrow> memseg" where
   "reg_merge a b \<equiv> (if a = Acc then b else a)"
 
-fun assm_step :: "(memseg \<times> nat \<Rightarrow> memseg \<times> nat) \<Rightarrow> (memseg \<Rightarrow> memseg \<times> nat) \<Rightarrow> nat \<Rightarrow> 
+fun assm_step :: "(memseg \<times> nat \<Rightarrow> memseg \<times> nat) \<Rightarrow> (memseg \<Rightarrow> memseg \<times> nat) \<Rightarrow> nat \<Rightarrow>
     assm \<rightharpoonup> assm_state" where
   "assm_step mem ps pc (AMov (Reg r) (Reg r')) = Some (S\<^sub>a mem (ps(r := ps r')) pc)"
 | "assm_step mem ps pc (AMov (Reg r) (Con k)) = Some (S\<^sub>a mem (ps(r := (Acc, k))) pc)"
-| "assm_step mem ps pc (AMov (Reg r) (Mem r')) = Some (S\<^sub>a mem (ps(r := mem (ps r'))) pc)"
+| "assm_step mem ps pc (AMov (Reg r) (Mem r')) = (
+    if fst (ps r') = Acc then None else Some (S\<^sub>a mem (ps(r := mem (ps r'))) pc))"
 | "assm_step mem ps pc (AMov (Con k) x) = None"
-| "assm_step mem ps pc (AMov (Mem r) (Reg r')) = Some (S\<^sub>a (mem(ps r := ps r')) ps pc)"
-| "assm_step mem ps pc (AMov (Mem r) (Con k)) = Some (S\<^sub>a (mem(ps r := (Acc, k))) ps pc)"
+| "assm_step mem ps pc (AMov (Mem r) (Reg r')) = (
+    if fst (ps r) = Acc then None else Some (S\<^sub>a (mem(ps r := ps r')) ps pc))"
+| "assm_step mem ps pc (AMov (Mem r) (Con k)) = (
+    if fst (ps r) = Acc then None else Some (S\<^sub>a (mem(ps r := (Acc, k))) ps pc))"
 | "assm_step mem ps pc (AMov (Mem r) (Mem r')) = None"
 | "assm_step mem ps pc (ASub r k) = (case ps r of
-    (t, v) \<Rightarrow> if v < k then None else Some (S\<^sub>a mem (ps(r := (t, v - k))) pc))"
+    (t, v) \<Rightarrow> if v < k \<or> t = Acc then None else Some (S\<^sub>a mem (ps(r := (t, v - k))) pc))"
 | "assm_step mem ps pc (AAdd r k) = (case ps r of
-    (t, v) \<Rightarrow> Some (S\<^sub>a mem (ps(r := (t, v + k))) pc))"
+    (t, v) \<Rightarrow> if t = Acc then None else Some (S\<^sub>a mem (ps(r := (t, v + k))) pc))"
 | "assm_step mem ps pc AJmp = (case ps Acc of
     (t, v) \<Rightarrow> if t = Acc then Some (S\<^sub>a mem (ps(Acc := (Acc, 0))) v) else None)"
 
