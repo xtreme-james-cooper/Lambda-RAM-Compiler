@@ -52,80 +52,94 @@ datatype assm =
   | AAdd memseg addr_mode
   | AJmp addr_mode
 
-abbreviation reg_merge :: "memseg \<Rightarrow> memseg \<Rightarrow> memseg" where
-  "reg_merge a b \<equiv> (if a = Acc then b else a)"
+text \<open>The execution of the assembly code is complicated enough - and we will need to execute a lot 
+of it in the conversion phase coming up - that for the first time we define reduction by a partial 
+function rather than a relation. The steps are mostly straightforward, but note that in addition to
+statically-invalid operations like \<open>AMov (Con n) x\<close>, we have some runtime checks as well: for 
+instance, that the memory segment pointed to by \<open>r'\<close> in \<open>AMov (Reg r) (Mem r')\<close> is not \<open>Acc\<close> (since 
+we never use the \<open>Acc\<close> memory segment). We arrange that, in the actual compiled code, these runtime 
+tests always succeed; and so when we get to the final machine code, we will not have to check them.\<close>
 
-fun assm_step :: "(memseg \<times> nat \<Rightarrow> memseg \<times> nat) \<Rightarrow> (memseg \<Rightarrow> memseg \<times> nat) \<Rightarrow> nat \<Rightarrow>
-    assm \<rightharpoonup> assm_state" where
-  "assm_step mem ps pc (AMov (Reg r) (Reg r')) = Some (S\<^sub>a mem (ps(r := ps r')) pc)"
-| "assm_step mem ps pc (AMov (Reg r) (Con k)) = Some (S\<^sub>a mem (ps(r := (Acc, k))) pc)"
-| "assm_step mem ps pc (AMov (Reg r) (Mem r')) = (
-    if fst (ps r') = Acc then None else Some (S\<^sub>a mem (ps(r := mem (ps r'))) pc))"
-| "assm_step mem ps pc (AMov (Con k) x) = None"
-| "assm_step mem ps pc (AMov (Mem r) (Reg r')) = (
-    if fst (ps r) = Acc then None else Some (S\<^sub>a (mem(ps r := ps r')) ps pc))"
-| "assm_step mem ps pc (AMov (Mem r) (Con k)) = (
-    if fst (ps r) = Acc then None else Some (S\<^sub>a (mem(ps r := (Acc, k))) ps pc))"
-| "assm_step mem ps pc (AMov (Mem r) (Mem r')) = None"
-| "assm_step mem ps pc (ASub r (Reg r')) = (case (ps r, ps r') of
+fun assm_step :: "(memseg \<times> nat \<Rightarrow> memseg \<times> nat) \<Rightarrow> (memseg \<Rightarrow> memseg \<times> nat) \<Rightarrow> nat \<Rightarrow> assm \<rightharpoonup> 
+    assm_state" where
+  "assm_step \<mu> \<rho> p\<^sub>\<C> (AMov (Reg r) (Reg r')) = Some (S\<^sub>a \<mu> (\<rho>(r := \<rho> r')) p\<^sub>\<C>)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AMov (Reg r) (Con n)) = Some (S\<^sub>a \<mu> (\<rho>(r := (Acc, n))) p\<^sub>\<C>)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AMov (Reg r) (Mem r')) = (
+    if fst (\<rho> r') \<noteq> Acc then Some (S\<^sub>a \<mu> (\<rho>(r := \<mu> (\<rho> r'))) p\<^sub>\<C>) else None)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AMov (Con n) x) = None"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AMov (Mem r) (Reg r')) = (
+    if fst (\<rho> r) \<noteq> Acc then Some (S\<^sub>a (\<mu>(\<rho> r := \<rho> r')) \<rho> p\<^sub>\<C>) else None)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AMov (Mem r) (Con n)) = (
+    if fst (\<rho> r) \<noteq> Acc then Some (S\<^sub>a (\<mu>(\<rho> r := (Acc, n))) \<rho> p\<^sub>\<C>) else None)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AMov (Mem r) (Mem r')) = None"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (ASub r (Reg r')) = (case (\<rho> r, \<rho> r') of
     ((t, v), (t', v')) \<Rightarrow> 
-      if v < v' \<or> t \<noteq> Acc \<or> t' \<noteq> Acc then None else Some (S\<^sub>a mem (ps(r := (t, v - v'))) pc))"
-| "assm_step mem ps pc (ASub r (Con k)) = (case ps r of
-    (t, v) \<Rightarrow> if v < k \<or> t = Acc then None else Some (S\<^sub>a mem (ps(r := (t, v - k))) pc))"
-| "assm_step mem ps pc (ASub r (Mem r')) = None"
-| "assm_step mem ps pc (AAdd r (Reg r')) = (case (ps r, ps r') of
+      if v \<ge> v' \<and> t = Acc \<and> t' = Acc then Some (S\<^sub>a \<mu> (\<rho>(r := (t, v - v'))) p\<^sub>\<C>) else None)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (ASub r (Con n)) = (case \<rho> r of
+    (t, v) \<Rightarrow> if v \<ge> n \<and> t \<noteq> Acc then Some (S\<^sub>a \<mu> (\<rho>(r := (t, v - n))) p\<^sub>\<C>) else None)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (ASub r (Mem r')) = None"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AAdd r (Reg r')) = (case (\<rho> r, \<rho> r') of
     ((t, v), (t', v')) \<Rightarrow> 
-      if t \<noteq> Acc \<or> t' \<noteq> Acc then None else Some (S\<^sub>a mem (ps(r := (t, v + v'))) pc))"
-| "assm_step mem ps pc (AAdd r (Con k)) = (case ps r of
-    (t, v) \<Rightarrow> if t = Acc then None else Some (S\<^sub>a mem (ps(r := (t, v + k))) pc))"
-| "assm_step mem ps pc (AAdd r (Mem r')) = None"
-| "assm_step mem ps pc (AJmp (Reg r)) = (case ps r of
-    (t, v) \<Rightarrow> if t = Acc then Some (S\<^sub>a mem (ps(r := (Acc, 0))) v) else None)"
-| "assm_step mem ps pc (AJmp (Con k)) = Some (S\<^sub>a mem ps k)"
-| "assm_step mem ps pc (AJmp (Mem r)) = None"
+      if t = Acc \<and> t' = Acc then Some (S\<^sub>a \<mu> (\<rho>(r := (t, v + v'))) p\<^sub>\<C>) else None)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AAdd r (Con n)) = (case \<rho> r of
+    (t, v) \<Rightarrow> if t \<noteq> Acc then Some (S\<^sub>a \<mu> (\<rho>(r := (t, v + n))) p\<^sub>\<C>) else None)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AAdd r (Mem r')) = None"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AJmp (Reg r)) = (case \<rho> r of
+    (t, v) \<Rightarrow> if t = Acc then Some (S\<^sub>a \<mu> (\<rho>(r := (Acc, 0))) v) else None)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AJmp (Con k)) = Some (S\<^sub>a \<mu> \<rho> k)"
+| "assm_step \<mu> \<rho> p\<^sub>\<C> (AJmp (Mem r)) = None"
 
 fun eval\<^sub>a :: "assm list \<Rightarrow> assm_state \<rightharpoonup> assm_state" where
-  "eval\<^sub>a cd (S\<^sub>a mem ps 0) = None"
-| "eval\<^sub>a cd (S\<^sub>a mem ps (Suc pc)) = Option.bind (lookup cd pc) (assm_step mem ps pc)"
+  "eval\<^sub>a \<C> (S\<^sub>a \<mu> \<rho> 0) = None"
+| "eval\<^sub>a \<C> (S\<^sub>a \<mu> \<rho> (Suc p\<^sub>\<C>)) = Option.bind (lookup \<C> p\<^sub>\<C>) (assm_step \<mu> \<rho> p\<^sub>\<C>)"
 
-primrec iter_eval\<^sub>a :: "assm list \<Rightarrow> nat \<Rightarrow> assm_state \<rightharpoonup> assm_state" where
-  "iter_eval\<^sub>a cd 0 \<Sigma> = Some \<Sigma>"
-| "iter_eval\<^sub>a cd (Suc x) \<Sigma> = Option.bind (eval\<^sub>a cd \<Sigma>) (iter_eval\<^sub>a cd x)"
+text \<open>We define a relation based on the evaluation function to use as our "standard" evaluation 
+relation. With a functional evaluation relation, determinism becomes trivial.\<close>
 
 abbreviation some_eval\<^sub>a :: "assm list \<Rightarrow> assm_state \<Rightarrow> assm_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>a" 50) where
-  "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>' \<equiv> (eval\<^sub>a cd \<Sigma> = Some \<Sigma>')"
+  "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>' \<equiv> (eval\<^sub>a \<C> \<Sigma> = Some \<Sigma>')"
 
-lemma iter_evala_combine [simp]: "iter_eval\<^sub>a cd n \<Sigma> = Some \<Sigma>' \<Longrightarrow> 
-  iter_eval\<^sub>a cd m \<Sigma>' = Some \<Sigma>'' \<Longrightarrow> iter_eval\<^sub>a cd (n + m) \<Sigma> = Some \<Sigma>''"
+theorem determinism\<^sub>a: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
+  by simp
+
+text \<open>We also define an iterated form of evaluation, which again will be useful for our assembly 
+conversion. It recurses on an operation counter, so it cannot evaluate a block of code indefinitely 
+to completion - as is only proper, since our assembly code is Turing-complete and can loop (consider 
+\<open>0: AJmp (Con 0)\<close>, for instance). We will only ever need to evaluate fixed amounts of code in our 
+conversion correctness proof, so it isn't a problem in practice.\<close>
+
+primrec iter_eval\<^sub>a :: "assm list \<Rightarrow> nat \<Rightarrow> assm_state \<rightharpoonup> assm_state" where
+  "iter_eval\<^sub>a \<C> 0 \<Sigma> = Some \<Sigma>"
+| "iter_eval\<^sub>a \<C> (Suc x) \<Sigma> = Option.bind (eval\<^sub>a \<C> \<Sigma>) (iter_eval\<^sub>a \<C> x)"
+
+lemma iter_eval\<^sub>a_combine [simp]: "iter_eval\<^sub>a \<C> n \<Sigma> = Some \<Sigma>' \<Longrightarrow> 
+  iter_eval\<^sub>a \<C> m \<Sigma>' = Some \<Sigma>'' \<Longrightarrow> iter_eval\<^sub>a \<C> (n + m) \<Sigma> = Some \<Sigma>''"
 proof (induction n arbitrary: \<Sigma>)
   case (Suc n)
-  then show ?case by (cases "eval\<^sub>a cd \<Sigma>") simp_all
+  then show ?case by (cases "eval\<^sub>a \<C> \<Sigma>") simp_all
 qed simp_all
 
-lemma iter_evala_equiv [simp]: "iter (\<tturnstile> cd \<leadsto>\<^sub>a) \<Sigma> \<Sigma>' = (\<exists>n. iter_eval\<^sub>a cd n \<Sigma> = Some \<Sigma>')"
+lemma iter_eval\<^sub>a_equiv [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>a) \<Sigma> \<Sigma>' = (\<exists>n. iter_eval\<^sub>a \<C> n \<Sigma> = Some \<Sigma>')"
 proof 
-  show "iter (\<tturnstile> cd \<leadsto>\<^sub>a) \<Sigma> \<Sigma>' \<Longrightarrow> \<exists>n. iter_eval\<^sub>a cd n \<Sigma> = Some \<Sigma>'" 
+  show "iter (\<tturnstile> \<C> \<leadsto>\<^sub>a) \<Sigma> \<Sigma>' \<Longrightarrow> \<exists>n. iter_eval\<^sub>a \<C> n \<Sigma> = Some \<Sigma>'" 
   proof (induction \<Sigma> \<Sigma>' rule: iter.induct)
     case (iter_refl \<Sigma>)
-    have "iter_eval\<^sub>a cd 0 \<Sigma> = Some \<Sigma>" by simp
+    have "iter_eval\<^sub>a \<C> 0 \<Sigma> = Some \<Sigma>" by simp
     thus ?case by blast
   next
     case (iter_step \<Sigma> \<Sigma>' \<Sigma>'')
-    moreover then obtain n where "iter_eval\<^sub>a cd n \<Sigma>' = Some \<Sigma>''" by blast
-    ultimately have "iter_eval\<^sub>a cd (Suc n) \<Sigma> = Some \<Sigma>''" by simp
+    moreover then obtain n where "iter_eval\<^sub>a \<C> n \<Sigma>' = Some \<Sigma>''" by blast
+    ultimately have "iter_eval\<^sub>a \<C> (Suc n) \<Sigma> = Some \<Sigma>''" by simp
     thus ?case by blast
   qed
 next
-  assume "\<exists>n. iter_eval\<^sub>a cd n \<Sigma> = Some \<Sigma>'"
-  then obtain n where "iter_eval\<^sub>a cd n \<Sigma> = Some \<Sigma>'" by blast
-  thus "iter (\<tturnstile> cd \<leadsto>\<^sub>a) \<Sigma> \<Sigma>'" 
+  assume "\<exists>n. iter_eval\<^sub>a \<C> n \<Sigma> = Some \<Sigma>'"
+  then obtain n where "iter_eval\<^sub>a \<C> n \<Sigma> = Some \<Sigma>'" by blast
+  thus "iter (\<tturnstile> \<C> \<leadsto>\<^sub>a) \<Sigma> \<Sigma>'" 
   proof (induction n arbitrary: \<Sigma>)
     case (Suc n)
-    thus ?case by (cases "eval\<^sub>a cd \<Sigma>") simp_all
+    thus ?case by (cases "eval\<^sub>a \<C> \<Sigma>") simp_all
   qed simp_all
 qed
-
-theorem determinisma: "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>' \<Longrightarrow> cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>a \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
-  by simp
 
 end

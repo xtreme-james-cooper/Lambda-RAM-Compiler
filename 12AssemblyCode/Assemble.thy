@@ -660,7 +660,7 @@ next
       (7 + 2 * x + assembly_map cd pc)) = Some (S\<^sub>a (case_prod (case_memseg h (assemble_env e ep) 
         (vs(vp := (Hp, v))) sh undefined)) (case_memseg (Hp, hp) (Env, ep) (Vals, Suc vp) (Stk, sp) (Acc, 0))
           (assembly_map cd pc))" 
-    using iter_evala_combine by blast
+    using iter_eval\<^sub>a_combine by blast
   thus ?case by simp
 qed simp_all
 
@@ -696,7 +696,7 @@ proof (induction cd\<^sub>b \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>
         (8 + 2 * x + assembly_map cd pc)) = Some (S\<^sub>a (case_prod (case_memseg (assm_hp cd h hp) 
           (assemble_env e ep) (assemble_vals (vs(vp := y)) (Suc vp)) (assm_stk cd sh (Suc sp)) undefined))
             (case_memseg (Hp, hp) (Env, ep) (Vals, Suc vp) (Stk, Suc sp) (Acc, 0)) (assembly_map cd pc))" 
-    using iter_evala_combine by blast
+    using iter_eval\<^sub>a_combine by blast
   hence "iter_eval\<^sub>a (assemble_code cd) (3 + (5 + 2 * x)) 
     (S\<^sub>a (case_prod (case_memseg (assm_hp cd h hp) (assemble_env e ep) (assemble_vals vs vp) 
       (assm_stk cd sh (Suc sp)) undefined)) (case_memseg(Hp, hp) (Env, ep) (Vals, vp) (Stk, Suc sp) (Acc, 0))
