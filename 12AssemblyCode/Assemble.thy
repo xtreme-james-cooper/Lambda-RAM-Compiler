@@ -14,84 +14,84 @@ primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
 primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> code\<^sub>b \<Rightarrow> assm list" where
   "assemble_op mp ix (Lookup\<^sub>b x) = [
     AMov (Reg Acc) (Con 0),
-    AAdd Vals 1,
+    AAdd Vals (Con 1),
     AMov (Mem Vals) (Reg Acc),
     AMov (Reg Acc) (Mem Acc),
-    ASub Acc 2] @
+    ASub Acc (Con 2)] @
     concat (replicate x [
     AMov (Reg Acc) (Mem Acc),
-    ASub Acc 1]) @ [
+    ASub Acc (Con 1)]) @ [
     AMov (Reg Acc) (Mem Acc),
-    ASub Acc 1,
+    ASub Acc (Con 1),
     AMov (Reg Acc) (Reg Stk)]"
 | "assemble_op mp ix (PushCon\<^sub>b k) = [
-    AAdd Hp 1, 
+    AAdd Hp (Con 1), 
     AMov (Mem Hp) (Con 0),
-    AAdd Hp 1,  
+    AAdd Hp (Con 1),  
     AMov (Mem Hp) (Con k),
-    AAdd Vals 1,
+    AAdd Vals (Con 1),
     AMov (Mem Vals) (Reg Hp)]"
 | "assemble_op mp ix (PushLam\<^sub>b pc) = [
-    AAdd Hp 1, 
+    AAdd Hp (Con 1), 
     AMov (Mem Hp) (Con (mp pc)), 
     AMov (Reg Acc) (Con 0),
-    AAdd Hp 1, 
+    AAdd Hp (Con 1), 
     AMov (Mem Hp) (Reg Acc),
     AMov (Reg Acc) (Mem Acc), 
-    ASub Acc 1,
+    ASub Acc (Con 1),
     AMov (Reg Acc) (Reg Stk),
-    AAdd Vals 1,
+    AAdd Vals (Con 1),
     AMov (Mem Vals) (Reg Hp)]"
 | "assemble_op mp ix Apply\<^sub>b = [
-    AJmp,
+    AJmp (Reg Acc),
     AMov (Reg Acc) (Mem Acc),
-    AAdd Acc 1,
+    AAdd Acc (Con 1),
     AMov (Mem Vals) (Con 0),
     AMov (Reg Acc) (Mem Vals),
-    AAdd Env 1,
+    AAdd Env (Con 1),
     AMov (Mem Env) (Reg Acc),
     AMov (Reg Acc) (Mem Acc),
     AMov (Reg Acc) (Mem Vals),
-    ASub Vals 1,
-    AAdd Stk 1,
+    ASub Vals (Con 1),
+    AAdd Stk (Con 1),
     AMov (Mem Stk) (Reg Acc),
-    AAdd Acc 1,
+    AAdd Acc (Con 1),
     AMov (Reg Acc) (Reg Env),
-    AAdd Stk 1,
+    AAdd Stk (Con 1),
     AMov (Mem Stk) (Con (mp ix)),
-    AAdd Env 1,
+    AAdd Env (Con 1),
     AMov (Mem Env) (Reg Acc),
     AMov (Mem Vals) (Con 0),
     AMov (Reg Acc) (Mem Vals),
-    ASub Vals 1]"
+    ASub Vals (Con 1)]"
 | "assemble_op mp ix Return\<^sub>b = [
-    AJmp,
+    AJmp (Reg Acc),
     AMov (Mem Stk) (Con 0),
     AMov (Reg Acc) (Mem Stk),
-    ASub Stk 1,
+    ASub Stk (Con 1),
     AMov (Mem Stk) (Con 0),
-    ASub Stk 1]"
+    ASub Stk (Con 1)]"
 | "assemble_op mp ix Jump\<^sub>b = [
-    AJmp,
+    AJmp (Reg Acc),
     AMov (Reg Acc) (Mem Acc),
-    AAdd Acc 1,
+    AAdd Acc (Con 1),
     AMov (Mem Vals) (Con 0),
     AMov (Reg Acc) (Mem Vals),
-    AAdd Env 1,
+    AAdd Env (Con 1),
     AMov (Mem Env) (Reg Acc),
     AMov (Reg Acc) (Mem Acc),
     AMov (Reg Acc) (Mem Vals),
-    ASub Vals 1,
-    AAdd Stk 1,
+    ASub Vals (Con 1),
+    AAdd Stk (Con 1),
     AMov (Mem Stk) (Reg Acc),
-    ASub Stk 1,
-    AAdd Acc 1,
+    ASub Stk (Con 1),
+    AAdd Acc (Con 1),
     AMov (Reg Acc) (Reg Env),
-    AAdd Env 1,
+    AAdd Env (Con 1),
     AMov (Mem Env) (Reg Acc),
     AMov (Mem Vals) (Con 0),
     AMov (Reg Acc) (Mem Vals),
-    ASub Vals 1]"
+    ASub Vals (Con 1)]"
 
 fun assembly_map :: "code\<^sub>b list \<Rightarrow> nat \<Rightarrow> nat" where
   "assembly_map [] x = 0"
@@ -630,7 +630,7 @@ lemma [simp]: "unstr_lookup e a x = Some v \<Longrightarrow> lookup cd pc = Some
 proof (induction e a x rule: unstr_lookup.induct)
   case (3 e p)
   moreover from 3 have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
-    Some (ASub Acc 2)" by simp
+    Some (ASub Acc (Con 2))" by simp
   moreover from 3 have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Acc))" by simp
   moreover from 3 have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
@@ -640,7 +640,7 @@ proof (induction e a x rule: unstr_lookup.induct)
 next
   case (4 e p x)
   moreover hence "lookup (assemble_code cd) (6 + 2 * x + assembly_map cd pc) = 
-    Some (ASub Acc (Suc 0))" by simp
+    Some (ASub Acc (Con 1))" by simp
   moreover from 4 have "lookup (assemble_code cd) (5 + 2 * x + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Acc))" by simp
   ultimately have X: "iter_eval\<^sub>a (assemble_code cd) 2 (S\<^sub>a (case_prod (case_memseg h (assemble_env e ep) vs 
@@ -672,7 +672,7 @@ proof (induction cd\<^sub>b \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>
   moreover from ev\<^sub>r_lookup have "lookup (assemble_code cd) (7 + 2 * x + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Reg Stk))" by simp
   moreover from ev\<^sub>r_lookup have "lookup (assemble_code cd) (6 + 2 * x + assembly_map cd pc) = 
-    Some (ASub Acc 1)" by simp
+    Some (ASub Acc (Con 1))" by simp
   moreover from ev\<^sub>r_lookup have "lookup (assemble_code cd) (5 + 2 * x + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Acc))" by simp
   ultimately have X: "iter_eval\<^sub>a (assemble_code cd) 3 
@@ -710,11 +710,11 @@ next
   moreover from ev\<^sub>r_pushcon have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (AMov (Mem Vals) (Reg Hp))" by simp
   moreover from ev\<^sub>r_pushcon have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
-    Some (AAdd Vals 1)" by simp
+    Some (AAdd Vals (Con 1))" by simp
   moreover from ev\<^sub>r_pushcon have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (AMov (Mem Hp) (Con k))" by simp 
   moreover from ev\<^sub>r_pushcon have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
-    Some (AAdd Hp 1)" by (simp del: add_2_eq_Suc)
+    Some (AAdd Hp (Con 1))" by (simp del: add_2_eq_Suc)
   ultimately have "iter_eval\<^sub>a (assemble_code cd) 6 (S\<^sub>a (case_prod (case_memseg (assm_hp cd h hp) 
     (assemble_env e ep) (assemble_vals vs vp) (assm_stk cd sh (Suc sp)) undefined))
       (case_memseg (Hp, hp) (Env, ep) (Vals, vp) (Stk, Suc sp) (Acc, 0)) (assembly_map cd (Suc pc))) = Some (S\<^sub>a 
@@ -730,17 +730,17 @@ next
   moreover from ev\<^sub>r_pushlam have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
     Some (AMov (Mem Vals) (Reg Hp))" by simp
   moreover from ev\<^sub>r_pushlam have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
-    Some (AAdd Vals 1)" by simp
+    Some (AAdd Vals (Con 1))" by simp
   moreover from ev\<^sub>r_pushlam have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Reg Stk))" by simp
   moreover from ev\<^sub>r_pushlam have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
-    Some (ASub Acc 1)" by simp
+    Some (ASub Acc (Con 1))" by simp
   moreover from ev\<^sub>r_pushlam have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Acc))" by simp
   moreover from ev\<^sub>r_pushlam have "lookup (assemble_code cd) (4 + assembly_map cd pc) =
     Some (AMov (Mem Hp) (Reg Acc))" by simp
   moreover from ev\<^sub>r_pushlam have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
-    Some (AAdd Hp 1)" by simp
+    Some (AAdd Hp (Con 1))" by simp
   moreover from ev\<^sub>r_pushlam have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Con 0))" by (simp del: add_2_eq_Suc)
   ultimately have "iter_eval\<^sub>a (assemble_code cd) 10 (S\<^sub>a (case_prod (case_memseg (assm_hp cd h hp) 
@@ -757,7 +757,7 @@ next
   case (ev\<^sub>r_apply cd pc h vs vp ep' pc' hp e ep sh sp)
   moreover hence "even ep" by auto
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (20 + assembly_map cd pc) = 
-    Some (ASub Vals 1)" by simp
+    Some (ASub Vals (Con 1))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Vals))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
@@ -765,21 +765,21 @@ next
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
     Some (AMov (Mem Env) (Reg Acc))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
-    Some (AAdd Env 1)" by simp
+    Some (AAdd Env (Con 1))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
     Some (AMov (Mem Stk) (Con (assembly_map cd pc)))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
-    Some (AAdd Stk 1)" by simp
+    Some (AAdd Stk (Con 1))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Reg Env))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
-    Some (AAdd Acc 1)" by simp
+    Some (AAdd Acc (Con 1))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
     Some (AMov (Mem Stk) (Reg Acc))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (10 + assembly_map cd pc) = 
-    Some (AAdd Stk 1)" by simp
+    Some (AAdd Stk (Con 1))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
-    Some (ASub Vals 1)" by simp
+    Some (ASub Vals (Con 1))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Vals))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
@@ -787,13 +787,13 @@ next
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
     Some (AMov (Mem Env) (Reg Acc))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
-    Some (AAdd Env 1)" by simp
+    Some (AAdd Env (Con 1))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Vals))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (AMov (Mem Vals) (Con 0))" by simp
   moreover from ev\<^sub>r_apply have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
-    Some (AAdd Acc 1)" by (simp del: add_2_eq_Suc)
+    Some (AAdd Acc (Con 1))" by (simp del: add_2_eq_Suc)
   moreover from ev\<^sub>r_apply have "assm_hp cd h hp (Suc (vs vp)) = (Acc, assembly_map cd pc')" 
     by (metis assm_hp_code assembleable.simps)
   ultimately have "iter_eval\<^sub>a (assemble_code cd) 21 (S\<^sub>a (case_prod (case_memseg (assm_hp cd h hp) 
@@ -812,11 +812,11 @@ next
 next
   case (ev\<^sub>r_return cd pc h hp e ep vs vp sh sp)
   moreover from ev\<^sub>r_return have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
-    Some (ASub Stk 1)" by simp
+    Some (ASub Stk (Con 1))" by simp
   moreover from ev\<^sub>r_return have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
     Some (AMov (Mem Stk) (Con 0))" by simp
   moreover from ev\<^sub>r_return have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
-    Some (ASub Stk 1)" by simp
+    Some (ASub Stk (Con 1))" by simp
   moreover from ev\<^sub>r_return have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Stk))" by (simp del: add_2_eq_Suc)
   ultimately have "iter_eval\<^sub>a (assemble_code cd) 6 (S\<^sub>a (case_prod (case_memseg (assm_hp cd h hp) 
@@ -830,7 +830,7 @@ next
   case (ev\<^sub>r_jump cd pc h vs vp ep' pc' hp e ep sh sp)
   moreover hence "even ep" by auto
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (19 + assembly_map cd pc) = 
-    Some (ASub Vals 1)" by simp
+    Some (ASub Vals (Con 1))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (18 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Vals))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (17 + assembly_map cd pc) = 
@@ -838,19 +838,19 @@ next
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (16 + assembly_map cd pc) = 
     Some (AMov (Mem Env) (Reg Acc))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (15 + assembly_map cd pc) = 
-    Some (AAdd Env 1)" by simp
+    Some (AAdd Env (Con 1))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (14 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Reg Env))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (13 + assembly_map cd pc) = 
-    Some (AAdd Acc 1)" by simp
+    Some (AAdd Acc (Con 1))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (12 + assembly_map cd pc) = 
-    Some (ASub Stk 1)" by simp
+    Some (ASub Stk (Con 1))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (11 + assembly_map cd pc) = 
     Some (AMov (Mem Stk) (Reg Acc))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (10 + assembly_map cd pc) =
-    Some (AAdd Stk 1)" by simp
+    Some (AAdd Stk (Con 1))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
-    Some (ASub Vals 1)" by simp
+    Some (ASub Vals (Con 1))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Vals))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (7 + assembly_map cd pc) = 
@@ -858,13 +858,13 @@ next
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (6 + assembly_map cd pc) = 
     Some (AMov (Mem Env) (Reg Acc))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
-    Some (AAdd Env 1)" by simp
+    Some (AAdd Env (Con 1))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (4 + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Mem Vals))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (3 + assembly_map cd pc) = 
     Some (AMov (Mem Vals) (Con 0))" by simp
   moreover from ev\<^sub>r_jump have "lookup (assemble_code cd) (2 + assembly_map cd pc) = 
-    Some (AAdd Acc 1)" by (simp del: add_2_eq_Suc)
+    Some (AAdd Acc (Con 1))" by (simp del: add_2_eq_Suc)
   moreover from ev\<^sub>r_jump have "assm_hp cd h hp (Suc (vs vp)) = (Acc, assembly_map cd pc')" 
     by (metis assm_hp_code assembleable.simps)
   ultimately have "iter_eval\<^sub>a (assemble_code cd) 20 (S\<^sub>a (case_prod (case_memseg (assm_hp cd h hp) 

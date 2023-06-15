@@ -11,15 +11,21 @@ primrec register_map :: "memseg \<Rightarrow> reg" where
 
 fun disassemble' :: "assm \<Rightarrow> mach" where
   "disassemble' (AMov (Reg r) (Reg r')) = MOV (register_map r) (register_map r')"
-| "disassemble' (AMov (Reg r) (Con k)) = LDI (register_map r) k"
+| "disassemble' (AMov (Reg r) (Con k)) = LODI (register_map r) k"
 | "disassemble' (AMov (Reg r) (Mem r')) = LOD (register_map r) (register_map r')"
 | "disassemble' (AMov (Con k) x) = undefined"
 | "disassemble' (AMov (Mem r) (Reg r')) = STO (register_map r) (register_map r')"
-| "disassemble' (AMov (Mem r) (Con k)) = STI (register_map r) k"
+| "disassemble' (AMov (Mem r) (Con k)) = STOI (register_map r) k"
 | "disassemble' (AMov (Mem r) (Mem r')) = undefined"
-| "disassemble' (ASub r k) = SUB (register_map r) (4 * k)"
-| "disassemble' (AAdd r k) = ADD (register_map r) (4 * k)"
-| "disassemble' AJmp = JMP R5"
+| "disassemble' (ASub r (Reg r')) = SUB (register_map r) (register_map r')"
+| "disassemble' (ASub r (Con k)) = SUBI (register_map r) (4 * k)"
+| "disassemble' (ASub r (Mem r')) = undefined"
+| "disassemble' (AAdd r (Reg r')) = ADD (register_map r) (register_map r')"
+| "disassemble' (AAdd r (Con k)) = ADDI (register_map r) (4 * k)"
+| "disassemble' (AAdd r (Mem r')) = undefined"
+| "disassemble' (AJmp (Reg r)) = JMP (register_map r)"
+| "disassemble' (AJmp (Con k)) = JMPI k"
+| "disassemble' (AJmp (Mem r)) = undefined"
 
 definition disassemble :: "assm list \<Rightarrow> mach list" where
   "disassemble cd = map disassemble' cd"
@@ -118,7 +124,7 @@ lemma unmap_mem_with_reg [simp]: "fst r \<noteq> Acc \<Longrightarrow>
     ((unmap_mem mem)(pseudoreg_map r := pseudoreg_map r')) = unmap_mem (mem(r := r'))"
   by rule (auto simp add: unmap_mem_def)
 
-lemma unmap_mem_with_const [simp]: "fst r \<noteq> Acc \<Longrightarrow>
+lemma unmap_mem_with_const: "fst r \<noteq> Acc \<Longrightarrow>
     ((unmap_mem mem)(pseudoreg_map r := n)) = unmap_mem (mem(r := (Acc, n)))"
   by rule (auto simp add: unmap_mem_def)
 
@@ -132,83 +138,28 @@ lemma [simp]: "r' \<noteq> Acc \<Longrightarrow>
     (dissassemble_regs (ps(r := (r', y + k))))"
   by rule auto
 
+lemma [simp]: "ps r = (Acc, v) \<Longrightarrow> ps r' = (Acc, v') \<Longrightarrow> v > v' \<Longrightarrow>
+    (dissassemble_regs ps)(register_map r := v - v') = dissassemble_regs (ps(r := (Acc, v - v')))"
+  by rule auto
+
 theorem correctm [simp]: "cd\<^sub>a \<tturnstile> \<Sigma>\<^sub>a \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow>
   disassemble cd\<^sub>a \<tturnstile> disassemble_state \<Sigma>\<^sub>a \<leadsto>\<^sub>m disassemble_state \<Sigma>\<^sub>a'"
-proof (induction \<Sigma>\<^sub>a)
-  case (S\<^sub>a mem ps pc)
-  moreover then obtain pc' where P: "pc = Suc pc'" by (simp split: nat.splits)
-  ultimately show ?case 
-  proof (cases "lookup cd\<^sub>a pc'")
+proof (induction cd\<^sub>a \<Sigma>\<^sub>a rule: eval\<^sub>a.induct)
+  case (2 cd\<^sub>a mem ps pc)
+  thus ?case 
+  proof (cases "lookup cd\<^sub>a pc")
     case (Some op)
-    with S\<^sub>a P have "assm_step mem ps pc' op = Some \<Sigma>\<^sub>a'" by simp
-    with P Some show ?thesis 
-    proof (induction mem ps pc' op rule: assm_step.induct)
-      case (1 mem ps pc' r r')
-      hence "disassemble cd\<^sub>a ! pc' = MOV (register_map r) (register_map r')" by simp
-      hence "disassemble cd\<^sub>a \<tturnstile> MS (dissassemble_regs ps) (unmap_mem mem) (Suc pc') \<leadsto>\<^sub>m 
-        MS ((dissassemble_regs ps)(register_map r := dissassemble_regs ps (register_map r'))) (unmap_mem mem) pc'" 
-          by (metis evm_mov)
-      with 1 show ?case by auto
-    next
-      case (2 mem ps pc' r n)
-      hence "disassemble cd\<^sub>a ! pc' = LDI (register_map r) n" by simp
-      hence "disassemble cd\<^sub>a \<tturnstile> MS (dissassemble_regs ps) (unmap_mem mem) (Suc pc') \<leadsto>\<^sub>m 
-        MS ((dissassemble_regs ps)(register_map r := n)) (unmap_mem mem) pc'" 
-          by (metis evm_ldi)
-        with 2 show ?case by auto
-     next
-      case (3 mem ps pc' r r')
-      hence "disassemble cd\<^sub>a ! pc' = LOD (register_map r) (register_map r')" by simp
-      hence "disassemble cd\<^sub>a \<tturnstile> MS (dissassemble_regs ps) (unmap_mem mem) (Suc pc') \<leadsto>\<^sub>m 
-        MS ((dissassemble_regs ps)(register_map r := 
-          unmap_mem mem (dissassemble_regs ps (register_map r')))) (unmap_mem mem) pc'" 
-        by (metis evm_lod)
-      with 3 show ?case by (auto split: if_splits)
-    next
-      case (5 mem ps pc' r r')
-      hence "disassemble cd\<^sub>a ! pc' = STO (register_map r) (register_map r')" by simp
-      hence "disassemble cd\<^sub>a \<tturnstile> MS (dissassemble_regs ps) (unmap_mem mem) (Suc pc') \<leadsto>\<^sub>m 
-        MS (dissassemble_regs ps) ((unmap_mem mem)(dissassemble_regs ps (register_map r) := 
-          dissassemble_regs ps (register_map r'))) pc'" 
-        by (metis evm_sto)
-      with 5 show ?case by (auto simp del: unmap_mem_with_const split: if_splits)
-    next
-      case (6 mem ps pc' r n)
-      hence "disassemble cd\<^sub>a ! pc' = STI (register_map r) n" by simp
-      hence "disassemble cd\<^sub>a \<tturnstile> MS (dissassemble_regs ps) (unmap_mem mem) (Suc pc') \<leadsto>\<^sub>m 
-        MS (dissassemble_regs ps) ((unmap_mem mem)(dissassemble_regs ps (register_map r) := n)) pc'" 
-          by (metis evm_sti)
-      with 6 show ?case by (auto split: if_splits)
-    next
-      case (8 mem ps pc' r k)
-      hence "disassemble cd\<^sub>a ! pc' = SUB (register_map r) (4 * k)" by simp
-      moreover from 8 have "dissassemble_regs ps (register_map r) \<ge> 4 * k" 
-        by (simp split: prod.splits if_splits)
-      ultimately have "disassemble cd\<^sub>a \<tturnstile> MS (dissassemble_regs ps) (unmap_mem mem) (Suc pc') \<leadsto>\<^sub>m 
-        MS ((dissassemble_regs ps)(register_map r := dissassemble_regs ps (register_map r) - 4 * k)) 
-          (unmap_mem mem) pc'" by (metis evm_sub)
-      with 8 show ?case by (auto split: prod.splits if_splits)
-    next
-      case (9 mem ps pc' r k)
-      hence "disassemble cd\<^sub>a ! pc' = ADD (register_map r) (4 * k)" by simp
-      hence "disassemble cd\<^sub>a \<tturnstile> MS (dissassemble_regs ps) (unmap_mem mem) (Suc pc') \<leadsto>\<^sub>m 
-        MS ((dissassemble_regs ps)(register_map r := dissassemble_regs ps (register_map r) + 4 * k)) 
-          (unmap_mem mem) pc'" by (metis evm_add)
-      with 9 show ?case by (auto split: prod.splits if_splits)
-    next
-      case (10 mem ps pc')
-      hence "disassemble cd\<^sub>a ! pc' = JMP R5" by simp
-      hence "disassemble cd\<^sub>a \<tturnstile> MS (dissassemble_regs ps) (unmap_mem mem) (Suc pc') \<leadsto>\<^sub>m 
-        MS ((dissassemble_regs ps)(R5 := 0)) (unmap_mem mem) ((dissassemble_regs ps) R5)" 
-          by (metis evm_jmp)
-      with 10 show ?case by (auto split: if_splits split: prod.splits)
-    qed simp_all
+    with 2 show ?thesis 
+    proof (induction mem ps pc op rule: assm_step.induct)
+      case (6 mem ps pc r r')
+      thus ?case by (auto simp add: unmap_mem_with_const split: if_splits)
+    qed (auto split: prod.splits if_splits)
   qed simp_all
-qed
+qed simp_all
 
 theorem correctm_iter [simp]: "iter (\<tturnstile> cd\<^sub>a \<leadsto>\<^sub>a) \<Sigma>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> 
     iter (\<tturnstile> disassemble cd\<^sub>a \<leadsto>\<^sub>m) (disassemble_state \<Sigma>\<^sub>a) (disassemble_state \<Sigma>\<^sub>a')"
-  by (induction \<Sigma>\<^sub>a \<Sigma>\<^sub>a' rule: iter.induct) (simp, metis correctm iter_append iter_one)
+  by (induction \<Sigma>\<^sub>a \<Sigma>\<^sub>a' rule: iter.induct) simp_all
 
 lemma [simp]: "dissassemble_regs (case_memseg (Hp, 0) (Env, 0) (Vals, 0) (Stk, 2) (Acc, 0)) = 
     case_reg 0 (Suc 0) 2 11 0"

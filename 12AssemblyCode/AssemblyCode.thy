@@ -48,9 +48,9 @@ datatype addr_mode = Reg memseg | Con nat | Mem memseg
 
 datatype assm = 
   AMov addr_mode addr_mode
-  | ASub memseg nat
-  | AAdd memseg nat
-  | AJmp
+  | ASub memseg addr_mode
+  | AAdd memseg addr_mode
+  | AJmp addr_mode
 
 abbreviation reg_merge :: "memseg \<Rightarrow> memseg \<Rightarrow> memseg" where
   "reg_merge a b \<equiv> (if a = Acc then b else a)"
@@ -67,17 +67,26 @@ fun assm_step :: "(memseg \<times> nat \<Rightarrow> memseg \<times> nat) \<Righ
 | "assm_step mem ps pc (AMov (Mem r) (Con k)) = (
     if fst (ps r) = Acc then None else Some (S\<^sub>a (mem(ps r := (Acc, k))) ps pc))"
 | "assm_step mem ps pc (AMov (Mem r) (Mem r')) = None"
-| "assm_step mem ps pc (ASub r k) = (case ps r of
+| "assm_step mem ps pc (ASub r (Reg r')) = (case (ps r, ps r') of
+    ((t, v), (t', v')) \<Rightarrow> 
+      if v < v' \<or> t \<noteq> Acc \<or> t' \<noteq> Acc then None else Some (S\<^sub>a mem (ps(r := (t, v - v'))) pc))"
+| "assm_step mem ps pc (ASub r (Con k)) = (case ps r of
     (t, v) \<Rightarrow> if v < k \<or> t = Acc then None else Some (S\<^sub>a mem (ps(r := (t, v - k))) pc))"
-| "assm_step mem ps pc (AAdd r k) = (case ps r of
+| "assm_step mem ps pc (ASub r (Mem r')) = None"
+| "assm_step mem ps pc (AAdd r (Reg r')) = (case (ps r, ps r') of
+    ((t, v), (t', v')) \<Rightarrow> 
+      if t \<noteq> Acc \<or> t' \<noteq> Acc then None else Some (S\<^sub>a mem (ps(r := (t, v + v'))) pc))"
+| "assm_step mem ps pc (AAdd r (Con k)) = (case ps r of
     (t, v) \<Rightarrow> if t = Acc then None else Some (S\<^sub>a mem (ps(r := (t, v + k))) pc))"
-| "assm_step mem ps pc AJmp = (case ps Acc of
-    (t, v) \<Rightarrow> if t = Acc then Some (S\<^sub>a mem (ps(Acc := (Acc, 0))) v) else None)"
+| "assm_step mem ps pc (AAdd r (Mem r')) = None"
+| "assm_step mem ps pc (AJmp (Reg r)) = (case ps r of
+    (t, v) \<Rightarrow> if t = Acc then Some (S\<^sub>a mem (ps(r := (Acc, 0))) v) else None)"
+| "assm_step mem ps pc (AJmp (Con k)) = Some (S\<^sub>a mem ps k)"
+| "assm_step mem ps pc (AJmp (Mem r)) = None"
 
-primrec eval\<^sub>a :: "assm list \<Rightarrow> assm_state \<rightharpoonup> assm_state" where
-  "eval\<^sub>a cd (S\<^sub>a mem ps pc) = (case pc of
-      0 \<Rightarrow> None
-    | Suc pc' \<Rightarrow> Option.bind (lookup cd pc') (assm_step mem ps pc'))"
+fun eval\<^sub>a :: "assm list \<Rightarrow> assm_state \<rightharpoonup> assm_state" where
+  "eval\<^sub>a cd (S\<^sub>a mem ps 0) = None"
+| "eval\<^sub>a cd (S\<^sub>a mem ps (Suc pc)) = Option.bind (lookup cd pc) (assm_step mem ps pc)"
 
 primrec iter_eval\<^sub>a :: "assm list \<Rightarrow> nat \<Rightarrow> assm_state \<rightharpoonup> assm_state" where
   "iter_eval\<^sub>a cd 0 \<Sigma> = Some \<Sigma>"

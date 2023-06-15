@@ -181,6 +181,9 @@ s : an evaluation (or call) stack
 p : a code pointer
 h : a heap
 b : a heap or stack bounds pointer
+r : a register
+\<rho> : a register bank
+\<mu> : a machine memory
 \<tau> : a unification term
 \<gamma> : a unification constructor tag
 \<sigma> : a unification substitution
