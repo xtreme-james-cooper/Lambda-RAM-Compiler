@@ -1,4 +1,4 @@
-theory Assemble
+theory AssemblyConversion
   imports AssemblyCode "../11UnstructuredState/UnstructuredState" "../00Utils/Utils"
     "../07ByteCode/CodeFlattening"
 begin
