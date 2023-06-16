@@ -467,7 +467,7 @@ qed
 
 lemma specializes_not_antisym: "\<exists>\<sigma> \<sigma>'. \<sigma> specializes \<sigma>' \<and> \<sigma>' specializes \<sigma> \<and> \<sigma> \<noteq> \<sigma>'"
 proof (unfold subst_specialize_def)
-  let ?x = "V 0" and ?y = "V 1"
+  let ?x = "V ''x''" and ?y = "V ''y''"
   have "\<exists>z. [?x \<mapsto> Var ?y] z \<noteq> [?y \<mapsto> Var ?x] z" by auto
   hence "[?x \<mapsto> Var ?y] \<noteq> [?y \<mapsto> Var ?x]" by metis
   moreover have "\<exists>\<sigma>''. subst [?x \<mapsto> Var ?y] = subst \<sigma>'' \<circ> subst [?y \<mapsto> Var ?x]" 

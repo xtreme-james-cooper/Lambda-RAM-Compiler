@@ -26,6 +26,75 @@ lemma length_concat_map_with_idx [simp]: "length (concat (map_with_idx f as)) =
     sum_list (map_with_idx (\<lambda>ix a. length (f ix a)) as)"
   by (induction as arbitrary: f) simp_all
 
+fun nat_to_string' :: "nat \<Rightarrow> char" where
+  "nat_to_string' 0 = CHR 48"
+| "nat_to_string' (Suc 0) = CHR 49"
+| "nat_to_string' (Suc (Suc 0)) = CHR 50"
+| "nat_to_string' (Suc (Suc (Suc 0))) = CHR 51"
+| "nat_to_string' (Suc (Suc (Suc (Suc 0)))) = CHR 52"
+| "nat_to_string' (Suc (Suc (Suc (Suc (Suc 0))))) = CHR 53"
+| "nat_to_string' (Suc (Suc (Suc (Suc (Suc (Suc 0)))))) = CHR 54"
+| "nat_to_string' (Suc (Suc (Suc (Suc (Suc (Suc (Suc 0))))))) = CHR 55"
+| "nat_to_string' (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc 0)))))))) = CHR 56"
+| "nat_to_string' (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc x))))))))) = CHR 57"
+
+fun nat_to_string :: "nat \<Rightarrow> string" where
+  "nat_to_string x = 
+    (if x < 10 then [nat_to_string' x] else nat_to_string (x div 10) @ [nat_to_string' (x mod 10)])"
+
+declare nat_to_string.simps [simp del]
+
+lemma nat_to_string'_inj [simp]: "x < 10 \<Longrightarrow> y < 10 \<Longrightarrow> 
+  (nat_to_string' x = nat_to_string' y) = (x = y)"
+proof (induction x rule: nat_to_string'.induct)
+  case 1
+  thus ?case by (induction y rule: nat_to_string'.induct) simp_all
+next
+  case 2
+  thus ?case by (induction y rule: nat_to_string'.induct) simp_all
+next
+  case 3
+  thus ?case by (induction y rule: nat_to_string'.induct) simp_all
+next
+  case 4
+  thus ?case by (induction y rule: nat_to_string'.induct) simp_all
+next
+  case 5
+  thus ?case by (induction y rule: nat_to_string'.induct) simp_all
+next
+  case 6
+  thus ?case by (induction y rule: nat_to_string'.induct) simp_all
+next
+  case 7
+  thus ?case by (induction y rule: nat_to_string'.induct) simp_all
+next
+  case 8
+  thus ?case by (induction y rule: nat_to_string'.induct) simp_all
+next
+  case 9
+  thus ?case by (induction y rule: nat_to_string'.induct) simp_all
+next
+  case (10 x)
+  thus ?case by (induction y rule: nat_to_string'.induct) simp_all
+qed
+
+lemma nat_to_string_not_empty [simp]: "nat_to_string x \<noteq> []"
+  by (induction x rule: nat_to_string.induct) (simp_all add: nat_to_string.simps)
+
+lemma nat_to_string_not_empty2 [simp]: "[] \<noteq> nat_to_string x"
+  by (metis nat_to_string_not_empty)
+
+lemma div10_mod10_eq [simp]: "((x::nat) div 10 = y div 10 \<and> x mod 10 = y mod 10) = (x = y)"
+proof
+  assume "x div 10 = y div 10 \<and> x mod 10 = y mod 10"
+  hence "x div 10 * 10 + x mod 10 = y div 10 * 10 + y mod 10" by simp
+  thus "x = y" by simp
+qed simp_all
+
+lemma nat_to_string_inj [simp]: "(nat_to_string x = nat_to_string y) = (x = y)"
+  by (induction x arbitrary: y rule: nat_to_string.induct, induction y rule: nat_to_string.induct)
+     (simp_all add: nat_to_string.simps)
+
 lemma dom_expanded_fun_upd [simp]: "dom (\<lambda>a. if a = x then Some y else f a) = insert x (dom f)"
   by (auto simp add: dom_if)
 

@@ -144,4 +144,9 @@ proof -
   with VN TN EN EM PM show ?thesis by blast
 qed
 
+text \<open>We have now proven the correctness of our compiler; but, as Donald Knuth once said, "beware of 
+bugs in the above code; I have only proved it correct, not tried it." [8] So we will leave off with 
+some small example programs, to show what it looks like in practice.\<close>
+
+
 end
