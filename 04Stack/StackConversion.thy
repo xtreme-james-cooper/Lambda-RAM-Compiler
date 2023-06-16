@@ -14,6 +14,8 @@ fun unstack' :: "frame\<^sub>k list \<Rightarrow> expr\<^sub>d \<Rightarrow> exp
   "unstack' [] e = e"
 | "unstack' (FApp1\<^sub>k e\<^sub>2 # s) e = unstack' s (App\<^sub>d e e\<^sub>2)"
 | "unstack' (FApp2\<^sub>k e\<^sub>1 # s) e = unstack' s (App\<^sub>d e\<^sub>1 e)"
+| "unstack' (FLet\<^sub>k e\<^sub>2 # s) e = unstack' s (Let\<^sub>d e e\<^sub>2)"
+| "unstack' (FPop\<^sub>k # s) e = unstack' s e"
 | "unstack' (FReturn\<^sub>k # s) e = unstack' s e"
 
 lemma typesafe\<^sub>k' [simp]: "s :\<^sub>k t' \<rightarrow> t \<Longrightarrow> [] \<turnstile>\<^sub>d e : t' \<Longrightarrow> [] \<turnstile>\<^sub>d unstack' s e : t"
@@ -41,18 +43,26 @@ proof (induction \<Sigma>\<^sub>k \<Sigma>\<^sub>k' rule: eval\<^sub>k.induct)
   moreover hence "App\<^sub>d (Lam\<^sub>d t\<^sub>1 e\<^sub>1) e\<^sub>2 \<leadsto>\<^sub>d subst\<^sub>d 0 e\<^sub>2 e\<^sub>1" by simp
   ultimately have "unstack' s (App\<^sub>d (Lam\<^sub>d t\<^sub>1 e\<^sub>1) e\<^sub>2) \<leadsto>\<^sub>d unstack' s (subst\<^sub>d 0 e\<^sub>2 e\<^sub>1)" by auto
   thus ?case by simp
+next
+  case (ev\<^sub>k_let2 e\<^sub>2 s e\<^sub>1)
+  then obtain t\<^sub>1 t\<^sub>2 where "([t\<^sub>1] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2) \<and> (s :\<^sub>k t\<^sub>2 \<rightarrow> t) \<and> ([] \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>1) \<and> value\<^sub>d e\<^sub>1"
+    by fastforce
+  moreover hence "Let\<^sub>d e\<^sub>1 e\<^sub>2 \<leadsto>\<^sub>d subst\<^sub>d 0 e\<^sub>1 e\<^sub>2" by simp
+  ultimately have "unstack' s (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>d unstack' s (subst\<^sub>d 0 e\<^sub>1 e\<^sub>2)" by auto
+  thus ?case by simp
 qed simp_all
 
-text \<open>Correctness is another matter. There are a few problems here, and the biggest of them is 
-\<open>FReturn\<^sub>k\<close>. A state which unstacks to a given expression might have any number of return frames in 
-its stack, anywhere. We define a function to help deal with these empty frames.\<close>
+text \<open>Correctness is another matter. There are a few problems here, and the biggest of them are the 
+environment-management frames \<open>FPop\<^sub>k\<close> and \<open>FReturn\<^sub>k\<close>. A state which unstacks to a given expression 
+might have any number of return frames in its stack, anywhere. We define a function to help deal 
+with these empty frames.\<close>
 
 primrec all_returns :: "frame\<^sub>k list \<Rightarrow> bool" where
   "all_returns [] = True"
-| "all_returns (f # s) = (f = FReturn\<^sub>k \<and> all_returns s)"
+| "all_returns (f # s) = ((f = FReturn\<^sub>k \<or> f = FPop\<^sub>k) \<and> all_returns s)"
 
 lemma unstack_returns [elim]: "all_returns s \<Longrightarrow> unstack' s e = e"
-  by (induction s) (simp_all add: all_returns_def)
+  by (induction s) auto
 
 lemma fapp1_and_returns [dest]: "FApp1\<^sub>k e # s :\<^sub>k t' \<rightarrow> t \<Longrightarrow> all_returns s \<Longrightarrow> 
     (\<And>t\<^sub>1. t' = Arrow t\<^sub>1 t \<Longrightarrow> [] \<turnstile>\<^sub>d e : t\<^sub>1 \<Longrightarrow> P) \<Longrightarrow> P"
@@ -81,6 +91,12 @@ lemma unstack_to_app [consumes 1, case_names Empty FApp1\<^sub>k FApp2\<^sub>k]:
     P"
   by (induction s e rule: unstack'.induct) fastforce+
 
+lemma unstack_to_let [consumes 1, case_names Empty FLet\<^sub>k]: "Let\<^sub>d e\<^sub>1 e\<^sub>2 = unstack' s e \<Longrightarrow> 
+    (all_returns s \<Longrightarrow> e = Let\<^sub>d e\<^sub>1 e\<^sub>2 \<Longrightarrow> P) \<Longrightarrow> 
+    (\<And>s' sr. all_returns sr \<Longrightarrow> s = s' @ FLet\<^sub>k e\<^sub>2 # sr \<Longrightarrow> e\<^sub>1 = unstack' s' e \<Longrightarrow> P) \<Longrightarrow>
+    P"
+  by (induction s e rule: unstack'.induct) fastforce+
+
 lemma unstack_from_app1 [simp]: "all_returns sr \<Longrightarrow> 
     unstack' (s @ FApp1\<^sub>k e\<^sub>2 # sr) e = App\<^sub>d (unstack' s e) e\<^sub>2"
   by (induction s e rule: unstack'.induct) auto
@@ -89,14 +105,23 @@ lemma unstack_from_app2 [simp]: "all_returns sr \<Longrightarrow>
     unstack' (s @ FApp2\<^sub>k e\<^sub>1 # sr) e = App\<^sub>d e\<^sub>1 (unstack' s e)"
   by (induction s e rule: unstack'.induct) auto
 
+lemma eval_return_in_front [simp]: "f = FReturn\<^sub>k \<or> f = FPop\<^sub>k \<Longrightarrow> value\<^sub>d v \<Longrightarrow> 
+  iter (\<leadsto>\<^sub>k) (S\<^sub>k b (f # s) v) (S\<^sub>k True s v)"
+proof auto
+  assume V: "value\<^sub>d v"
+  hence "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (FReturn\<^sub>k # s) v) (S\<^sub>k True (FReturn\<^sub>k # s) v)" by simp
+  thus "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (FReturn\<^sub>k # s) v) (S\<^sub>k True s v)" by simp
+  from V have "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (FPop\<^sub>k # s) v) (S\<^sub>k True (FPop\<^sub>k # s) v)" by simp
+  thus "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (FPop\<^sub>k # s) v) (S\<^sub>k True s v)" by simp
+qed
+
 lemma eval_returns_in_front [simp]: "all_returns sr \<Longrightarrow> value\<^sub>d v \<Longrightarrow> 
   iter (\<leadsto>\<^sub>k) (S\<^sub>k b (sr @ s) v) (S\<^sub>k True s v)"
 proof (induction sr arbitrary: b)
-  case (Cons a sr)
-  hence "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (FReturn\<^sub>k # sr @ s) v) (S\<^sub>k True (FReturn\<^sub>k # sr @ s) v)" by simp
-  hence "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (FReturn\<^sub>k # sr @ s) v) (S\<^sub>k True (sr @ s) v)" by simp
+  case (Cons f sr)
+  hence "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (f # sr @ s) v) (S\<^sub>k True (sr @ s) v)" by simp
   moreover from Cons have "iter (\<leadsto>\<^sub>k) (S\<^sub>k True (sr @ s) v) (S\<^sub>k True s v)" by simp
-  ultimately have "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (FReturn\<^sub>k # sr @ s) v) (S\<^sub>k True s v)" by (metis iter_append)
+  ultimately have "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (f # sr @ s) v) (S\<^sub>k True s v)" by (metis iter_append)
   with Cons show ?case by simp
 qed simp_all
 
@@ -238,6 +263,41 @@ next
       using unstack_returns by simp
     with FApp2\<^sub>k S' X show ?case by metis
   qed
+next
+  case (ev\<^sub>d_let1 e\<^sub>1 e\<^sub>1' e\<^sub>2)
+  from ev\<^sub>d_let1(3) show ?case
+  proof (induction rule: unstack_to_let)
+    case Empty
+    from ev\<^sub>d_let1 have "e\<^sub>1 \<leadsto>\<^sub>d e\<^sub>1'" by simp
+    from ev\<^sub>d_let1 have "e\<^sub>1 = unstack' xs xe \<Longrightarrow>
+      xs :\<^sub>k t' \<rightarrow> xt \<Longrightarrow>
+      [] \<turnstile>\<^sub>d xe : xtt \<Longrightarrow>
+      xb \<longrightarrow> value\<^sub>d xe \<Longrightarrow> \<exists>b' s' e''. iter (\<leadsto>\<^sub>k) (S\<^sub>k xb xs xe) (S\<^sub>k b' s' e'') \<and> e\<^sub>1' = unstack' s' e''" by simp
+    from ev\<^sub>d_let1 have "s :\<^sub>k t' \<rightarrow> t" by simp
+    from ev\<^sub>d_let1 Empty have "[] \<turnstile>\<^sub>d Let\<^sub>d e\<^sub>1 e\<^sub>2 : tt" by simp
+    from ev\<^sub>d_let1 Empty have "\<not>b" by simp
+  
+  
+    have "iter (\<leadsto>\<^sub>k) (S\<^sub>k b s (Let\<^sub>d e\<^sub>1 e\<^sub>2)) (S\<^sub>k b' s' e'') \<and> Let\<^sub>d e\<^sub>1' e\<^sub>2 = unstack' s' e''" by simp
+    with Empty show ?case by blast
+  next
+    case (FLet\<^sub>k s' sr)
+    from ev\<^sub>d_let1 have "e\<^sub>1 \<leadsto>\<^sub>d e\<^sub>1'" by simp
+    from ev\<^sub>d_let1 have "e\<^sub>1 = unstack' xs xe \<Longrightarrow>
+      xs :\<^sub>k t' \<rightarrow> xt \<Longrightarrow>
+      [] \<turnstile>\<^sub>d xe : xtt \<Longrightarrow>
+      xb \<longrightarrow> value\<^sub>d xe \<Longrightarrow> \<exists>b' s' e''. iter (\<leadsto>\<^sub>k) (S\<^sub>k xb xs xe) (S\<^sub>k b' s' e'') \<and> e\<^sub>1' = unstack' s' e''" by simp
+    from ev\<^sub>d_let1 have "s :\<^sub>k t' \<rightarrow> t" by simp
+    from ev\<^sub>d_let1 have "[] \<turnstile>\<^sub>d e : tt" by simp
+    from ev\<^sub>d_let1 have "b \<longrightarrow> value\<^sub>d e" by simp
+  
+  
+    have "iter (\<leadsto>\<^sub>k) (S\<^sub>k b s e) (S\<^sub>k b' s' e'') \<and> Let\<^sub>d e\<^sub>1' e\<^sub>2 = unstack' s' e''" by simp
+    thus ?case by blast
+  qed
+next
+  case (ev\<^sub>d_let2 e\<^sub>1 e\<^sub>2)
+  then show ?case by simp
 qed
 
 text \<open>Correctness is now simple to state and prove. We also extend the theorem to cover full

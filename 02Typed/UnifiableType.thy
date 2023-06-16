@@ -101,6 +101,7 @@ primrec valid_ty_expr :: "uterm expr\<^sub>s \<Rightarrow> bool" where
 | "valid_ty_expr (Const\<^sub>s n) = True"
 | "valid_ty_expr (Lam\<^sub>s x \<tau> e) = (valid_ty_term \<tau> \<and> valid_ty_expr e)"
 | "valid_ty_expr (App\<^sub>s e\<^sub>1 e\<^sub>2) = (valid_ty_expr e\<^sub>1 \<and> valid_ty_expr e\<^sub>2)"
+| "valid_ty_expr (Let\<^sub>s x e\<^sub>1 e\<^sub>2) = (valid_ty_expr e\<^sub>1 \<and> valid_ty_expr e\<^sub>2)"
 
 text \<open>Now on to the promised complications. Because the types we produce are not the fully-general 
 ones produced by the unification algorithm, we need an operation to replace term variables with 
@@ -196,6 +197,7 @@ primrec tyvars\<^sub>s :: "uterm expr\<^sub>s \<Rightarrow> var set" where
 | "tyvars\<^sub>s (Const\<^sub>s n) = {}"
 | "tyvars\<^sub>s (Lam\<^sub>s x \<tau> e) = uvars \<tau> \<union> tyvars\<^sub>s e"
 | "tyvars\<^sub>s (App\<^sub>s e\<^sub>1 e\<^sub>2) = tyvars\<^sub>s e\<^sub>1 \<union> tyvars\<^sub>s e\<^sub>2"
+| "tyvars\<^sub>s (Let\<^sub>s x e\<^sub>1 e\<^sub>2) = tyvars\<^sub>s e\<^sub>1 \<union> tyvars\<^sub>s e\<^sub>2"
 
 lemma tyvars_subst_expr [simp]: "tyvars\<^sub>s (map_expr\<^sub>s (subst \<sigma>) e) \<subseteq> 
   tyvars\<^sub>s e - dom \<sigma> \<union> subst_vars \<sigma>"

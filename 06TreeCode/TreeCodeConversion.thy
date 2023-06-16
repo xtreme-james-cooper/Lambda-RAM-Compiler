@@ -16,6 +16,7 @@ primrec encode' :: "expr\<^sub>d \<Rightarrow> code\<^sub>e list" where
 | "encode' (Const\<^sub>d n) = [PushCon\<^sub>e n]"
 | "encode' (Lam\<^sub>d t e) = [PushLam\<^sub>e (encode' e @ [Return\<^sub>e])]"
 | "encode' (App\<^sub>d e\<^sub>1 e\<^sub>2) = encode' e\<^sub>1 @ encode' e\<^sub>2 @ [Apply\<^sub>e]"
+| "encode' (Let\<^sub>d e\<^sub>1 e\<^sub>2) = encode' e\<^sub>1 @ PushEnv\<^sub>e # encode' e\<^sub>2 @ [PopEnv\<^sub>e]"
 
 definition encode :: "expr\<^sub>d \<Rightarrow> code\<^sub>e list" where
   "encode e \<equiv> encode' e @ [Return\<^sub>e]"
@@ -35,6 +36,8 @@ fun vals_from_stack :: "frame\<^sub>c list \<Rightarrow> closure\<^sub>e list" w
   "vals_from_stack [] = []"
 | "vals_from_stack (FApp1\<^sub>c \<Delta> e # s\<^sub>c) = vals_from_stack s\<^sub>c"
 | "vals_from_stack (FApp2\<^sub>c c # s\<^sub>c) = encode_closure c # vals_from_stack s\<^sub>c"
+| "vals_from_stack (FLet\<^sub>c \<Delta> e # s\<^sub>c) = vals_from_stack s\<^sub>c"
+| "vals_from_stack (FPop\<^sub>c # s\<^sub>c) = vals_from_stack s\<^sub>c"
 | "vals_from_stack (FReturn\<^sub>c \<Delta> # s\<^sub>c) = vals_from_stack s\<^sub>c"
 
 text \<open>The callstack requires some more careful work. Each frame represents a place where we are part
@@ -50,9 +53,12 @@ fun prepend_to_top_frame :: "code\<^sub>e list \<Rightarrow> frame\<^sub>e list 
 
 fun stack_from_stack :: "frame\<^sub>c list \<Rightarrow> frame\<^sub>e list" where
   "stack_from_stack [] = []"
-| "stack_from_stack (FApp1\<^sub>c \<Delta>' e # s\<^sub>c) = 
+| "stack_from_stack (FApp1\<^sub>c \<Delta> e # s\<^sub>c) = 
     prepend_to_top_frame (encode' e @ [Apply\<^sub>e]) (stack_from_stack s\<^sub>c)"
 | "stack_from_stack (FApp2\<^sub>c c # s\<^sub>c) = prepend_to_top_frame [Apply\<^sub>e] (stack_from_stack s\<^sub>c)"
+| "stack_from_stack (FLet\<^sub>c \<Delta> e # s\<^sub>c) = 
+    prepend_to_top_frame (PushEnv\<^sub>e # encode' e @ [PopEnv\<^sub>e]) (stack_from_stack s\<^sub>c)"
+| "stack_from_stack (FPop\<^sub>c # s\<^sub>c) = prepend_to_top_frame [PopEnv\<^sub>e] (stack_from_stack s\<^sub>c)"
 | "stack_from_stack (FReturn\<^sub>c \<Delta> # s\<^sub>c) = (map encode_closure \<Delta>, [Return\<^sub>e]) # stack_from_stack s\<^sub>c"
 
 lemma prepend_nil [simp]: "prepend_to_top_frame [] s\<^sub>e = s\<^sub>e"
@@ -115,6 +121,9 @@ next
       ((map encode_closure \<Delta>, \<C>) # s\<^sub>e))" by (metis iter_one)
   with S show ?case by (simp add: encode_def)
 next
+  case (ev\<^sub>c_let s \<Delta> e\<^sub>1 e\<^sub>2)
+  then show ?case by fastforce
+next
   case (ret\<^sub>c_app2 t\<^sub>1 \<Delta> e\<^sub>1 s\<^sub>c c\<^sub>2)
   then obtain \<Gamma> t\<^sub>2 \<Delta>' where "(\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2) \<and> (s\<^sub>c :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> 
     latest_environment s\<^sub>c = Some \<Delta>' \<and> (c\<^sub>2 :\<^sub>c\<^sub>l t\<^sub>1)" by blast
@@ -129,6 +138,9 @@ next
     (S\<^sub>e (vals_from_stack s\<^sub>c) ((encode_closure c\<^sub>2 # map encode_closure \<Delta>, encode e\<^sub>1) # 
       stack_from_stack s\<^sub>c))" by (metis iter_one)
   with S show ?case by (simp add: encode_def)
+next
+  case (ret\<^sub>c_let \<Delta> e\<^sub>2 s c\<^sub>1)
+  then show ?case by fastforce
 next
   case (ret\<^sub>c_ret \<Delta> s\<^sub>c c)
   have "S\<^sub>e (encode_closure c # vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, [Return\<^sub>e]) # 
@@ -160,12 +172,14 @@ primrec head_expr :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d" where
 | "head_expr (Const\<^sub>d n) = Const\<^sub>d n"
 | "head_expr (Lam\<^sub>d t e) = Lam\<^sub>d t e"
 | "head_expr (App\<^sub>d e\<^sub>1 e\<^sub>2) = head_expr e\<^sub>1"
+| "head_expr (Let\<^sub>d e\<^sub>1 e\<^sub>2) = head_expr e\<^sub>1"
 
 primrec tail_expr :: "closure\<^sub>c list \<Rightarrow> expr\<^sub>d \<Rightarrow> frame\<^sub>c list" where
   "tail_expr \<Delta> (Var\<^sub>d x) = []"
 | "tail_expr \<Delta> (Const\<^sub>d n) = []"
 | "tail_expr \<Delta> (Lam\<^sub>d t e) = []"
 | "tail_expr \<Delta> (App\<^sub>d e\<^sub>1 e\<^sub>2) = tail_expr \<Delta> e\<^sub>1 @ [FApp1\<^sub>c \<Delta> e\<^sub>2]"
+| "tail_expr \<Delta> (Let\<^sub>d e\<^sub>1 e\<^sub>2) = tail_expr \<Delta> e\<^sub>1 @ [FLet\<^sub>c \<Delta> e\<^sub>2]"
 
 lemma vals_from_tail_expr [simp]: "vals_from_stack (tail_expr \<Delta> e @ s\<^sub>c) = vals_from_stack s\<^sub>c"
   by (induction e arbitrary: s\<^sub>c) simp_all
@@ -182,7 +196,10 @@ proof (induction e arbitrary: s)
   ultimately have "iter (\<leadsto>\<^sub>c) (SE\<^sub>c s \<Delta> (App\<^sub>d e\<^sub>1 e\<^sub>2))
     (SE\<^sub>c (tail_expr \<Delta> e\<^sub>1 @ FApp1\<^sub>c \<Delta> e\<^sub>2 # s) \<Delta> (head_expr e\<^sub>1))" 
       by (metis iter_step)
-  thus ?case by simp
+    thus ?case by simp
+next
+  case (Let\<^sub>d e1 e2)
+  then show ?case by simp
 qed simp_all
 
 text \<open>We now reconstruct encodings, stack-encodings, and state-encodings:\<close>

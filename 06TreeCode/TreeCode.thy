@@ -25,6 +25,8 @@ datatype code\<^sub>e =
   | PushCon\<^sub>e nat
   | PushLam\<^sub>e "code\<^sub>e list"
   | Apply\<^sub>e
+  | PushEnv\<^sub>e
+  | PopEnv\<^sub>e
   | Return\<^sub>e
   | Jump\<^sub>e
 

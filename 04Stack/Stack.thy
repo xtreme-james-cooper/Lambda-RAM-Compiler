@@ -16,14 +16,16 @@ for the first redex with each step. By making this search explicit via a stack o
 we can make every evaluation step immediate, acting directly on the expression in the state. We also 
 take the opportunity to get rid of explicitly testing expressions for being values.\<close>
 
-text \<open>There are only two things to search through, the left and right subexpressions of an \<open>App\<^sub>d\<close>, 
-so there is a frame for each, recording our position in the search. The \<open>FReturn\<^sub>k\<close> frame is not 
-strictly necessary for this stage, but recording each time we would return from an application will 
-make future stages possible.\<close>
+text \<open>There are only three things to search through, the left and right subexpressions of an \<open>App\<^sub>d\<close>, 
+and the left subexpression of a \<open>Let\<^sub>d\<close>, so there is a frame for each, recording our position in the 
+search. The \<open>FPop\<^sub>k\<close> and \<open>FReturn\<^sub>k\<close> frames are not strictly necessary for this stage, but recording 
+each time we change the implicit evaluation environment will make future stages possible.\<close>
 
 datatype frame\<^sub>k = 
   FApp1\<^sub>k expr\<^sub>d
   | FApp2\<^sub>k expr\<^sub>d
+  | FLet\<^sub>k expr\<^sub>d
+  | FPop\<^sub>k
   | FReturn\<^sub>k
 
 text \<open>Typing a stack is simple. Since the stack represents, in effect, an expression with a hole in 
@@ -38,11 +40,15 @@ inductive typing_stack\<^sub>k :: "frame\<^sub>k list \<Rightarrow> ty \<Rightar
 | tcs\<^sub>k_cons_app1 [simp]: "[] \<turnstile>\<^sub>d e : t\<^sub>1 \<Longrightarrow> s :\<^sub>k t\<^sub>2 \<rightarrow> t \<Longrightarrow> FApp1\<^sub>k e # s :\<^sub>k Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
 | tcs\<^sub>k_cons_app2 [simp]: "[] \<turnstile>\<^sub>d e : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> value\<^sub>d e \<Longrightarrow> s :\<^sub>k t\<^sub>2 \<rightarrow> t \<Longrightarrow> 
     FApp2\<^sub>k e # s :\<^sub>k t\<^sub>1 \<rightarrow> t"
+| tcs\<^sub>k_cons_let [simp]: "[t\<^sub>1] \<turnstile>\<^sub>d e : t\<^sub>2 \<Longrightarrow> s :\<^sub>k t\<^sub>2 \<rightarrow> t \<Longrightarrow> FLet\<^sub>k e # s :\<^sub>k t\<^sub>1 \<rightarrow> t"
+| tcs\<^sub>k_cons_pop [simp]: "s :\<^sub>k t' \<rightarrow> t \<Longrightarrow> FPop\<^sub>k # s :\<^sub>k t' \<rightarrow> t"
 | tcs\<^sub>k_cons_ret [simp]: "s :\<^sub>k t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>k # s :\<^sub>k t' \<rightarrow> t"
 
 inductive_cases [elim]: "[] :\<^sub>k t' \<rightarrow> t"
 inductive_cases [elim]: "FApp1\<^sub>k e # s :\<^sub>k t' \<rightarrow> t"
 inductive_cases [elim]: "FApp2\<^sub>k e # s :\<^sub>k t' \<rightarrow> t"
+inductive_cases [elim]: "FLet\<^sub>k e # s :\<^sub>k t' \<rightarrow> t"
+inductive_cases [elim]: "FPop\<^sub>k # s :\<^sub>k t' \<rightarrow> t"
 inductive_cases [elim]: "FReturn\<^sub>k # s :\<^sub>k t' \<rightarrow> t"
 
 lemma tc_stack\<^sub>k_append [simp]: "s @ s' :\<^sub>k t' \<rightarrow> t \<Longrightarrow> \<exists>t''. (s :\<^sub>k t' \<rightarrow> t'') \<and> (s' :\<^sub>k t'' \<rightarrow> t)"
@@ -86,6 +92,9 @@ inductive eval\<^sub>k :: "state\<^sub>k \<Rightarrow> state\<^sub>k \<Rightarro
 | ev\<^sub>k_app1 [simp]: "S\<^sub>k False s (App\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>k S\<^sub>k False (FApp1\<^sub>k e\<^sub>2 # s) e\<^sub>1"
 | ev\<^sub>k_app2 [simp]: "S\<^sub>k True (FApp1\<^sub>k e\<^sub>2 # s) e\<^sub>1 \<leadsto>\<^sub>k S\<^sub>k False (FApp2\<^sub>k e\<^sub>1 # s) e\<^sub>2"
 | ev\<^sub>k_app3 [simp]: "S\<^sub>k True (FApp2\<^sub>k (Lam\<^sub>d t e\<^sub>1) # s) e\<^sub>2 \<leadsto>\<^sub>k S\<^sub>k False (FReturn\<^sub>k # s) (subst\<^sub>d 0 e\<^sub>2 e\<^sub>1)"
+| ev\<^sub>k_let1 [simp]: "S\<^sub>k False s (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>k S\<^sub>k False (FLet\<^sub>k e\<^sub>2 # s) e\<^sub>1"
+| ev\<^sub>k_let2 [simp]: "S\<^sub>k True (FLet\<^sub>k e\<^sub>2 # s) e\<^sub>1 \<leadsto>\<^sub>k S\<^sub>k False (FPop\<^sub>k # s) (subst\<^sub>d 0 e\<^sub>1 e\<^sub>2)"
+| ev\<^sub>k_pop [simp]: "S\<^sub>k True (FPop\<^sub>k # s) e \<leadsto>\<^sub>k S\<^sub>k True s e"
 | ev\<^sub>k_ret [simp]: "S\<^sub>k True (FReturn\<^sub>k # s) e \<leadsto>\<^sub>k S\<^sub>k True s e"
 
 lemma eval\<^sub>k_under [simp]: "S\<^sub>k b s e \<leadsto>\<^sub>k S\<^sub>k b' s' e' \<Longrightarrow> S\<^sub>k b (s @ ss) e \<leadsto>\<^sub>k S\<^sub>k b' (s' @ ss) e'"
@@ -138,6 +147,10 @@ next
   case (tc\<^sub>d_app e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
   have "S\<^sub>k False s (App\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>k S\<^sub>k False (FApp1\<^sub>k e\<^sub>2 # s) e\<^sub>1" by simp
   thus ?case by fastforce
+next
+  case (tc\<^sub>d_let e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
+  have "S\<^sub>k False s (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>k S\<^sub>k False (FLet\<^sub>k e\<^sub>2 # s) e\<^sub>1" by simp
+  thus ?case by fastforce
 qed simp_all
 
 lemma eval\<^sub>k_from_value [simp]: "s :\<^sub>k t' \<rightarrow> t \<Longrightarrow> [] \<turnstile>\<^sub>d e : t' \<Longrightarrow> value\<^sub>d e \<Longrightarrow> 
@@ -152,6 +165,14 @@ next
   moreover with tcs\<^sub>k_cons_app2 have "S\<^sub>k True (FApp2\<^sub>k (Lam\<^sub>d t\<^sub>1 e\<^sub>1') # s) e \<leadsto>\<^sub>k 
     S\<^sub>k False (FReturn\<^sub>k # s) (subst\<^sub>d 0 e e\<^sub>1')" by simp
   ultimately show ?case by fastforce
+next
+  case (tcs\<^sub>k_cons_let t\<^sub>1 e\<^sub>2 t\<^sub>2 s t)
+  hence "S\<^sub>k True (FLet\<^sub>k e\<^sub>2 # s) e \<leadsto>\<^sub>k S\<^sub>k False (FPop\<^sub>k # s) (subst\<^sub>d 0 e e\<^sub>2)" by simp
+  then show ?case by fastforce
+next 
+  case (tcs\<^sub>k_cons_pop s t')
+  hence "S\<^sub>k True (FPop\<^sub>k # s) e \<leadsto>\<^sub>k S\<^sub>k True s e" by simp
+  thus ?case by fastforce
 next 
   case (tcs\<^sub>k_cons_ret s t')
   hence "S\<^sub>k True (FReturn\<^sub>k # s) e \<leadsto>\<^sub>k S\<^sub>k True s e" by simp
@@ -185,6 +206,18 @@ next
   hence "[] \<turnstile>\<^sub>d subst\<^sub>d 0 e\<^sub>2 e\<^sub>1 : t\<^sub>2" by simp
   moreover from X have "FReturn\<^sub>k # s :\<^sub>k t\<^sub>2 \<rightarrow> t" by simp
   ultimately show ?case by simp
+next
+  case (ev\<^sub>k_let1 s e\<^sub>1 e\<^sub>2)
+  then obtain t\<^sub>1 t\<^sub>2 where "s :\<^sub>k t\<^sub>2 \<rightarrow> t" and X: "[] \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>1" and "[t\<^sub>1] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2" by fastforce
+  hence "FLet\<^sub>k e\<^sub>2 # s :\<^sub>k t\<^sub>1 \<rightarrow> t" by simp
+  with X show ?case by simp
+next
+  case (ev\<^sub>k_let2 e\<^sub>2 s e\<^sub>1)
+  then obtain t\<^sub>1 t\<^sub>2 where "[t\<^sub>1] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2" and X: "s :\<^sub>k t\<^sub>2 \<rightarrow> t" and "[] \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>1" and "value\<^sub>d e\<^sub>1" 
+    by fastforce
+  hence "[] \<turnstile>\<^sub>d subst\<^sub>d 0 e\<^sub>1 e\<^sub>2 : t\<^sub>2" by simp
+  moreover from X have "FPop\<^sub>k # s :\<^sub>k t\<^sub>2 \<rightarrow> t" by simp
+  ultimately show ?case by simp
 qed fastforce+
 
 lemma preservation_iter\<^sub>k [simp]: "iter (\<leadsto>\<^sub>k) \<Sigma> \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>k t \<Longrightarrow> \<Sigma>' :\<^sub>k t"
@@ -205,6 +238,15 @@ next
   thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
 next
   case (ev\<^sub>k_app3 t e\<^sub>1 s e\<^sub>2)
+  thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
+next
+  case (ev\<^sub>k_let1 s e\<^sub>1 e\<^sub>2)
+  thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
+next
+  case (ev\<^sub>k_let2 e\<^sub>2 s e\<^sub>1)
+  thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
+next 
+  case (ev\<^sub>k_pop s e)
   thus ?case by (induction rule: eval\<^sub>k.cases) simp_all
 next 
   case (ev\<^sub>k_ret s e)

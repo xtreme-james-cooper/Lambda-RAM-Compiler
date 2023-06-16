@@ -12,6 +12,7 @@ primrec unname' :: "var list \<Rightarrow> ty expr\<^sub>s \<Rightarrow> expr\<^
 | "unname' \<Phi> (Const\<^sub>s k) = Const\<^sub>d k"
 | "unname' \<Phi> (Lam\<^sub>s x t e\<^sub>t) = Lam\<^sub>d t (unname' (insert_at 0 x \<Phi>) e\<^sub>t)"
 | "unname' \<Phi> (App\<^sub>s e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2) = App\<^sub>d (unname' \<Phi> e\<^sub>t\<^sub>1) (unname' \<Phi> e\<^sub>t\<^sub>2)"
+| "unname' \<Phi> (Let\<^sub>s x e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2) = Let\<^sub>d (unname' \<Phi> e\<^sub>t\<^sub>1) (unname' (insert_at 0 x \<Phi>) e\<^sub>t\<^sub>2)"
 
 text \<open>The unnaming operation commutes with the various operations on expressions as we would expect 
 it to. In particular, it connects capture-avoiding substitution and the simpler Debruijn 
@@ -26,6 +27,10 @@ proof (induction e\<^sub>t arbitrary: x \<Phi>)
 next
   case (Lam\<^sub>s z t e\<^sub>t)
   moreover hence "free_vars\<^sub>s e\<^sub>t \<subseteq> set (insert_at 0 z \<Phi>)" by auto
+  ultimately show ?case by simp
+next
+  case (Let\<^sub>s z e\<^sub>1\<^sub>t e\<^sub>2\<^sub>t)
+  moreover hence "free_vars\<^sub>s e\<^sub>2\<^sub>t \<subseteq> set (insert_at 0 z \<Phi>)" by auto
   ultimately show ?case by simp
 qed simp_all
 

@@ -14,11 +14,13 @@ inductive big_eval\<^sub>d :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d \<Rightar
   bev\<^sub>d_const [simp]: "Const\<^sub>d n \<Down>\<^sub>d Const\<^sub>d n"
 | bev\<^sub>d_lam [simp]: "Lam\<^sub>d t e \<Down>\<^sub>d Lam\<^sub>d t e"
 | bev\<^sub>d_app [simp]: "e\<^sub>1 \<Down>\<^sub>d Lam\<^sub>d t e\<^sub>1' \<Longrightarrow> e\<^sub>2 \<Down>\<^sub>d v\<^sub>2 \<Longrightarrow> subst\<^sub>d 0 v\<^sub>2 e\<^sub>1' \<Down>\<^sub>d v \<Longrightarrow> App\<^sub>d e\<^sub>1 e\<^sub>2 \<Down>\<^sub>d v"
+| bev\<^sub>d_let [simp]: "e\<^sub>1 \<Down>\<^sub>d v\<^sub>1 \<Longrightarrow> subst\<^sub>d 0 v\<^sub>1 e\<^sub>2 \<Down>\<^sub>d v\<^sub>2 \<Longrightarrow> Let\<^sub>d e\<^sub>1 e\<^sub>2 \<Down>\<^sub>d v\<^sub>2"
 
 inductive_cases [elim]: "Var\<^sub>d x \<Down>\<^sub>d v"
 inductive_cases [elim]: "Const\<^sub>d n \<Down>\<^sub>d v"
 inductive_cases [elim]: "Lam\<^sub>d t e \<Down>\<^sub>d v"
 inductive_cases [elim]: "App\<^sub>d e\<^sub>1 e\<^sub>2 \<Down>\<^sub>d v"
+inductive_cases [elim]: "Let\<^sub>d e\<^sub>1 e\<^sub>2 \<Down>\<^sub>d v"
 
 text \<open>It is no surprise that two of our three standard properties, determinism and preservation, are 
 simple to prove:\<close>
@@ -39,6 +41,9 @@ next
 next
   case (bev\<^sub>d_app e\<^sub>1 t e\<^sub>1' e\<^sub>2 v\<^sub>2 v)
   from bev\<^sub>d_app(7, 1, 2, 3, 4, 5, 6) show ?case by (induction rule: big_eval\<^sub>d.cases) blast+
+next
+  case (bev\<^sub>d_let e\<^sub>1 v\<^sub>1 e\<^sub>2 v\<^sub>2 t)
+  from bev\<^sub>d_let(5, 1, 2, 3, 4) show ?case by (induction rule: big_eval\<^sub>d.cases) blast+
 qed
 
 theorem preservation\<^sub>d\<^sub>b: "e \<Down>\<^sub>d v \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d v : t"
@@ -52,6 +57,10 @@ proof (induction e e' arbitrary: v rule: eval\<^sub>d.induct)
   case (ev\<^sub>d_app3 e\<^sub>2 t e\<^sub>1)
   moreover hence "e\<^sub>2 \<Down>\<^sub>d e\<^sub>2" by simp
   ultimately show ?case by (metis bev\<^sub>d_lam bev\<^sub>d_app)
+next
+  case (ev\<^sub>d_let2 e\<^sub>1 t e\<^sub>2)
+  moreover hence "e\<^sub>1 \<Down>\<^sub>d e\<^sub>1" by simp
+  ultimately show ?case by simp
 qed fastforce+
 
 theorem complete\<^sub>d\<^sub>b [simp]: "iter (\<leadsto>\<^sub>d) e v \<Longrightarrow> value\<^sub>d v \<Longrightarrow> e \<Down>\<^sub>d v"
@@ -64,6 +73,12 @@ proof (induction e v rule: big_eval\<^sub>d.induct)
   moreover from bev\<^sub>d_app have "iter (\<leadsto>\<^sub>d) (App\<^sub>d (Lam\<^sub>d t e\<^sub>1') e\<^sub>2) (App\<^sub>d (Lam\<^sub>d t e\<^sub>1') v\<^sub>2)" by simp
   moreover from bev\<^sub>d_app have "App\<^sub>d (Lam\<^sub>d t e\<^sub>1') v\<^sub>2 \<leadsto>\<^sub>d subst\<^sub>d 0 v\<^sub>2 e\<^sub>1'" by simp
   moreover from bev\<^sub>d_app have "iter (\<leadsto>\<^sub>d) (subst\<^sub>d 0 v\<^sub>2 e\<^sub>1') v" by simp
+  ultimately show ?case by (metis iter_append iter_step)
+next
+  case (bev\<^sub>d_let e\<^sub>1 v\<^sub>1 e\<^sub>2 v\<^sub>2)
+  hence "iter (\<leadsto>\<^sub>d) (Let\<^sub>d e\<^sub>1 e\<^sub>2) (Let\<^sub>d v\<^sub>1 e\<^sub>2)" by simp
+  moreover from bev\<^sub>d_let have "Let\<^sub>d v\<^sub>1 e\<^sub>2 \<leadsto>\<^sub>d subst\<^sub>d 0 v\<^sub>1 e\<^sub>2" by simp
+  moreover from bev\<^sub>d_let have "iter (\<leadsto>\<^sub>d) (subst\<^sub>d 0 v\<^sub>1 e\<^sub>2) v\<^sub>2" by simp
   ultimately show ?case by (metis iter_append iter_step)
 qed simp_all
 

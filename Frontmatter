@@ -28,7 +28,7 @@ Schocken's HACK processor [4], in about 10,000 lines of code.
 
 To keep the size down, a number of sacrifices have been made. In order to keep the concept of 
 "behaviour" simple, the source language is deterministic and terminating. Parsing is skipped 
-entirely. Almost no optimization is performed (tail-call elimination being the one exception). 
+entirely. Almost no optimization is performed (tail-call elimination being the main exception). 
 And, in the interest of keeping the equality of behaviour exact, without technicalities about "or a 
 machine limitation is reached", the target machine has both infinite-precision integers and an 
 unbounded memory. Nevertheless, the compiler demonstrates many of the issues in compilation, from 
@@ -52,7 +52,8 @@ Programming Languages_ [5].
 their use of named variables. At this point we switch to a nameless Debruijn representation. This 
 stage is also important because it is at this point that we switch to a small-step semantics, and 
 prove termination; our correctness and completeness theorems allow us to extend this result back to 
-our original language.
+our original language. We also adjust the positions of our let-bindings ("let-floating") to make the 
+code more efficient down the line.
 
 4) Stack Evaluation. The small-step evaluation of the Debruijn stage still requires nested 
 evaluation of subterms. We now eliminate this by introducing an explicit evaluation stack. 
@@ -70,7 +71,7 @@ examination at compile-time, converting these expressions into a list of operati
 executing the list. The code is tree-structured, because the "TPushLam" operation contains a sublist 
 with the code for the function body.
 
-6b) Tail-Call Elimination. Our one optimization pass. We add a second kind of return, a jump, which
+6b) Tail-Call Elimination. Our one optimization pass. We add a second kind of return, a jump, which 
 enables us to optimize the calling of functions in tail-position (see, for example, [7]).
 
 7) Byte Code Compilation. Real code, of course, is not tree-structured. We flatten out our trees by
@@ -271,16 +272,25 @@ NameRemoval
 
 Stack
 Stack Conversion
+
 Closure
 ClosureConversion
+
 TreeCode
 TreeCodeConversion
+LetFloating
 TaillCallOptimization
+
 ByteCode
 CodeFlattening
 
 Heap
 HeapMemory
 HeapConversion
+
 ChainedEnvironment
 Chaining
+
+PointerTag
+FlatMemory
+MemoryFlattening

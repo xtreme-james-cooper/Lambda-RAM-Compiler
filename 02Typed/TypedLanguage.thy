@@ -19,11 +19,13 @@ inductive typing\<^sub>t :: "(var \<rightharpoonup> ty) \<Rightarrow> ty expr\<^
 | tc\<^sub>t_const [simp]: "\<Gamma> \<turnstile>\<^sub>t Const\<^sub>s n : Num"
 | tc\<^sub>t_lam [simp]: "\<Gamma>(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t e : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t Lam\<^sub>s x t\<^sub>1 e : Arrow t\<^sub>1 t\<^sub>2"
 | tc\<^sub>t_app [simp]: "\<Gamma> \<turnstile>\<^sub>t e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e\<^sub>2 : t\<^sub>1 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t App\<^sub>s e\<^sub>1 e\<^sub>2 : t\<^sub>2"
+| tc\<^sub>t_let [simp]: "\<Gamma> \<turnstile>\<^sub>t e\<^sub>1 : t\<^sub>1 \<Longrightarrow> \<Gamma>(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t e\<^sub>2 : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t Let\<^sub>s x e\<^sub>1 e\<^sub>2 : t\<^sub>2"
 
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>t Var\<^sub>s x : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>t Const\<^sub>s n : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>t Lam\<^sub>s x t' e : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>t App\<^sub>s e\<^sub>1 e\<^sub>2 : t"
+inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>t Let\<^sub>s x e\<^sub>1 e\<^sub>2 : t"
 
 lemma free_vars_tc': "\<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> free_vars\<^sub>s e \<subseteq> dom \<Gamma>" 
   by (induction \<Gamma> e t rule: typing\<^sub>t.induct) auto
@@ -46,6 +48,9 @@ next
 next
   case (tc\<^sub>t_app \<Gamma> e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
   from tc\<^sub>t_app(5, 1, 2, 3, 4) show ?case by (induction rule: typing\<^sub>t.cases) blast+
+next
+  case (tc\<^sub>t_let \<Gamma> e\<^sub>1 t\<^sub>1 x e\<^sub>2 t\<^sub>2)
+  from tc\<^sub>t_let(5, 1, 2, 3, 4) show ?case by (induction rule: typing\<^sub>t.cases) blast+
 qed
 
 text \<open>We can also now prove the canonical-forms lemmas, telling us what shapes a well-typed value
@@ -79,6 +84,9 @@ proof (induction "\<Gamma>(x \<mapsto> t')" e t arbitrary: \<Gamma> rule: typing
     moreover from tc\<^sub>t_lam have "x' \<noteq> y" by simp
     ultimately show ?thesis by (simp add: fun_upd_twist)
   qed (simp_all add: fun_upd_twist)
+next
+  case (tc\<^sub>t_let e\<^sub>1 t\<^sub>1 x e\<^sub>2 t\<^sub>2)
+  then show ?case by simp
 qed fastforce+
 
 lemma tc\<^sub>t_subst [simp]: "\<Gamma>(x \<mapsto> t') \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e' : t' \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t subst\<^sub>s x e' e : t"
@@ -93,6 +101,9 @@ proof (induction x e' e arbitrary: \<Gamma> t rule: subst\<^sub>s.induct)
   from 3 Z have "\<Gamma>(?z \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t e' : t'" by simp
   with 3 X have "\<Gamma>(?z \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t subst\<^sub>s x e' (subst_var\<^sub>s y ?z e) : t\<^sub>2" by fastforce
   with T show ?case by (simp add: Let_def)
+next
+  case (5 x e' y t e\<^sub>1 e\<^sub>2)
+  then show ?case by simp
 qed fastforce+
 
 theorem preservation\<^sub>t [simp]: "e \<Down>\<^sub>s v \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t v : t"
@@ -115,6 +126,9 @@ next
   hence "\<Gamma> \<turnstile>\<^sub>t remove_shadows\<^sub>s' vs e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2" by simp
   moreover from tc\<^sub>t_app have "\<Gamma> \<turnstile>\<^sub>t remove_shadows\<^sub>s' vs e\<^sub>2 : t\<^sub>1" by simp
   ultimately show ?case by simp
+next
+  case (tc\<^sub>t_let \<Gamma> e\<^sub>1 t\<^sub>1 x e\<^sub>2 t\<^sub>2)
+  then show ?case by simp
 qed simp_all
 
 lemma tc_remove_shadows [simp]: "\<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t remove_shadows\<^sub>s e : t"
@@ -138,7 +152,7 @@ lemma erase_to_lam [dest]: "erase e\<^sub>t = Lam\<^sub>s x u e\<^sub>s \<Longri
   by (induction e\<^sub>t) simp_all
 
 lemma erase_to_app [dest]: "erase e\<^sub>t = App\<^sub>s e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2 \<Longrightarrow> 
-    \<exists>e\<^sub>1' e\<^sub>2'. e\<^sub>t = App\<^sub>s e\<^sub>1' e\<^sub>2' \<and> e\<^sub>s\<^sub>1 = erase e\<^sub>1'\<and> e\<^sub>s\<^sub>2 = erase e\<^sub>2'"
+    \<exists>e\<^sub>1' e\<^sub>2'. e\<^sub>t = App\<^sub>s e\<^sub>1' e\<^sub>2' \<and> e\<^sub>s\<^sub>1 = erase e\<^sub>1' \<and> e\<^sub>s\<^sub>2 = erase e\<^sub>2'"
   by (induction e\<^sub>t) simp_all
 
 lemma erase_map [simp]: "erase (map_expr\<^sub>s f e\<^sub>t) = erase e\<^sub>t"

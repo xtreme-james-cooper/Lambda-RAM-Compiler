@@ -18,6 +18,7 @@ datatype expr\<^sub>d =
   | Const\<^sub>d nat
   | Lam\<^sub>d ty expr\<^sub>d
   | App\<^sub>d expr\<^sub>d expr\<^sub>d
+  | Let\<^sub>d expr\<^sub>d expr\<^sub>d
 
 text \<open>The typing relation remains similar to the source language typing relation, but notice that 
 the context is now a \<open>ty list\<close> examined with \<open>lookup\<close> rather than a \<open>var \<rightharpoonup> ty\<close> partial function, 
@@ -29,11 +30,13 @@ inductive typing\<^sub>d :: "ty list \<Rightarrow> expr\<^sub>d \<Rightarrow> ty
 | tc\<^sub>d_const [simp]: "\<Gamma> \<turnstile>\<^sub>d Const\<^sub>d n : Num"
 | tc\<^sub>d_lam [simp]: "insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d Lam\<^sub>d t\<^sub>1 e : Arrow t\<^sub>1 t\<^sub>2"
 | tc\<^sub>d_app [simp]: "\<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d App\<^sub>d e\<^sub>1 e\<^sub>2 : t\<^sub>2"
+| tc\<^sub>d_let [simp]: "\<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>1 \<Longrightarrow> insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d Let\<^sub>d e\<^sub>1 e\<^sub>2 : t\<^sub>2"
 
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>d Var\<^sub>d x : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>d Const\<^sub>d n : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>d Lam\<^sub>d t' e : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>d App\<^sub>d e\<^sub>1 e\<^sub>2 : t"
+inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>d Let\<^sub>d e\<^sub>1 e\<^sub>2 : t"
 
 lemma tc_postpend [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> (\<Gamma> @ \<Gamma>') \<turnstile>\<^sub>d e : t"
   by (induction \<Gamma> e t rule: typing\<^sub>d.induct) simp_all
@@ -45,6 +48,7 @@ primrec value\<^sub>d :: "expr\<^sub>d \<Rightarrow> bool" where
 | "value\<^sub>d (Const\<^sub>d n) = True" 
 | "value\<^sub>d (Lam\<^sub>d t e) = True" 
 | "value\<^sub>d (App\<^sub>d e\<^sub>1 e\<^sub>2) = False" 
+| "value\<^sub>d (Let\<^sub>d e\<^sub>1 e\<^sub>2) = False" 
 
 lemma canonical_num\<^sub>d [dest]: "\<Gamma> \<turnstile>\<^sub>d e : Num \<Longrightarrow> value\<^sub>d e \<Longrightarrow> \<exists>k. e = Const\<^sub>d k"
   by (induction \<Gamma> e Num rule: typing\<^sub>d.induct) simp_all
@@ -62,6 +66,7 @@ primrec incr\<^sub>d :: "nat \<Rightarrow> expr\<^sub>d \<Rightarrow> expr\<^sub
 | "incr\<^sub>d x (Const\<^sub>d n) = Const\<^sub>d n"
 | "incr\<^sub>d x (Lam\<^sub>d t e) = Lam\<^sub>d t (incr\<^sub>d (Suc x) e)"
 | "incr\<^sub>d x (App\<^sub>d e\<^sub>1 e\<^sub>2) = App\<^sub>d (incr\<^sub>d x e\<^sub>1) (incr\<^sub>d x e\<^sub>2)"
+| "incr\<^sub>d x (Let\<^sub>d e\<^sub>1 e\<^sub>2) = Let\<^sub>d (incr\<^sub>d x e\<^sub>1) (incr\<^sub>d (Suc x) e\<^sub>2)"
 
 lemma incr\<^sub>d_swap [simp]: "y \<le> x \<Longrightarrow> incr\<^sub>d y (incr\<^sub>d x e) = incr\<^sub>d (Suc x) (incr\<^sub>d y e)"
   by (induction e arbitrary: x y) simp_all
@@ -92,6 +97,7 @@ primrec subst\<^sub>d :: "nat \<Rightarrow> expr\<^sub>d \<Rightarrow> expr\<^su
 | "subst\<^sub>d x e' (Const\<^sub>d n) = Const\<^sub>d n"
 | "subst\<^sub>d x e' (Lam\<^sub>d t e) = Lam\<^sub>d t (subst\<^sub>d (Suc x) (incr\<^sub>d 0 e') e)"
 | "subst\<^sub>d x e' (App\<^sub>d e\<^sub>1 e\<^sub>2) = App\<^sub>d (subst\<^sub>d x e' e\<^sub>1) (subst\<^sub>d x e' e\<^sub>2)"
+| "subst\<^sub>d x e' (Let\<^sub>d e\<^sub>1 e\<^sub>2) = Let\<^sub>d (subst\<^sub>d x e' e\<^sub>1) (subst\<^sub>d (Suc x) (incr\<^sub>d 0 e') e\<^sub>2)"
 
 lemma incr\<^sub>d_subst_swap [simp]: "y \<le> x \<Longrightarrow> 
     incr\<^sub>d y (subst\<^sub>d x e' e) = subst\<^sub>d (Suc x) (incr\<^sub>d y e') (incr\<^sub>d y e)"
@@ -154,6 +160,8 @@ inductive eval\<^sub>d :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d \<Rightarrow>
   ev\<^sub>d_app1 [simp]: "e\<^sub>1 \<leadsto>\<^sub>d e\<^sub>1' \<Longrightarrow> App\<^sub>d e\<^sub>1 e\<^sub>2 \<leadsto>\<^sub>d App\<^sub>d e\<^sub>1' e\<^sub>2"
 | ev\<^sub>d_app2 [simp]: "value\<^sub>d e\<^sub>1 \<Longrightarrow> e\<^sub>2 \<leadsto>\<^sub>d e\<^sub>2' \<Longrightarrow> App\<^sub>d e\<^sub>1 e\<^sub>2 \<leadsto>\<^sub>d App\<^sub>d e\<^sub>1 e\<^sub>2'"
 | ev\<^sub>d_app3 [simp]: "value\<^sub>d e\<^sub>2 \<Longrightarrow> App\<^sub>d (Lam\<^sub>d t e\<^sub>1) e\<^sub>2 \<leadsto>\<^sub>d subst\<^sub>d 0 e\<^sub>2 e\<^sub>1"
+| ev\<^sub>d_let1 [simp]: "e\<^sub>1 \<leadsto>\<^sub>d e\<^sub>1' \<Longrightarrow> Let\<^sub>d e\<^sub>1 e\<^sub>2 \<leadsto>\<^sub>d Let\<^sub>d e\<^sub>1' e\<^sub>2"
+| ev\<^sub>d_let2 [simp]: "value\<^sub>d e\<^sub>1 \<Longrightarrow> Let\<^sub>d e\<^sub>1 e\<^sub>2 \<leadsto>\<^sub>d subst\<^sub>d 0 e\<^sub>1 e\<^sub>2"
 
 lemma val_no_eval\<^sub>d: "e \<leadsto>\<^sub>d e' \<Longrightarrow> value\<^sub>d e \<Longrightarrow> False"
   by (induction e e' rule: eval\<^sub>d.induct) simp_all
@@ -179,10 +187,20 @@ proof (induction "[] :: ty list" e t rule: typing\<^sub>d.induct)
     case False
     with tc\<^sub>d_app show ?thesis by (metis ev\<^sub>d_app1)
   qed
+next
+  case (tc\<^sub>d_let e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
+  thus ?case 
+  proof (cases "value\<^sub>d e\<^sub>1")
+    case True
+    thus ?thesis by (metis ev\<^sub>d_let2)
+  next
+    case False
+    with tc\<^sub>d_let show ?thesis by (metis ev\<^sub>d_let1)
+  qed
 qed simp_all
 
 theorem preservationd [simp]: "e \<leadsto>\<^sub>d e' \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d e' : t"
-  by (induction e e' arbitrary: t rule: eval\<^sub>d.induct) fastforce+
+  by (induction e e' arbitrary: \<Gamma> t rule: eval\<^sub>d.induct) fastforce+
 
 theorem determinism\<^sub>d: "e \<leadsto>\<^sub>d e' \<Longrightarrow> e \<leadsto>\<^sub>d e'' \<Longrightarrow> e' = e''"
 proof (induction e e' arbitrary: e'' rule: eval\<^sub>d.induct)
@@ -197,6 +215,12 @@ next
   case (ev\<^sub>d_app3 e\<^sub>2 t e\<^sub>1)
   from ev\<^sub>d_app3(2, 1) show ?case 
     using val_no_eval\<^sub>d value\<^sub>d.simps(3) by (induction rule: eval\<^sub>d.cases) blast+
+next
+  case (ev\<^sub>d_let1 e\<^sub>1 e\<^sub>1' t e\<^sub>2)
+  from ev\<^sub>d_let1(3, 1, 2) show ?case using val_no_eval\<^sub>d by (induction rule: eval\<^sub>d.cases) blast+
+next
+  case (ev\<^sub>d_let2 e\<^sub>1 t e\<^sub>2)
+  from ev\<^sub>d_let2(2, 1) show ?case using val_no_eval\<^sub>d by (induction rule: eval\<^sub>d.cases) blast+
 qed
 
 end

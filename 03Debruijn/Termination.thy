@@ -39,7 +39,6 @@ next
   thus "terminating e" by fastforce
 qed
 
-
 lemma eval_under_app_fst [simp]: "iter (\<leadsto>\<^sub>d) e\<^sub>1 e\<^sub>1' \<Longrightarrow> iter (\<leadsto>\<^sub>d) (App\<^sub>d e\<^sub>1 e\<^sub>2) (App\<^sub>d e\<^sub>1' e\<^sub>2)"
 proof (induction e\<^sub>1 e\<^sub>1' rule: iter.induct)
   case (iter_step e\<^sub>1 e\<^sub>1' e\<^sub>1'')
@@ -57,13 +56,21 @@ proof (induction e\<^sub>2 e\<^sub>2' rule: iter.induct)
   ultimately show ?case by simp
 qed simp_all
 
+lemma eval_under_let_fst [simp]: "iter (\<leadsto>\<^sub>d) e\<^sub>1 e\<^sub>1' \<Longrightarrow> iter (\<leadsto>\<^sub>d) (Let\<^sub>d e\<^sub>1 e\<^sub>2) (Let\<^sub>d e\<^sub>1' e\<^sub>2)"
+proof (induction e\<^sub>1 e\<^sub>1' rule: iter.induct)
+  case (iter_step e\<^sub>1 e\<^sub>1' e\<^sub>1'')
+  hence "Let\<^sub>d e\<^sub>1 e\<^sub>2 \<leadsto>\<^sub>d Let\<^sub>d e\<^sub>1' e\<^sub>2" by simp
+  moreover from iter_step have "iter (\<leadsto>\<^sub>d) (Let\<^sub>d e\<^sub>1' e\<^sub>2) (Let\<^sub>d e\<^sub>1'' e\<^sub>2)" by simp
+  ultimately show ?case by simp
+qed simp_all
+
 text \<open>Just proving termination by induction over expressions, or even over typing derivations, fails
 because knowing that \<open>e\<^sub>1\<close> and \<open>e\<^sub>2\<close> terminate tells us nothing about whether \<open>App\<^sub>d e\<^sub>1 e\<^sub>2\<close> terminates; 
-The substitution of \<open>e\<^sub>2\<close> into \<open>e\<^sub>1\<close> can replicate the former to an arbitrary degree. Following Pierce 
-[5], we instead prove a stronger property. We define a "stability" property that says an expression 
-is well-typed and terminating, and also that function-typed stable expressions remain stable when 
-applied to stable arguments. We then prove that every well-typed expression is stable; since all 
-stable expressions terminate, all well-typed expressions are terminating.\<close>
+The substitution of \<open>e\<^sub>2\<close> into \<open>e\<^sub>1\<close> can replicate the former an arbitrary number of times. Following 
+Pierce [5], we instead prove a stronger property. We define a "stability" property that says an 
+expression is well-typed and terminating, and also that function-typed stable expressions remain 
+stable when applied to stable arguments. We then prove that every well-typed expression is stable; 
+since all stable expressions terminate, all well-typed expressions are terminating.\<close>
 
 primrec stable :: "ty \<Rightarrow> expr\<^sub>d \<Rightarrow> bool" where
   "stable Num e = (terminating e \<and> [] \<turnstile>\<^sub>d e : Num)"
@@ -173,6 +180,24 @@ next
   with X Y have "stable t\<^sub>2 (App\<^sub>d (multisubst es e\<^sub>1) (multisubst es e\<^sub>2))" 
     by (metis stable_persists_back)
   thus ?case by simp
+next
+  case (tc\<^sub>d_let \<Gamma> e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
+  then obtain e\<^sub>2' where E: "multisubst es (Let\<^sub>d e\<^sub>1 e\<^sub>2) = Let\<^sub>d (multisubst es e\<^sub>1) e\<^sub>2' \<and> 
+    ([t\<^sub>1] \<turnstile>\<^sub>d e\<^sub>2' : t\<^sub>2) \<and> (\<forall>v\<^sub>1. ([] \<turnstile>\<^sub>d v\<^sub>1 : t\<^sub>1) \<longrightarrow> multisubst es (subst\<^sub>d 0 v\<^sub>1 e\<^sub>2) = subst\<^sub>d 0 v\<^sub>1 e\<^sub>2')" 
+      by fastforce
+  from tc\<^sub>d_let obtain v\<^sub>1 where V: "value\<^sub>d v\<^sub>1 \<and> iter (\<leadsto>\<^sub>d) (multisubst es e\<^sub>1) v\<^sub>1" 
+    by (metis stable_terminates)
+  hence "iter (\<leadsto>\<^sub>d) (Let\<^sub>d (multisubst es e\<^sub>1) e\<^sub>2') (Let\<^sub>d v\<^sub>1 e\<^sub>2')" using iter_step_after by simp
+  moreover from V have "Let\<^sub>d v\<^sub>1 e\<^sub>2' \<leadsto>\<^sub>d subst\<^sub>d 0 v\<^sub>1 e\<^sub>2'" by simp
+  ultimately have EV: "iter (\<leadsto>\<^sub>d) (Let\<^sub>d (multisubst es e\<^sub>1) e\<^sub>2') (subst\<^sub>d 0 v\<^sub>1 e\<^sub>2')" 
+    by (metis iter_step_after)
+  from tc\<^sub>d_let V have S: "stable t\<^sub>1 v\<^sub>1" by (metis stable_persists)
+  hence T: "[] \<turnstile>\<^sub>d v\<^sub>1 : t\<^sub>1" by (metis stable_typechecks)
+  with tc\<^sub>d_let(5) V have X: "tc_expr_context (insert_at 0 t\<^sub>1 \<Gamma>) (v\<^sub>1 # es)" by (cases \<Gamma>) simp_all
+  from tc\<^sub>d_let(6) S have "list_all2 stable (insert_at 0 t\<^sub>1 \<Gamma>) (v\<^sub>1 # es)" by (cases \<Gamma>) simp_all
+  with tc\<^sub>d_let X have "stable t\<^sub>2 (multisubst (v\<^sub>1 # es) e\<^sub>2)" by blast
+  hence "stable t\<^sub>2 (multisubst es (subst\<^sub>d 0 v\<^sub>1 e\<^sub>2))" by simp
+  with tc\<^sub>d_let E V EV S T show ?case by (metis stable_persists_back tc_multisubst typing\<^sub>d.tc\<^sub>d_let)
 qed simp_all
 
 theorem tc_terminationd [simp]: "[] \<turnstile>\<^sub>d e : t \<Longrightarrow> terminating e"

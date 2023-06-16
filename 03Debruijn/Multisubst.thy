@@ -32,6 +32,9 @@ lemma multisubst_lam_simple [simp]: "\<exists>e'. multisubst es (Lam\<^sub>d t e
 lemma multisubst_app [simp]: "multisubst es (App\<^sub>d e\<^sub>1 e\<^sub>2) = App\<^sub>d (multisubst es e\<^sub>1) (multisubst es e\<^sub>2)"
   by (induction es arbitrary: e\<^sub>1 e\<^sub>2) simp_all
 
+lemma multisubst_let_simple [simp]: "\<exists>e\<^sub>2'. multisubst es (Let\<^sub>d e\<^sub>1 e\<^sub>2) = Let\<^sub>d (multisubst es e\<^sub>1) e\<^sub>2'"
+  by (induction es arbitrary: e\<^sub>1 e\<^sub>2) simp_all
+
 lemma multisubst_lam_to_app [dest]: "App\<^sub>d e\<^sub>1 e\<^sub>2 = multisubst es (Lam\<^sub>d t e) \<Longrightarrow> False"
 proof -
   assume "App\<^sub>d e\<^sub>1 e\<^sub>2 = multisubst es (Lam\<^sub>d t e)"
@@ -67,6 +70,17 @@ lemma multisubst_lam_complex [simp]: "tc_expr_context \<Gamma> es \<Longrightarr
   \<exists>e'. multisubst es (Lam\<^sub>d t\<^sub>1 e) = Lam\<^sub>d t\<^sub>1 e' \<and> ([t\<^sub>1] \<turnstile>\<^sub>d e' : t\<^sub>2) \<and>
     (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst es (subst\<^sub>d 0 e\<^sub>2 e) = subst\<^sub>d 0 e\<^sub>2 e')"
 proof (induction \<Gamma> es arbitrary: e rule: tc_expr_context.induct)
+  case (tcp_cons e' t \<Gamma> es)
+  hence "[] \<turnstile>\<^sub>d e' : t" by simp
+  hence "\<Gamma> \<turnstile>\<^sub>d e' : t" using tc_postpend by fastforce
+  hence "insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d incr\<^sub>d 0 e' : t" by simp
+  with tcp_cons show ?case by (cases \<Gamma>) simp_all
+qed simp_all
+
+lemma multisubst_let_complex [simp]: "tc_expr_context \<Gamma> es \<Longrightarrow> insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2 \<Longrightarrow> 
+  \<exists>e\<^sub>2'. multisubst es (Let\<^sub>d e\<^sub>1 e\<^sub>2) = Let\<^sub>d (multisubst es e\<^sub>1) e\<^sub>2' \<and> ([t\<^sub>1] \<turnstile>\<^sub>d e\<^sub>2' : t\<^sub>2) \<and>
+    (\<forall>v\<^sub>1. ([] \<turnstile>\<^sub>d v\<^sub>1 : t\<^sub>1) \<longrightarrow> multisubst es (subst\<^sub>d 0 v\<^sub>1 e\<^sub>2) = subst\<^sub>d 0 v\<^sub>1 e\<^sub>2')"
+proof (induction \<Gamma> es arbitrary: e\<^sub>1 e\<^sub>2 rule: tc_expr_context.induct)
   case (tcp_cons e' t \<Gamma> es)
   hence "[] \<turnstile>\<^sub>d e' : t" by simp
   hence "\<Gamma> \<turnstile>\<^sub>d e' : t" using tc_postpend by fastforce
