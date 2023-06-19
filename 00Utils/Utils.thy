@@ -15,6 +15,15 @@ primrec map_with_idx :: "(nat \<Rightarrow> 'a \<Rightarrow> 'b) \<Rightarrow> '
   "map_with_idx f [] = []"
 | "map_with_idx f (a # as) = f 0 a # map_with_idx (f \<circ> Suc) as"
 
+lemma map_with_idx_id [simp]: "map_with_idx (\<lambda>a b. b) as = as"
+  by (induction as) (simp_all add: comp_def)
+
+lemma map_with_idx_const [simp]: "map_with_idx (\<lambda>k. f) as = map f as"
+  by (induction as) (simp_all add: comp_def)
+
+lemma length_map_with_idx [simp]: "length (map_with_idx f as) = length as"
+  by (induction as arbitrary: f) simp_all
+
 lemma len_conc_map_ix_lemma' [simp]: "((\<lambda>x. f (ix + x)) \<circ> Suc) = (\<lambda>x. f (Suc (ix + x)))"
   by auto
 
@@ -24,6 +33,26 @@ lemma len_conc_map_ix_lemma [simp]: "((\<lambda>ix a. length (f ix a)) \<circ> S
 
 lemma length_concat_map_with_idx [simp]: "length (concat (map_with_idx f as)) = 
     sum_list (map_with_idx (\<lambda>ix a. length (f ix a)) as)"
+  by (induction as arbitrary: f) simp_all
+
+lemma map_with_idx_comp' [simp]: "map_with_idx (\<lambda>k. f k \<circ> g k) as = 
+    map_with_idx f (map_with_idx g as)"
+  by (induction as arbitrary: f g) (simp_all add: comp_def)
+
+lemma map_with_idx_comp [simp]: "map_with_idx (\<lambda>k. f k \<circ> g k) = map_with_idx f \<circ> map_with_idx g"
+  by auto
+
+lemma map_with_idx_lemma [simp]: "(\<lambda>k. f \<circ> g k) \<circ> Suc = (\<lambda>k. f \<circ> g (Suc k))"
+  by auto
+
+lemma map_with_idx_comp2' [simp]: "map_with_idx (\<lambda>k. f \<circ> g k) as = map f (map_with_idx g as)"
+  by (induction as arbitrary: g) (simp_all add: comp_def)
+
+lemma map_with_idx_comp2 [simp]: "map_with_idx (\<lambda>k. f \<circ> g k) = map f \<circ> map_with_idx g"
+  by auto
+
+lemma list_all_map_with_idx [simp]: "(\<And>k a. p (f k a) = p a) \<Longrightarrow> 
+    list_all p (map_with_idx f as) = list_all p as"
   by (induction as arbitrary: f) simp_all
 
 fun nat_to_string' :: "nat \<Rightarrow> char" where

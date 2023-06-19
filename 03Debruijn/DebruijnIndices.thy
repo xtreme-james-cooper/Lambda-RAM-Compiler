@@ -87,6 +87,9 @@ proof (induction \<Gamma> e t arbitrary: x rule: typing\<^sub>d.induct)
   thus ?case by (simp add: incr_min)
 qed simp_all
 
+lemma value_incr\<^sub>d [simp]: "value\<^sub>d (incr\<^sub>d x e) = value\<^sub>d e"
+  by (induction e) simp_all
+
 text \<open>Now we can define substitution. Unlike in our source language, we have to decrement variables 
 that are larger than the substituted variable, because that variable is now gone. In compensation, 
 substitution under a binder is now much easier: we simply increment the variable being substituted 

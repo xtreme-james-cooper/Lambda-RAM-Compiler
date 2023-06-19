@@ -188,6 +188,12 @@ proof (induction x a as rule: insert_at.induct)
   then show ?case by (induction bs) simp_all
 qed simp_all
 
+lemma insert_at_append_length [simp]: "insert_at (length as) a (as @ bs) = as @ a # bs"
+proof (induction as)
+  case Nil
+  thus ?case by (induction bs) simp_all
+qed simp_all
+
 lemma insert_at_list_all [simp]: "list_all2 p as bs \<Longrightarrow> p a b \<Longrightarrow> x \<le> length as \<Longrightarrow> 
   list_all2 p (insert_at x a as) (insert_at x b bs)"
 proof (induction x a as arbitrary: bs rule: insert_at.induct)
