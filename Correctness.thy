@@ -159,7 +159,7 @@ definition churchIf :: "unit expr\<^sub>s"
     Lam\<^sub>s (V ''b'') () (Lam\<^sub>s (V ''x'') () (Lam\<^sub>s (V ''y'') () 
       (App\<^sub>s (App\<^sub>s (Var\<^sub>s (V ''b'')) (Var\<^sub>s (V ''x''))) (Var\<^sub>s (V ''y'')))))"
 
-value "alg_compile (Let\<^sub>s (V ''churchTrue'') churchTrue (Let\<^sub>s (V ''churchIf'') churchFalse (
+value "alg_compile (Let\<^sub>s (V ''churchTrue'') churchTrue (Let\<^sub>s (V ''churchIf'') churchIf (
        App\<^sub>s (App\<^sub>s (App\<^sub>s (Var\<^sub>s (V ''churchIf'')) (Var\<^sub>s (V ''churchTrue''))) (Const\<^sub>s 3)) (Const\<^sub>s 5))))"
 
 end

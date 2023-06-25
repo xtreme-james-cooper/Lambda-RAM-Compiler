@@ -66,12 +66,49 @@ primrec multiincr :: "nat \<Rightarrow> nat \<Rightarrow> expr\<^sub>d \<Rightar
   "multiincr 0 y = id"
 | "multiincr (Suc x) y = incr\<^sub>d y \<circ> multiincr x y"
 
-lemma multiincr_incr_absorb [simp]: "multiincr x y (incr\<^sub>d y e) = incr\<^sub>d y (multiincr x y e)"
+lemma multiincr_var [simp]: "multiincr x 0 (Var\<^sub>d 0) = Var\<^sub>d x"
+  by (induction x) simp_all
+
+lemma multiincr_incr_swap' [simp]: "multiincr x y (incr\<^sub>d y e) = incr\<^sub>d y (multiincr x y e)"
+  by (induction x) simp_all
+
+lemma multiincr_subst_swap'[simp]: "y \<le> z \<Longrightarrow> 
+    multiincr x y (subst\<^sub>d z e' e) = subst\<^sub>d (x + z) (multiincr x y e') (multiincr x y e)"
+  by (induction x) simp_all
+
+lemma multiincr_incr_swap [simp]: "z \<ge> y \<Longrightarrow> 
+    multiincr x y (incr\<^sub>d z e) = incr\<^sub>d (z + x) (multiincr x y e)"
+  by (induction x) simp_all
+
+lemma multiincr_incr_swap2 [simp]: "z \<le> y \<Longrightarrow> 
+    multiincr x (Suc y) (incr\<^sub>d z e) = incr\<^sub>d z (multiincr x y e)"
   by (induction x) simp_all
 
 lemma subst_multiincr_lemma [simp]: "(\<lambda>k. subst\<^sub>d (Suc (k + x)) (incr\<^sub>d y (multiincr k y e))) = 
     ((\<lambda>k. subst\<^sub>d (k + x) (multiincr k y e)) \<circ> Suc)"
   by auto
+
+lemma multiincr_plus [simp]: "multiincr n k (multiincr k 0 e) = multiincr k 0 (multiincr n 0 e)"
+  by (induction k arbitrary: n) simp_all
+
+lemma multiincr_val [simp]: "value\<^sub>d (multiincr x y e) = value\<^sub>d e"
+  by (induction x) simp_all
+
+lemma incr_multiincr_higher: "incr\<^sub>d y (multiincr x y e) = incr\<^sub>d (x + y) (multiincr x y e)"
+  by (induction x) simp_all
+
+fun is_redex :: "expr\<^sub>d \<Rightarrow> bool" where
+  "is_redex (App\<^sub>d e\<^sub>1 e\<^sub>2) = True"
+| "is_redex e = False"
+
+lemma is_redex_value [simp]: "value\<^sub>d e \<Longrightarrow> \<not> is_redex e"
+  by (induction e) simp_all
+
+lemma is_redex_incr [simp]: "is_redex (incr\<^sub>d x e) = is_redex e"
+  by (induction e) simp_all
+
+lemma is_redex_subst [simp]: "value\<^sub>d e' \<Longrightarrow> is_redex (subst\<^sub>d x e' e) = is_redex e"
+  by (induction e) simp_all
 
 fun strip_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d list \<times> expr\<^sub>d" where
   "strip_lets (Let\<^sub>d e\<^sub>1 e\<^sub>2) = (case strip_lets e\<^sub>2 of
@@ -82,15 +119,16 @@ primrec float_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d" where
   "float_lets (Var\<^sub>d x) = Var\<^sub>d x"
 | "float_lets (Const\<^sub>d n) = Const\<^sub>d n"
 | "float_lets (Lam\<^sub>d t e) = Lam\<^sub>d t (float_lets e)"
-| "float_lets (App\<^sub>d e\<^sub>1 e\<^sub>2) = (case strip_lets (float_lets e\<^sub>1) of
-    (es\<^sub>1, e\<^sub>1') \<Rightarrow> (case strip_lets (float_lets e\<^sub>2) of
-      (es\<^sub>2, e\<^sub>2') \<Rightarrow> 
-        let es\<^sub>1' = if value\<^sub>d e\<^sub>1' then es\<^sub>1 else es\<^sub>1 @ [e\<^sub>1']
-        in let e\<^sub>1'' = if value\<^sub>d e\<^sub>1' then e\<^sub>1' else Var\<^sub>d 0
-        in foldr Let\<^sub>d (es\<^sub>1' @ map_with_idx (multiincr (length es\<^sub>1')) es\<^sub>2) 
-            (App\<^sub>d (multiincr (length es\<^sub>2) 0 e\<^sub>1'') (multiincr (length es\<^sub>1') (length es\<^sub>2) e\<^sub>2'))))"
-| "float_lets (Let\<^sub>d e\<^sub>1 e\<^sub>2) = (case strip_lets (float_lets e\<^sub>1) of
-    (es\<^sub>1, e\<^sub>1') \<Rightarrow> foldr Let\<^sub>d es\<^sub>1 (Let\<^sub>d e\<^sub>1' (multiincr (length es\<^sub>1) 1 (float_lets e\<^sub>2))))"
+| "float_lets (App\<^sub>d e\<^sub>1 e\<^sub>2) = (
+    let (es\<^sub>1, e\<^sub>1') = strip_lets (float_lets e\<^sub>1) 
+    in let (es\<^sub>2, e\<^sub>2') = strip_lets (float_lets e\<^sub>2) 
+    in let es\<^sub>1' = if is_redex e\<^sub>1' then es\<^sub>1 else es\<^sub>1 @ [e\<^sub>1']
+    in let e\<^sub>1'' = if is_redex e\<^sub>1' then e\<^sub>1' else Var\<^sub>d 0
+    in foldr Let\<^sub>d (es\<^sub>1' @ map_with_idx (multiincr (length es\<^sub>1')) es\<^sub>2) 
+        (App\<^sub>d (multiincr (length es\<^sub>2) 0 e\<^sub>1'') (multiincr (length es\<^sub>1') (length es\<^sub>2) e\<^sub>2')))"
+| "float_lets (Let\<^sub>d e\<^sub>1 e\<^sub>2) = (
+    let (es\<^sub>1, e\<^sub>1') = strip_lets (float_lets e\<^sub>1)
+    in foldr Let\<^sub>d es\<^sub>1 (Let\<^sub>d e\<^sub>1' (multiincr (length es\<^sub>1) 1 (float_lets e\<^sub>2))))"
 
 lemma incr_let_free [simp]: "let_free (incr\<^sub>d x e) = let_free e"
   by (induction e arbitrary: x) simp_all
@@ -232,9 +270,9 @@ proof (induction \<Gamma> e t rule: typing\<^sub>d.induct)
   case (tc\<^sub>d_app \<Gamma> e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
   obtain es\<^sub>1 e\<^sub>1' where E1: "strip_lets (float_lets e\<^sub>1) = (es\<^sub>1, e\<^sub>1')" by fastforce
   with tc\<^sub>d_app obtain ts\<^sub>1 where T1: "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b es\<^sub>1 : ts\<^sub>1) \<and> (ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d e\<^sub>1' : Arrow t\<^sub>1 t\<^sub>2)" by fastforce
-  let ?es\<^sub>1 = "if value\<^sub>d e\<^sub>1' then es\<^sub>1 else es\<^sub>1 @ [e\<^sub>1']"
-  let ?ts\<^sub>1 = "if value\<^sub>d e\<^sub>1' then ts\<^sub>1 else Arrow t\<^sub>1 t\<^sub>2 #  ts\<^sub>1"
-  let ?e\<^sub>1 = "if value\<^sub>d e\<^sub>1' then e\<^sub>1' else Var\<^sub>d 0"
+  let ?es\<^sub>1 = "if is_redex e\<^sub>1' then es\<^sub>1 else es\<^sub>1 @ [e\<^sub>1']"
+  let ?ts\<^sub>1 = "if is_redex e\<^sub>1' then ts\<^sub>1 else Arrow t\<^sub>1 t\<^sub>2 #  ts\<^sub>1"
+  let ?e\<^sub>1 = "if is_redex e\<^sub>1' then e\<^sub>1' else Var\<^sub>d 0"
   from tc\<^sub>d_app have "\<Gamma> \<turnstile>\<^sub>d float_lets e\<^sub>2 : t\<^sub>1" by simp
   moreover obtain es\<^sub>2 e\<^sub>2' where E2: "strip_lets (float_lets e\<^sub>2) = (es\<^sub>2, e\<^sub>2')" by fastforce
   ultimately obtain ts\<^sub>2 where T2: "([] @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b es\<^sub>2 : ts\<^sub>2) \<and> (ts\<^sub>2 @ \<Gamma> \<turnstile>\<^sub>d e\<^sub>2' : t\<^sub>1)" by fastforce
@@ -279,6 +317,11 @@ lemma strip_lets_subst [simp]: "strip_lets e = (es, e') \<Longrightarrow> value\
       subst\<^sub>d (length es + x) (multiincr (length es) 0 v) e')"
   by (induction e arbitrary: es x v) (auto split: prod.splits)
 
+lemma foldr_let_subst [simp]: "subst\<^sub>d x v (foldr Let\<^sub>d es e) = 
+  foldr Let\<^sub>d (map_with_idx (\<lambda>k. subst\<^sub>d (k + x) (multiincr k 0 v)) es) 
+    (subst\<^sub>d (x + length es) (multiincr (length es) 0 v) e)"
+  by (induction es arbitrary: x v) simp_all
+
 lemma strip_lets_incr [simp]: "strip_lets e = (es, e') \<Longrightarrow> 
     strip_lets (incr\<^sub>d x e) = (map_with_idx (\<lambda>k. incr\<^sub>d (k + x)) es, incr\<^sub>d (length es + x) e')"
   by (induction e arbitrary: es x) (auto simp add: comp_def split: prod.splits)
@@ -287,37 +330,118 @@ lemma foldr_let_incr [simp]: "incr\<^sub>d x (foldr Let\<^sub>d es e) =
     foldr Let\<^sub>d (map_with_idx (\<lambda>k. incr\<^sub>d (k + x)) es) (incr\<^sub>d (x + length es) e)"
   by (induction es arbitrary: x) (simp_all add: comp_def)
 
+lemma float_lets_lemma [simp]: "map_with_idx (multiincr y) (map_with_idx (\<lambda>k. incr\<^sub>d (k + x)) es) = 
+  map_with_idx (\<lambda>k. incr\<^sub>d (k + (x + y))) (map_with_idx (multiincr y) es)"
+proof (induction y)
+  case (Suc y)
+  have "\<And>k. incr\<^sub>d k \<circ> incr\<^sub>d (k + (x + y)) = incr\<^sub>d (Suc (k + (x + y))) \<circ> incr\<^sub>d k" by auto
+  hence "map_with_idx (\<lambda>k. incr\<^sub>d k \<circ> incr\<^sub>d (k + (x + y)) \<circ> multiincr y k) es =
+    map_with_idx (\<lambda>k. incr\<^sub>d (Suc (k + (x + y))) \<circ> incr\<^sub>d k \<circ> multiincr y k) es" by simp
+  with Suc have "map_with_idx (\<lambda>k. incr\<^sub>d k \<circ> multiincr y k) (map_with_idx (\<lambda>k. incr\<^sub>d (k + x)) es) =
+    map_with_idx (\<lambda>k. incr\<^sub>d (k + (x + Suc y))) (map_with_idx (\<lambda>k. incr\<^sub>d k \<circ> multiincr y k) es)" 
+      by simp
+  then show ?case by (simp add: comp_def)
+qed simp_all
+
+lemma float_lets_lemma2 [simp]: "multiincr y 0 (incr\<^sub>d (z + x) e) = 
+    incr\<^sub>d (x + z + y) (multiincr y 0 e)"
+  by (induction y) (simp_all add: add.commute)
+
+lemma float_lets_lemma3 [simp]: "multiincr y z (incr\<^sub>d (z + x) e) = 
+    incr\<^sub>d (x + y + z) (multiincr y z e)"
+  by (induction y) (simp_all add: add.commute)
+
 lemma float_lets_incr [simp]: "float_lets (incr\<^sub>d x e) = incr\<^sub>d x (float_lets e)"
-  apply (induction e arbitrary: x)
-      apply (simp_all split: prod.splits)
-  by simp
+proof (induction e arbitrary: x)
+  case (App\<^sub>d e1 e2)
+  moreover obtain es\<^sub>1 e\<^sub>1' where "strip_lets (float_lets e1) = (es\<^sub>1, e\<^sub>1')" by fastforce
+  moreover obtain es\<^sub>2 e\<^sub>2' where "strip_lets (float_lets e2) = (es\<^sub>2, e\<^sub>2')" by fastforce
+  ultimately show ?case by (simp add: Let_def incr_above)
+next
+  case (Let\<^sub>d e1 e2)
+  moreover obtain es\<^sub>1 e\<^sub>1' where "strip_lets (float_lets e1) = (es\<^sub>1, e\<^sub>1')" by fastforce
+  ultimately show ?case by (simp add: add.commute)
+qed simp_all
 
-lemma float_lets_subst [simp]: "float_lets (subst\<^sub>d x e' e) = subst\<^sub>d x (float_lets e') (float_lets e)"
-  apply (induction e arbitrary: x e')
-      apply (simp_allx split: prod.splits)
-  by simp
+lemma float_lets_subst [simp]: "value\<^sub>d v \<Longrightarrow> 
+  float_lets (subst\<^sub>d x v e) = subst\<^sub>d x (float_lets v) (float_lets e)"
+proof (induction e arbitrary: x v)
+  case (App\<^sub>d e1 e2)
+  obtain es\<^sub>1 e\<^sub>1' where E1: "strip_lets (float_lets e1) = (es\<^sub>1, e\<^sub>1')" by fastforce
+  obtain es\<^sub>2 e\<^sub>2' where E2: "strip_lets (float_lets e2) = (es\<^sub>2, e\<^sub>2')" by fastforce
+  show ?case
+  proof (cases "is_redex e\<^sub>1'")
+    case True                   
+    have X: "length es\<^sub>1 + (x + length es\<^sub>2) = length es\<^sub>2 + (x + length es\<^sub>1)" by simp
+    have Y: "\<And>k. length es\<^sub>1 + (k + x) = k + (x + length es\<^sub>1)" by simp
+    have "\<And>k. multiincr (length es\<^sub>1) k \<circ> subst\<^sub>d (k + x) (multiincr k 0 (float_lets v)) =
+      subst\<^sub>d (k + (x + length es\<^sub>1)) (multiincr k 0 (multiincr (length es\<^sub>1) 0 (float_lets v))) \<circ>
+        multiincr (length es\<^sub>1) k" by (auto simp add: Y)
+    hence "map_with_idx (\<lambda>k. multiincr (length es\<^sub>1) k \<circ> 
+      subst\<^sub>d (k + x) (multiincr k 0 (float_lets v))) es\<^sub>2 =
+        (map_with_idx (\<lambda>k. subst\<^sub>d (k + (x + length es\<^sub>1)) 
+          (multiincr k 0 (multiincr (length es\<^sub>1) 0 (float_lets v))) \<circ> multiincr (length es\<^sub>1) k) es\<^sub>2)" 
+      by simp
+    with App\<^sub>d E1 E2 True show ?thesis by (simp add: Let_def add.commute X)
+  next
+    case False
+    have X: "length es\<^sub>1 + x = x + length es\<^sub>1" by simp
+    have Y: "length es\<^sub>1 + (length es\<^sub>2 + x) = x + length es\<^sub>1 + length es\<^sub>2" by simp
+    have Z: "\<And>k. length es\<^sub>1 + (k + x) = k + (x + length es\<^sub>1)" by simp
+    have "\<And>k. incr\<^sub>d k \<circ> multiincr (length es\<^sub>1) k \<circ> subst\<^sub>d (k + x) (multiincr k 0 (float_lets v)) =
+      subst\<^sub>d (Suc k + (x + length es\<^sub>1)) 
+        (multiincr (Suc k) 0 (multiincr (length es\<^sub>1) 0 (float_lets v))) \<circ> incr\<^sub>d k \<circ> 
+            multiincr (length es\<^sub>1) k"
+      by (auto simp add: incr_multiincr_higher Z)
+    hence "map_with_idx (\<lambda>k. incr\<^sub>d k \<circ> multiincr (length es\<^sub>1) k \<circ> 
+      subst\<^sub>d (k + x) (multiincr k 0 (float_lets v))) es\<^sub>2 =
+        map_with_idx (\<lambda>k. subst\<^sub>d (Suc k + (x + length es\<^sub>1)) 
+          (multiincr (Suc k) 0 (multiincr (length es\<^sub>1) 0 (float_lets v))) \<circ> incr\<^sub>d k \<circ> 
+            multiincr (length es\<^sub>1) k) es\<^sub>2" by simp
+    hence "map_with_idx (\<lambda>k. multiincr (Suc (length es\<^sub>1)) k)
+      (map_with_idx (\<lambda>k. subst\<^sub>d (k + x) (multiincr k 0 (float_lets v))) es\<^sub>2) =
+        map_with_idx ((\<lambda>k. subst\<^sub>d (k + (x + length es\<^sub>1))
+          (multiincr k 0 (multiincr (length es\<^sub>1) 0 (float_lets v)))) \<circ> Suc)
+            (map_with_idx (\<lambda>k. multiincr (Suc (length es\<^sub>1)) k) es\<^sub>2)" by simp
+    hence "map_with_idx (multiincr (Suc (length es\<^sub>1)))
+      (map_with_idx (\<lambda>k. subst\<^sub>d (k + x) (multiincr k 0 (float_lets v))) es\<^sub>2) =
+        map_with_idx ((\<lambda>k. subst\<^sub>d (k + (x + length es\<^sub>1))
+          (multiincr k 0 (multiincr (length es\<^sub>1) 0 (float_lets v)))) \<circ> Suc)
+            (map_with_idx (multiincr (Suc (length es\<^sub>1))) es\<^sub>2)" by blast
+    with App\<^sub>d E1 E2 False show ?thesis by (simp add: X Y)
+  qed
+next
+  case (Let\<^sub>d e1 e2)
+  obtain es\<^sub>1 e\<^sub>1' where E1: "strip_lets (float_lets e1) = (es\<^sub>1, e\<^sub>1')" by fastforce
+  have X: "length es\<^sub>1 + x = x + length es\<^sub>1" by simp
+  with Let\<^sub>d E1 show ?case by (simp add: X)
+qed simp_all
 
-theorem correctness\<^sub>f\<^sub>l [simp]: "e \<leadsto>\<^sub>d e' \<Longrightarrow> float_lets e \<leadsto>\<^sub>d float_lets e'"
+theorem correctness\<^sub>f\<^sub>l [simp]: "e \<leadsto>\<^sub>d e' \<Longrightarrow> iter (\<leadsto>\<^sub>d) (float_lets e) (float_lets e')"
 proof (induction e e' rule: eval\<^sub>d.induct)
   case (ev\<^sub>d_app1 e\<^sub>1 e\<^sub>1' e\<^sub>2)
-  hence "float_lets e\<^sub>1 \<leadsto>\<^sub>d float_lets e\<^sub>1'" by simp
+  hence "iter (\<leadsto>\<^sub>d) (float_lets e\<^sub>1) (float_lets e\<^sub>1')" by simp
 
-  obtain xes\<^sub>1 xe\<^sub>1 where E1: "strip_lets (float_lets e\<^sub>1) = (xes\<^sub>1, xe\<^sub>1)" by fastforce
-  obtain xes\<^sub>2 xe\<^sub>2 where E2: "strip_lets (float_lets e\<^sub>2) = (xes\<^sub>2, xe\<^sub>2)" by fastforce
+  obtain es\<^sub>1 xe\<^sub>1 where E1: "strip_lets (float_lets e\<^sub>1) = (es\<^sub>1, xe\<^sub>1)" by fastforce
+  obtain es\<^sub>2 xe\<^sub>2 where E2: "strip_lets (float_lets e\<^sub>2) = (es\<^sub>2, xe\<^sub>2)" by fastforce
+  obtain es\<^sub>1' xe\<^sub>1' where E3: "strip_lets (float_lets e\<^sub>1') = (es\<^sub>1', xe\<^sub>1')" by fastforce
 
-  let ?xes\<^sub>1' = "if value\<^sub>d xe\<^sub>1 then xes\<^sub>1 else xes\<^sub>1 @ [xe\<^sub>1]"
-  let ?xe\<^sub>1 = "if value\<^sub>d xe\<^sub>1 then xe\<^sub>1 else Var\<^sub>d 0"
+  let ?es\<^sub>1 = "if is_redex xe\<^sub>1 then es\<^sub>1 else es\<^sub>1 @ [xe\<^sub>1]"
+  let ?es\<^sub>1' = "if is_redex xe\<^sub>1' then es\<^sub>1' else es\<^sub>1' @ [xe\<^sub>1']"
 
-  have "foldr Let\<^sub>d ?xes\<^sub>1' (foldr Let\<^sub>d (map_with_idx (multiincr (length ?xes\<^sub>1')) xes\<^sub>2)
-          (App\<^sub>d (multiincr (length xes\<^sub>2) 0 ?xe\<^sub>1) (multiincr (length ?xes\<^sub>1') (length xes\<^sub>2) xe\<^sub>2))) \<leadsto>\<^sub>d
-    (case strip_lets (float_lets e\<^sub>1') of
-     (xes\<^sub>1\<^sub>b, xe\<^sub>1') \<Rightarrow>
-         let xes\<^sub>1' = if value\<^sub>d xe\<^sub>1' then xes\<^sub>1\<^sub>b else xes\<^sub>1\<^sub>b @ [xe\<^sub>1']
-         in foldr Let\<^sub>d xes\<^sub>1'
-             (foldr Let\<^sub>d (map_with_idx (multiincr (length xes\<^sub>1')) xes\<^sub>2)
-               (App\<^sub>d (multiincr (length xes\<^sub>2) 0 (if value\<^sub>d xe\<^sub>1' then xe\<^sub>1' else Var\<^sub>d 0))
-                 (multiincr (length xes\<^sub>1') (length xes\<^sub>2) xe\<^sub>2))))" by simp
-  with E1 E2 show ?case by (simp add: Let_def)
+
+  have "iter (\<leadsto>\<^sub>d)
+     (foldr Let\<^sub>d ?es\<^sub>1
+              (foldr Let\<^sub>d (map_with_idx (multiincr (length ?es\<^sub>1)) es\<^sub>2)
+                (App\<^sub>d (multiincr (length es\<^sub>2) 0 (if is_redex xe\<^sub>1 then xe\<^sub>1 else Var\<^sub>d 0))
+                  (multiincr (length ?es\<^sub>1) (length es\<^sub>2) xe\<^sub>2))))
+     (foldr Let\<^sub>d ?es\<^sub>1'
+              (foldr Let\<^sub>d (map_with_idx (multiincr (length ?es\<^sub>1')) es\<^sub>2)
+                (App\<^sub>d (multiincr (length es\<^sub>2) 0 (if is_redex xe\<^sub>1' then xe\<^sub>1' else Var\<^sub>d 0))
+                  (multiincr (length ?es\<^sub>1') (length es\<^sub>2) xe\<^sub>2))))" by simpx
+  with E1 E2 E3 have "iter (\<leadsto>\<^sub>d) (float_lets (App\<^sub>d e\<^sub>1 e\<^sub>2)) (float_lets (App\<^sub>d e\<^sub>1' e\<^sub>2))" 
+    by (simp add: Let_def)
+  thus ?case by blast
 next
   case (ev\<^sub>d_app2 e\<^sub>1 e\<^sub>2 e\<^sub>2')
   then show ?case by simpx

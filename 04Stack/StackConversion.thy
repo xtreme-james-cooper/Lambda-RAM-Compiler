@@ -105,6 +105,10 @@ lemma unstack_from_app2 [simp]: "all_returns sr \<Longrightarrow>
     unstack' (s @ FApp2\<^sub>k e\<^sub>1 # sr) e = App\<^sub>d e\<^sub>1 (unstack' s e)"
   by (induction s e rule: unstack'.induct) auto
 
+lemma unstack_from_let [simp]: "all_returns sr \<Longrightarrow> 
+    unstack' (s @ FLet\<^sub>k e\<^sub>2 # sr) e = Let\<^sub>d (unstack' s e) e\<^sub>2"
+  by (induction s e rule: unstack'.induct) auto
+
 lemma eval_return_in_front [simp]: "f = FReturn\<^sub>k \<or> f = FPop\<^sub>k \<Longrightarrow> value\<^sub>d v \<Longrightarrow> 
   iter (\<leadsto>\<^sub>k) (S\<^sub>k b (f # s) v) (S\<^sub>k True s v)"
 proof auto
@@ -130,7 +134,7 @@ was unstacked to an \<open>App\<^sub>d\<close> is crucial to make this work.\<cl
 
 lemma correctness\<^sub>k' [simp]: "unstack' s e \<leadsto>\<^sub>d e' \<Longrightarrow> s :\<^sub>k t' \<rightarrow> t \<Longrightarrow> [] \<turnstile>\<^sub>d e : tt \<Longrightarrow> 
   b \<longrightarrow> value\<^sub>d e \<Longrightarrow> \<exists>b' s' e''. iter (\<leadsto>\<^sub>k) (S\<^sub>k b s e) (S\<^sub>k b' s' e'') \<and> e' = unstack' s' e''"
-proof (induction "unstack' s e" e' arbitrary: b s e t tt rule: eval\<^sub>d.induct)
+proof (induction "unstack' s e" e' arbitrary: b s e t t' tt rule: eval\<^sub>d.induct)
   case (ev\<^sub>d_app1 e\<^sub>1 e\<^sub>1' e\<^sub>2)
   from ev\<^sub>d_app1(3) show ?case
   proof (induction rule: unstack_to_app)
@@ -215,7 +219,7 @@ next
     case Empty
     with ev\<^sub>d_app3 have B: "\<not>b" by (cases b) simp_all
     have "S\<^sub>k False s (App\<^sub>d (Lam\<^sub>d t\<^sub>1 e\<^sub>1) e\<^sub>2) \<leadsto>\<^sub>k S\<^sub>k False (FApp1\<^sub>k e\<^sub>2 # s) (Lam\<^sub>d t\<^sub>1 e\<^sub>1)" by simp
-    moreover have "S\<^sub>k False (FApp1\<^sub>k e\<^sub>2 # s) (Lam\<^sub>d t\<^sub>1 e\<^sub>1) \<leadsto>\<^sub>k S\<^sub>k True  (FApp1\<^sub>k e\<^sub>2 # s) (Lam\<^sub>d t\<^sub>1 e\<^sub>1)" 
+    moreover have "S\<^sub>k False (FApp1\<^sub>k e\<^sub>2 # s) (Lam\<^sub>d t\<^sub>1 e\<^sub>1) \<leadsto>\<^sub>k S\<^sub>k True (FApp1\<^sub>k e\<^sub>2 # s) (Lam\<^sub>d t\<^sub>1 e\<^sub>1)" 
       by simp
     moreover have "S\<^sub>k True (FApp1\<^sub>k e\<^sub>2 # s) (Lam\<^sub>d t\<^sub>1 e\<^sub>1) \<leadsto>\<^sub>k S\<^sub>k False (FApp2\<^sub>k (Lam\<^sub>d t\<^sub>1 e\<^sub>1) # s) e\<^sub>2" 
       by simp
@@ -268,18 +272,17 @@ next
   from ev\<^sub>d_let1(3) show ?case
   proof (induction rule: unstack_to_let)
     case Empty
-    from ev\<^sub>d_let1 have "e\<^sub>1 \<leadsto>\<^sub>d e\<^sub>1'" by simp
-    from ev\<^sub>d_let1 have "e\<^sub>1 = unstack' xs xe \<Longrightarrow>
-      xs :\<^sub>k t' \<rightarrow> xt \<Longrightarrow>
-      [] \<turnstile>\<^sub>d xe : xtt \<Longrightarrow>
-      xb \<longrightarrow> value\<^sub>d xe \<Longrightarrow> \<exists>b' s' e''. iter (\<leadsto>\<^sub>k) (S\<^sub>k xb xs xe) (S\<^sub>k b' s' e'') \<and> e\<^sub>1' = unstack' s' e''" by simp
-    from ev\<^sub>d_let1 have "s :\<^sub>k t' \<rightarrow> t" by simp
-    from ev\<^sub>d_let1 Empty have "[] \<turnstile>\<^sub>d Let\<^sub>d e\<^sub>1 e\<^sub>2 : tt" by simp
-    from ev\<^sub>d_let1 Empty have "\<not>b" by simp
-  
-  
-    have "iter (\<leadsto>\<^sub>k) (S\<^sub>k b s (Let\<^sub>d e\<^sub>1 e\<^sub>2)) (S\<^sub>k b' s' e'') \<and> Let\<^sub>d e\<^sub>1' e\<^sub>2 = unstack' s' e''" by simp
-    with Empty show ?case by blast
+    with ev\<^sub>d_let1 have B: "b = False" by simp
+    from ev\<^sub>d_let1 Empty obtain t\<^sub>1 where T: "([] \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>1) \<and> ([t\<^sub>1] \<turnstile>\<^sub>d e\<^sub>2 : tt)" by fastforce
+    with ev\<^sub>d_let1 Empty obtain b' s' e'' where E: "iter (\<leadsto>\<^sub>k) (S\<^sub>k False [] e\<^sub>1) (S\<^sub>k b' s' e'') \<and> 
+      e\<^sub>1' = unstack' s' e''" by (metis tcs\<^sub>k_nil unstack'.simps(1))
+    hence "iter (\<leadsto>\<^sub>k) (S\<^sub>k False (FLet\<^sub>k e\<^sub>2 # s) e\<^sub>1) (S\<^sub>k b' (s' @ FLet\<^sub>k e\<^sub>2 # s) e'')"
+      by (metis eval\<^sub>k_under_iter append_Nil)
+    moreover have "S\<^sub>k False s (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>k S\<^sub>k False (FLet\<^sub>k e\<^sub>2 # s) e\<^sub>1" by simp
+    ultimately have E2: "iter (\<leadsto>\<^sub>k) (S\<^sub>k False s (Let\<^sub>d e\<^sub>1 e\<^sub>2)) (S\<^sub>k b' (s' @ FLet\<^sub>k e\<^sub>2 # s) e'')" 
+      by (metis iter_step)
+    from Empty E have "Let\<^sub>d e\<^sub>1' e\<^sub>2 = unstack' (s' @ FLet\<^sub>k e\<^sub>2 # s) e''" by simp
+    with Empty B E2 show ?case by blast
   next
     case (FLet\<^sub>k s' sr)
     from ev\<^sub>d_let1 have "e\<^sub>1 \<leadsto>\<^sub>d e\<^sub>1'" by simp

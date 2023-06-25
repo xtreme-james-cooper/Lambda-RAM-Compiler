@@ -68,6 +68,9 @@ primrec incr\<^sub>d :: "nat \<Rightarrow> expr\<^sub>d \<Rightarrow> expr\<^sub
 | "incr\<^sub>d x (App\<^sub>d e\<^sub>1 e\<^sub>2) = App\<^sub>d (incr\<^sub>d x e\<^sub>1) (incr\<^sub>d x e\<^sub>2)"
 | "incr\<^sub>d x (Let\<^sub>d e\<^sub>1 e\<^sub>2) = Let\<^sub>d (incr\<^sub>d x e\<^sub>1) (incr\<^sub>d (Suc x) e\<^sub>2)"
 
+lemma incr\<^sub>d_size [simp]: "size (incr\<^sub>d x e) = size e"
+  by (induction e arbitrary: x) simp_all
+
 lemma incr\<^sub>d_swap [simp]: "y \<le> x \<Longrightarrow> incr\<^sub>d y (incr\<^sub>d x e) = incr\<^sub>d (Suc x) (incr\<^sub>d y e)"
   by (induction e arbitrary: x y) simp_all
 
@@ -152,7 +155,7 @@ proof (induction e)
   thus ?case by (induction y) simp_all
 qed simp_all
 
-lemma value\<^sub>d_subst [dest]: "value\<^sub>d (subst\<^sub>d 0 e' e) \<Longrightarrow> value\<^sub>d e' \<Longrightarrow> value\<^sub>d e \<or> e = Var\<^sub>d 0"
+lemma value\<^sub>d_subst [simp]: "value\<^sub>d e' \<Longrightarrow> value\<^sub>d (subst\<^sub>d x e' e) = (value\<^sub>d e \<or> e = Var\<^sub>d x)"
   by (induction e) (simp_all split: if_splits)
 
 text \<open>We can now define evaluation. Unlike our source language, but in keeping with future stages, 

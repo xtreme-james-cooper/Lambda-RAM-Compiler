@@ -24,6 +24,10 @@ lemma map_with_idx_const [simp]: "map_with_idx (\<lambda>k. f) as = map f as"
 lemma length_map_with_idx [simp]: "length (map_with_idx f as) = length as"
   by (induction as arbitrary: f) simp_all
 
+lemma map_with_idx_append [simp]: "map_with_idx f (as @ bs) = 
+    map_with_idx f as @ map_with_idx (f \<circ> (+) (length as)) bs"
+  by (induction as arbitrary: f) (simp_all add: comp_def)
+
 lemma len_conc_map_ix_lemma' [simp]: "((\<lambda>x. f (ix + x)) \<circ> Suc) = (\<lambda>x. f (Suc (ix + x)))"
   by auto
 

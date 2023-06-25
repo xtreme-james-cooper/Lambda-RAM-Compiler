@@ -104,6 +104,9 @@ lemma incr_min: "y < x \<Longrightarrow> incr x y = min x y"
 lemma incr_le: "y \<le> x \<Longrightarrow> incr y x = Suc x"
   by (induction y x rule: incr.induct) simp_all
 
+lemma incr_above: "y < x \<Longrightarrow> incr x y = y"
+  by (induction x y rule: incr.induct) simp_all
+
 lemma incr_suc_dest_lemma: "Suc y \<le> incr y x \<Longrightarrow> incr y x = Suc x"
   by (induction y x rule: incr.induct) simp_all
 
