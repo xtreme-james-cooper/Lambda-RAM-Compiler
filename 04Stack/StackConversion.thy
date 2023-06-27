@@ -285,22 +285,42 @@ next
     with Empty B E2 show ?case by blast
   next
     case (FLet\<^sub>k s' sr)
-    from ev\<^sub>d_let1 have "e\<^sub>1 \<leadsto>\<^sub>d e\<^sub>1'" by simp
-    from ev\<^sub>d_let1 have "e\<^sub>1 = unstack' xs xe \<Longrightarrow>
-      xs :\<^sub>k t' \<rightarrow> xt \<Longrightarrow>
-      [] \<turnstile>\<^sub>d xe : xtt \<Longrightarrow>
-      xb \<longrightarrow> value\<^sub>d xe \<Longrightarrow> \<exists>b' s' e''. iter (\<leadsto>\<^sub>k) (S\<^sub>k xb xs xe) (S\<^sub>k b' s' e'') \<and> e\<^sub>1' = unstack' s' e''" by simp
-    from ev\<^sub>d_let1 have "s :\<^sub>k t' \<rightarrow> t" by simp
-    from ev\<^sub>d_let1 have "[] \<turnstile>\<^sub>d e : tt" by simp
-    from ev\<^sub>d_let1 have "b \<longrightarrow> value\<^sub>d e" by simp
-  
-  
-    have "iter (\<leadsto>\<^sub>k) (S\<^sub>k b s e) (S\<^sub>k b' s' e'') \<and> Let\<^sub>d e\<^sub>1' e\<^sub>2 = unstack' s' e''" by simp
-    thus ?case by blast
+    with ev\<^sub>d_let1 obtain t\<^sub>1 where T: "(s' :\<^sub>k t' \<rightarrow> t\<^sub>1) \<and> (FLet\<^sub>k e\<^sub>2 # sr :\<^sub>k t\<^sub>1 \<rightarrow> t)" by fastforce
+    with ev\<^sub>d_let1 FLet\<^sub>k obtain b' s'' e'' where E: "iter (\<leadsto>\<^sub>k) (S\<^sub>k b s' e) (S\<^sub>k b' s'' e'') \<and> 
+      e\<^sub>1' = unstack' s'' e''" by blast
+    hence E2: "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (s' @ FLet\<^sub>k e\<^sub>2 # sr) e) (S\<^sub>k b' (s'' @ FLet\<^sub>k e\<^sub>2 # sr) e'')" by simp
+    from FLet\<^sub>k E have "Let\<^sub>d e\<^sub>1' e\<^sub>2 = unstack' (s'' @ FLet\<^sub>k e\<^sub>2 # sr) e''" by simp
+    with FLet\<^sub>k E2 show ?case by blast
   qed
 next
   case (ev\<^sub>d_let2 e\<^sub>1 e\<^sub>2)
-  then show ?case by simp
+  from ev\<^sub>d_let2(2) show ?case
+  proof (induction rule: unstack_to_let)
+    case Empty
+    with ev\<^sub>d_let2 have B: "b = False" by simp
+    have "S\<^sub>k False s (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>k S\<^sub>k False (FLet\<^sub>k e\<^sub>2 # s) e\<^sub>1" by simp 
+    moreover from ev\<^sub>d_let2 have "iter (\<leadsto>\<^sub>k) (S\<^sub>k False (FLet\<^sub>k e\<^sub>2 # s) e\<^sub>1) (S\<^sub>k True (FLet\<^sub>k e\<^sub>2 # s) e\<^sub>1)" 
+      by simp 
+    moreover have "S\<^sub>k True (FLet\<^sub>k e\<^sub>2 # s) e\<^sub>1 \<leadsto>\<^sub>k S\<^sub>k False (FPop\<^sub>k # s) (subst\<^sub>d 0 e\<^sub>1 e\<^sub>2)" by simp 
+    ultimately have E: "iter (\<leadsto>\<^sub>k) (S\<^sub>k False s (Let\<^sub>d e\<^sub>1 e\<^sub>2)) (S\<^sub>k False (FPop\<^sub>k # s) (subst\<^sub>d 0 e\<^sub>1 e\<^sub>2))" 
+      by (metis iter_step iter_step_after)
+    from Empty have "subst\<^sub>d 0 e\<^sub>1 e\<^sub>2 = unstack' (FPop\<^sub>k # s) (subst\<^sub>d 0 e\<^sub>1 e\<^sub>2)" 
+      by (simp add: unstack_returns)
+    with Empty B E show ?case by blast
+  next
+    case (FLet\<^sub>k s' sr)
+    with ev\<^sub>d_let2 have A: "all_returns s' \<and> e = e\<^sub>1" by simp
+    with ev\<^sub>d_let2 have "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (s' @ FLet\<^sub>k e\<^sub>2 # sr) e) (S\<^sub>k True (s' @ FLet\<^sub>k e\<^sub>2 # sr) e)" 
+      by simp
+    moreover from ev\<^sub>d_let2 A have "iter (\<leadsto>\<^sub>k) (S\<^sub>k True (s' @ FLet\<^sub>k e\<^sub>2 # sr) e) 
+      (S\<^sub>k True (FLet\<^sub>k e\<^sub>2 # sr) e)" by simp
+    moreover have "S\<^sub>k True (FLet\<^sub>k e\<^sub>2 # sr) e \<leadsto>\<^sub>k S\<^sub>k False (FPop\<^sub>k # sr) (subst\<^sub>d 0 e e\<^sub>2)" by simp 
+    ultimately have E: "iter (\<leadsto>\<^sub>k) (S\<^sub>k b (s' @ FLet\<^sub>k e\<^sub>2 # sr) e) 
+      (S\<^sub>k False (FPop\<^sub>k # sr) (subst\<^sub>d 0 e e\<^sub>2))" by (metis iter_append iter_step_after)
+    from FLet\<^sub>k A have "subst\<^sub>d 0 e\<^sub>1 e\<^sub>2 = unstack' (FPop\<^sub>k # sr) (subst\<^sub>d 0 e e\<^sub>2)" 
+      by (simp add: unstack_returns)
+    with FLet\<^sub>k E show ?case by blast
+  qed
 qed
 
 text \<open>Correctness is now simple to state and prove. We also extend the theorem to cover full

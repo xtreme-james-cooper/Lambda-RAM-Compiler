@@ -18,16 +18,19 @@ constant space, just like an imperative loop. This improvement is precisely what
 \<open>Jump\<^sub>e\<close> instruction to express.\<close>
 
 text \<open>What exactly do we change with tail-call optimization? We replace every sequence of an
-\<open>Apply\<^sub>e\<close> followed by a \<open>Return\<^sub>e\<close> with a \<open>Jump\<^sub>e\<close>, obviously. But we also eliminate certain frames from
-the call stack; specifically, any frame that consists nothing but a single \<open>Return\<^sub>e\<close>. We mark these 
-frames as \<open>dead_frame\<close>s.\<close>
+\<open>Apply\<^sub>e\<close> followed by a \<open>Return\<^sub>e\<close> with a \<open>Jump\<^sub>e\<close>, obviously. But we also can eliminate any number of 
+intervening \<open>PopEnv\<^sub>e\<close>s, since a pop followed by a return is just a return; and thanks to our 
+let-floating phase, we know that _every_ \<open>PopEnv\<^sub>e\<close> occurs just before a \<open>Return\<^sub>e\<close>, so we can 
+eliminate them all. We also eliminate certain frames from the call stack: specifically, any frame 
+that consists nothing but a sequence of \<open>PopEnv\<^sub>e\<close>s followed by a \<open>Return\<^sub>e\<close>. We mark these frames as 
+\<open>dead_frame\<close>s.\<close>
 
 primrec dead_frame :: "frame\<^sub>e \<Rightarrow> bool" where
   "dead_frame (\<V>, \<C>) = (\<C> = [Return\<^sub>e])"
 
-text \<open>The optimization itself is simple: we convert the code, eliminating \<open>Apply\<^sub>e; Return\<^sub>e\<close>s, then 
-map the conversion up through the levels of the state, taking care to also eliminate the dead frames 
-in the stack:\<close>
+text \<open>The optimization itself is simple: we convert the code, eliminating 
+\<open>Apply\<^sub>e; PopEnv\<^sub>e ... PopEnv\<^sub>e ; Return\<^sub>e\<close>s, then map the conversion up through the levels of the state, 
+taking care to also eliminate the dead frames in the stack:\<close>
 
 fun tco_code :: "code\<^sub>e list \<Rightarrow> code\<^sub>e list" where
   "tco_code [] = []"

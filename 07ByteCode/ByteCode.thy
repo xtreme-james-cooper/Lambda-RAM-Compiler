@@ -15,6 +15,7 @@ datatype code\<^sub>b =
   | PushCon\<^sub>b nat
   | PushLam\<^sub>b nat
   | Apply\<^sub>b
+  | PushEnv\<^sub>b
   | Return\<^sub>b
   | Jump\<^sub>b
 
@@ -48,6 +49,8 @@ inductive eval\<^sub>b :: "code\<^sub>b list \<Rightarrow> state\<^sub>b \<Right
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (Lam\<^sub>b \<Delta> p' # \<V>) ((\<Delta>, p) # s)"
 | ev\<^sub>b_apply [simp]: "lookup \<C> p = Some Apply\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((v # \<Delta>', p') # (\<Delta>, p) # s)"
+| ev\<^sub>b_pushenv [simp]: "lookup \<C> p = Some PushEnv\<^sub>b \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>b (v # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((v # \<Delta>, p) # s)"
 | ev\<^sub>b_return [simp]: "lookup \<C> p = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> s"
 | ev\<^sub>b_jump [simp]: "lookup \<C> p = Some Jump\<^sub>b \<Longrightarrow> 
@@ -67,6 +70,9 @@ next
   case ev\<^sub>b_apply
   from ev\<^sub>b_apply(2, 1) show ?case by (induction rule: eval\<^sub>b.cases) simp_all 
 next
+  case ev\<^sub>b_pushenv
+  from ev\<^sub>b_pushenv(2, 1) show ?case by (induction rule: eval\<^sub>b.cases) simp_all 
+next
   case ev\<^sub>b_return
   from ev\<^sub>b_return(2, 1) show ?case by (induction rule: eval\<^sub>b.cases) simp_all 
 next
@@ -80,6 +86,5 @@ in blocks.\<close>
 primrec properly_terminated\<^sub>b :: "code\<^sub>b list \<Rightarrow> bool" where
   "properly_terminated\<^sub>b [] = False"
 | "properly_terminated\<^sub>b (op # \<C>) = (op = Return\<^sub>b \<or> op = Jump\<^sub>b)"
-
 
 end

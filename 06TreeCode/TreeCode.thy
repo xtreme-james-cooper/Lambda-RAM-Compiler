@@ -32,10 +32,16 @@ datatype code\<^sub>e =
 
 fun properly_terminated\<^sub>e :: "code\<^sub>e list \<Rightarrow> bool" where
   "properly_terminated\<^sub>e [] = False"
-| "properly_terminated\<^sub>e (PushLam\<^sub>e cd' # cd) = (properly_terminated\<^sub>e cd' \<and> properly_terminated\<^sub>e cd)"
-| "properly_terminated\<^sub>e (Return\<^sub>e # cd) = (cd = [])"
-| "properly_terminated\<^sub>e (Jump\<^sub>e # cd) = (cd = [])"
-| "properly_terminated\<^sub>e (op # cd) = properly_terminated\<^sub>e cd"
+| "properly_terminated\<^sub>e (PushLam\<^sub>e \<C>' # \<C>) = (properly_terminated\<^sub>e \<C>' \<and> properly_terminated\<^sub>e \<C>)"
+| "properly_terminated\<^sub>e (Return\<^sub>e # \<C>) = (\<C> = [])"
+| "properly_terminated\<^sub>e (Jump\<^sub>e # \<C>) = (\<C> = [])"
+| "properly_terminated\<^sub>e (op # \<C>) = properly_terminated\<^sub>e \<C>"
+
+fun pop_free :: "code\<^sub>e list \<Rightarrow> bool" where
+  "pop_free [] = True"
+| "pop_free (PushLam\<^sub>e \<C>' # \<C>) = (pop_free \<C>' \<and> pop_free \<C>)"
+| "pop_free (PopEnv\<^sub>e # \<C>) = False"
+| "pop_free (op # \<C>) = pop_free \<C>"
 
 text \<open>Our closure-values remain the same, with just a change from a function body to a function 
 codeblock in closures-proper.\<close>
@@ -68,6 +74,8 @@ inductive eval\<^sub>e :: "state\<^sub>e \<Rightarrow> state\<^sub>e \<Rightarro
 | ev\<^sub>e_pushlam [simp]: "S\<^sub>e \<V> ((\<Delta>, PushLam\<^sub>e \<C>' # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (Lam\<^sub>e \<Delta> \<C>' # \<V>) ((\<Delta>, \<C>) # s)"
 | ev\<^sub>e_apply [simp]: "S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' # \<V>) ((\<Delta>, Apply\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e 
     S\<^sub>e \<V> ((v # \<Delta>', \<C>') # (\<Delta>, \<C>) # s)"
+| ev\<^sub>e_pushenv [simp]: "S\<^sub>e (v # \<V>) ((\<Delta>, PushEnv\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((v # \<Delta>, \<C>) # s)"
+| ev\<^sub>e_popenv [simp]: "S\<^sub>e \<V> ((v # \<Delta>, PopEnv\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((\<Delta>, \<C>) # s)"
 | ev\<^sub>e_return [simp]: "S\<^sub>e \<V> ((\<Delta>, Return\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> s"
 | ev\<^sub>e_jump [simp]: "S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' # \<V>) ((\<Delta>, Jump\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((v # \<Delta>', \<C>') # s)"
 
@@ -92,6 +100,12 @@ next
   thus ?case by  (induction rule: eval\<^sub>e.cases) simp_all  
 next
   case ev\<^sub>e_apply
+  thus ?case by (induction rule: eval\<^sub>e.cases) simp_all 
+next
+  case ev\<^sub>e_pushenv
+  thus ?case by (induction rule: eval\<^sub>e.cases) simp_all 
+next
+  case ev\<^sub>e_popenv
   thus ?case by (induction rule: eval\<^sub>e.cases) simp_all 
 next
   case ev\<^sub>e_return

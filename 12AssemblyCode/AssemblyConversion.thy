@@ -921,7 +921,7 @@ lemma [simp]: "assm_stk cd (mp(0 := a, Suc 0 := b)) 2 =
 lemma [simp]: "
   assembly_map (lib @ flatten_code' (length lib) cd @ cd') (length lib + code_list_size cd) = 
     assembly_map (lib @ flatten_code' (length lib) cd) (length (lib @ flatten_code' (length lib) cd))"
-        by (metis assembly_map_postpend append.assoc length_append length_flatten')
+        by (metisx assembly_map_postpend append.assoc length_append length_flatten')
 
 lemma assembly_map_flatten' [simp]: "properly_terminated\<^sub>e cd \<Longrightarrow>
   assembly_map (lib @ flatten_code' (length lib) cd) (length lib + code_list_size cd) = 
@@ -932,7 +932,7 @@ proof (induction "length lib" cd arbitrary: lib rule: flatten_code'.induct)
   let ?cd = "flatten_code' (length ?lib) cd"
   have X: "assembly_map (?lib @ ?cd @ [PushLam\<^sub>b (length lib + code_list_size cd')]) 
     (length ?lib + code_list_size cd) = assembly_map (?lib @ ?cd) (length (?lib @ ?cd))" 
-      by (metis assembly_map_postpend append.assoc length_append length_flatten')
+      by (metisx assembly_map_postpend append.assoc length_append length_flatten')
   from 4 have Y: "properly_terminated\<^sub>e cd" by simp
   have "length lib + length (flatten_code' (length lib) cd') = length ?lib" by simp
   with 4 Y have "assembly_map (?lib @ ?cd) (length ?lib + code_list_size cd) =
