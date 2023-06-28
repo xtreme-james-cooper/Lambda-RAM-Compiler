@@ -139,24 +139,30 @@ lemma tc_stable_multisubst [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longri
   stable t (multisubst es e)"
 proof (induction \<Gamma> e t arbitrary: es rule: typing\<^sub>d.induct)
   case (tc\<^sub>d_lam t\<^sub>1 \<Gamma> e t\<^sub>2)
-  then obtain e' where E: "multisubst es (Lam\<^sub>d t\<^sub>1 e) = Lam\<^sub>d t\<^sub>1 e' \<and> ([t\<^sub>1] \<turnstile>\<^sub>d e' : t\<^sub>2) \<and> 
-    (\<forall>e\<^sub>2. ([] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<longrightarrow> multisubst es (subst\<^sub>d 0 e\<^sub>2 e) = subst\<^sub>d 0 e\<^sub>2 e')" by fastforce
-  moreover have "\<And>e\<^sub>2. stable t\<^sub>1 e\<^sub>2 \<Longrightarrow> value\<^sub>d e\<^sub>2 \<Longrightarrow> stable t\<^sub>2 (App\<^sub>d (Lam\<^sub>d t\<^sub>1 e') e\<^sub>2)"
+  hence "[t\<^sub>1] @ \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>2" by (cases \<Gamma>) simp_all
+  moreover from tc\<^sub>d_lam have "tc_expr_context \<Gamma> (map (incr\<^sub>d 0) es)" by simp
+  ultimately have E: "[t\<^sub>1] \<turnstile>\<^sub>d multisubst' 1 (map (incr\<^sub>d 0) es) e : t\<^sub>2" 
+    using tc_multisubst' by fastforce
+  moreover have "\<And>e\<^sub>2. stable t\<^sub>1 e\<^sub>2 \<Longrightarrow> value\<^sub>d e\<^sub>2 \<Longrightarrow> 
+    stable t\<^sub>2 (App\<^sub>d (Lam\<^sub>d t\<^sub>1 (multisubst' 1 (map (incr\<^sub>d 0) es) e)) e\<^sub>2)"
   proof -
     fix e\<^sub>2
     assume S: "stable t\<^sub>1 e\<^sub>2" and V: "value\<^sub>d e\<^sub>2"
     hence E2: "[] \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1" by (metis stable_typechecks)
-    hence T: "\<exists>t. [] \<turnstile>\<^sub>d e\<^sub>2 : t" by fastforce
+    then obtain tt where T: "[] \<turnstile>\<^sub>d e\<^sub>2 : tt" by fastforce
     from tc\<^sub>d_lam S have "list_all2 stable (insert_at 0 t\<^sub>1 \<Gamma>) (insert_at 0 e\<^sub>2 es)" by simp
     with tc\<^sub>d_lam have "tc_expr_context (insert_at 0 t\<^sub>1 \<Gamma>) (insert_at 0 e\<^sub>2 es) \<Longrightarrow> 
       stable t\<^sub>2 (multisubst (insert_at 0 e\<^sub>2 es) e)" by blast
     hence "tc_expr_context (insert_at 0 t\<^sub>1 \<Gamma>) (insert_at 0 e\<^sub>2 es) \<Longrightarrow> 
       stable t\<^sub>2 (multisubst es (subst\<^sub>d 0 e\<^sub>2 e))" by (cases es) simp_all
-    with tc\<^sub>d_lam S V T E have "stable t\<^sub>2 (subst\<^sub>d 0 e\<^sub>2 e')" by (simp add: stable_typechecks)
-    moreover with V have "App\<^sub>d (Lam\<^sub>d t\<^sub>1 e') e\<^sub>2 \<leadsto>\<^sub>d subst\<^sub>d 0 e\<^sub>2 e'" by simp
-    moreover from E have "[] \<turnstile>\<^sub>d Lam\<^sub>d t\<^sub>1 e' : Arrow t\<^sub>1 t\<^sub>2" by simp
-    moreover with E2 have "[] \<turnstile>\<^sub>d App\<^sub>d (Lam\<^sub>d t\<^sub>1 e') e\<^sub>2 : t\<^sub>2" by simp
-    ultimately show "stable t\<^sub>2 (App\<^sub>d (Lam\<^sub>d t\<^sub>1 e') e\<^sub>2)" by (metis stable_eval\<^sub>d_back)
+    with tc\<^sub>d_lam S V T E have "stable t\<^sub>2 (subst\<^sub>d 0 e\<^sub>2 (multisubst' 1 (map (incr\<^sub>d 0) es) e))" 
+      by (simp add: stable_typechecks multisubst_subst_swap)
+    moreover with V have "App\<^sub>d (Lam\<^sub>d t\<^sub>1 (multisubst' 1 (map (incr\<^sub>d 0) es) e)) e\<^sub>2 \<leadsto>\<^sub>d 
+      subst\<^sub>d 0 e\<^sub>2 (multisubst' 1 (map (incr\<^sub>d 0) es) e)" by simp
+    moreover from E have "[] \<turnstile>\<^sub>d Lam\<^sub>d t\<^sub>1 (multisubst' 1 (map (incr\<^sub>d 0) es) e) : Arrow t\<^sub>1 t\<^sub>2" by simp
+    moreover with E2 have "[] \<turnstile>\<^sub>d App\<^sub>d (Lam\<^sub>d t\<^sub>1 (multisubst' 1 (map (incr\<^sub>d 0) es) e)) e\<^sub>2 : t\<^sub>2" by simp
+    ultimately show "stable t\<^sub>2 (App\<^sub>d (Lam\<^sub>d t\<^sub>1 (multisubst' 1 (map (incr\<^sub>d 0) es) e)) e\<^sub>2)" 
+      by (metis stable_eval\<^sub>d_back)
   qed
   ultimately show ?case by simp
 next
@@ -182,22 +188,25 @@ next
   thus ?case by simp
 next
   case (tc\<^sub>d_let \<Gamma> e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
-  then obtain e\<^sub>2' where E: "multisubst es (Let\<^sub>d e\<^sub>1 e\<^sub>2) = Let\<^sub>d (multisubst es e\<^sub>1) e\<^sub>2' \<and> 
-    ([t\<^sub>1] \<turnstile>\<^sub>d e\<^sub>2' : t\<^sub>2) \<and> (\<forall>v\<^sub>1. ([] \<turnstile>\<^sub>d v\<^sub>1 : t\<^sub>1) \<longrightarrow> multisubst es (subst\<^sub>d 0 v\<^sub>1 e\<^sub>2) = subst\<^sub>d 0 v\<^sub>1 e\<^sub>2')" 
-      by fastforce
+  hence E: "multisubst es (Let\<^sub>d e\<^sub>1 e\<^sub>2) = 
+    Let\<^sub>d (multisubst es e\<^sub>1) (multisubst' 1 (map (incr\<^sub>d 0) es) e\<^sub>2)" by simp
   from tc\<^sub>d_let obtain v\<^sub>1 where V: "value\<^sub>d v\<^sub>1 \<and> iter (\<leadsto>\<^sub>d) (multisubst es e\<^sub>1) v\<^sub>1" 
     by (metis stable_terminates)
-  hence "iter (\<leadsto>\<^sub>d) (Let\<^sub>d (multisubst es e\<^sub>1) e\<^sub>2') (Let\<^sub>d v\<^sub>1 e\<^sub>2')" using iter_step_after by simp
-  moreover from V have "Let\<^sub>d v\<^sub>1 e\<^sub>2' \<leadsto>\<^sub>d subst\<^sub>d 0 v\<^sub>1 e\<^sub>2'" by simp
-  ultimately have EV: "iter (\<leadsto>\<^sub>d) (Let\<^sub>d (multisubst es e\<^sub>1) e\<^sub>2') (subst\<^sub>d 0 v\<^sub>1 e\<^sub>2')" 
-    by (metis iter_step_after)
-  from tc\<^sub>d_let V have S: "stable t\<^sub>1 v\<^sub>1" by (metis stable_persists)
+  with tc\<^sub>d_let have S: "stable t\<^sub>1 v\<^sub>1" by (metis stable_persists)
   hence T: "[] \<turnstile>\<^sub>d v\<^sub>1 : t\<^sub>1" by (metis stable_typechecks)
   with tc\<^sub>d_let(5) V have X: "tc_expr_context (insert_at 0 t\<^sub>1 \<Gamma>) (v\<^sub>1 # es)" by (cases \<Gamma>) simp_all
   from tc\<^sub>d_let(6) S have "list_all2 stable (insert_at 0 t\<^sub>1 \<Gamma>) (v\<^sub>1 # es)" by (cases \<Gamma>) simp_all
   with tc\<^sub>d_let X have "stable t\<^sub>2 (multisubst (v\<^sub>1 # es) e\<^sub>2)" by blast
-  hence "stable t\<^sub>2 (multisubst es (subst\<^sub>d 0 v\<^sub>1 e\<^sub>2))" by simp
-  with tc\<^sub>d_let E V EV S T show ?case by (metis stable_persists_back tc_multisubst typing\<^sub>d.tc\<^sub>d_let)
+  hence ST: "stable t\<^sub>2 (multisubst es (subst\<^sub>d 0 v\<^sub>1 e\<^sub>2))" by simp
+  from V have "iter (\<leadsto>\<^sub>d) (Let\<^sub>d (multisubst es e\<^sub>1) (multisubst' 1 (map (incr\<^sub>d 0) es) e\<^sub>2)) 
+    (Let\<^sub>d v\<^sub>1 (multisubst' 1 (map (incr\<^sub>d 0) es) e\<^sub>2))" using iter_step_after by simp
+  moreover from V have "Let\<^sub>d v\<^sub>1 (multisubst' 1 (map (incr\<^sub>d 0) es) e\<^sub>2) \<leadsto>\<^sub>d 
+    subst\<^sub>d 0 v\<^sub>1 (multisubst' 1 (map (incr\<^sub>d 0) es) e\<^sub>2)" by simp
+  ultimately have "iter (\<leadsto>\<^sub>d) (Let\<^sub>d (multisubst es e\<^sub>1) (multisubst' 1 (map (incr\<^sub>d 0) es) e\<^sub>2)) 
+    (subst\<^sub>d 0 v\<^sub>1 (multisubst' 1 (map (incr\<^sub>d 0) es) e\<^sub>2))" by (metis iter_step_after)
+  with T have "iter (\<leadsto>\<^sub>d) (multisubst es (Let\<^sub>d e\<^sub>1 e\<^sub>2)) (multisubst es (subst\<^sub>d 0 v\<^sub>1 e\<^sub>2))" 
+    by (simp add: multisubst_subst_swap)
+  with tc\<^sub>d_let E V ST S T show ?case by (metis stable_persists_back tc_multisubst typing\<^sub>d.tc\<^sub>d_let)
 qed simp_all
 
 theorem tc_terminationd [simp]: "[] \<turnstile>\<^sub>d e : t \<Longrightarrow> terminating e"
@@ -205,7 +214,7 @@ proof -
   assume "[] \<turnstile>\<^sub>d e : t" 
   moreover have "list_all2 stable [] []" by simp
   ultimately show ?thesis 
-    by (metis stable_terminates multisubst.simps(1) tcp_nil tc_stable_multisubst)
+    by (metis stable_terminates multisubst'.simps(1) tcp_nil tc_stable_multisubst)
 qed
 
 end

@@ -28,6 +28,9 @@ lemma lookup_some_in_bounds [simp]: "lookup as x = Some a \<Longrightarrow> x < 
 lemma lookup_some_in_bounds_suc [simp]: "lookup as (Suc x) = Some a \<Longrightarrow> x < length as"
   by (induction as x rule: lookup.induct) simp_all
 
+lemma lookup_in_set [elim]: "lookup as x = Some a \<Longrightarrow> a \<in> set as"
+  by (induction as x rule: lookup.induct) simp_all
+
 lemma lookup_map [simp]: "lookup (map f as) x = map_option f (lookup as x)"
   by (induction as x rule: lookup.induct) simp_all
 
