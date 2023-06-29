@@ -25,8 +25,14 @@ eliminate them all. We also eliminate certain frames from the call stack: specif
 that consists nothing but a sequence of \<open>PopEnv\<^sub>e\<close>s followed by a \<open>Return\<^sub>e\<close>. We mark these frames as 
 \<open>dead_frame\<close>s.\<close>
 
+fun dead_code :: "code\<^sub>e list \<Rightarrow> bool" where
+  "dead_code [] = False"
+| "dead_code (Return\<^sub>e # \<C>) = (\<C> = [])"
+| "dead_code (PopEnv\<^sub>e # \<C>) = dead_code \<C>"
+| "dead_code (op # \<C>) = False"
+
 primrec dead_frame :: "frame\<^sub>e \<Rightarrow> bool" where
-  "dead_frame (\<V>, \<C>) = (\<C> = [Return\<^sub>e])"
+  "dead_frame (\<V>, \<C>) = dead_code \<C>"
 
 text \<open>The optimization itself is simple: we convert the code, eliminating 
 \<open>Apply\<^sub>e; PopEnv\<^sub>e ... PopEnv\<^sub>e ; Return\<^sub>e\<close>s, then map the conversion up through the levels of the state, 
@@ -34,7 +40,7 @@ taking care to also eliminate the dead frames in the stack:\<close>
 
 fun tco_code :: "code\<^sub>e list \<Rightarrow> code\<^sub>e list" where
   "tco_code [] = []"
-| "tco_code (Apply\<^sub>e # Return\<^sub>e # \<C>) = Jump\<^sub>e # tco_code \<C>"
+| "tco_code (Apply\<^sub>e # \<C>) = (if dead_code \<C> then [Jump\<^sub>e] else Apply\<^sub>e # tco_code \<C>)"
 | "tco_code (PushLam\<^sub>e \<C>' # \<C>) = PushLam\<^sub>e (tco_code \<C>') # tco_code \<C>"
 | "tco_code (op # \<C>) = op # tco_code \<C>"
 
@@ -54,10 +60,10 @@ primrec tco_state :: "state\<^sub>e \<Rightarrow> state\<^sub>e" where
 lemma tco_to_empty [simp]: "(tco_code \<C> = []) = (\<C> = [])"
   by (induction \<C> rule: tco_code.induct) simp_all
 
-lemma tco_to_return [simp]: "(tco_code \<C> = [Return\<^sub>e]) = (\<C> = [Return\<^sub>e])"
+lemma tco_to_return [simp]: "dead_code (tco_code \<C>) = dead_code \<C>"
   by (induction \<C> rule: tco_code.induct) simp_all
 
-lemma tco_to_dead_frame [simp]: "dead_frame (\<Delta>, tco_code \<C>) = (\<C> = [Return\<^sub>e])"
+lemma tco_to_dead_frame [simp]: "dead_frame (\<Delta>, tco_code \<C>) = dead_code \<C>"
   by (induction \<C> rule: tco_code.induct) simp_all
 
 lemma tco_frame_to_dead_frame [simp]: "dead_frame (tco_frame f) = dead_frame f"
@@ -69,8 +75,11 @@ proof (induction \<C> rule: tco_code.induct)
   thus ?case by (cases \<C>) simp_all
 qed simp_all
 
-lemma [simp]: "properly_terminated\<^sub>e (tco_code cd) = properly_terminated\<^sub>e cd"
-  by (induction cd rule: tco_code.induct) simp_all
+lemma dead_code_terminated [simp]: "dead_code \<C> \<Longrightarrow> properly_terminated\<^sub>e \<C>"
+  by (induction \<C> rule: dead_code.induct) simp_all
+
+lemma tcoed_code_terminated [simp]: "properly_terminated\<^sub>e (tco_code \<C>) = properly_terminated\<^sub>e \<C>"
+  by (induction \<C> rule: tco_code.induct) simp_all
 
 text \<open>We will of course prove that tail-call removal is semantics-preserving, but we will not 
 formally prove that it really is "an optimization". Instead, we will prove some much simpler results 
@@ -78,8 +87,8 @@ that indicate _why_ it is an optimization, and gesture towards what a full proof
 formalize.\<close>
 
 text \<open>The optimized code is always shorter. Since tail-call removal is a local optimization, leaving 
-the global structure of the computation intact, any codeblock executed before it will be executed 
-after as well. Assuming that each operation takes roughly equal time, this means that tail-call 
+the global structure of the computation intact, any codeblock executed without it will be executed 
+with it as well. Assuming that each operation takes roughly equal time, this means that tail-call 
 optimization reduces runtime. (In fact, we will see much later that \<open>Jump\<^sub>e\<close> is shorter to run as 
 machine code than the \<open>Apply\<^sub>e; Return\<^sub>e\<close> sequence, so we do even better. But we're not there yet.)\<close>
 
@@ -103,14 +112,14 @@ always be the case, pre-optimization).\<close>
 
 fun complete_lams :: "code\<^sub>e list \<Rightarrow> bool" where
   "complete_lams [] = False"
-| "complete_lams (PushLam\<^sub>e \<C>' # \<C>) = (\<C>' \<noteq> [Return\<^sub>e] \<and> complete_lams \<C>' \<and> complete_lams \<C>)"
+| "complete_lams (PushLam\<^sub>e \<C>' # \<C>) = (\<not> dead_code \<C>' \<and> complete_lams \<C>' \<and> complete_lams \<C>)"
 | "complete_lams (Return\<^sub>e # \<C>) = (\<C> = [])"
 | "complete_lams (Jump\<^sub>e # \<C>) = False"
 | "complete_lams (op # \<C>) = complete_lams \<C>"
 
 primrec complete_lams_val :: "closure\<^sub>e \<Rightarrow> bool" where
   "complete_lams_val (Const\<^sub>e n) = True"
-| "complete_lams_val (Lam\<^sub>e \<Delta> \<C>) = (\<C> \<noteq> [Return\<^sub>e] \<and> list_all complete_lams_val \<Delta> \<and> complete_lams \<C>)"
+| "complete_lams_val (Lam\<^sub>e \<Delta> \<C>) = (\<not> dead_code \<C> \<and> list_all complete_lams_val \<Delta> \<and> complete_lams \<C>)"
 
 fun complete_lams_frame :: "frame\<^sub>e \<Rightarrow> bool" where
   "complete_lams_frame (\<Delta>, \<C>) = (list_all complete_lams_val \<Delta> \<and> complete_lams \<C>)"

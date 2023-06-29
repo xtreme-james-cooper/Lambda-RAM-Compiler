@@ -139,10 +139,9 @@ lemma tc_stable_multisubst [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longri
   stable t (multisubst es e)"
 proof (induction \<Gamma> e t arbitrary: es rule: typing\<^sub>d.induct)
   case (tc\<^sub>d_lam t\<^sub>1 \<Gamma> e t\<^sub>2)
-  hence "[t\<^sub>1] @ \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>2" by (cases \<Gamma>) simp_all
   moreover from tc\<^sub>d_lam have "tc_expr_context \<Gamma> (map (incr\<^sub>d 0) es)" by simp
-  ultimately have E: "[t\<^sub>1] \<turnstile>\<^sub>d multisubst' 1 (map (incr\<^sub>d 0) es) e : t\<^sub>2" 
-    using tc_multisubst' by fastforce
+  ultimately have E: "[t\<^sub>1] \<turnstile>\<^sub>d multisubst' (Suc 0) (map (incr\<^sub>d 0) es) e : t\<^sub>2" 
+    using tc_multisubst1 by fastforce
   moreover have "\<And>e\<^sub>2. stable t\<^sub>1 e\<^sub>2 \<Longrightarrow> value\<^sub>d e\<^sub>2 \<Longrightarrow> 
     stable t\<^sub>2 (App\<^sub>d (Lam\<^sub>d t\<^sub>1 (multisubst' 1 (map (incr\<^sub>d 0) es) e)) e\<^sub>2)"
   proof -

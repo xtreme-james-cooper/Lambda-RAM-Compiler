@@ -85,8 +85,22 @@ proof (induction "\<Gamma>(x \<mapsto> t')" e t arbitrary: \<Gamma> rule: typing
     ultimately show ?thesis by (simp add: fun_upd_twist)
   qed (simp_all add: fun_upd_twist)
 next
-  case (tc\<^sub>t_let e\<^sub>1 t\<^sub>1 x e\<^sub>2 t\<^sub>2)
-  then show ?case by simp
+  case (tc\<^sub>t_let e\<^sub>1 t\<^sub>1 y e\<^sub>2 t\<^sub>2)
+  hence X': "x' \<noteq> y" by simp
+  thus ?case 
+  proof (cases "x = y")
+    case True
+    with tc\<^sub>t_let have X: "\<Gamma>(x' \<mapsto> t') \<turnstile>\<^sub>t subst_var\<^sub>s y x' e\<^sub>1 : t\<^sub>1" by simp
+    from tc\<^sub>t_let True have "\<Gamma>(y \<mapsto> t\<^sub>1, x' \<mapsto> t') \<turnstile>\<^sub>t e\<^sub>2 : t\<^sub>2" by simp
+    with X' have "\<Gamma>(x' \<mapsto> t', y \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t e\<^sub>2 : t\<^sub>2" by (metis fun_upd_twist)
+    with X True show ?thesis by simp
+  next
+    case False
+    with tc\<^sub>t_let have "\<Gamma>(y \<mapsto> t\<^sub>1, x' \<mapsto> t') \<turnstile>\<^sub>t subst_var\<^sub>s x x' e\<^sub>2 : t\<^sub>2" by (simp add: fun_upd_twist)
+    with X' have X: "\<Gamma>(x' \<mapsto> t', y \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t subst_var\<^sub>s x x' e\<^sub>2 : t\<^sub>2" by (simp add: fun_upd_twist)
+    from tc\<^sub>t_let have "\<Gamma>(x' \<mapsto> t') \<turnstile>\<^sub>t subst_var\<^sub>s x x' e\<^sub>1 : t\<^sub>1" by simp
+    with False X show ?thesis by simp
+  qed
 qed fastforce+
 
 lemma tc\<^sub>t_subst [simp]: "\<Gamma>(x \<mapsto> t') \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e' : t' \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t subst\<^sub>s x e' e : t"
@@ -102,8 +116,16 @@ proof (induction x e' e arbitrary: \<Gamma> t rule: subst\<^sub>s.induct)
   with 3 X have "\<Gamma>(?z \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t subst\<^sub>s x e' (subst_var\<^sub>s y ?z e) : t\<^sub>2" by fastforce
   with T show ?case by (simp add: Let_def)
 next
-  case (5 x e' y t e\<^sub>1 e\<^sub>2)
-  then show ?case by simp
+  case (5 x e' y e\<^sub>1 e\<^sub>2)
+  then obtain t\<^sub>1 where T: "(\<Gamma>(x \<mapsto> t') \<turnstile>\<^sub>t e\<^sub>1 : t\<^sub>1) \<and> (\<Gamma>(x \<mapsto> t', y \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t e\<^sub>2 : t)" by blast
+  let ?z = "fresh (all_vars\<^sub>s e' \<union> all_vars\<^sub>s e\<^sub>2 \<union> {x, y})"
+  have "finite (all_vars\<^sub>s e' \<union> all_vars\<^sub>s e\<^sub>2 \<union> {x, y})" by simp
+  hence Z: "?z \<notin> all_vars\<^sub>s e' \<union> all_vars\<^sub>s e\<^sub>2 \<union> {x, y}" by (metis fresh_is_fresh)
+  with T have X: "\<Gamma>(?z \<mapsto> t\<^sub>1, x \<mapsto> t') \<turnstile>\<^sub>t subst_var\<^sub>s y ?z e\<^sub>2 : t" by (simp add: fun_upd_twist)
+  from 5 Z have "\<Gamma>(?z \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t e' : t'" by simp
+  with 5 X have "\<Gamma>(?z \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t subst\<^sub>s x e' (subst_var\<^sub>s y ?z e\<^sub>2) : t" by blast
+  moreover from 5 T have "\<Gamma> \<turnstile>\<^sub>t subst\<^sub>s x e' e\<^sub>1 : t\<^sub>1" by blast
+  ultimately show ?case by (simp add: Let_def)
 qed fastforce+
 
 theorem preservation\<^sub>t [simp]: "e \<Down>\<^sub>s v \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t v : t"
@@ -128,7 +150,12 @@ next
   ultimately show ?case by simp
 next
   case (tc\<^sub>t_let \<Gamma> e\<^sub>1 t\<^sub>1 x e\<^sub>2 t\<^sub>2)
-  then show ?case by simp
+  let ?e\<^sub>2 = "remove_shadows\<^sub>s' (insert x vs) e\<^sub>2"
+  let ?y = "fresh (vs \<union> all_vars\<^sub>s ?e\<^sub>2)"
+  from tc\<^sub>t_let have "finite (vs \<union> all_vars\<^sub>s ?e\<^sub>2)" by simp
+  hence "?y \<notin> all_vars\<^sub>s ?e\<^sub>2" using fresh_is_fresh by blast
+  with tc\<^sub>t_let have "\<Gamma> \<turnstile>\<^sub>t Let\<^sub>s ?y (remove_shadows\<^sub>s' vs e\<^sub>1) (subst_var\<^sub>s x ?y ?e\<^sub>2) : t\<^sub>2" by fastforce
+  thus ?case by (simp add: Let_def)
 qed simp_all
 
 lemma tc_remove_shadows [simp]: "\<Gamma> \<turnstile>\<^sub>t e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>t remove_shadows\<^sub>s e : t"

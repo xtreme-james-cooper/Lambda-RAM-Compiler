@@ -12,12 +12,14 @@ primrec print_nexpr :: "'a expr\<^sub>s \<Rightarrow> print" where
 | "print_nexpr (Const\<^sub>s n) = Number n"
 | "print_nexpr (Lam\<^sub>s x t e) = Fun"
 | "print_nexpr (App\<^sub>s e\<^sub>1 e\<^sub>2) = undefined"
+| "print_nexpr (Let\<^sub>s x e\<^sub>1 e\<^sub>2) = undefined"
 
 primrec print_dexpr :: "expr\<^sub>d \<Rightarrow> print" where
   "print_dexpr (Var\<^sub>d x) = undefined"
 | "print_dexpr (Const\<^sub>d n) = Number n"
 | "print_dexpr (Lam\<^sub>d t e) = Fun"
 | "print_dexpr (App\<^sub>d e\<^sub>1 e\<^sub>2) = undefined"
+| "print_dexpr (Let\<^sub>d e\<^sub>1 e\<^sub>2) = undefined"
 
 primrec print_closure :: "closure\<^sub>c \<Rightarrow> print" where
   "print_closure (Const\<^sub>c n) = Number n"

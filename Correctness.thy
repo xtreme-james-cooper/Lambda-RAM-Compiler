@@ -148,13 +148,13 @@ text \<open>We have now proven the correctness of our compiler; but, as Donald K
 bugs in the above code; I have only proved it correct, not tried it." [8] So we will leave off with 
 some small example programs, to show what it looks like in practice.\<close>
 
-definition churchTrue :: "unit expr\<^sub>s" 
+abbreviation churchTrue :: "unit expr\<^sub>s" 
   where "churchTrue \<equiv> Lam\<^sub>s (V ''x'') () (Lam\<^sub>s (V ''y'') () (Var\<^sub>s (V ''x'')))"
 
-definition churchFalse :: "unit expr\<^sub>s" 
+abbreviation churchFalse :: "unit expr\<^sub>s" 
   where "churchFalse \<equiv> Lam\<^sub>s (V ''x'') () (Lam\<^sub>s (V ''y'') () (Var\<^sub>s (V ''y'')))"
 
-definition churchIf :: "unit expr\<^sub>s" 
+abbreviation churchIf :: "unit expr\<^sub>s" 
   where "churchIf \<equiv> 
     Lam\<^sub>s (V ''b'') () (Lam\<^sub>s (V ''x'') () (Lam\<^sub>s (V ''y'') () 
       (App\<^sub>s (App\<^sub>s (Var\<^sub>s (V ''b'')) (Var\<^sub>s (V ''x''))) (Var\<^sub>s (V ''y'')))))"

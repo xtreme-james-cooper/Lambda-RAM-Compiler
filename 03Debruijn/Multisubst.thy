@@ -91,6 +91,15 @@ proof -
   ultimately show ?thesis using tc_multisubst' by fastforce
 qed
 
+lemma tc_multisubst1 [simp]: "tc_expr_context \<Gamma> es \<Longrightarrow> insert_at 0 t' \<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> 
+  [t'] \<turnstile>\<^sub>d multisubst' (Suc 0) es e : t"
+proof -
+  assume "insert_at 0 t' \<Gamma> \<turnstile>\<^sub>d e : t" 
+  hence "[t'] @ \<Gamma> \<turnstile>\<^sub>d e : t" by (cases \<Gamma>) simp_all
+  moreover assume "tc_expr_context \<Gamma> es"
+  ultimately show ?thesis using tc_multisubst' by fastforce
+qed
+
 lemma multisubst_above [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> multisubst' (length \<Gamma>) es e = e"
   by (induction es) simp_all
 
