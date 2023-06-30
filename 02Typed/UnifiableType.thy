@@ -63,6 +63,10 @@ lemma valid_empty_subst [simp]: "valid_ty_subst Map.empty"
 lemma valid_upd_subst [simp]: "valid_ty_subst \<sigma> \<Longrightarrow> valid_ty_term \<tau> \<Longrightarrow> valid_ty_subst (\<sigma>(x \<mapsto> \<tau>))"
   by (auto simp add: valid_ty_subst_def ran_def)
 
+lemma valid_upd_subst' [simp]: "valid_ty_subst \<sigma> \<Longrightarrow> valid_ty_term \<tau> \<Longrightarrow> 
+    valid_ty_subst (\<lambda>a. if a = x then Some \<tau> else \<sigma> a)"
+  by (auto simp add: valid_ty_subst_def ran_def)
+
 lemma valid_term_from_subst [elim]: "valid_ty_subst \<sigma> \<Longrightarrow> \<sigma> x = Some \<tau> \<Longrightarrow> valid_ty_term \<tau>"
   by (auto simp add: valid_ty_subst_def ran_def)
 

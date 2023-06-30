@@ -8,6 +8,7 @@ primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
 | "assemble_op_len (PushCon\<^sub>b k) = 5"
 | "assemble_op_len (PushLam\<^sub>b pc) = 9"
 | "assemble_op_len Apply\<^sub>b = 20"
+| "assemble_op_len PushEnv\<^sub>b = 2"
 | "assemble_op_len Return\<^sub>b = 5"
 | "assemble_op_len Jump\<^sub>b = 19"
 
@@ -64,6 +65,7 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
     AMov (Mem Vals) (Con 0),
     AMov (Reg Acc) (Mem Vals),
     ASub Vals (Con 1)]"
+| "assemble_op mp ix PushEnv\<^sub>b = []"
 | "assemble_op mp ix Return\<^sub>b = [
     AJmp (Reg Acc),
     AMov (Mem Stk) (Con 0),

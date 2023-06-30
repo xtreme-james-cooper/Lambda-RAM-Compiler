@@ -37,6 +37,8 @@ inductive eval\<^sub>f :: "code\<^sub>b list \<Rightarrow> state\<^sub>f \<Right
 | ev\<^sub>f_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = (PEnv, p\<^sub>\<Delta>') \<Longrightarrow> 
     hlookup h (Suc v\<^sub>2) = (PCode, p\<^sub>\<C>') \<Longrightarrow> halloc_list \<Delta> [v\<^sub>1, p\<^sub>\<Delta>'] = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta>' \<V> (p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>'') # p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
+| ev\<^sub>f_pushenv [simp]: "lookup \<C> p\<^sub>\<C> = Some PushEnv\<^sub>b \<Longrightarrow> halloc_list \<Delta> [v, p\<^sub>\<Delta>] = (\<Delta>', p\<^sub>\<Delta>') \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>f h \<Delta> (v # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta>' \<V> (p\<^sub>\<C> # p\<^sub>\<Delta>' # s)"
 | ev\<^sub>f_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta> \<V> s"
 | ev\<^sub>f_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = (PEnv, p\<^sub>\<Delta>') \<Longrightarrow> 
@@ -56,6 +58,9 @@ next
 next
   case ev\<^sub>f_apply
   from ev\<^sub>f_apply(5, 1, 2, 3, 4) show ?case by (induction rule: eval\<^sub>f.cases) simp_all  
+next
+  case ev\<^sub>f_pushenv
+  from ev\<^sub>f_pushenv(3, 1, 2) show ?case by (induction rule: eval\<^sub>f.cases) simp_all  
 next
   case ev\<^sub>f_return
   from ev\<^sub>f_return(2, 1) show ?case by (induction rule: eval\<^sub>f.cases) simp_all 

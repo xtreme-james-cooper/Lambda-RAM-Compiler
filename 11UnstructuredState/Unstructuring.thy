@@ -78,6 +78,9 @@ next
     by (metis ev\<^sub>f_apply)
   with ev\<^sub>r_apply show ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
+  case (ev\<^sub>r_pushenv \<C> p\<^sub>\<C> h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
+  thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
+next
   case (ev\<^sub>r_return \<C> p\<^sub>\<C> h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
   thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
@@ -174,6 +177,9 @@ next
         (s\<^sub>r(Suc (Suc b\<^sub>s) := p\<^sub>\<C>, Suc (Suc (Suc b\<^sub>s)) := Suc (Suc b\<^sub>\<Delta>))) (2 + Suc (Suc b\<^sub>s)) p\<^sub>\<C>'"
     by (metis ev\<^sub>r_apply)
   with ev\<^sub>f_apply S X V show ?case by auto
+next
+  case (ev\<^sub>f_pushenv \<C> p\<^sub>\<C> \<Delta> v p\<^sub>\<Delta> \<Delta>' p\<^sub>\<Delta>' h \<V> s)
+  then show ?case by simp
 next
   case (ev\<^sub>f_return \<C> p\<^sub>\<C> h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta> s\<^sub>f)
   then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s where S: "h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> 

@@ -190,6 +190,9 @@ proof (induction \<Sigma>\<^sub>v \<Sigma>\<^sub>v' rule: eval\<^sub>v.induct)
     by (simp add: C)
   thus ?case by simp
 next
+  case (ev\<^sub>v_pushenv \<C> p\<^sub>\<C> \<Delta> v p\<^sub>\<Delta> \<Delta>' p\<^sub>\<Delta>' h \<V> s)
+  then show ?case by simp
+next
   case (ev\<^sub>v_jump \<C> p\<^sub>\<C> h\<^sub>v v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' \<Delta>\<^sub>v v\<^sub>1 \<Delta>\<^sub>v' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> s\<^sub>v)
   from ev\<^sub>v_jump have "chained_closures \<Delta>\<^sub>v h\<^sub>v \<and> hcontains h\<^sub>v v\<^sub>2" by simp
   with ev\<^sub>v_jump have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>')" by (metis hlookup_all)
@@ -296,6 +299,9 @@ next
   from ev\<^sub>h_apply P' H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
       S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V> ((Suc p\<^sub>\<Delta>'', p\<^sub>\<C>') # (p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v)" by simp
   with S SF P X show ?case by blast
+next
+  case (ev\<^sub>h_pushenv \<C> p h v \<V> \<Delta> s)
+  then show ?case by simp
 next
   case (ev\<^sub>h_return \<C> p\<^sub>\<C> h\<^sub>h \<V> \<Delta>\<^sub>h s\<^sub>h)
   then obtain h\<^sub>v \<Delta>\<^sub>v s\<^sub>v' where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> s\<^sub>v' \<and> h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> 
@@ -433,6 +439,9 @@ lemma eval_preserves_chained [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>v \<lead
 proof (induction \<Sigma>\<^sub>v \<Sigma>\<^sub>v' rule: eval\<^sub>v.induct)
   case (ev\<^sub>v_lookup \<C> p\<^sub>\<C> x \<Delta> p v h \<V> s)
   thus ?case by (cases p) auto
+next
+  case (ev\<^sub>v_pushenv \<C> p\<^sub>\<C> \<Delta> v p\<^sub>\<Delta> \<Delta>' p\<^sub>\<Delta>' h \<V> s)
+  then show ?case by simp
 qed auto
 
 lemma preserve_chained [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>v) \<Sigma>\<^sub>v \<Sigma>\<^sub>v' \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow> chained_state \<Sigma>\<^sub>v'"

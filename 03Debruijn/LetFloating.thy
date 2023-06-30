@@ -457,6 +457,6 @@ next
 qed
 
 lemma iter_correct\<^sub>f\<^sub>l [simp]: "iter (\<leadsto>\<^sub>d) e e' \<Longrightarrow> iter (\<leadsto>\<^sub>d) (float_lets e) (float_lets e')"
-  by simp
+  by (induction e e' rule: iter.induct) (simp, metis correctness\<^sub>f\<^sub>l iter_append)
 
 end

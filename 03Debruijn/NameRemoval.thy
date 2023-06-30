@@ -51,6 +51,9 @@ proof (induction e\<^sub>t arbitrary: y \<Phi>)
     from Lam\<^sub>s have "free_vars\<^sub>s e\<^sub>t \<subseteq> insert x (set (insert_at 0 z \<Phi>))" by auto
     with Lam\<^sub>s False X Y show ?thesis by simp
   qed (simp_all split: option.splits)
+next
+  case (Let\<^sub>s z e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2)
+  then show ?case by simp
 qed (auto split: option.splits)
 
 lemma unname_subst [simp]: "y \<le> length \<Phi> \<Longrightarrow> x \<notin> set \<Phi> \<Longrightarrow> free_vars\<^sub>s e\<^sub>t \<subseteq> insert x (set \<Phi>) \<Longrightarrow>
@@ -80,6 +83,9 @@ next
   with Z have "unname' (insert_at 0 ?z' (insert_at y x \<Phi>)) (subst_var\<^sub>s z ?z' e\<^sub>t) =
     unname' (insert_at 0 z (insert_at y x \<Phi>)) e\<^sub>t" by simp
   with 3 Z H show ?case by (simp add: Let_def)
+next
+  case (5 x e' y e\<^sub>1 e\<^sub>2)
+  then show ?case by simp
 qed simp_all
 
 text \<open>The unnaming operation ignores alpha-conversion, as we would expect.\<close>
@@ -94,6 +100,9 @@ proof (induction e\<^sub>t arbitrary: \<Phi> vs)
   hence X: "?x \<notin> vs \<union> all_vars\<^sub>s ?e" by (metis fresh_is_fresh)
   from Lam\<^sub>s have "free_vars\<^sub>s e\<^sub>t \<subseteq> insert x (set \<Phi>)" by auto
   with Lam\<^sub>s X show ?case by (simp add: Let_def)
+next
+  case (Let\<^sub>s x e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2)
+  then show ?case by simp
 qed simp_all
 
 text \<open>The unnaming operation is also typesafe. (We need the no-shadowing condition to make the 
@@ -123,6 +132,9 @@ next
   with tc\<^sub>t_app have "map (the \<circ> \<Gamma>) \<Phi> \<turnstile>\<^sub>d unname' \<Phi> e\<^sub>t\<^sub>2 : t\<^sub>1" by fastforce
   with T have "map (the \<circ> \<Gamma>) \<Phi> \<turnstile>\<^sub>d unname' \<Phi> (App\<^sub>s e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2) : t\<^sub>2" by simp
   thus ?case by blast
+next
+  case (tc\<^sub>t_let \<Gamma> e\<^sub>1 t\<^sub>1 x e\<^sub>2 t\<^sub>2)
+  then show ?case by simp
 qed simp_all
 
 text \<open>The full unnaming of closed terms operation follows immediately, and we can use it to prove 
@@ -171,6 +183,9 @@ proof (induction e\<^sub>t v\<^sub>s rule: eval\<^sub>s.induct)
   moreover from ev\<^sub>s_app have Y: "free_vars\<^sub>s v\<^sub>s\<^sub>2 \<subseteq> set []" by simp
   ultimately have "free_vars\<^sub>s (subst\<^sub>s x v\<^sub>s\<^sub>2 e\<^sub>t\<^sub>1') \<subseteq> set []" by (metis free_vars_subst)
   with ev\<^sub>s_app X Y show ?case by (simp add: unname_def)
+next
+  case (ev\<^sub>s_let e\<^sub>1 v\<^sub>1 x e\<^sub>2 v\<^sub>2)
+  then show ?case by simp
 qed (simp_all add: unname_def)
 
 lemma unname_to_app [dest]: "App\<^sub>d e\<^sub>d\<^sub>1 e\<^sub>d\<^sub>2 = unname e\<^sub>t \<Longrightarrow> 
@@ -211,6 +226,9 @@ next
   then obtain v\<^sub>t where "subst\<^sub>s x v\<^sub>t\<^sub>2 e\<^sub>t\<^sub>1' \<Down>\<^sub>s v\<^sub>t \<and> v\<^sub>d = unname v\<^sub>t" by fastforce
   with V1 X V2 have "App\<^sub>s e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2 \<Down>\<^sub>s v\<^sub>t \<and> v\<^sub>d = unname v\<^sub>t" by fastforce
   with E show ?case by fastforce
+next
+  case (bev\<^sub>d_let e\<^sub>1 v\<^sub>1 e\<^sub>2 v\<^sub>2)
+  then show ?case by simp
 qed
 
 text \<open>Now, finally, we can go back and finish the progress theorems for our typed and source 

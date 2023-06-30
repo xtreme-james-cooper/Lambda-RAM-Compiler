@@ -1,5 +1,5 @@
 theory TailCallOptimization
-  imports TreeCodeConversion "../00Utils/Iteration"
+  imports TreeCodeConversion "../00Utils/Iteration" "../03Debruijn/LetFloating"
 begin
 
 subsection \<open>Tail-Call Optimization\<close>
@@ -42,6 +42,7 @@ fun tco_code :: "code\<^sub>e list \<Rightarrow> code\<^sub>e list" where
   "tco_code [] = []"
 | "tco_code (Apply\<^sub>e # \<C>) = (if dead_code \<C> then [Jump\<^sub>e] else Apply\<^sub>e # tco_code \<C>)"
 | "tco_code (PushLam\<^sub>e \<C>' # \<C>) = PushLam\<^sub>e (tco_code \<C>') # tco_code \<C>"
+| "tco_code (PopEnv\<^sub>e # \<C>) = (if dead_code \<C> then [Return\<^sub>e] else PopEnv\<^sub>e # tco_code \<C>)"
 | "tco_code (op # \<C>) = op # tco_code \<C>"
 
 primrec tco_val :: "closure\<^sub>e \<Rightarrow> closure\<^sub>e" where
@@ -57,10 +58,10 @@ abbreviation tco_stack :: "frame\<^sub>e list \<Rightarrow> frame\<^sub>e list" 
 primrec tco_state :: "state\<^sub>e \<Rightarrow> state\<^sub>e" where
   "tco_state (S\<^sub>e \<V> s) = S\<^sub>e (map tco_val \<V>) (tco_stack s)"
 
-lemma tco_to_empty [simp]: "(tco_code \<C> = []) = (\<C> = [])"
-  by (induction \<C> rule: tco_code.induct) simp_all
+lemma tco_empty [simp]: "(tco_code \<C> = []) = (\<C> = [])"
+  by (induction \<C> rule: dead_code.induct) simp_all
 
-lemma tco_to_return [simp]: "dead_code (tco_code \<C>) = dead_code \<C>"
+lemma tco_to_dead_code [simp]: "dead_code (tco_code \<C>) = dead_code \<C>"
   by (induction \<C> rule: tco_code.induct) simp_all
 
 lemma tco_to_dead_frame [simp]: "dead_frame (\<Delta>, tco_code \<C>) = dead_code \<C>"
@@ -70,10 +71,7 @@ lemma tco_frame_to_dead_frame [simp]: "dead_frame (tco_frame f) = dead_frame f"
   by (induction f) simp_all
 
 lemma tco_to_dead_frame_apply [simp]: "dead_frame (map tco_val \<Delta>, tco_code (Apply\<^sub>e # \<C>)) = False"
-proof (induction \<C> rule: tco_code.induct)
-  case ("4_3" \<C>)
-  thus ?case by (cases \<C>) simp_all
-qed simp_all
+  by (induction \<C> rule: tco_code.induct) simp_all
 
 lemma dead_code_terminated [simp]: "dead_code \<C> \<Longrightarrow> properly_terminated\<^sub>e \<C>"
   by (induction \<C> rule: dead_code.induct) simp_all
@@ -107,12 +105,13 @@ theorem tco_always_smaller_stack [simp]: "
   by (induction \<Sigma>) simp_all
 
 text \<open>Correctness is the easier proof for this pass. First off, we need some auxiliary functions to 
-express that no \<open>PushLam\<^sub>e\<close> contains code for a dead frame, and every return is a \<open>Return\<^sub>e\<close> (as will
-always be the case, pre-optimization).\<close>
+express that no \<open>PushLam\<^sub>e\<close> contains code for a dead frame, that all \<open>PopEnv\<^sub>e\<close>s precede a \<open>Return\<^sub>e\<close>, 
+and that every return is a \<open>Return\<^sub>e\<close> (as will always be the case, pre-optimization).\<close>
 
 fun complete_lams :: "code\<^sub>e list \<Rightarrow> bool" where
   "complete_lams [] = False"
 | "complete_lams (PushLam\<^sub>e \<C>' # \<C>) = (\<not> dead_code \<C>' \<and> complete_lams \<C>' \<and> complete_lams \<C>)"
+| "complete_lams (PopEnv\<^sub>e # \<C>) = dead_code \<C>"
 | "complete_lams (Return\<^sub>e # \<C>) = (\<C> = [])"
 | "complete_lams (Jump\<^sub>e # \<C>) = False"
 | "complete_lams (op # \<C>) = complete_lams \<C>"
@@ -127,23 +126,24 @@ fun complete_lams_frame :: "frame\<^sub>e \<Rightarrow> bool" where
 primrec complete_lams_state :: "state\<^sub>e \<Rightarrow> bool" where
   "complete_lams_state (S\<^sub>e \<V> s) = (list_all complete_lams_val \<V> \<and> list_all complete_lams_frame s)"
 
-lemma complete_lams_apply [simp]: "complete_lams (e @ [Apply\<^sub>e, Return\<^sub>e]) = 
-    complete_lams (e @ [Return\<^sub>e])"
-  by (induction e rule: complete_lams.induct) simp_all
+lemma encode_not_dead [simp]: "\<not> dead_code (encode' e @ \<C>)"
+  by (induction e arbitrary: \<C>) simp_all
 
-lemma complete_lams_append [simp]: "complete_lams (e\<^sub>1 @ [Return\<^sub>e]) \<Longrightarrow> 
-    complete_lams (e\<^sub>2 @ [Return\<^sub>e]) \<Longrightarrow> complete_lams (e\<^sub>1 @ e\<^sub>2 @ [Apply\<^sub>e, Return\<^sub>e])"
-  by (induction e\<^sub>1 rule: complete_lams.induct) simp_all
+lemma dead_code_complete [simp]: "dead_code \<C> \<Longrightarrow> complete_lams \<C>"
+  by (induction \<C> rule: dead_code.induct) simp_all
 
-lemma encode_complete_lams [simp]: "complete_lams (encode e)"
-  by (induction e) (auto simp add: encode_def)
+lemma complete_lams_encode' [simp]: "let_floated e \<Longrightarrow> let_free e \<or> dead_code \<C> \<Longrightarrow> 
+    complete_lams (encode' e @ \<C>) = complete_lams \<C>"
+  by (induction e arbitrary: \<C>) simp_all
+
+lemma complete_lams_encode [simp]: "let_floated e \<Longrightarrow> complete_lams (encode e)"
+  by (simp add: encode_def)
 
 lemma eval_complete_lams [simp]: "\<Sigma> \<leadsto>\<^sub>e \<Sigma>' \<Longrightarrow> complete_lams_state \<Sigma> \<Longrightarrow> complete_lams_state \<Sigma>'"
   by (induction \<Sigma> \<Sigma>' rule: eval\<^sub>e.induct) (auto split: if_splits)
 
-lemma tco_not_to_jump [simp]: "\<C> \<noteq> [Return\<^sub>e] \<Longrightarrow> complete_lams \<C> \<Longrightarrow> 
-    tco_code (Apply\<^sub>e # \<C>) = Apply\<^sub>e # tco_code \<C>"
-  by (induction \<C> rule: tco_code.induct) simp_all
+lemma tco_dead_code [simp]: "dead_code \<C> \<Longrightarrow> tco_code \<C> = [Return\<^sub>e]"
+  by (induction \<C> rule: dead_code.induct) simp_all
 
 text \<open>The \<open>iter (\<leadsto>\<^sub>e)\<close> in correctness is unusual, in that it doesn't merely mean one-or-more 
 evaluation steps, or zero-or-one, but either: clearing a dead stack frame incorporates an extra step 
@@ -157,7 +157,7 @@ theorem correctness\<^sub>t\<^sub>c\<^sub>o: "\<Sigma> \<leadsto>\<^sub>e \<Sigm
 proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>e.induct)
   case (ev\<^sub>e_lookup \<Delta> x v \<V> \<C> s)
   thus ?case
-  proof (cases "\<C> = [Return\<^sub>e]")
+  proof (cases "dead_code \<C>")
     case True
     with ev\<^sub>e_lookup have  "
       S\<^sub>e (tco_val v # map tco_val \<V>) ((map tco_val \<Delta>, tco_code \<C>) # tco_stack s) \<leadsto>\<^sub>e
@@ -179,7 +179,7 @@ proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>e.induct)
 next
   case (ev\<^sub>e_pushcon \<V> \<Delta> n \<C> s)
   thus ?case
-  proof (cases "\<C> = [Return\<^sub>e]")
+  proof (cases "dead_code \<C>")
     case True
     with ev\<^sub>e_pushcon have "
       S\<^sub>e (Const\<^sub>e n # map tco_val \<V>) ((map tco_val \<Delta>, tco_code \<C>) # tco_stack s) \<leadsto>\<^sub>e 
@@ -202,7 +202,7 @@ next
 next
   case (ev\<^sub>e_pushlam \<V> \<Delta> \<C>' \<C> s)
   thus ?case
-  proof (cases "\<C> = [Return\<^sub>e]")
+  proof (cases "dead_code \<C>")
     case True
     with ev\<^sub>e_pushlam have "S\<^sub>e (Lam\<^sub>e (map tco_val \<Delta>) (tco_code \<C>') # map tco_val \<V>) 
       ((map tco_val \<Delta>, tco_code \<C>) # tco_stack s) \<leadsto>\<^sub>e 
@@ -227,7 +227,7 @@ next
 next
   case (ev\<^sub>e_apply v \<Delta>' \<C>' \<V> \<Delta> \<C> s)
   thus ?case
-  proof (cases "\<C> = [Return\<^sub>e]")
+  proof (cases "dead_code \<C>")
     case True
     with ev\<^sub>e_apply have "tco_state (S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' # \<V>) ((\<Delta>, Apply\<^sub>e # \<C>) # s)) \<leadsto>\<^sub>e
       tco_state (S\<^sub>e \<V> ((v # \<Delta>', \<C>') # (\<Delta>, \<C>) # s))" by simp
@@ -238,6 +238,41 @@ next
       tco_state (S\<^sub>e \<V> ((v # \<Delta>', \<C>') # (\<Delta>, \<C>) # s))" by simp
     thus ?thesis by (metis iter_one)
   qed
+next
+  case (ev\<^sub>e_pushenv v \<V> \<Delta> \<C> s)
+  thus ?case
+  proof (cases "dead_code \<C>")
+    case True
+    have "S\<^sub>e (tco_val v # map tco_val \<V>) ((map tco_val \<Delta>, [PushEnv\<^sub>e, Return\<^sub>e]) # tco_stack s) \<leadsto>\<^sub>e 
+      S\<^sub>e (map tco_val \<V>) ((tco_val v # map tco_val \<Delta>, [Return\<^sub>e]) # tco_stack s)" by simp
+    moreover have "S\<^sub>e (map tco_val \<V>) ((tco_val v # map tco_val \<Delta>, [Return\<^sub>e]) # tco_stack s) \<leadsto>\<^sub>e
+      (S\<^sub>e (map tco_val \<V>) (tco_stack s))" by simp
+    ultimately have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (tco_val v # map tco_val \<V>) 
+      ((map tco_val \<Delta>, [PushEnv\<^sub>e, Return\<^sub>e]) # tco_stack s))
+        (S\<^sub>e (map tco_val \<V>) (tco_stack s))" by (metis (no_types, lifting) iter_step iter_refl)
+    with True show ?thesis by simp
+  next
+    case False
+    have "S\<^sub>e (tco_val v # map tco_val \<V>) ((map tco_val \<Delta>, PushEnv\<^sub>e # tco_code \<C>) # tco_stack s) \<leadsto>\<^sub>e 
+      S\<^sub>e (map tco_val \<V>) ((tco_val v # map tco_val \<Delta>, tco_code \<C>) # tco_stack s)" by simp
+    hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e (tco_val v # map tco_val \<V>) 
+      ((map tco_val \<Delta>, PushEnv\<^sub>e # tco_code \<C>) # tco_stack s))
+        (S\<^sub>e (map tco_val \<V>) ((tco_val v # map tco_val \<Delta>, tco_code \<C>) # tco_stack s))" 
+      by (metis iter_one)
+    with False show ?thesis by simp
+  qed
+next
+  case (ev\<^sub>e_popenv \<V> v \<Delta> \<C> s)
+  thus ?case
+  proof (cases "dead_code \<C>")
+    case False
+    have "S\<^sub>e (map tco_val \<V>) ((tco_val v # map tco_val \<Delta>, PopEnv\<^sub>e # tco_code \<C>) # tco_stack s) \<leadsto>\<^sub>e
+      S\<^sub>e (map tco_val \<V>) ((map tco_val \<Delta>, tco_code \<C>) # tco_stack s)" by simp
+    hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e (map tco_val \<V>) ((tco_val v # map tco_val \<Delta>, PopEnv\<^sub>e # tco_code \<C>) # 
+      tco_stack s)) (S\<^sub>e (map tco_val \<V>) ((map tco_val \<Delta>, tco_code \<C>) # tco_stack s))" 
+        by (metis iter_one)
+    with False show ?thesis by simp
+  qed simp_all
 qed simp_all
 
 lemma correctness\<^sub>t\<^sub>c\<^sub>o_iter: "iter (\<leadsto>\<^sub>e) \<Sigma> \<Sigma>' \<Longrightarrow> complete_lams_state \<Sigma> \<Longrightarrow> 

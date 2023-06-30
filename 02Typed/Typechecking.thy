@@ -30,10 +30,14 @@ primrec typecheck' :: "subst \<Rightarrow> var set \<Rightarrow> 'a expr\<^sub>s
     in let (e\<^sub>u\<^sub>1, \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1) = typecheck' \<Gamma> (insert v vs) e\<^sub>1 
     in let (e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2) = typecheck' \<Gamma> (insert v (vs \<union> vs\<^sub>1)) e\<^sub>2 
     in (App\<^sub>s e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2, Var v, insert v (vs\<^sub>1 \<union> vs\<^sub>2), \<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var v))]))"
+| "typecheck' \<Gamma> vs (Let\<^sub>s x e\<^sub>1 e\<^sub>2) = (
+    let (e\<^sub>u\<^sub>1, \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1) = typecheck' \<Gamma> vs e\<^sub>1 
+    in let (e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2) = typecheck' (\<Gamma>(x \<mapsto> \<tau>\<^sub>1)) (vs \<union> vs\<^sub>1) e\<^sub>2 
+    in (Let\<^sub>s x e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>1 \<union> vs\<^sub>2, \<kappa>\<^sub>1 @ \<kappa>\<^sub>2))"
 
 text \<open>As with the unification algorithm, we create an induction method tailored to \<open>typecheck'\<close>.\<close>
 
-lemma typecheck_induct [consumes 1, case_names Var\<^sub>sS Var\<^sub>sN Const\<^sub>s Lam\<^sub>s App\<^sub>s]: "
+lemma typecheck_induct [consumes 1, case_names Var\<^sub>sS Var\<^sub>sN Const\<^sub>s Lam\<^sub>s App\<^sub>s Let\<^sub>s]: "
   typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> 
   (\<And>\<Gamma> vs x \<tau>. \<Gamma> x = Some \<tau> \<Longrightarrow> P \<Gamma> vs (Var\<^sub>s x) (Var\<^sub>s x) \<tau> {} []) \<Longrightarrow> 
   (\<And>\<Gamma> vs x. \<Gamma> x = None \<Longrightarrow> P \<Gamma> vs (Var\<^sub>s x) (Var\<^sub>s x) Num\<^sub>\<tau> {} fail) \<Longrightarrow> 
@@ -49,6 +53,12 @@ lemma typecheck_induct [consumes 1, case_names Var\<^sub>sS Var\<^sub>sN Const\<
     P \<Gamma> (insert v (vs \<union> vs\<^sub>1)) e\<^sub>s\<^sub>2 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2 \<Longrightarrow>
     P \<Gamma> vs (App\<^sub>s e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2) (App\<^sub>s e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2) (Var v) (insert v (vs\<^sub>1 \<union> vs\<^sub>2)) 
       (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(\<tau>\<^sub>1, Arrow\<^sub>\<tau> \<tau>\<^sub>2 (Var v))])) \<Longrightarrow> 
+  (\<And>\<Gamma> vs e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2 x e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2. 
+    typecheck' \<Gamma> vs e\<^sub>s\<^sub>1 = (e\<^sub>u\<^sub>1, \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1) \<Longrightarrow> 
+    typecheck' (\<Gamma>(x \<mapsto> \<tau>\<^sub>1)) (vs \<union> vs\<^sub>1) e\<^sub>s\<^sub>2 = (e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2) \<Longrightarrow> 
+    P \<Gamma> vs e\<^sub>s\<^sub>1 e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 \<Longrightarrow> 
+    P (\<Gamma>(x \<mapsto> \<tau>\<^sub>1)) (vs \<union> vs\<^sub>1) e\<^sub>s\<^sub>2 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2 \<Longrightarrow>
+    P \<Gamma> vs (Let\<^sub>s x e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2) (Let\<^sub>s x e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2) \<tau>\<^sub>2 (vs\<^sub>1 \<union> vs\<^sub>2) (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2)) \<Longrightarrow> 
   P \<Gamma> vs e\<^sub>s e\<^sub>u \<tau> vs' \<kappa>"
   by (induction e\<^sub>s arbitrary: \<Gamma> vs e\<^sub>u \<tau> vs' \<kappa>) 
      (auto simp add: Let_def split: option.splits prod.splits)
@@ -59,7 +69,11 @@ lemma typecheck_to_valid_type [elim]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^s
 
 lemma typecheck_to_valid_expr [elim]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> 
     valid_ty_subst \<Gamma> \<Longrightarrow> valid_ty_expr e\<^sub>u"
-  by (induction rule: typecheck_induct) simp_all
+proof (induction rule: typecheck_induct) 
+  case (Let\<^sub>s \<Gamma> vs e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2 x e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2)
+  moreover hence "valid_ty_term \<tau>\<^sub>1" by auto
+  ultimately show ?case by simp
+qed simp_all
 
 lemma typecheck_erase [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> erase e\<^sub>u = e\<^sub>s"
   by (induction rule: typecheck_induct) simp_all
@@ -73,6 +87,12 @@ can only be applied to numbers, however: the expression
 \<open>App\<^sub>s (Lam\<^sub>s x () (Var\<^sub>s x)) (Lam\<^sub>s x () (Var\<^sub>s x))\<close> will be given the overall type \<open>Arrow Num Num\<close> as 
 well, with the first lambda subexpression typed as \<open>Arrow (Arrow Num Num) (Arrow Num Num)\<close>. It is 
 only when the final unifiable type term is converted to a proper type that we specialize to \<open>Num\<close>s.\<close>
+
+text \<open>This does, however, lead us to omit an important part of traditional strongly-typed functional 
+languages, "let-polymorphism". Specifically, in the expression \<open>Let\<^sub>s x e\<^sub>1 (... x ... x...)\<close>, each 
+occurrence of x must have the _same_ simple type, whereas a real language would make x polymorphic 
+over \<open>e\<^sub>1\<close>'s free type variables and thus allow it to be _instantiated_ to different simple types as 
+needed. We omit this purely for simplicity.\<close>
 
 fun typecheck :: "unit expr\<^sub>s \<rightharpoonup> ty expr\<^sub>s \<times> ty" where
   "typecheck e\<^sub>s = (
@@ -116,6 +136,9 @@ next
   with T X have "map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma> \<turnstile>\<^sub>t 
     map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) (App\<^sub>s e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2)) : to_type (subst \<sigma> (Var v))" by simp
   thus ?case by blast
+next
+  case (Let\<^sub>s \<Gamma> vs e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2 x e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2)
+  then show ?case by simp
 qed simp_all
 
 theorem typecheck_success [simp]: "typecheck e\<^sub>s = Some (e\<^sub>t, t) \<Longrightarrow> 
@@ -190,6 +213,9 @@ proof (induction rule: typecheck_induct)
   ultimately have "uvars \<tau>\<^sub>1 \<subseteq> insert v (vs\<^sub>1 \<union> vs\<^sub>2 \<union> subst_vars \<Gamma>) \<and> 
     uvars \<tau>\<^sub>2 \<subseteq> insert v (vs\<^sub>1 \<union> vs\<^sub>2 \<union> subst_vars \<Gamma>)" by auto
   with App\<^sub>s show ?case by auto
+next
+  case (Let\<^sub>s \<Gamma> vs e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2 x e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2)
+  then show ?case by simp
 qed auto
 
 lemma typecheck_constr_in_old_vars [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> x \<in> vs \<Longrightarrow> 
@@ -280,6 +306,9 @@ next
     (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u, subst [y \<mapsto> \<tau>'] \<tau>, vs', constr_subst y \<tau>' \<kappa>)" 
       by (simp add: Let_def)
   thus ?case by blast
+next
+  case (Let\<^sub>s x e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2)
+  then show ?case by simp
 qed auto
 
 text \<open>Now, the big one. If an expression is well-typed, then there is an (idempotent, well-formed) 
@@ -465,6 +494,9 @@ next
   from S1 S2 DSS VVS D3 have G: "idempotent ?\<sigma>" by simp
   from S1 S2 have "valid_ty_subst ?\<sigma>" by simp
   with E A B C D F G show ?case by blast
+next
+  case (tc\<^sub>t_let e\<^sub>1 t\<^sub>1 x e\<^sub>2 t\<^sub>2)
+  then show ?case by simp
 qed auto
 
 text \<open>With \<open>typecheck_finds_subst\<close> in hand, our failure case is now quite simple:\<close>

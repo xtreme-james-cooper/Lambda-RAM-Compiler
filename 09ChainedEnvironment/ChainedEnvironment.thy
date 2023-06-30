@@ -56,6 +56,8 @@ inductive eval\<^sub>v :: "code\<^sub>b list \<Rightarrow> state\<^sub>v \<Right
 | ev\<^sub>v_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' \<Longrightarrow>
     halloc \<Delta> (v\<^sub>1, p\<^sub>\<Delta>') = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>v h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta>' \<V> ((Suc p\<^sub>\<Delta>'', p\<^sub>\<C>') # (p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"
+| ev\<^sub>v_pushenv [simp]: "lookup \<C> p\<^sub>\<C> = Some PushEnv\<^sub>b \<Longrightarrow> halloc \<Delta> (v, p\<^sub>\<Delta>) = (\<Delta>', p\<^sub>\<Delta>') \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>v h \<Delta> (v # \<V>) ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta>' \<V> ((p\<^sub>\<Delta>', p\<^sub>\<C>) # s)"
 | ev\<^sub>v_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta> \<V> s"
 | ev\<^sub>v_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' \<Longrightarrow>
@@ -75,6 +77,9 @@ next
 next
   case ev\<^sub>v_apply
   from ev\<^sub>v_apply(4, 1, 2, 3) show ?case by (induction rule: eval\<^sub>v.cases) simp_all 
+next
+  case ev\<^sub>v_pushenv
+  from ev\<^sub>v_pushenv(3, 1, 2) show ?case by (induction rule: eval\<^sub>v.cases) simp_all 
 next
   case ev\<^sub>v_return
   from ev\<^sub>v_return(2, 1) show ?case by (induction rule: eval\<^sub>v.cases) simp_all 

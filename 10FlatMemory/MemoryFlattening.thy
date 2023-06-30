@@ -233,6 +233,9 @@ next
     S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', p\<^sub>\<C>') # (p\<^sub>\<Delta>\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)" by simp
   with S X show ?case by blast
 next
+  case (ev\<^sub>f_pushenv \<C> p\<^sub>\<C> \<Delta> v p\<^sub>\<Delta> \<Delta>' p\<^sub>\<Delta>' h \<V> s)
+  then show ?case by simp
+next
   case (ev\<^sub>f_return \<C> p\<^sub>\<C> h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
   then obtain h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v p\<^sub>\<Delta>\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
     h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> 

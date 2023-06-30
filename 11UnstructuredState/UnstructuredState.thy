@@ -40,6 +40,10 @@ inductive eval\<^sub>r :: "code\<^sub>b list \<Rightarrow> state\<^sub>r \<Right
     \<C> \<tturnstile> S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> (Suc (Suc b\<^sub>\<V>)) s (Suc b\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
       S\<^sub>r h b\<^sub>h (\<Delta>(b\<^sub>\<Delta> := \<V> (Suc b\<^sub>\<V>), Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>)) (2 + b\<^sub>\<Delta>) \<V> b\<^sub>\<V>
         (s(Suc b\<^sub>s := p\<^sub>\<C>, Suc (Suc b\<^sub>s) := Suc (Suc b\<^sub>\<Delta>))) (2 + Suc b\<^sub>s) p\<^sub>\<C>'"
+| ev\<^sub>r_pushenv [simp]: "lookup \<C> p\<^sub>\<C> = Some PushEnv\<^sub>b \<Longrightarrow>
+    \<C> \<tturnstile> S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> (Suc b\<^sub>\<V>) s (Suc b\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
+      S\<^sub>r h b\<^sub>h (\<Delta>(b\<^sub>\<Delta> := \<V> b\<^sub>\<V>, Suc b\<^sub>\<Delta> := s b\<^sub>s)) (Suc (Suc b\<^sub>\<Delta>)) \<V> b\<^sub>\<V> 
+        (s(b\<^sub>s := Suc (Suc b\<^sub>\<Delta>))) (Suc b\<^sub>s) p\<^sub>\<C>"
 | ev\<^sub>r_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s (s b\<^sub>s)"
 | ev\<^sub>r_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> h (\<V> b\<^sub>\<V>) = (PEnv, p\<^sub>\<Delta>) \<Longrightarrow> 
@@ -62,6 +66,9 @@ next
 next
   case ev\<^sub>r_apply
   from ev\<^sub>r_apply(4, 1, 2, 3) show ?case by (induction rule: eval\<^sub>r.cases) simp_all
+next
+  case ev\<^sub>r_pushenv
+  from ev\<^sub>r_pushenv(2, 1) show ?case by (induction rule: eval\<^sub>r.cases) simp_all
 next
   case ev\<^sub>r_return
   from ev\<^sub>r_return(2, 1) show ?case by (induction rule: eval\<^sub>r.cases) simp_all
