@@ -15,7 +15,7 @@ text \<open>Our processor has five registers, one each for the stack pointers fo
 environment heap, value stack, and callstack, and one as an accumulator. It also has a special 
 register for the code-pointer, and an infinite natural-indexed memory.\<close>
 
-text \<open>For this stage, in order to ease the already quite-involved conversion, we imbue the processor 
+text \<open>For this stage, in order to ease the already quite involved conversion, we imbue the processor 
 with a little more structure. We tag each memory cell and register with a memory segment, to say 
 what kind of pointer lives in it. (\<open>Acc\<close> stands for non-pointers; the tag for all registers except 
 \<open>Acc\<close> will be the same as the register itself, but the uniformity of tagging all of them simplifies 
@@ -31,8 +31,8 @@ text \<open>We have a small, RISC-like (not to say minimalistic) set of operatio
 can do simple arithmetic on the registers; we can move values between registers, and load and store 
 into memory; and we can jump, to a static address or indirectly to an address in a register. We will
 not need all of even this small set of functionality (we never add or subtract a non-constant, or 
-make a direct jump, for instance) but we include it to make the processor plausible and for future 
-expansion of the source language.\<close>
+make a direct jump, for instance) but we include it to make the processor a little more plausible 
+and for future expansion of the source language.\<close>
 
 text \<open>In our assembler, we allow ourselves some liberties with the opcodes. The operate-on-register/
 operate-on-constant opcodes are collapsed into a single assembly operation; and the move/load/store 

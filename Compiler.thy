@@ -20,6 +20,10 @@ primrec quick_convert :: "var set \<Rightarrow> unit expr\<^sub>s \<Rightarrow> 
     in let (e\<^sub>1', vs') = quick_convert (insert v vs) e\<^sub>1 
     in let (e\<^sub>2', vs'') = quick_convert (insert v (vs \<union> vs')) e\<^sub>2 
     in (App\<^sub>s e\<^sub>1' e\<^sub>2', insert v (vs' \<union> vs'')))"
+| "quick_convert vs (Let\<^sub>s x e\<^sub>1 e\<^sub>2) = (
+    let (e\<^sub>1', vs') = quick_convert vs e\<^sub>1 
+    in let (e\<^sub>2', vs'') = quick_convert (vs \<union> vs') e\<^sub>2 
+    in (Let\<^sub>s x e\<^sub>1' e\<^sub>2', (vs' \<union> vs'')))"
 
 primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> unit expr\<^sub>s \<Rightarrow> uterm \<times> var set \<times> constraint" where
   "collect_constraints \<Gamma> vs (Var\<^sub>s x) = (case \<Gamma> x of 
@@ -35,6 +39,10 @@ primrec collect_constraints :: "subst \<Rightarrow> var set \<Rightarrow> unit e
     in let (t\<^sub>1, vs', con\<^sub>1) = collect_constraints \<Gamma> (insert v vs) e\<^sub>1 
     in let (t\<^sub>2, vs'', con\<^sub>2) = collect_constraints \<Gamma> (insert v (vs \<union> vs')) e\<^sub>2 
     in (Var v, insert v (vs' \<union> vs''), con\<^sub>1 @ con\<^sub>2 @ [(t\<^sub>1, Arrow\<^sub>\<tau> t\<^sub>2 (Var v))]))"
+| "collect_constraints \<Gamma> vs (Let\<^sub>s x e\<^sub>1 e\<^sub>2) = (
+    let (t\<^sub>1, vs', con\<^sub>1) = collect_constraints \<Gamma> vs e\<^sub>1 
+    in let (t\<^sub>2, vs'', con\<^sub>2) = collect_constraints \<Gamma> (vs \<union> vs') e\<^sub>2 
+    in (t\<^sub>2, (vs' \<union> vs''), con\<^sub>1 @ con\<^sub>2))"
 
 fun tree_code_size :: "code\<^sub>e \<Rightarrow> nat"
 and tree_code_size_list :: "code\<^sub>e list \<Rightarrow> nat" where
@@ -42,6 +50,8 @@ and tree_code_size_list :: "code\<^sub>e list \<Rightarrow> nat" where
 | "tree_code_size (PushCon\<^sub>e k) = 0"
 | "tree_code_size (PushLam\<^sub>e cd) = tree_code_size_list cd"
 | "tree_code_size Apply\<^sub>e = 0"
+| "tree_code_size PushEnv\<^sub>e = 0"
+| "tree_code_size PopEnv\<^sub>e = 0"
 | "tree_code_size Return\<^sub>e = 0"
 | "tree_code_size Jump\<^sub>e = 0"
 | "tree_code_size_list [] = 0"
@@ -56,6 +66,8 @@ primrec alg_compile1 :: "var list \<Rightarrow> unit expr\<^sub>s \<Rightarrow> 
 | "alg_compile1 \<Phi> (Const\<^sub>s k) acc = PushCon\<^sub>e k # acc"
 | "alg_compile1 \<Phi> (Lam\<^sub>s x u e) acc = PushLam\<^sub>e (alg_compile1 (insert_at 0 x \<Phi>) e [Return\<^sub>e]) # acc"
 | "alg_compile1 \<Phi> (App\<^sub>s e\<^sub>1 e\<^sub>2) acc = alg_compile1 \<Phi> e\<^sub>1 (alg_compile1 \<Phi> e\<^sub>2 (Apply\<^sub>e # acc))"
+| "alg_compile1 \<Phi> (Let\<^sub>s x e\<^sub>1 e\<^sub>2) acc = 
+    alg_compile1 \<Phi> e\<^sub>1 (PushEnv\<^sub>e # alg_compile1 (insert_at 0 x \<Phi>) e\<^sub>2 (PopEnv\<^sub>e # acc))"
 
 function alg_compile2 :: "nat \<Rightarrow> code\<^sub>e list \<Rightarrow> code\<^sub>b list \<Rightarrow> code\<^sub>b list" where
   "alg_compile2 lib [] acc = acc"
@@ -70,6 +82,8 @@ function alg_compile2 :: "nat \<Rightarrow> code\<^sub>e list \<Rightarrow> code
     if op = Return\<^sub>e 
     then alg_compile2 lib cd (Jump\<^sub>b # acc)
     else alg_compile2 lib (op # cd) (Apply\<^sub>b # acc))"
+| "alg_compile2 lib (PushEnv\<^sub>e # cd) acc = alg_compile2 lib cd (PushEnv\<^sub>b # acc)"
+| "alg_compile2 lib (PopEnv\<^sub>e # cd) acc = alg_compile2 lib cd acc"
 | "alg_compile2 lib (Return\<^sub>e # cd) acc = alg_compile2 lib cd (Return\<^sub>b # acc)"
 | "alg_compile2 lib (Jump\<^sub>e # cd) acc = alg_compile2 lib cd (Jump\<^sub>b # acc)"
   by pat_completeness auto
@@ -83,6 +97,7 @@ fun assembly_mapb :: "code\<^sub>b list \<Rightarrow> nat \<Rightarrow> nat" whe
 | "assembly_mapb (PushCon\<^sub>b k # cd) (Suc x) = 6 + assembly_mapb cd x"
 | "assembly_mapb (PushLam\<^sub>b pc # cd) (Suc x) = 10 + assembly_mapb cd x"
 | "assembly_mapb (Apply\<^sub>b # cd) (Suc x) = 21 + assembly_mapb cd x"
+| "assembly_mapb (PushEnv\<^sub>b # cd) (Suc x) = 14 + assembly_mapb cd x"
 | "assembly_mapb (Return\<^sub>b # cd) (Suc x) = 6 + assembly_mapb cd x"
 | "assembly_mapb (Jump\<^sub>b # cd) (Suc x) = 20 + assembly_mapb cd x"
 
@@ -104,6 +119,10 @@ fun alg_assemble :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> cod
     [JMP R5, LOD R5 R5, ADDI R5 4, STOI R3 0, LOD R5 R3, ADDI R2 4, STO R2 R5, LOD R5 R5, LOD R5 R3, 
       SUBI R3 4, ADDI R4 4, STO R4 R5, ADDI R5 4, MOV R5 R2, ADDI R4 4, STOI R4 (mp ix), ADDI R2 4, 
       STO R2 R5, STOI R3 0, LOD R5 R3, SUBI R3 4] @ 
+      alg_assemble mp (Suc ix) cd"
+| "alg_assemble mp ix (PushEnv\<^sub>b # cd) = 
+    [LODI R5 0, ADDI R4 4, STO R4 R5, SUBI R5 8, MOV R5 R2, ADDI R2 4, STO R2 R5, LOD R5 R4, 
+      SUBI R4 4, ADDI R2 4, STO R2 R5, STOI R3 0, LOD R5 R3, SUBI R3 4] @ 
       alg_assemble mp (Suc ix) cd"
 | "alg_assemble mp ix (Return\<^sub>b # cd) = 
     [JMP R5, STOI R4 0, LOD R5 R4, SUBI R4 4, STOI R4 0, SUBI R4 4] @ 
@@ -154,8 +173,14 @@ lemma [simp]: "tree_code_size_list cd = code_list_size (tco_code cd)"
 
 lemma [simp]: "alg_compile2 lib cd acc = flatten_code' lib (tco_code cd) @ acc"
 proof (induction lib cd acc rule: alg_compile2.induct)
+  case (4 lib cd' cd acc)
+  then show ?case by simp
+next
   case (6 lib op cd acc)
   thus ?case by (induction op) simp_all
+next
+  case (8 lib cd acc)
+  then show ?case by simp
 qed simp_all
 
 lemma alg_assemble_simp [simp]: "alg_assemble mp ix cd = 

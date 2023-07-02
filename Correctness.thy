@@ -23,6 +23,14 @@ lemma [simp]: "properly_terminated\<^sub>e (e1 @ [Return\<^sub>e]) \<Longrightar
     properly_terminated\<^sub>e (e1 @ e2 @ [Apply\<^sub>e, Return\<^sub>e])"
   by (induction e1 rule: properly_terminated\<^sub>e.induct) simp_all
 
+lemma [simp]: "properly_terminated\<^sub>e (cd @ [Return\<^sub>e]) \<Longrightarrow> 
+    properly_terminated\<^sub>e (cd @ [PopEnv\<^sub>e, Return\<^sub>e])"
+  by (induction cd rule: properly_terminated\<^sub>e.induct) simp_all
+
+lemma [simp]: "properly_terminated\<^sub>e (e1 @ [Return\<^sub>e]) \<Longrightarrow> properly_terminated\<^sub>e (e2 @ [Return\<^sub>e]) \<Longrightarrow>
+    properly_terminated\<^sub>e (e1 @ PushEnv\<^sub>e # e2 @ [PopEnv\<^sub>e, Return\<^sub>e])"
+  by (induction e1 rule: properly_terminated\<^sub>e.induct) simp_all
+
 lemma [simp]: "properly_terminated\<^sub>e (encode e)"
   by (induction e) (simp_all add: encode_def)
 

@@ -8,7 +8,7 @@ primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
 | "assemble_op_len (PushCon\<^sub>b k) = 5"
 | "assemble_op_len (PushLam\<^sub>b pc) = 9"
 | "assemble_op_len Apply\<^sub>b = 20"
-| "assemble_op_len PushEnv\<^sub>b = 2"
+| "assemble_op_len PushEnv\<^sub>b = 13"
 | "assemble_op_len Return\<^sub>b = 5"
 | "assemble_op_len Jump\<^sub>b = 19"
 
@@ -65,7 +65,21 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
     AMov (Mem Vals) (Con 0),
     AMov (Reg Acc) (Mem Vals),
     ASub Vals (Con 1)]"
-| "assemble_op mp ix PushEnv\<^sub>b = []"
+| "assemble_op mp ix PushEnv\<^sub>b = [
+    AMov (Reg Acc) (Con 0),
+    AAdd Stk (Con 1),
+    AMov (Mem Stk) (Reg Acc),
+    ASub Acc (Con 2),
+    AMov (Reg Acc) (Reg Env),
+    AAdd Env (Con 1),
+    AMov (Mem Env) (Reg Acc),
+    AMov (Reg Acc) (Mem Stk),
+    ASub Stk (Con 1),
+    AAdd Env (Con 1),
+    AMov (Mem Env) (Reg Acc),
+    AMov (Mem Vals) (Con 0),
+    AMov (Reg Acc) (Mem Vals),
+    ASub Vals (Con 1)]"
 | "assemble_op mp ix Return\<^sub>b = [
     AJmp (Reg Acc),
     AMov (Mem Stk) (Con 0),
@@ -363,6 +377,13 @@ proof (unfold assembleable_env_def assembleable_vals_def assembleable_heap_def,
     else (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) y < Suc (Suc p\<^sub>\<Delta>))" by auto
 qed
 
+lemma [simp]: "assembleable_heap h b\<^sub>h b\<^sub>\<Delta> (length \<C>) \<Longrightarrow>
+       assembleable_env \<Delta> b\<^sub>\<Delta> b\<^sub>h \<Longrightarrow>
+       assembleable_vals \<V> (Suc b\<^sub>\<V>) b\<^sub>h \<Longrightarrow>
+       assembleable_stack s (Suc b\<^sub>s) b\<^sub>\<Delta> (length \<C>) \<Longrightarrow>
+       odd b\<^sub>s \<Longrightarrow> assembleable_env (\<Delta>(b\<^sub>\<Delta> := \<V> b\<^sub>\<V>, Suc b\<^sub>\<Delta> := s b\<^sub>s)) (Suc (Suc b\<^sub>\<Delta>)) b\<^sub>h"
+  by simp
+
 lemma [simp]: "assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h \<Longrightarrow> 
     assembleable_vals (\<V>(p\<^sub>\<V> := k)) (Suc p\<^sub>\<V>) p\<^sub>h = (even p\<^sub>h \<and> k < p\<^sub>h \<and> even k)"
   by (auto simp add: assembleable_vals_def)
@@ -372,6 +393,9 @@ lemma [simp]: "assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h \<Longrightarrow>
   by (auto simp add: assembleable_vals_def)
 
 lemma [elim]: "assembleable_vals \<V> (Suc (Suc p\<^sub>\<V>)) p\<^sub>h \<Longrightarrow> assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h"
+  by (simp add: assembleable_vals_def)
+
+lemma [elim]: "assembleable_vals \<V> (Suc b\<^sub>\<V>) b\<^sub>h \<Longrightarrow> assembleable_vals \<V> b\<^sub>\<V> b\<^sub>h"
   by (simp add: assembleable_vals_def)
 
 lemma [elim]: "assembleable_stack s (Suc (Suc p\<^sub>s)) p\<^sub>\<Delta> lcd \<Longrightarrow>
@@ -505,6 +529,11 @@ qed
 lemma [elim]: "assembleable_stack s (Suc (Suc p\<^sub>s)) p\<^sub>\<Delta> lcd \<Longrightarrow> assembleable_stack s p\<^sub>s p\<^sub>\<Delta> lcd"
   by (unfold assembleable_stack_def, rule) simp
 
+lemma [elim]: "assembleable_heap h b\<^sub>h b\<^sub>\<Delta> lcd \<Longrightarrow> assembleable_env \<Delta> b\<^sub>\<Delta> b\<^sub>h \<Longrightarrow> 
+  assembleable_vals \<V> (Suc b\<^sub>\<V>) b\<^sub>h \<Longrightarrow> assembleable_stack s (Suc b\<^sub>s) b\<^sub>\<Delta> lcd \<Longrightarrow> odd b\<^sub>s \<Longrightarrow> 
+    assembleable_stack (s(b\<^sub>s := b\<^sub>\<Delta>)) (Suc b\<^sub>s) (Suc (Suc b\<^sub>\<Delta>)) lcd"
+  by (unfold assembleable_stack_def assembleable_vals_def assembleable_env_def assembleable_heap_def, rule) simp
+
 lemma preserve_restructure [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>r \<leadsto>\<^sub>r \<Sigma>\<^sub>r' \<Longrightarrow> assembleable \<Sigma>\<^sub>r \<C> \<Longrightarrow> 
     assembleable \<Sigma>\<^sub>r' \<C>"
   by (induction \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>r.induct) auto
@@ -537,12 +566,6 @@ proof (unfold assembleable_vals_def)
   hence "even hp \<and> even (vs vp) \<and> vs vp < hp" by simp
   thus ?thesis by fastforce
 qed
-
-
-
-
-
-
 
 lemma [simp]: "(assm_hp cd h hp)(hp := (Acc, a), Suc hp := (Acc, b)) = 
     assm_hp cd (h(hp := (PConst, a), Suc hp := (PConst, b))) (Suc (Suc hp))"
@@ -812,6 +835,41 @@ next
              split: prod.splits memseg.splits if_splits)
   thus ?case by auto
 next
+  case (ev\<^sub>r_pushenv \<C> p\<^sub>\<C> h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (13 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (ASub Vals (Con 1))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (12 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (AMov (Reg Acc) (Mem Vals))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (11 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (AMov (Mem Vals) (Con 0))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (10 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (AMov (Mem Env) (Reg Acc))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (9 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (AAdd Env (Con 1))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (8 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (ASub Stk (Con 1))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (7 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (AMov (Reg Acc) (Mem Stk))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (6 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (AMov (Mem Env) (Reg Acc))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (5 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (AAdd Env (Con 1))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (4 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (AMov (Reg Acc) (Reg Env))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (3 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (ASub Acc (Con 2))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (2 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (AMov (Mem Stk) (Reg Acc))" by (simp del: add_2_eq_Suc)
+  ultimately have "iter_eval\<^sub>a (assemble_code \<C>) 14 (S\<^sub>a (case_prod (case_memseg (assm_hp \<C> h b\<^sub>h) 
+    (assemble_env \<Delta> b\<^sub>\<Delta>) (assemble_vals \<V> (Suc b\<^sub>\<V>)) (assm_stk \<C> s (Suc b\<^sub>s)) undefined))
+      (case_memseg (Hp, b\<^sub>h) (Env, b\<^sub>\<Delta>) (Vals, Suc b\<^sub>\<V>) (Stk, Suc b\<^sub>s) (Acc, 0)) 
+        (assembly_map \<C> (Suc p\<^sub>\<C>))) = Some (S\<^sub>a (case_prod (case_memseg (assm_hp \<C> h b\<^sub>h) 
+          (assemble_env (\<Delta>(b\<^sub>\<Delta> := \<V> b\<^sub>\<V>, Suc b\<^sub>\<Delta> := s b\<^sub>s)) (Suc (Suc b\<^sub>\<Delta>))) (assemble_vals \<V> b\<^sub>\<V>) 
+            (assm_stk \<C> (s(b\<^sub>s := b\<^sub>\<Delta>)) (Suc b\<^sub>s)) undefined)) (case_memseg (Hp, b\<^sub>h) (Env, Suc (Suc b\<^sub>\<Delta>)) 
+              (Vals, b\<^sub>\<V>) (Stk, Suc b\<^sub>s) (Acc, 0)) (assembly_map \<C> p\<^sub>\<C>))"
+    by (auto simp add: numeral_def assemble_stack_def split: prod.splits memseg.splits)
+  thus ?case by auto
+next
   case (ev\<^sub>r_return cd pc h hp e ep vs vp sh sp)
   moreover from ev\<^sub>r_return have "lookup (assemble_code cd) (5 + assembly_map cd pc) = 
     Some (ASub Stk (Con 1))" by simp
@@ -929,6 +987,13 @@ lemma assembly_map_flatten' [simp]: "properly_terminated\<^sub>e cd \<Longrighta
   assembly_map (lib @ flatten_code' (length lib) cd) (length lib + code_list_size cd) = 
     sum_list (map (Suc \<circ> assemble_op_len) (lib @ flatten_code' (length lib) cd))"
 proof (induction "length lib" cd arbitrary: lib rule: flatten_code'.induct)
+  case (2 x \<C>)
+  then show ?case by simp
+next
+  case (3 n \<C>)
+  then show ?case by simp
+next
+  case (4 \<C>' \<C>)
   case (4 cd' cd)
   let ?lib = "lib @ flatten_code' (length lib) cd'"
   let ?cd = "flatten_code' (length ?lib) cd"
@@ -940,6 +1005,15 @@ proof (induction "length lib" cd arbitrary: lib rule: flatten_code'.induct)
   with 4 Y have "assembly_map (?lib @ ?cd) (length ?lib + code_list_size cd) =
     sum_list (map (Suc \<circ> assemble_op_len) (?lib @ ?cd))" by blast
   with X show ?case by (simp add: add.assoc) 
+next
+  case (5 \<C>)
+  then show ?case by simp
+next
+  case (6 \<C>)
+  then show ?case by simp
+next
+  case (7 \<C>)
+  then show ?case by simp
 qed simp_all
 
 lemma [simp]: "properly_terminated\<^sub>e cd \<Longrightarrow> assembly_map (flatten_code cd) (code_list_size cd) = 

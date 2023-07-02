@@ -119,6 +119,9 @@ proof (induction y x rule: incr.induct)
   then show ?case by simp (metis incr_suc_dest_lemma)
 qed simp_all
 
+lemma incr_suc_le [simp]: "incr (Suc y) x \<le> y = (x \<le> y)"
+  by (induction x y rule: incr.induct) simp_all
+
 lemma decr_le [simp]: "y \<le> x \<Longrightarrow> decr x y = y"
   by (induction x y rule: decr.induct) simp_all
 
@@ -166,6 +169,15 @@ lemma incr_decr_swap [simp]: "y \<le> x \<Longrightarrow> incr y (decr x z) = de
 proof (induction y z arbitrary: x rule: incr.induct)
   case (3 y z)
   thus ?case by (induction x) simp_all
+qed simp_all
+
+lemma incr_decr_swap2 [simp]: "x \<le> y \<Longrightarrow> x \<noteq> z \<Longrightarrow> incr y (decr x z) = decr x (incr (Suc y) z)"
+proof (induction x z arbitrary: y rule: decr.induct)
+  case (1 x)
+  then show ?case by (induction y) simp_all
+next
+  case (3 x z)
+  then show ?case by (induction y) simp_all
 qed simp_all
 
 text \<open>We can now define \<open>insert_at\<close>, which extends an environment at a given index. We treat 

@@ -46,7 +46,7 @@ primrec restructurable :: "state\<^sub>r \<Rightarrow> bool" where
   "restructurable (S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s p\<^sub>\<C>) = (even b\<^sub>s \<and> s 0 = 0 \<and> (b\<^sub>s = 0 \<longrightarrow> p\<^sub>\<C> = 0))"
 
 lemma restructurable_persists [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>r \<leadsto>\<^sub>r \<Sigma>\<^sub>r' \<Longrightarrow> restructurable \<Sigma>\<^sub>r \<Longrightarrow> restructurable \<Sigma>\<^sub>r'"
-  by (induction \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>r.induct) (simp_all add: odd_pos)
+  by (induction \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>r.induct) (auto simp add: odd_pos)
 
 lemma restructurable_persists_iter [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>r) \<Sigma>\<^sub>r \<Sigma>\<^sub>r' \<Longrightarrow> restructurable \<Sigma>\<^sub>r \<Longrightarrow> 
     restructurable \<Sigma>\<^sub>r'"
@@ -79,7 +79,14 @@ next
   with ev\<^sub>r_apply show ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
   case (ev\<^sub>r_pushenv \<C> p\<^sub>\<C> h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
-  thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
+  hence "lookup \<C> p\<^sub>\<C> = Some PushEnv\<^sub>b" by simp
+  moreover have "\<And>n. halloc_list (H \<Delta> b\<^sub>\<Delta>) [\<V> b\<^sub>\<V>, s (Suc n)] = 
+    (H (\<Delta>(b\<^sub>\<Delta> := \<V> b\<^sub>\<V>, Suc b\<^sub>\<Delta> := s (Suc n))) (Suc (Suc b\<^sub>\<Delta>)), b\<^sub>\<Delta>)" by simp
+  ultimately have "\<And>n. \<C> \<tturnstile> S\<^sub>f (H h b\<^sub>h) (H \<Delta> b\<^sub>\<Delta>) (\<V> b\<^sub>\<V> # listify_heap \<V> b\<^sub>\<V>) 
+      (Suc p\<^sub>\<C> # s (Suc n) # listify_heap (s \<circ> Suc) n) \<leadsto>\<^sub>f 
+    S\<^sub>f (H h b\<^sub>h) (H (\<Delta>(b\<^sub>\<Delta> := \<V> b\<^sub>\<V>, Suc b\<^sub>\<Delta> := s (Suc n))) (Suc (Suc b\<^sub>\<Delta>))) 
+      (listify_heap \<V> b\<^sub>\<V>) (p\<^sub>\<C> # b\<^sub>\<Delta> # listify_heap (s \<circ> Suc) n)" by (metis ev\<^sub>f_pushenv)
+  with ev\<^sub>r_pushenv show ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
   case (ev\<^sub>r_return \<C> p\<^sub>\<C> h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
   thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
@@ -178,8 +185,15 @@ next
     by (metis ev\<^sub>r_apply)
   with ev\<^sub>f_apply S X V show ?case by auto
 next
-  case (ev\<^sub>f_pushenv \<C> p\<^sub>\<C> \<Delta> v p\<^sub>\<Delta> \<Delta>' p\<^sub>\<Delta>' h \<V> s)
-  then show ?case by simp
+  case (ev\<^sub>f_pushenv \<C> p\<^sub>\<C> \<Delta>\<^sub>f v p\<^sub>\<Delta> \<Delta>' p\<^sub>\<Delta>' h\<^sub>f \<V>\<^sub>f s\<^sub>f)
+  moreover then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V>' s\<^sub>r b\<^sub>s where "
+    \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V>' s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>) \<and> h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> 
+      listify_heap \<V>\<^sub>r b\<^sub>\<V>' = v # \<V>\<^sub>f \<and> p\<^sub>\<Delta> = s\<^sub>r (Suc b\<^sub>s) \<and> s\<^sub>f = listify_heap (s\<^sub>r \<circ> Suc) b\<^sub>s" by fastforce
+  moreover then obtain b\<^sub>\<V> where "b\<^sub>\<V>' = Suc b\<^sub>\<V> \<and> \<V>\<^sub>r b\<^sub>\<V> = v \<and> listify_heap \<V>\<^sub>r b\<^sub>\<V> = \<V>\<^sub>f" by fastforce
+  moreover from ev\<^sub>f_pushenv have "\<C> \<tturnstile> S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r (Suc b\<^sub>\<V>) s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
+    S\<^sub>r h\<^sub>r b\<^sub>h (\<Delta>\<^sub>r(b\<^sub>\<Delta> := \<V>\<^sub>r b\<^sub>\<V>, Suc b\<^sub>\<Delta> := s\<^sub>r (Suc b\<^sub>s))) (Suc (Suc b\<^sub>\<Delta>)) \<V>\<^sub>r b\<^sub>\<V> 
+      (s\<^sub>r(Suc b\<^sub>s := b\<^sub>\<Delta>)) (Suc (Suc b\<^sub>s)) p\<^sub>\<C>" by simp
+  ultimately show ?case by auto
 next
   case (ev\<^sub>f_return \<C> p\<^sub>\<C> h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta> s\<^sub>f)
   then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s where S: "h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> 

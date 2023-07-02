@@ -138,7 +138,22 @@ next
   thus ?case by blast
 next
   case (Let\<^sub>s \<Gamma> vs e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2 x e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2)
-  then show ?case by simp
+  moreover then obtain \<sigma>\<^sub>1 where "unify \<kappa>\<^sub>1 = Some \<sigma>\<^sub>1 \<and> \<sigma>' specializes \<sigma>\<^sub>1" by fastforce
+  moreover with Let\<^sub>s have "\<sigma> specializes \<sigma>\<^sub>1" by auto
+  ultimately have X: "map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma> \<turnstile>\<^sub>t 
+    map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u\<^sub>1) : to_type (subst \<sigma> \<tau>\<^sub>1)" by blast
+  from Let\<^sub>s obtain s\<^sub>2 where S2: "unify \<kappa>\<^sub>2 = Some s\<^sub>2 \<and> \<sigma>' specializes s\<^sub>2" 
+    using unify_append_snd by blast
+  with Let\<^sub>s have Y: "\<sigma> specializes s\<^sub>2" by auto
+  from Let\<^sub>s have "valid_ty_term \<tau>\<^sub>1" by auto
+  with Let\<^sub>s have "valid_ty_subst (\<Gamma>(x \<mapsto> \<tau>\<^sub>1))" by simp
+  with Let\<^sub>s S2 Y have "map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma>(x \<mapsto> \<tau>\<^sub>1) \<turnstile>\<^sub>t 
+    map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u\<^sub>2) : to_type (subst \<sigma> \<tau>\<^sub>2)" by blast
+  hence "(map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma>)(x \<mapsto> to_type (subst \<sigma> \<tau>\<^sub>1)) \<turnstile>\<^sub>t 
+    map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) e\<^sub>u\<^sub>2) : to_type (subst \<sigma> \<tau>\<^sub>2)" by simp
+  with X have "map_option (to_type \<circ> subst \<sigma>) \<circ> \<Gamma> \<turnstile>\<^sub>t 
+    map_expr\<^sub>s to_type (map_expr\<^sub>s (subst \<sigma>) (Let\<^sub>s x e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2)) : to_type (subst \<sigma> \<tau>\<^sub>2)" by simp
+  thus ?case by blast
 qed simp_all
 
 theorem typecheck_success [simp]: "typecheck e\<^sub>s = Some (e\<^sub>t, t) \<Longrightarrow> 
@@ -215,7 +230,11 @@ proof (induction rule: typecheck_induct)
   with App\<^sub>s show ?case by auto
 next
   case (Let\<^sub>s \<Gamma> vs e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2 x e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2)
-  then show ?case by simp
+  moreover hence "finite vs\<^sub>1" by simp
+  ultimately have "constr_vars \<kappa>\<^sub>2 \<subseteq> vs\<^sub>2 \<union> subst_vars (\<Gamma>(x \<mapsto> \<tau>\<^sub>1))" by simp
+  moreover from Let\<^sub>s have "uvars \<tau>\<^sub>1 \<subseteq> vs\<^sub>1 \<union> subst_vars \<Gamma>" by simp
+  ultimately have "constr_vars \<kappa>\<^sub>2 \<subseteq> vs\<^sub>1 \<union> vs\<^sub>2 \<union> subst_vars \<Gamma>" by auto
+  with Let\<^sub>s show ?case by auto
 qed auto
 
 lemma typecheck_constr_in_old_vars [simp]: "typecheck' \<Gamma> vs e\<^sub>s = (e\<^sub>u, \<tau>, vs', \<kappa>) \<Longrightarrow> x \<in> vs \<Longrightarrow> 
@@ -307,8 +326,72 @@ next
       by (simp add: Let_def)
   thus ?case by blast
 next
-  case (Let\<^sub>s x e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2)
-  then show ?case by simp
+  case (Let\<^sub>s z e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2)
+  obtain e\<^sub>u\<^sub>1 \<tau>\<^sub>1 vs\<^sub>1 \<kappa>\<^sub>1 where T1: "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs e\<^sub>s\<^sub>1 = (e\<^sub>u\<^sub>1, \<tau>\<^sub>1, vs\<^sub>1, \<kappa>\<^sub>1)" 
+    by (metis prod_cases4)
+  with Let\<^sub>s have TC1: "typecheck' (\<Gamma>(x \<mapsto> \<tau>')) vs e\<^sub>s\<^sub>1 =
+    (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u\<^sub>1, subst [y \<mapsto> \<tau>'] \<tau>\<^sub>1, vs\<^sub>1, constr_subst y \<tau>' \<kappa>\<^sub>1)" by blast
+  obtain e\<^sub>u\<^sub>2 \<tau>\<^sub>2 vs\<^sub>2 \<kappa>\<^sub>2 where T2: "typecheck' (\<Gamma>(x \<mapsto> Var y, z \<mapsto> \<tau>\<^sub>1)) (vs \<union> vs\<^sub>1) e\<^sub>s\<^sub>2 = 
+    (e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2)" by (metis prod_cases4)
+  show ?case
+  proof (cases "x = z")
+    case True  
+  
+    from Let\<^sub>s have "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs (Let\<^sub>s z e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2) = (e\<^sub>u, \<tau>, vs', \<kappa>)" by blast
+    with T1 T2 have E: "e\<^sub>u = Let\<^sub>s z e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2 \<and> \<tau>\<^sub>2 = \<tau> \<and> vs' = vs\<^sub>1 \<union> vs\<^sub>2 \<and> \<kappa> = \<kappa>\<^sub>1 @ \<kappa>\<^sub>2" by simp
+  
+  
+  
+    from Let\<^sub>s have "y \<in> vs" by simp
+    from Let\<^sub>s have "subst_vars \<Gamma> \<subseteq> vs - {y}" by simp
+    from Let\<^sub>s have "uvars \<tau>' \<subseteq> vs - {y}" by simp
+    from Let\<^sub>s have "finite vs" by simp
+  
+  
+  
+    have "(case typecheck' (\<Gamma>(x \<mapsto> \<tau>', z \<mapsto> subst [y \<mapsto> \<tau>'] \<tau>\<^sub>1)) (vs \<union> vs\<^sub>1) e\<^sub>s\<^sub>2 of
+       (e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2) \<Rightarrow>
+         (Let\<^sub>s z (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u\<^sub>1) e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>1 \<union> vs\<^sub>2,
+          constr_subst y \<tau>' \<kappa>\<^sub>1 @ \<kappa>\<^sub>2)) =
+      (Let\<^sub>s z (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u\<^sub>1) (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u\<^sub>2), subst [y \<mapsto> \<tau>'] \<tau>\<^sub>2,
+       vs\<^sub>1 \<union> vs\<^sub>2, constr_subst y \<tau>' \<kappa>\<^sub>1 @ constr_subst y \<tau>' \<kappa>\<^sub>2)" by (simp split: prod.splits)
+    with TC1 E have "typecheck' (\<Gamma>(x \<mapsto> \<tau>')) vs (Let\<^sub>s z e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2) =
+      (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u, subst [y \<mapsto> \<tau>'] \<tau>, vs', constr_subst y \<tau>' \<kappa>)" by simp
+    thus ?thesis by blast
+  next
+    case False
+    with T2 have X: "typecheck' (\<Gamma>(z \<mapsto> \<tau>\<^sub>1, x \<mapsto> Var y)) (vs \<union> vs\<^sub>1) e\<^sub>s\<^sub>2 = (e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2)" 
+      by (simp add: fun_upd_twist)
+    from Let\<^sub>s have Y: "subst_vars (\<Gamma>(z \<mapsto> \<tau>\<^sub>1)) \<subseteq> (vs \<union> vs\<^sub>1) - {y}" by simp
+    from Let\<^sub>s T1 have "finite (vs \<union> vs\<^sub>1)" by simp
+    with Let\<^sub>s X Y have TC2: "typecheck' (\<Gamma>(z \<mapsto> \<tau>\<^sub>1, x \<mapsto> \<tau>')) (vs \<union> vs\<^sub>1) e\<^sub>s\<^sub>2 =
+      (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u\<^sub>2, subst [y \<mapsto> \<tau>'] \<tau>\<^sub>2, vs\<^sub>2, constr_subst y \<tau>' \<kappa>\<^sub>2)" by blast
+  
+  
+  
+    from Let\<^sub>s have "typecheck' (\<Gamma>(x \<mapsto> Var y)) vs (Let\<^sub>s z e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2) = (e\<^sub>u, \<tau>, vs', \<kappa>)" by blast
+    with T1 T2 have E: "e\<^sub>u = Let\<^sub>s z e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2 \<and> \<tau>\<^sub>2 = \<tau> \<and> vs' = vs\<^sub>1 \<union> vs\<^sub>2 \<and> \<kappa> = \<kappa>\<^sub>1 @ \<kappa>\<^sub>2" by simp
+  
+  
+  
+    from Let\<^sub>s have "y \<in> vs" by simp
+    from Let\<^sub>s have "subst_vars \<Gamma> \<subseteq> vs - {y}" by simp
+    from Let\<^sub>s have "uvars \<tau>' \<subseteq> vs - {y}" by simp
+    from Let\<^sub>s have "finite vs" by simp
+
+
+  
+  
+    have "(case typecheck' (\<Gamma>(x \<mapsto> \<tau>', z \<mapsto> subst [y \<mapsto> \<tau>'] \<tau>\<^sub>1)) (vs \<union> vs\<^sub>1) e\<^sub>s\<^sub>2 of
+       (e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>2, \<kappa>\<^sub>2) \<Rightarrow>
+         (Let\<^sub>s z (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u\<^sub>1) e\<^sub>u\<^sub>2, \<tau>\<^sub>2, vs\<^sub>1 \<union> vs\<^sub>2,
+          constr_subst y \<tau>' \<kappa>\<^sub>1 @ \<kappa>\<^sub>2)) =
+      (Let\<^sub>s z (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u\<^sub>1) (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u\<^sub>2), subst [y \<mapsto> \<tau>'] \<tau>\<^sub>2,
+       vs\<^sub>1 \<union> vs\<^sub>2, constr_subst y \<tau>' \<kappa>\<^sub>1 @ constr_subst y \<tau>' \<kappa>\<^sub>2)" by simp
+    with TC1 E have "typecheck' (\<Gamma>(x \<mapsto> \<tau>')) vs (Let\<^sub>s z e\<^sub>s\<^sub>1 e\<^sub>s\<^sub>2) =
+      (map_expr\<^sub>s (subst [y \<mapsto> \<tau>']) e\<^sub>u, subst [y \<mapsto> \<tau>'] \<tau>, vs', constr_subst y \<tau>' \<kappa>)" by simp
+    thus ?thesis by blast
+  qed
 qed auto
 
 text \<open>Now, the big one. If an expression is well-typed, then there is an (idempotent, well-formed) 

@@ -109,6 +109,10 @@ lemma incr\<^sub>d_subst_swap [simp]: "y \<le> x \<Longrightarrow>
     incr\<^sub>d y (subst\<^sub>d x e' e) = subst\<^sub>d (Suc x) (incr\<^sub>d y e') (incr\<^sub>d y e)"
   by (induction e arbitrary: x y e') (simp_all add: incr_le incr_suc_dest)
 
+lemma incr\<^sub>d_subst_swap2 [simp]: "x \<le> y \<Longrightarrow>
+    incr\<^sub>d y (subst\<^sub>d x e' e) = subst\<^sub>d x (incr\<^sub>d y e') (incr\<^sub>d (Suc y) e)"
+  by (induction e arbitrary: x y e') (auto simp add: incr_above)
+
 lemma subst\<^sub>d_incr_cancel [simp]: "subst\<^sub>d x e' (incr\<^sub>d x e) = e"
   by (induction e arbitrary: x e') (simp_all, metis incr_not_eq)
 
@@ -169,7 +173,7 @@ inductive eval\<^sub>d :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d \<Rightarrow>
 | ev\<^sub>d_let1 [simp]: "e\<^sub>1 \<leadsto>\<^sub>d e\<^sub>1' \<Longrightarrow> Let\<^sub>d e\<^sub>1 e\<^sub>2 \<leadsto>\<^sub>d Let\<^sub>d e\<^sub>1' e\<^sub>2"
 | ev\<^sub>d_let2 [simp]: "value\<^sub>d e\<^sub>1 \<Longrightarrow> Let\<^sub>d e\<^sub>1 e\<^sub>2 \<leadsto>\<^sub>d subst\<^sub>d 0 e\<^sub>1 e\<^sub>2"
 
-lemma val_no_eval\<^sub>d: "e \<leadsto>\<^sub>d e' \<Longrightarrow> value\<^sub>d e \<Longrightarrow> False"
+lemma val_no_eval\<^sub>d [elim]: "e \<leadsto>\<^sub>d e' \<Longrightarrow> value\<^sub>d e \<Longrightarrow> False"
   by (induction e e' rule: eval\<^sub>d.induct) simp_all
 
 text \<open>Our metatheoretic properties, progress, preservation, and determinism, now all follow 
