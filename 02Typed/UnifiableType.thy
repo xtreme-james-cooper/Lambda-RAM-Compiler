@@ -171,6 +171,9 @@ lemma eliminate_extra_union [simp]: "uvars \<tau> \<inter> vs' \<subseteq> vs \<
     map (eliminate_vars (vs \<union> vs')) \<tau>s = map (eliminate_vars vs) \<tau>s"
   by (induction \<tau> and \<tau>s rule: uvars_uvarss.induct) auto
 
+lemma to_type_elim_all_vars [simp]: "uvars \<tau> \<subseteq> vs \<Longrightarrow> to_type (eliminate_vars vs \<tau>) = to_type \<tau>"
+  by (induction \<tau> rule: to_type.induct) simp_all
+
 text \<open>Again, we extend in the obvious way to constraints.\<close>
 
 abbreviation eliminate_vars_constr :: "var set \<Rightarrow> constraint \<Rightarrow> constraint" where

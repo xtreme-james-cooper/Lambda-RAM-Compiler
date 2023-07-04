@@ -8,7 +8,7 @@ primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
 | "assemble_op_len (PushCon\<^sub>b k) = 5"
 | "assemble_op_len (PushLam\<^sub>b pc) = 9"
 | "assemble_op_len Apply\<^sub>b = 20"
-| "assemble_op_len PushEnv\<^sub>b = 13"
+| "assemble_op_len PushEnv\<^sub>b = 11"
 | "assemble_op_len Return\<^sub>b = 5"
 | "assemble_op_len Jump\<^sub>b = 19"
 
@@ -68,9 +68,7 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
 | "assemble_op mp ix PushEnv\<^sub>b = [
     AMov (Reg Acc) (Con 0),
     AAdd Stk (Con 1),
-    AMov (Mem Stk) (Reg Acc),
-    ASub Acc (Con 2),
-    AMov (Reg Acc) (Reg Env),
+    AMov (Mem Stk) (Reg Env),
     AAdd Env (Con 1),
     AMov (Mem Env) (Reg Acc),
     AMov (Reg Acc) (Mem Stk),
@@ -836,31 +834,27 @@ next
   thus ?case by auto
 next
   case (ev\<^sub>r_pushenv \<C> p\<^sub>\<C> h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
-  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (13 + assembly_map \<C> p\<^sub>\<C>) = 
-    Some (ASub Vals (Con 1))" by simp
-  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (12 + assembly_map \<C> p\<^sub>\<C>) = 
-    Some (AMov (Reg Acc) (Mem Vals))" by simp
   moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (11 + assembly_map \<C> p\<^sub>\<C>) = 
-    Some (AMov (Mem Vals) (Con 0))" by simp
+    Some (ASub Vals (Con 1))" by simp
   moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (10 + assembly_map \<C> p\<^sub>\<C>) = 
-    Some (AMov (Mem Env) (Reg Acc))" by simp
+    Some (AMov (Reg Acc) (Mem Vals))" by simp
   moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (9 + assembly_map \<C> p\<^sub>\<C>) = 
-    Some (AAdd Env (Con 1))" by simp
+    Some (AMov (Mem Vals) (Con 0))" by simp
   moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (8 + assembly_map \<C> p\<^sub>\<C>) = 
-    Some (ASub Stk (Con 1))" by simp
-  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (7 + assembly_map \<C> p\<^sub>\<C>) = 
-    Some (AMov (Reg Acc) (Mem Stk))" by simp
-  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (6 + assembly_map \<C> p\<^sub>\<C>) = 
     Some (AMov (Mem Env) (Reg Acc))" by simp
-  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (5 + assembly_map \<C> p\<^sub>\<C>) = 
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (7 + assembly_map \<C> p\<^sub>\<C>) = 
     Some (AAdd Env (Con 1))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (6 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (ASub Stk (Con 1))" by simp
+  moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (5 + assembly_map \<C> p\<^sub>\<C>) = 
+    Some (AMov (Reg Acc) (Mem Stk))" by simp
   moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (4 + assembly_map \<C> p\<^sub>\<C>) = 
-    Some (AMov (Reg Acc) (Reg Env))" by simp
+    Some (AMov (Mem Env) (Reg Acc))" by simp
   moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (3 + assembly_map \<C> p\<^sub>\<C>) = 
-    Some (ASub Acc (Con 2))" by simp
+    Some (AAdd Env (Con 1))" by simp
   moreover from ev\<^sub>r_pushenv have "lookup (assemble_code \<C>) (2 + assembly_map \<C> p\<^sub>\<C>) = 
-    Some (AMov (Mem Stk) (Reg Acc))" by (simp del: add_2_eq_Suc)
-  ultimately have "iter_eval\<^sub>a (assemble_code \<C>) 14 (S\<^sub>a (case_prod (case_memseg (assm_hp \<C> h b\<^sub>h) 
+    Some (AMov (Mem Stk) (Reg Env))" by (simp del: add_2_eq_Suc)
+  ultimately have "iter_eval\<^sub>a (assemble_code \<C>) 12 (S\<^sub>a (case_prod (case_memseg (assm_hp \<C> h b\<^sub>h) 
     (assemble_env \<Delta> b\<^sub>\<Delta>) (assemble_vals \<V> (Suc b\<^sub>\<V>)) (assm_stk \<C> s (Suc b\<^sub>s)) undefined))
       (case_memseg (Hp, b\<^sub>h) (Env, b\<^sub>\<Delta>) (Vals, Suc b\<^sub>\<V>) (Stk, Suc b\<^sub>s) (Acc, 0)) 
         (assembly_map \<C> (Suc p\<^sub>\<C>))) = Some (S\<^sub>a (case_prod (case_memseg (assm_hp \<C> h b\<^sub>h) 

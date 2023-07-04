@@ -53,7 +53,18 @@ proof (induction e\<^sub>t arbitrary: y \<Phi>)
   qed (simp_all split: option.splits)
 next
   case (Let\<^sub>s z e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2)
-  then show ?case by simp
+  thus ?case
+  proof (cases "x = z")
+    case True
+    from Let\<^sub>s have "unname' (insert_at (Suc y) z (insert_at 0 z \<Phi>)) e\<^sub>t\<^sub>2 = 
+      unname' (insert_at (Suc y) x' (insert_at 0 z \<Phi>)) e\<^sub>t\<^sub>2" by (simp split: option.splits)
+    with Let\<^sub>s True show ?thesis by simp
+  next
+    case False
+    with Let\<^sub>s have X: "Suc y precedes x in insert_at 0 z \<Phi>" by (simp split: option.splits)
+    from Let\<^sub>s have "free_vars\<^sub>s e\<^sub>t\<^sub>2 \<subseteq> insert x (set (insert_at 0 z \<Phi>))" by auto
+    with Let\<^sub>s X False show ?thesis by (simp split: option.splits)
+  qed
 qed (auto split: option.splits)
 
 lemma unname_subst [simp]: "y \<le> length \<Phi> \<Longrightarrow> x \<notin> set \<Phi> \<Longrightarrow> free_vars\<^sub>s e\<^sub>t \<subseteq> insert x (set \<Phi>) \<Longrightarrow>
@@ -84,8 +95,21 @@ next
     unname' (insert_at 0 z (insert_at y x \<Phi>)) e\<^sub>t" by simp
   with 3 Z H show ?case by (simp add: Let_def)
 next
-  case (5 x e' y e\<^sub>1 e\<^sub>2)
-  then show ?case by simp
+  case (5 x e' z e\<^sub>1 e\<^sub>2)
+  let ?z' = "fresh (all_vars\<^sub>s e' \<union> all_vars\<^sub>s e\<^sub>2 \<union> {x, z})"
+  have "finite (all_vars\<^sub>s e' \<union> all_vars\<^sub>s e\<^sub>2 \<union> {x, z})" by simp
+  hence Z: "?z' \<notin> all_vars\<^sub>s e' \<union> all_vars\<^sub>s e\<^sub>2 \<union> {x, z}" by (metis fresh_is_fresh)
+  with 5 have X: "x \<notin> set (insert_at 0 ?z' \<Phi>)" by auto
+  from Z have "?z' \<notin> bound_vars\<^sub>s e\<^sub>2 \<and> ?z' \<notin> free_vars\<^sub>s e\<^sub>2" by (auto simp add: all_vars\<^sub>s_def)
+  with 5 have Y: "free_vars\<^sub>s (subst_var\<^sub>s z ?z' e\<^sub>2) \<subseteq> insert x (set (insert_at 0 ?z' \<Phi>))" by auto
+  from 5 have "free_vars\<^sub>s e' \<subseteq> set (insert_at 0 ?z' \<Phi>)" by auto
+  with 5 X Y have W: "unname' (insert_at 0 ?z' \<Phi>) (subst\<^sub>s x e' (subst_var\<^sub>s z ?z' e\<^sub>2)) =
+    subst\<^sub>d (Suc y) (unname' (insert_at 0 ?z' \<Phi>) e') (unname' (insert_at (Suc y) x 
+      (insert_at 0 ?z' \<Phi>)) (subst_var\<^sub>s z ?z' e\<^sub>2))" by simp
+  from 5 have "free_vars\<^sub>s e\<^sub>2 \<subseteq> insert z (set (insert_at y x \<Phi>))" by auto
+  with Z have "unname' (insert_at 0 ?z' (insert_at y x \<Phi>)) (subst_var\<^sub>s z ?z' e\<^sub>2) = 
+    unname' (insert_at 0 z (insert_at y x \<Phi>)) e\<^sub>2" by simp
+  with 5 Z W show ?case by (simp add: Let_def)
 qed simp_all
 
 text \<open>The unnaming operation ignores alpha-conversion, as we would expect.\<close>
@@ -102,7 +126,12 @@ proof (induction e\<^sub>t arbitrary: \<Phi> vs)
   with Lam\<^sub>s X show ?case by (simp add: Let_def)
 next
   case (Let\<^sub>s x e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2)
-  then show ?case by simp
+  let ?e\<^sub>2' = "remove_shadows\<^sub>s' (insert x vs) e\<^sub>t\<^sub>2"
+  let ?y = "fresh (vs \<union> all_vars\<^sub>s ?e\<^sub>2')"
+  from Let\<^sub>s have "finite (vs \<union> all_vars\<^sub>s ?e\<^sub>2')" by simp
+  hence X: "?y \<notin> vs \<union> all_vars\<^sub>s ?e\<^sub>2'" by (metis fresh_is_fresh)
+  from Let\<^sub>s have "free_vars\<^sub>s ?e\<^sub>2' \<subseteq> insert x (set \<Phi>)" by auto
+  with Let\<^sub>s X show ?case by (auto simp add: Let_def)
 qed simp_all
 
 text \<open>The unnaming operation is also typesafe. (We need the no-shadowing condition to make the 
@@ -134,7 +163,16 @@ next
   thus ?case by blast
 next
   case (tc\<^sub>t_let \<Gamma> e\<^sub>1 t\<^sub>1 x e\<^sub>2 t\<^sub>2)
-  then show ?case by simp
+  moreover hence "bound_vars\<^sub>s e\<^sub>1 \<inter> set \<Phi> = {}" by auto
+  moreover from tc\<^sub>t_let have "no_shadowing\<^sub>s e\<^sub>1" by simp
+  ultimately have X: "map (the \<circ> \<Gamma>) \<Phi> \<turnstile>\<^sub>d unname' \<Phi> e\<^sub>1 : t\<^sub>1" by blast
+  from tc\<^sub>t_let have Y: "dom (\<Gamma>(x \<mapsto> t\<^sub>1)) = set (insert_at 0 x \<Phi>)" by simp
+  from tc\<^sub>t_let have Z: "bound_vars\<^sub>s e\<^sub>2 \<inter> set (insert_at 0 x \<Phi>) = {}" by auto
+  from tc\<^sub>t_let have "no_shadowing\<^sub>s e\<^sub>2" by simp
+  with tc\<^sub>t_let Y Z have "map (the \<circ> \<Gamma>(x \<mapsto> t\<^sub>1)) (insert_at 0 x \<Phi>) \<turnstile>\<^sub>d 
+    unname' (insert_at 0 x \<Phi>) e\<^sub>2 : t\<^sub>2" by blast
+  with tc\<^sub>t_let X have "map (the \<circ> \<Gamma>) \<Phi> \<turnstile>\<^sub>d unname' \<Phi> (Let\<^sub>s x e\<^sub>1 e\<^sub>2) : t\<^sub>2" by simp
+  thus ?case by blast
 qed simp_all
 
 text \<open>The full unnaming of closed terms operation follows immediately, and we can use it to prove 
@@ -185,7 +223,10 @@ proof (induction e\<^sub>t v\<^sub>s rule: eval\<^sub>s.induct)
   with ev\<^sub>s_app X Y show ?case by (simp add: unname_def)
 next
   case (ev\<^sub>s_let e\<^sub>1 v\<^sub>1 x e\<^sub>2 v\<^sub>2)
-  then show ?case by simp
+  moreover hence V: "free_vars\<^sub>s v\<^sub>1 \<subseteq> {}" by simp
+  moreover from ev\<^sub>s_let have "free_vars\<^sub>s e\<^sub>2 \<subseteq> insert x {}" by simp
+  moreover with V have "free_vars\<^sub>s (subst\<^sub>s x v\<^sub>1 e\<^sub>2) \<subseteq> {}" by (metis free_vars_subst)
+  ultimately show ?case by (simp add: unname_def)
 qed (simp_all add: unname_def)
 
 lemma unname_to_app [dest]: "App\<^sub>d e\<^sub>d\<^sub>1 e\<^sub>d\<^sub>2 = unname e\<^sub>t \<Longrightarrow> 
@@ -194,6 +235,10 @@ lemma unname_to_app [dest]: "App\<^sub>d e\<^sub>d\<^sub>1 e\<^sub>d\<^sub>2 = u
 
 lemma unname_to_lam [dest]: "Lam\<^sub>d t e\<^sub>d = unname e\<^sub>t \<Longrightarrow> 
     \<exists>x e\<^sub>t'. e\<^sub>t = Lam\<^sub>s x t e\<^sub>t' \<and> e\<^sub>d = unname' [x] e\<^sub>t'"
+  by (cases e\<^sub>t) (simp_all add: unname_def)
+
+lemma unname_to_let [dest]: "Let\<^sub>d e\<^sub>d\<^sub>1 e\<^sub>d\<^sub>2 = unname e\<^sub>t \<Longrightarrow> 
+    \<exists>x e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2. e\<^sub>t = Let\<^sub>s x e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2 \<and> e\<^sub>d\<^sub>1 = unname e\<^sub>t\<^sub>1 \<and> e\<^sub>d\<^sub>2 = unname' [x] e\<^sub>t\<^sub>2"
   by (cases e\<^sub>t) (simp_all add: unname_def)
 
 theorem complete\<^sub>d [simp]: "unname e\<^sub>t \<Down>\<^sub>d v\<^sub>d \<Longrightarrow> free_vars\<^sub>s e\<^sub>t = {} \<Longrightarrow> \<exists>v\<^sub>t. e\<^sub>t \<Down>\<^sub>s v\<^sub>t \<and> v\<^sub>d = unname v\<^sub>t"
@@ -227,8 +272,19 @@ next
   with V1 X V2 have "App\<^sub>s e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2 \<Down>\<^sub>s v\<^sub>t \<and> v\<^sub>d = unname v\<^sub>t" by fastforce
   with E show ?case by fastforce
 next
-  case (bev\<^sub>d_let e\<^sub>1 v\<^sub>1 e\<^sub>2 v\<^sub>2)
-  then show ?case by simp
+  case (bev\<^sub>d_let e\<^sub>d\<^sub>1 v\<^sub>d\<^sub>1 e\<^sub>d\<^sub>2 v\<^sub>d\<^sub>2)
+  then obtain x e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2 where E: "e\<^sub>t = Let\<^sub>s x e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2 \<and> e\<^sub>d\<^sub>1 = unname e\<^sub>t\<^sub>1 \<and> e\<^sub>d\<^sub>2 = unname' [x] e\<^sub>t\<^sub>2" 
+    by fastforce
+  with bev\<^sub>d_let obtain v\<^sub>t\<^sub>1 where V1: "e\<^sub>t\<^sub>1 \<Down>\<^sub>s v\<^sub>t\<^sub>1 \<and> v\<^sub>d\<^sub>1 = unname v\<^sub>t\<^sub>1" by fastforce
+  with bev\<^sub>d_let E have S: "subst\<^sub>d 0 (unname' [] v\<^sub>t\<^sub>1) (unname' [x] e\<^sub>t\<^sub>2) = unname' [] (subst\<^sub>s x v\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2)" 
+    by auto
+  from bev\<^sub>d_let E have "free_vars\<^sub>s e\<^sub>t\<^sub>2 \<subseteq> insert x {}" by simp
+  moreover from bev\<^sub>d_let E V1 have "free_vars\<^sub>s v\<^sub>t\<^sub>1 \<subseteq> {}" by auto
+  ultimately have "free_vars\<^sub>s (subst\<^sub>s x v\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2) = {}" by (metis free_vars_subst subset_empty)
+  with bev\<^sub>d_let E V1 S obtain v\<^sub>t\<^sub>2 where V2: "subst\<^sub>s x v\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2 \<Down>\<^sub>s v\<^sub>t\<^sub>2 \<and> v\<^sub>d\<^sub>2 = unname v\<^sub>t\<^sub>2" 
+    by (metis unname_def)
+  with V1 have "Let\<^sub>s x e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2 \<Down>\<^sub>s v\<^sub>t\<^sub>2" by fastforce
+  with E V2 show ?case by fastforce
 qed
 
 text \<open>Now, finally, we can go back and finish the progress theorems for our typed and source 
