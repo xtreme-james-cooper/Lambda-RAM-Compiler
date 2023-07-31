@@ -72,7 +72,7 @@ lemma multiincr_var [simp]: "multiincr x 0 (Var\<^sub>d 0) = Var\<^sub>d x"
 lemma multiincr_incr_swap' [simp]: "multiincr x y (incr\<^sub>d y e) = incr\<^sub>d y (multiincr x y e)"
   by (induction x) simp_all
 
-lemma multiincr_subst_swap'[simp]: "y \<le> z \<Longrightarrow> 
+lemma multiincr_subst_swap' [simp]: "y \<le> z \<Longrightarrow> 
     multiincr x y (subst\<^sub>d z e' e) = subst\<^sub>d (x + z) (multiincr x y e') (multiincr x y e)"
   by (induction x) simp_all
 
@@ -114,23 +114,27 @@ lemma multiincr_subst [simp]: "z \<le> y \<Longrightarrow> multiincr x y (subst\
 lemma eval_multiincr [simp]: "e \<leadsto>\<^sub>d e' \<Longrightarrow> multiincr x y e \<leadsto>\<^sub>d multiincr x y e'"
   by (induction e e' rule: eval\<^sub>d.induct) simp_all
 
-fun strip_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d list \<times> expr\<^sub>d" where
-  "strip_lets (Let\<^sub>d e\<^sub>1 e\<^sub>2) = (case strip_lets e\<^sub>2 of
-    (es, e\<^sub>2') \<Rightarrow> (e\<^sub>1 # es, e\<^sub>2'))"
-| "strip_lets e = ([], e)"
+fun strip_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d list" where
+  "strip_lets (Let\<^sub>d e\<^sub>1 e\<^sub>2) = e\<^sub>1 # strip_lets e\<^sub>2"
+| "strip_lets e = []"
+
+fun inner_expr :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d" where
+  "inner_expr (Let\<^sub>d e\<^sub>1 e\<^sub>2) = inner_expr e\<^sub>2"
+| "inner_expr e = e"
 
 definition reapply_lets :: "expr\<^sub>d list \<Rightarrow> expr\<^sub>d \<Rightarrow> expr\<^sub>d" where
   "reapply_lets es e = foldr Let\<^sub>d es e"
 
-lemma strip_lets_nil [dest]: "strip_lets e = ([], e') \<Longrightarrow> e' = e"
-  by (induction e rule: strip_lets.induct) (simp_all split: prod.splits)
+lemma strip_lets_nil [dest]: "strip_lets e = [] \<Longrightarrow> inner_expr e = e"
+  by (induction e rule: strip_lets.induct) simp_all
 
-lemma strip_reapply_lets [simp]: "strip_lets e = (es, e') \<Longrightarrow> reapply_lets es e' = e"
-  by (induction e arbitrary: es e' rule: strip_lets.induct) 
-     (auto simp add: reapply_lets_def split: prod.splits)
+lemma strip_reapply_lets [simp]: "reapply_lets (strip_lets e) (inner_expr e) = e"
+  by (induction e rule: strip_lets.induct) (auto simp add: reapply_lets_def)
 
-lemma reapply_strip_lets [simp]: "strip_lets e = (es', e') \<Longrightarrow> 
-    strip_lets (reapply_lets es e) = (es @ es', e')"
+lemma reapply_strip_lets [simp]: "strip_lets (reapply_lets es e) = es @ strip_lets e"
+  by (induction es) (simp_all add: reapply_lets_def)
+
+lemma reapply_next_lets [simp]: "inner_expr (reapply_lets es e) = inner_expr e"
   by (induction es) (simp_all add: reapply_lets_def)
 
 lemma reapply_nil [simp]: "reapply_lets [] e = e"
@@ -139,18 +143,36 @@ lemma reapply_nil [simp]: "reapply_lets [] e = e"
 lemma reapply_append [simp]: "reapply_lets (es @ es') e = reapply_lets es (reapply_lets es' e)"
   by (simp add: reapply_lets_def)
 
+fun is_reducible :: "expr\<^sub>d \<Rightarrow> bool" where
+  "is_reducible (App\<^sub>d e\<^sub>1 e\<^sub>2) = True"
+| "is_reducible e = False"
+
+lemma value_not_reducible [simp]: "value\<^sub>d v \<Longrightarrow> \<not> is_reducible v"
+  by (induction v) simp_all
+
+lemma is_reducible_incr [simp]: "is_reducible (incr\<^sub>d x e) = is_reducible e"
+  by (induction e) simp_all
+
+lemma is_reducible_subst [simp]: "value\<^sub>d v \<Longrightarrow> is_reducible (subst\<^sub>d x v e) = is_reducible e"
+  by (induction e) simp_all
+
 primrec float_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d" where
   "float_lets (Var\<^sub>d x) = Var\<^sub>d x"
 | "float_lets (Const\<^sub>d n) = Const\<^sub>d n"
 | "float_lets (Lam\<^sub>d t e) = Lam\<^sub>d t (float_lets e)"
 | "float_lets (App\<^sub>d e\<^sub>1 e\<^sub>2) = (
-    let (es\<^sub>1, e\<^sub>1') = strip_lets (float_lets e\<^sub>1) 
-    in let (es\<^sub>2, e\<^sub>2') = strip_lets (float_lets e\<^sub>2) 
-    in reapply_lets (es\<^sub>1 @ e\<^sub>1' # map_with_idx (multiincr (Suc (length es\<^sub>1))) es\<^sub>2) 
-        (App\<^sub>d (Var\<^sub>d (length es\<^sub>2)) (multiincr (Suc (length es\<^sub>1)) (length es\<^sub>2) e\<^sub>2')))"
+    let es\<^sub>1 = strip_lets (float_lets e\<^sub>1)
+    in let e\<^sub>1' = inner_expr (float_lets e\<^sub>1)
+    in let es\<^sub>2 = strip_lets (float_lets e\<^sub>2) 
+    in let e\<^sub>2' = inner_expr (float_lets e\<^sub>2) 
+    in let es\<^sub>1' = if is_reducible e\<^sub>1' then es\<^sub>1 @ [e\<^sub>1'] else es\<^sub>1
+    in let e\<^sub>1'' = if is_reducible e\<^sub>1' then Var\<^sub>d 0 else e\<^sub>1'
+    in reapply_lets (es\<^sub>1' @ map_with_idx (multiincr (length es\<^sub>1')) es\<^sub>2) 
+         (App\<^sub>d (multiincr (length es\<^sub>2) 0 e\<^sub>1'') (multiincr (length es\<^sub>1') (length es\<^sub>2) e\<^sub>2')))"
 | "float_lets (Let\<^sub>d e\<^sub>1 e\<^sub>2) = (
-    let (es\<^sub>1, e\<^sub>1') = strip_lets (float_lets e\<^sub>1)
-    in reapply_lets es\<^sub>1 (Let\<^sub>d e\<^sub>1' (multiincr (length es\<^sub>1) 1 (float_lets e\<^sub>2))))"
+    let es\<^sub>1 = strip_lets (float_lets e\<^sub>1)
+    in reapply_lets es\<^sub>1 
+          (Let\<^sub>d (inner_expr (float_lets e\<^sub>1)) (multiincr (length es\<^sub>1) 1 (float_lets e\<^sub>2))))"
 
 lemma incr_let_free [simp]: "let_free (incr\<^sub>d x e) = let_free e"
   by (induction e arbitrary: x) simp_all
@@ -171,25 +193,24 @@ lemma incr_let_floated_map [simp]: "list_all let_floated (map (incr\<^sub>d x) e
 lemma multiincr_let_floated [simp]: "let_floated (multiincr x y e) = let_floated e"
   by (induction x) simp_all
 
+lemma strip_lets_free [simp]: "let_floated e \<Longrightarrow> list_all let_free (strip_lets e)"
+  by (induction e) simp_all
+
+lemma inner_expr_free [simp]: "let_floated e \<Longrightarrow> let_free (inner_expr e)"
+  by (induction e) simp_all
+
+lemma strip_lets_normalized [simp]: "let_floated e \<Longrightarrow> list_all let_floated (strip_lets e)"
+  by (induction e) simp_all
+
+lemma inner_expr_normalized [simp]: "let_floated e \<Longrightarrow> let_floated (inner_expr e)"
+  by (induction e) simp_all
+
 lemma reapply_lets_normalized [simp]: "let_floated (reapply_lets es e) = 
     (list_all let_free es \<and> list_all let_floated es \<and> let_floated e)"
   by (induction es) (auto simp add: reapply_lets_def)
 
-lemma strip_lets_normalized [simp]: "strip_lets e = (es, e') \<Longrightarrow> 
-    let_floated e = (list_all let_free es \<and> list_all let_floated es \<and> let_free e' \<and> let_floated e')"
-  by (induction e arbitrary: es) (auto split: prod.splits)
-
 lemma float_lets_normalizes [simp]: "let_floated (float_lets e)"
-proof (induction e) 
-  case (App\<^sub>d e1 e2)
-  obtain es\<^sub>1 e\<^sub>1' where E1: "strip_lets (float_lets e1) = (es\<^sub>1, e\<^sub>1')" by fastforce
-  obtain es\<^sub>2 e\<^sub>2' where E2: "strip_lets (float_lets e2) = (es\<^sub>2, e\<^sub>2')" 
-    by fastforce
-  from App\<^sub>d have "let_floated (float_lets e2)" by simp
-  with E2 have "list_all let_free es\<^sub>2 \<and> list_all let_floated es\<^sub>2 \<and> let_free e\<^sub>2' \<and> let_floated e\<^sub>2'" 
-    by (metis strip_lets_normalized)
-  with App\<^sub>d E1 E2 show ?case by simp
-qed (auto split: prod.splits)
+  by (induction e) (simp_all add: Let_def)
 
 text \<open>And the safety and correctness proofs:\<close>
 
@@ -212,6 +233,12 @@ qed auto
 
 lemma typing_bindings_eq_length [simp]: "\<Gamma> \<turnstile>\<^sub>d\<^sub>b es : ts \<Longrightarrow> length es = length ts"
   by (induction \<Gamma> es ts rule: typing\<^sub>d_bindings.induct) simp_all
+
+lemma typing_bindings_eq_length_map [simp]: "\<Gamma> \<turnstile>\<^sub>d\<^sub>b map_with_idx f es : ts \<Longrightarrow> length es = length ts"
+proof (induction es arbitrary: \<Gamma> f ts)
+  case (Cons e es)
+  thus ?case by (induction ts rule: rev_induct) auto
+qed auto
 
 lemma typing_multiincr [simp]: "\<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2 \<turnstile>\<^sub>d e : t \<Longrightarrow> 
   \<Gamma>\<^sub>1 @ \<Gamma>' @ \<Gamma>\<^sub>2 \<turnstile>\<^sub>d multiincr (length \<Gamma>') (length \<Gamma>\<^sub>1) e : t"
@@ -239,7 +266,7 @@ proof (induction es arbitrary: \<Gamma>\<^sub>1 ts)
   with T X show ?case by simp
 qed auto
 
-lemma typing_binding_multiincr [simp]: "\<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2 \<turnstile>\<^sub>d\<^sub>b es : ts \<Longrightarrow> 
+lemma typing_binding_multiincr' [simp]: "\<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2 \<turnstile>\<^sub>d\<^sub>b es : ts \<Longrightarrow> 
   \<Gamma>\<^sub>1 @ \<Gamma>' @ \<Gamma>\<^sub>2 \<turnstile>\<^sub>d\<^sub>b map_with_idx (\<lambda>k. multiincr (length \<Gamma>') (k + length \<Gamma>\<^sub>1)) es : ts"
 proof (induction \<Gamma>')
   case Nil
@@ -253,32 +280,45 @@ next
   thus ?case by blast
 qed
 
-lemma typing_strip_lets [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> strip_lets e = (es, e') \<Longrightarrow> 
-  \<exists>ts. (\<Gamma> \<turnstile>\<^sub>d\<^sub>b es : ts) \<and> (ts @ \<Gamma> \<turnstile>\<^sub>d e' : t)"
-proof (induction \<Gamma> e t arbitrary: es e' rule: typing\<^sub>d.induct)
+lemma typing_binding_multiincr: "\<Gamma> \<turnstile>\<^sub>d\<^sub>b es : ts \<Longrightarrow> 
+  \<Gamma>' @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b map_with_idx (multiincr (length \<Gamma>')) es : ts"
+proof -
+  assume "\<Gamma> \<turnstile>\<^sub>d\<^sub>b es : ts"
+  hence "[] @ \<Gamma>' @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b map_with_idx (\<lambda>k. multiincr (length \<Gamma>') (k + length [])) es : ts" 
+    by (metis typing_binding_multiincr' append_Nil list.size(3))
+  thus ?thesis by simp
+qed
+
+lemma typing_strip_lets [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> 
+  \<exists>ts. (\<Gamma> \<turnstile>\<^sub>d\<^sub>b strip_lets e : ts) \<and> (ts @ \<Gamma> \<turnstile>\<^sub>d inner_expr e : t)"
+proof (induction \<Gamma> e t rule: typing\<^sub>d.induct)
   case (tc\<^sub>d_var \<Gamma> x t)
-  hence "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b es : []) \<and> ([] @ \<Gamma> \<turnstile>\<^sub>d e' : t)" by auto
+  hence "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b [] : []) \<and> ([] @ \<Gamma> \<turnstile>\<^sub>d Var\<^sub>d x : t)" by auto
+  hence "\<exists>ts. (\<Gamma> \<turnstile>\<^sub>d\<^sub>b [] : ts) \<and> (ts @ \<Gamma> \<turnstile>\<^sub>d Var\<^sub>d x : t)" by blast
   thus ?case by auto
 next
   case (tc\<^sub>d_const \<Gamma> n)
-  hence "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b es : []) \<and> ([] @ \<Gamma> \<turnstile>\<^sub>d e' : Num)" by auto
+  hence "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b [] : []) \<and> ([] @ \<Gamma> \<turnstile>\<^sub>d Const\<^sub>d n : Num)" by auto
+  hence "\<exists>ts. (\<Gamma> \<turnstile>\<^sub>d\<^sub>b [] : ts) \<and> (ts @ \<Gamma> \<turnstile>\<^sub>d Const\<^sub>d n : Num)" by blast
   thus ?case by auto
 next
   case (tc\<^sub>d_lam t\<^sub>1 \<Gamma> e t\<^sub>2)
-  hence "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b es : []) \<and> ([] @ \<Gamma> \<turnstile>\<^sub>d e' : Arrow t\<^sub>1 t\<^sub>2)" by auto
+  hence "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b [] : []) \<and> ([] @ \<Gamma> \<turnstile>\<^sub>d Lam\<^sub>d t\<^sub>1 e : Arrow t\<^sub>1 t\<^sub>2)" by auto
+  hence "\<exists>ts. (\<Gamma> \<turnstile>\<^sub>d\<^sub>b [] : ts) \<and> (ts @ \<Gamma> \<turnstile>\<^sub>d Lam\<^sub>d t\<^sub>1 e : Arrow t\<^sub>1 t\<^sub>2)" by blast
   thus ?case by auto
 next
   case (tc\<^sub>d_app \<Gamma> e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
-  hence "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b es : []) \<and> ([] @ \<Gamma> \<turnstile>\<^sub>d e' : t\<^sub>2)" by auto
+  hence "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b [] : []) \<and> ([] @ \<Gamma> \<turnstile>\<^sub>d App\<^sub>d e\<^sub>1 e\<^sub>2 : t\<^sub>2)" by auto
+  hence "\<exists>ts. (\<Gamma> \<turnstile>\<^sub>d\<^sub>b [] : ts) \<and> (ts @ \<Gamma> \<turnstile>\<^sub>d App\<^sub>d e\<^sub>1 e\<^sub>2 : t\<^sub>2)" by blast
   thus ?case by auto
 next
   case (tc\<^sub>d_let \<Gamma> e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
-  moreover obtain es\<^sub>2 e\<^sub>2' where E: "strip_lets e\<^sub>2 = (es\<^sub>2, e\<^sub>2')" by fastforce
-  ultimately obtain ts where T: "(insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d\<^sub>b es\<^sub>2 : ts) \<and> 
-    (ts @ insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2' : t\<^sub>2)" by fastforce
-  hence X: "ts @ t\<^sub>1 # \<Gamma> \<turnstile>\<^sub>d e\<^sub>2' : t\<^sub>2" by (cases \<Gamma>) simp_all
-  from tc\<^sub>d_let T have "\<Gamma> \<turnstile>\<^sub>d\<^sub>b e\<^sub>1 # es\<^sub>2 : ts @ [t\<^sub>1]" by simp
-  with tc\<^sub>d_let E X show ?case by auto
+  moreover then obtain ts\<^sub>2 where "(insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d\<^sub>b strip_lets e\<^sub>2 : ts\<^sub>2) \<and> 
+    (ts\<^sub>2 @ insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d inner_expr e\<^sub>2 : t\<^sub>2)" by auto
+  moreover hence "ts\<^sub>2 @ [t\<^sub>1] @ \<Gamma> \<turnstile>\<^sub>d inner_expr e\<^sub>2 : t\<^sub>2" by (cases \<Gamma>) simp_all
+  ultimately have "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b e\<^sub>1 # strip_lets e\<^sub>2 : ts\<^sub>2 @ [t\<^sub>1]) \<and> (ts\<^sub>2 @ [t\<^sub>1] @ \<Gamma> \<turnstile>\<^sub>d inner_expr e\<^sub>2 : t\<^sub>2)" 
+    by simp
+  thus ?case by auto
 qed
 
 lemma typing_reapply_lets [simp]: "\<Gamma> \<turnstile>\<^sub>d\<^sub>b es : ts \<Longrightarrow> ts @ \<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d reapply_lets es e : t"
@@ -290,70 +330,70 @@ qed (simp_all add: reapply_lets_def)
 theorem typing_float_lets [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d float_lets e : t"
 proof (induction \<Gamma> e t rule: typing\<^sub>d.induct)
   case (tc\<^sub>d_app \<Gamma> e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
-  obtain es\<^sub>1 e\<^sub>1' where E1: "strip_lets (float_lets e\<^sub>1) = (es\<^sub>1, e\<^sub>1')" by fastforce
-  with tc\<^sub>d_app obtain ts\<^sub>1 where T1: "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b es\<^sub>1 : ts\<^sub>1) \<and> (ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d e\<^sub>1' : Arrow t\<^sub>1 t\<^sub>2)" by fastforce
-  obtain es\<^sub>2 e\<^sub>2' where E2: "strip_lets (float_lets e\<^sub>2) = (es\<^sub>2, e\<^sub>2')" by fastforce
-  with tc\<^sub>d_app obtain ts\<^sub>2 where T2: "([] @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b es\<^sub>2 : ts\<^sub>2) \<and> (ts\<^sub>2 @ \<Gamma> \<turnstile>\<^sub>d e\<^sub>2' : t\<^sub>1)" by fastforce
-  moreover have "\<And>\<Gamma>'. \<Gamma>' @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b es\<^sub>2 : ts\<^sub>2 \<Longrightarrow> 
-    \<Gamma>' @ (Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1) @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b 
-      map_with_idx (\<lambda>k. multiincr (length (Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1)) (k + length \<Gamma>')) es\<^sub>2 : ts\<^sub>2"
-    by (metis typing_binding_multiincr)
-  ultimately have "[] @ (Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1) @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b 
-    map_with_idx (\<lambda>k. multiincr (length (Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1)) (k + length [])) es\<^sub>2 : ts\<^sub>2" 
-      by fastforce
-  hence "insert_at 0 (Arrow t\<^sub>1 t\<^sub>2) (ts\<^sub>1 @ \<Gamma>) \<turnstile>\<^sub>d\<^sub>b map_with_idx (multiincr (Suc (length ts\<^sub>1))) es\<^sub>2 : 
-    ts\<^sub>2" by (cases "ts\<^sub>1 @ \<Gamma>") (simp_all del: multiincr.simps)
-  with T1 have TE2: "ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b e\<^sub>1' # map_with_idx (multiincr (Suc (length ts\<^sub>1))) es\<^sub>2 : 
-    ts\<^sub>2 @ [Arrow t\<^sub>1 t\<^sub>2]" by simp
-  from T1 T2 have L: "length ts\<^sub>1 = length es\<^sub>1 \<and> length ts\<^sub>2 = length es\<^sub>2" by auto
-  hence "lookup (ts\<^sub>2 @ Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1 @ \<Gamma>) (length es\<^sub>2) = Some (Arrow t\<^sub>1 t\<^sub>2)"
-    by (metis lookup.simps(2) lookup_append_length)
-  hence V: "ts\<^sub>2 @ [Arrow t\<^sub>1 t\<^sub>2] @ ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d Var\<^sub>d (length es\<^sub>2) : Arrow t\<^sub>1 t\<^sub>2" by simp
-  from T2 have "ts\<^sub>2 @ ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d multiincr (length ts\<^sub>1) (length ts\<^sub>2) e\<^sub>2' : t\<^sub>1" by simp
-  hence "insert_at (length ts\<^sub>2) (Arrow t\<^sub>1 t\<^sub>2) (ts\<^sub>2 @ ts\<^sub>1 @ \<Gamma>) \<turnstile>\<^sub>d 
-    incr\<^sub>d (length ts\<^sub>2) (multiincr (length ts\<^sub>1) (length ts\<^sub>2) e\<^sub>2') : t\<^sub>1"
-      by (metis le_add1 length_append tc\<^sub>d_incr)
-  hence "ts\<^sub>2 @ [Arrow t\<^sub>1 t\<^sub>2] @ ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d 
-    incr\<^sub>d (length ts\<^sub>2) (multiincr (length ts\<^sub>1) (length ts\<^sub>2) e\<^sub>2') : t\<^sub>1" by simp
-  with TE2 L V have "ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d reapply_lets (e\<^sub>1' # map_with_idx (multiincr (Suc (length es\<^sub>1))) es\<^sub>2)
-    (App\<^sub>d (Var\<^sub>d (length es\<^sub>2)) (incr\<^sub>d (length es\<^sub>2) (multiincr (length es\<^sub>1) (length es\<^sub>2) e\<^sub>2'))) : t\<^sub>2" 
-      by simp
-  with E1 E2 T1 show ?case by fastforce
+  let ?es\<^sub>1 = "strip_lets (float_lets e\<^sub>1)"
+  let ?e\<^sub>1' = "inner_expr (float_lets e\<^sub>1)"
+  let ?es\<^sub>2 = "strip_lets (float_lets e\<^sub>2)"
+  let ?es\<^sub>1' = "if is_reducible ?e\<^sub>1' then ?es\<^sub>1 @ [?e\<^sub>1'] else ?es\<^sub>1"
+  from tc\<^sub>d_app obtain ts\<^sub>1 where T1: "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>1 : ts\<^sub>1) \<and> (ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d ?e\<^sub>1' : Arrow t\<^sub>1 t\<^sub>2)" 
+    by fastforce
+  from tc\<^sub>d_app obtain ts\<^sub>2 where T2: "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>2 : ts\<^sub>2) \<and> 
+    (ts\<^sub>2 @ \<Gamma> \<turnstile>\<^sub>d inner_expr (float_lets e\<^sub>2) : t\<^sub>1)" by fastforce
+  let ?ts\<^sub>1 = "if is_reducible ?e\<^sub>1' then Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1 else ts\<^sub>1"
+  from T1 have "insert_at 0 (Arrow t\<^sub>1 t\<^sub>2) (ts\<^sub>1 @ \<Gamma>) \<turnstile>\<^sub>d\<^sub>b [] : []" by simp
+  with T1 have "\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>1 @ [?e\<^sub>1'] : [Arrow t\<^sub>1 t\<^sub>2] @ ts\<^sub>1" 
+    by (metis typing_bindings_append tc\<^sub>d_bind_cons append_Nil)
+  with T1 have TS1: "\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>1' : ?ts\<^sub>1" by simp
+  with T2 have TS2: "?ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b map_with_idx (multiincr (length ?es\<^sub>1')) ?es\<^sub>2 : ts\<^sub>2" 
+    by (simp add: typing_binding_multiincr)
+  from T1 have "[] @ ?ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d (if is_reducible ?e\<^sub>1' then Var\<^sub>d 0 else ?e\<^sub>1') : Arrow t\<^sub>1 t\<^sub>2" by simp
+  hence "[] @ ts\<^sub>2 @ ?ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d 
+    multiincr (length ts\<^sub>2) 0 (if is_reducible ?e\<^sub>1' then Var\<^sub>d 0 else ?e\<^sub>1') : Arrow t\<^sub>1 t\<^sub>2" 
+      by (metis list.size(3) typing_multiincr)
+  with T2 TS1 TS2 show ?case by (simp add: Let_def)
 next
   case (tc\<^sub>d_let \<Gamma> e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
-  then obtain es\<^sub>1 e\<^sub>1' where E: "strip_lets (float_lets e\<^sub>1) = (es\<^sub>1, e\<^sub>1')" by fastforce
-  with tc\<^sub>d_let obtain ts\<^sub>1 where T1: "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b es\<^sub>1 : ts\<^sub>1) \<and> (ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d e\<^sub>1' : t\<^sub>1)" by fastforce
-  hence L: "length ts\<^sub>1 = length es\<^sub>1" by auto
-  from tc\<^sub>d_let have "[t\<^sub>1] @ \<Gamma> \<turnstile>\<^sub>d float_lets e\<^sub>2 : t\<^sub>2" by (induction \<Gamma>) simp_all
+  let ?es\<^sub>1 = "strip_lets (float_lets e\<^sub>1)"
+  from tc\<^sub>d_let obtain ts\<^sub>1 where T1: "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>1 : ts\<^sub>1) \<and> 
+    (ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d (inner_expr (float_lets e\<^sub>1)) : t\<^sub>1)" by fastforce
+  from tc\<^sub>d_let have "insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d float_lets e\<^sub>2 : t\<^sub>2" by simp
+  hence "[t\<^sub>1] @ \<Gamma> \<turnstile>\<^sub>d float_lets e\<^sub>2 : t\<^sub>2" by (cases \<Gamma>) simp_all
   hence "[t\<^sub>1] @ ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d multiincr (length ts\<^sub>1) (length [t\<^sub>1]) (float_lets e\<^sub>2) : t\<^sub>2" 
-    using typing_multiincr by fastforce
-  with L have "insert_at 0 t\<^sub>1 (ts\<^sub>1 @ \<Gamma>) \<turnstile>\<^sub>d multiincr (length es\<^sub>1) (Suc 0) (float_lets e\<^sub>2) : t\<^sub>2" 
-    by (cases "ts\<^sub>1 @ \<Gamma>") simp_all
-  with E T1 show ?case by auto
+    by (metis typing_multiincr)
+  with T1 show ?case by (cases "ts\<^sub>1 @ \<Gamma>") auto
 qed simp_all
 
-lemma strip_lets_val [simp]: "value\<^sub>d v \<Longrightarrow> strip_lets v = ([], v)"
+lemma strip_lets_val [simp]: "value\<^sub>d v \<Longrightarrow> strip_lets v = []"
+  by (induction v) simp_all
+
+lemma inner_expr_val [simp]: "value\<^sub>d v \<Longrightarrow> inner_expr v = v"
   by (induction v) simp_all
 
 lemma reapply_let_val [simp]: "value\<^sub>d (reapply_lets es e) = (es = [] \<and> value\<^sub>d e)"
   by (induction es) (simp_all add: reapply_lets_def)
 
 lemma float_lets_val [simp]: "value\<^sub>d (float_lets e) = value\<^sub>d e"
-  by (induction e) (auto split: prod.splits)
+  by (induction e) (auto simp add: Let_def split: prod.splits)
 
-lemma strip_lets_subst [simp]: "strip_lets e = (es, e') \<Longrightarrow> value\<^sub>d v \<Longrightarrow>
-    strip_lets (subst\<^sub>d x v e) = (map_with_idx (\<lambda>k. subst\<^sub>d (k + x) (multiincr k 0 v)) es, 
-      subst\<^sub>d (length es + x) (multiincr (length es) 0 v) e')"
-  by (induction e arbitrary: es x v) (auto split: prod.splits)
+lemma strip_lets_subst [simp]: "value\<^sub>d v \<Longrightarrow>
+    strip_lets (subst\<^sub>d x v e) = map_with_idx (\<lambda>k. subst\<^sub>d (k + x) (multiincr k 0 v)) (strip_lets e)"
+  by (induction e arbitrary: x v) (auto split: prod.splits)
+
+lemma inner_expr_subst [simp]: "value\<^sub>d v \<Longrightarrow> inner_expr (subst\<^sub>d x v e) = 
+    subst\<^sub>d (length (strip_lets e) + x) (multiincr (length (strip_lets e)) 0 v) (inner_expr e)"
+  by (induction e arbitrary: x v) (auto split: prod.splits)
 
 lemma reapply_let_subst [simp]: "subst\<^sub>d x v (reapply_lets es e) = 
   reapply_lets (map_with_idx (\<lambda>k. subst\<^sub>d (k + x) (multiincr k 0 v)) es) 
     (subst\<^sub>d (x + length es) (multiincr (length es) 0 v) e)"
   by (induction es arbitrary: x v) (simp_all add: reapply_lets_def)
 
-lemma strip_lets_incr [simp]: "strip_lets e = (es, e') \<Longrightarrow> 
-    strip_lets (incr\<^sub>d x e) = (map_with_idx (\<lambda>k. incr\<^sub>d (k + x)) es, incr\<^sub>d (length es + x) e')"
-  by (induction e arbitrary: es x) (auto simp add: comp_def split: prod.splits)
+lemma strip_lets_incr [simp]: "strip_lets (incr\<^sub>d x e) = 
+    map_with_idx (\<lambda>k. incr\<^sub>d (k + x)) (strip_lets e)"
+  by (induction e arbitrary: x) (auto simp add: comp_def split: prod.splits)
+
+lemma inner_expr_incr [simp]: "inner_expr (incr\<^sub>d x e) = 
+    incr\<^sub>d (length (strip_lets e) + x) (inner_expr e)"
+  by (induction e arbitrary: x) (auto simp add: comp_def split: prod.splits)
 
 lemma reapply_let_incr [simp]: "incr\<^sub>d x (reapply_lets es e) = 
     reapply_lets (map_with_idx (\<lambda>k. incr\<^sub>d (k + x)) es) (incr\<^sub>d (x + length es) e)"
@@ -383,92 +423,50 @@ lemma float_lets_lemma3 [simp]: "multiincr y z (incr\<^sub>d (z + x) e) =
 lemma float_lets_incr [simp]: "float_lets (incr\<^sub>d x e) = incr\<^sub>d x (float_lets e)"
 proof (induction e arbitrary: x)
   case (App\<^sub>d e1 e2)
-  moreover obtain es\<^sub>1 e\<^sub>1' where "strip_lets (float_lets e1) = (es\<^sub>1, e\<^sub>1')" by fastforce
-  moreover obtain es\<^sub>2 e\<^sub>2' where "strip_lets (float_lets e2) = (es\<^sub>2, e\<^sub>2')" by fastforce
-  moreover have X: "(\<lambda>k. incr\<^sub>d (Suc (k + (x + length es\<^sub>1)))) = 
-    (\<lambda>k. incr\<^sub>d (k + (x + length es\<^sub>1))) \<circ> Suc" by auto
-  moreover have Y: "length es\<^sub>1 + (x + length es\<^sub>2) = length es\<^sub>2 + (x + length es\<^sub>1)" by simp
-  ultimately show ?case by (simp add: incr_above add.commute X Y)
-next
-  case (Let\<^sub>d e1 e2)
-  moreover obtain es\<^sub>1 e\<^sub>1' where "strip_lets (float_lets e1) = (es\<^sub>1, e\<^sub>1')" by fastforce
-  ultimately show ?case by (simp add: add.commute)
-qed simp_all
+  thus ?case by (simp add: Let_def incr_above)
+qed (simp_all add: Let_def add.commute)
 
 lemma float_lets_subst [simp]: "value\<^sub>d v \<Longrightarrow> 
   float_lets (subst\<^sub>d x v e) = subst\<^sub>d x (float_lets v) (float_lets e)"
 proof (induction e arbitrary: x v)
   case (App\<^sub>d e1 e2)
-  obtain es\<^sub>1 e\<^sub>1' where E1: "strip_lets (float_lets e1) = (es\<^sub>1, e\<^sub>1')" by fastforce
-  obtain es\<^sub>2 e\<^sub>2' where E2: "strip_lets (float_lets e2) = (es\<^sub>2, e\<^sub>2')" by fastforce
-  have X: "length es\<^sub>1 + x = x + length es\<^sub>1" by simp
-  have Y: "length es\<^sub>1 + (length es\<^sub>2 + x) = x + length es\<^sub>1 + length es\<^sub>2" by simp
-  have Z: "\<And>k. length es\<^sub>1 + (k + x) = k + (x + length es\<^sub>1)" by simp
-  have "\<And>k. incr\<^sub>d k \<circ> multiincr (length es\<^sub>1) k \<circ> subst\<^sub>d (k + x) (multiincr k 0 (float_lets v)) =
-    subst\<^sub>d (Suc k + (x + length es\<^sub>1)) 
-      (multiincr (Suc k) 0 (multiincr (length es\<^sub>1) 0 (float_lets v))) \<circ> incr\<^sub>d k \<circ> 
-          multiincr (length es\<^sub>1) k"
-    by (auto simp add: incr_multiincr_higher Z)
-  hence "map_with_idx (\<lambda>k. incr\<^sub>d k \<circ> multiincr (length es\<^sub>1) k \<circ> 
-    subst\<^sub>d (k + x) (multiincr k 0 (float_lets v))) es\<^sub>2 =
-      map_with_idx (\<lambda>k. subst\<^sub>d (Suc k + (x + length es\<^sub>1)) 
-        (multiincr (Suc k) 0 (multiincr (length es\<^sub>1) 0 (float_lets v))) \<circ> incr\<^sub>d k \<circ> 
-          multiincr (length es\<^sub>1) k) es\<^sub>2" by simp
-  hence "map_with_idx (\<lambda>k. multiincr (Suc (length es\<^sub>1)) k)
-    (map_with_idx (\<lambda>k. subst\<^sub>d (k + x) (multiincr k 0 (float_lets v))) es\<^sub>2) =
-      map_with_idx ((\<lambda>k. subst\<^sub>d (k + (x + length es\<^sub>1))
-        (multiincr k 0 (multiincr (length es\<^sub>1) 0 (float_lets v)))) \<circ> Suc)
-          (map_with_idx (\<lambda>k. multiincr (Suc (length es\<^sub>1)) k) es\<^sub>2)" by simp
-  hence W: "map_with_idx (multiincr (Suc (length es\<^sub>1)))
-    (map_with_idx (\<lambda>k. subst\<^sub>d (k + x) (multiincr k 0 (float_lets v))) es\<^sub>2) =
-      map_with_idx ((\<lambda>k. subst\<^sub>d (k + (x + length es\<^sub>1))
-        (multiincr k 0 (multiincr (length es\<^sub>1) 0 (float_lets v)))) \<circ> Suc)
-          (map_with_idx (multiincr (Suc (length es\<^sub>1))) es\<^sub>2)" by blast
-  have "incr\<^sub>d (length es\<^sub>2) (multiincr (length es\<^sub>2) 0 (multiincr (length es\<^sub>1) 0 (float_lets v))) =
-        incr\<^sub>d 0 (multiincr (length es\<^sub>2) 0 (multiincr (length es\<^sub>1) 0 (float_lets v)))" 
-    by (simp add: incr_multiincr_higher)
-  with App\<^sub>d E1 E2 W show ?case by (simp add: X Y)
-next
-  case (Let\<^sub>d e1 e2)
-  obtain es\<^sub>1 e\<^sub>1' where E1: "strip_lets (float_lets e1) = (es\<^sub>1, e\<^sub>1')" by fastforce
-  have X: "length es\<^sub>1 + x = x + length es\<^sub>1" by simp
-  with Let\<^sub>d E1 show ?case by (simp add: X)
-qed simp_all
+  from App\<^sub>d have "value\<^sub>d xv \<Longrightarrow> float_lets (subst\<^sub>d xx xv e1) = subst\<^sub>d xx (float_lets xv) (float_lets e1)" by simp
+  from App\<^sub>d have "value\<^sub>d xv \<Longrightarrow> float_lets (subst\<^sub>d xx xv e2) = subst\<^sub>d xx (float_lets xv) (float_lets e2)" by simp
+  from App\<^sub>d have "value\<^sub>d v" by simp
 
-lemma eval_strip_lets [simp]: "e \<leadsto>\<^sub>d e' \<Longrightarrow> strip_lets e = (ee # es, xe) \<Longrightarrow> 
-  if value\<^sub>d ee 
-  then strip_lets e' = (map_with_idx (\<lambda>k. subst\<^sub>d k (multiincr k 0 ee)) es, 
-    subst\<^sub>d (length es) (multiincr (length es) 0 ee) xe) 
-  else \<exists>ee'. ee \<leadsto>\<^sub>d ee' \<and> strip_lets e' = (ee' # es, xe)"
-proof (induction e e' arbitrary: es xe rule: eval\<^sub>d.induct)
-  case (ev\<^sub>d_let1 e\<^sub>1 e\<^sub>1' e\<^sub>2)
-  moreover hence "\<not>value\<^sub>d e\<^sub>1" by auto
-  ultimately show ?case by (auto split: prod.splits)
-qed (auto split: prod.splits)
+
+  let ?es\<^sub>1 = "strip_lets (float_lets e1)"
+  let ?es\<^sub>1\<^sub>s = "map_with_idx (\<lambda>k. subst\<^sub>d (k + x) (multiincr k 0 (float_lets v))) ?es\<^sub>1"
+  let ?e\<^sub>1' = "inner_expr (float_lets e1)"
+  let ?e\<^sub>1\<^sub>s' = "subst\<^sub>d (length ?es\<^sub>1 + x) (multiincr (length ?es\<^sub>1) 0 (float_lets v)) ?e\<^sub>1'"
+  let ?es\<^sub>2 = "strip_lets (float_lets e2)"
+  let ?es\<^sub>2\<^sub>s = "map_with_idx (\<lambda>k. subst\<^sub>d (k + x) (multiincr k 0 (float_lets v))) ?es\<^sub>2"
+  let ?es\<^sub>1' = "if is_reducible ?e\<^sub>1' then ?es\<^sub>1 @ [?e\<^sub>1'] else ?es\<^sub>1"
+  let ?es\<^sub>1\<^sub>s' = "if is_reducible ?e\<^sub>1\<^sub>s' then ?es\<^sub>1\<^sub>s @ [?e\<^sub>1\<^sub>s'] else ?es\<^sub>1\<^sub>s"
+
+  from App\<^sub>d have X: "(map_with_idx (\<lambda>k. subst\<^sub>d (k + (x + length ?es\<^sub>1')) (multiincr k 0 (multiincr (length ?es\<^sub>1') 0 (float_lets v)))) 
+      (map_with_idx (multiincr (length ?es\<^sub>1')) ?es\<^sub>2)) = (map_with_idx (multiincr (length ?es\<^sub>1\<^sub>s')) ?es\<^sub>2\<^sub>s)"
+    by simp
+
+  have Y: "subst\<^sub>d (x + length ?es\<^sub>1' + length (map_with_idx (multiincr (length ?es\<^sub>1')) ?es\<^sub>2)) 
+    (multiincr (length (map_with_idx (multiincr (length ?es\<^sub>1')) ?es\<^sub>2)) 0 (multiincr (length ?es\<^sub>1') 0 (float_lets v))) 
+      (multiincr (length ?es\<^sub>2) 0 (if is_reducible ?e\<^sub>1' then Var\<^sub>d 0 else ?e\<^sub>1')) =
+        multiincr (length ?es\<^sub>2\<^sub>s) 0 (if is_reducible ?e\<^sub>1\<^sub>s' then Var\<^sub>d 0 else ?e\<^sub>1\<^sub>s')" by simp
+
+
+  have "multiincr (length ?es\<^sub>1\<^sub>s') (length ?es\<^sub>2\<^sub>s) (subst\<^sub>d (length ?es\<^sub>2 + x) 
+    (multiincr (length ?es\<^sub>2) 0 (float_lets v)) (inner_expr (float_lets e2))) =
+      subst\<^sub>d (x + length ?es\<^sub>1' + length (map_with_idx (multiincr (length ?es\<^sub>1')) ?es\<^sub>2)) 
+        (multiincr (length (map_with_idx (multiincr (length ?es\<^sub>1')) ?es\<^sub>2)) 0 
+            (multiincr (length ?es\<^sub>1') 0 (float_lets v))) (multiincr (length ?es\<^sub>1') (length ?es\<^sub>2) 
+            (inner_expr (float_lets e2)))" by simp
+  with App\<^sub>d X Y show ?case by (simp add: Let_def)
+qed (simp_all add: Let_def add.commute)
 
 theorem correctness\<^sub>f\<^sub>l [simp]: "e \<leadsto>\<^sub>d e' \<Longrightarrow> iter (\<leadsto>\<^sub>d) (float_lets e) (float_lets e')"
 proof (induction e e' rule: eval\<^sub>d.induct)
   case (ev\<^sub>d_app1 e\<^sub>1 e\<^sub>1' e\<^sub>2)
-  obtain es\<^sub>1 xe\<^sub>1 where E1: "strip_lets (float_lets e\<^sub>1) = (es\<^sub>1, xe\<^sub>1)" by fastforce
-  obtain es\<^sub>2 xe\<^sub>2 where E2: "strip_lets (float_lets e\<^sub>2) = (es\<^sub>2, xe\<^sub>2)" by fastforce
-
-
-  from ev\<^sub>d_app1 have "e\<^sub>1 \<leadsto>\<^sub>d e\<^sub>1'" by simp 
-  from ev\<^sub>d_app1 have "iter (\<leadsto>\<^sub>d) (float_lets e\<^sub>1) (float_lets e\<^sub>1')" by simp 
-
-
-  have "iter (\<leadsto>\<^sub>d)
-     (reapply_lets es\<^sub>1
-           (reapply_lets (xe\<^sub>1 # map_with_idx (multiincr (Suc (length es\<^sub>1))) es\<^sub>2)
-             (App\<^sub>d (Var\<^sub>d (length es\<^sub>2))
-               (incr\<^sub>d (length es\<^sub>2) (multiincr (length es\<^sub>1) (length es\<^sub>2) xe\<^sub>2)))))
-     (case strip_lets (float_lets e\<^sub>1') of
-      (es\<^sub>1', xe\<^sub>1') \<Rightarrow>
-        reapply_lets es\<^sub>1'
-           (reapply_lets (xe\<^sub>1' # map_with_idx (multiincr (Suc (length es\<^sub>1'))) es\<^sub>2)
-             (App\<^sub>d (Var\<^sub>d (length es\<^sub>2))
-               (incr\<^sub>d (length es\<^sub>2) (multiincr (length es\<^sub>1') (length es\<^sub>2) xe\<^sub>2)))))" by simp
-  with E1 E2 show ?case by simp
+  thus ?case by simpx 
 next
   case (ev\<^sub>d_app2 e\<^sub>1 e\<^sub>2 e\<^sub>2')
   then show ?case by simpx
@@ -477,10 +475,21 @@ next
   then show ?case by simp
 next
   case (ev\<^sub>d_let1 e\<^sub>1 e\<^sub>1' e\<^sub>2)
-  then show ?case by simpx
+
+  have "iter (\<leadsto>\<^sub>d)
+     (let es\<^sub>1 = strip_lets (float_lets e\<^sub>1)
+      in reapply_lets es\<^sub>1
+          (Let\<^sub>d (inner_expr (float_lets e\<^sub>1)) (multiincr (length es\<^sub>1) (Suc 0) (float_lets e\<^sub>2))))
+     (let es\<^sub>1 = strip_lets (float_lets e\<^sub>1')
+      in reapply_lets es\<^sub>1
+          (Let\<^sub>d (inner_expr (float_lets e\<^sub>1')) (multiincr (length es\<^sub>1) (Suc 0) (float_lets e\<^sub>2))))" by simp
+  thus ?case by simp
 next
   case (ev\<^sub>d_let2 e\<^sub>1 e\<^sub>2)
-  then show ?case by simp
+  hence "Let\<^sub>d (float_lets e\<^sub>1) (float_lets e\<^sub>2) \<leadsto>\<^sub>d subst\<^sub>d 0 (float_lets e\<^sub>1) (float_lets e\<^sub>2)" by simp
+  hence "iter (\<leadsto>\<^sub>d) (Let\<^sub>d (float_lets e\<^sub>1) (float_lets e\<^sub>2)) (subst\<^sub>d 0 (float_lets e\<^sub>1) (float_lets e\<^sub>2))"
+    by simp
+  with ev\<^sub>d_let2 show ?case by (simp add: Let_def)
 qed
 
 lemma iter_correct\<^sub>f\<^sub>l [simp]: "iter (\<leadsto>\<^sub>d) e e' \<Longrightarrow> iter (\<leadsto>\<^sub>d) (float_lets e) (float_lets e')"
