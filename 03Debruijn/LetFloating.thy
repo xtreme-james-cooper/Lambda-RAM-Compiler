@@ -33,11 +33,10 @@ text \<open>There is one slight catch - naively floating the lets out of the arg
 \<open>App\<^sub>s e\<^sub>1 (Let\<^sub>s e\<^sub>2\<^sub>1 e\<^sub>2\<^sub>2)\<close> changes the evaluation order - before, \<open>e\<^sub>1\<close> is evaluated before \<open>e\<^sub>2\<^sub>1\<close>, but 
 once the latter has been floated out, it will be evaluated first. This is not necessarily fatal, 
 since our language is normalizing and has no side effects, but this would not extend to a richer 
-language, and would force us to work with big-step evaluation for proofs instead of the simpler 
-small-step relation. Fortunately, we can solve it another way: just let-bind \<open>e\<^sub>1\<close> too, thereby 
-fixing the evaluation order. Because of our lifting of application left-sides, there will be one 
-extra evaluation step substituting it back away in each \<open>App\<^sub>s\<close>, equivalent to one extra \<open>Lookup\<^sub>e\<close> in 
-the compiled tree-code. It will be made up for, hopefully, by the savings from not having to pop the 
+language. Fortunately, we can solve it another way: just let-bind \<open>e\<^sub>1\<close> too, thereby fixing the 
+evaluation order. Because of our lifting of application left-sides, there will be one extra 
+evaluation step substituting it back away in each \<open>App\<^sub>s\<close>, equivalent to one extra \<open>Lookup\<^sub>e\<close> in the 
+compiled tree-code. It will be made up for, hopefully, by the savings from not having to pop the 
 environments at the end of each function.\<close>
 
 text \<open>This transformation has one even more useful consequence, but it is not yet implemented - see
@@ -45,10 +44,9 @@ the "Further Work" section at the end.\<close>
 
 text \<open>We begin by defining our let-floated normal form.\<close>
 
-fun is_reducible :: "expr\<^sub>d \<Rightarrow> bool" where
-  "is_reducible (App\<^sub>d e\<^sub>1 e\<^sub>2) = True"
-| "is_reducible (Let\<^sub>d e\<^sub>1 e\<^sub>2) = True"
-| "is_reducible e = False"
+fun is_var :: "expr\<^sub>d \<Rightarrow> bool" where
+  "is_var (Var\<^sub>d e) = True"
+| "is_var e = False"
 
 primrec let_free :: "expr\<^sub>d \<Rightarrow> bool" where
   "let_free (Var\<^sub>d x) = True"
@@ -62,16 +60,10 @@ primrec let_floated :: "expr\<^sub>d \<Rightarrow> bool" where
 | "let_floated (Const\<^sub>d n) = True"
 | "let_floated (Lam\<^sub>d t e) = let_floated e"
 | "let_floated (App\<^sub>d e\<^sub>1 e\<^sub>2) = 
-    (let_free e\<^sub>1 \<and> let_free e\<^sub>2 \<and> \<not> is_reducible e\<^sub>1 \<and> let_floated e\<^sub>1 \<and> let_floated e\<^sub>2)"
+    (let_free e\<^sub>1 \<and> let_free e\<^sub>2 \<and> is_var e\<^sub>1 \<and> let_floated e\<^sub>1 \<and> let_floated e\<^sub>2)"
 | "let_floated (Let\<^sub>d e\<^sub>1 e\<^sub>2) = (let_free e\<^sub>1 \<and> let_floated e\<^sub>1 \<and> let_floated e\<^sub>2)"
 
-lemma value_not_reducible [simp]: "value\<^sub>d v \<Longrightarrow> \<not> is_reducible v"
-  by (induction v) simp_all
-
-lemma is_reducible_incr [simp]: "is_reducible (incr\<^sub>d x e) = is_reducible e"
-  by (induction e) simp_all
-
-lemma is_reducible_subst [simp]: "value\<^sub>d v \<Longrightarrow> is_reducible (subst\<^sub>d x v e) = is_reducible e"
+lemma is_var_incr [simp]: "is_var (incr\<^sub>d x e) = is_var e"
   by (induction e) simp_all
 
 text \<open>Then, the let-floating transformation itself. We have to define a multiple-increment function
@@ -129,9 +121,6 @@ lemma multiincr_subst [simp]: "z \<le> y \<Longrightarrow> multiincr x y (subst\
 lemma eval_multiincr [simp]: "e \<leadsto>\<^sub>d e' \<Longrightarrow> multiincr x y e \<leadsto>\<^sub>d multiincr x y e'"
   by (induction e e' rule: eval\<^sub>d.induct) simp_all
 
-lemma is_reducible_multiincr [simp]: "is_reducible (multiincr x y e) = is_reducible e"
-  by (induction e) simp_all
-
 fun strip_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d list" where
   "strip_lets (Let\<^sub>d e\<^sub>1 e\<^sub>2) = e\<^sub>1 # strip_lets e\<^sub>2"
 | "strip_lets e = []"
@@ -158,11 +147,11 @@ lemma reapply_next_lets [simp]: "inner_expr (reapply_lets es e) = inner_expr e"
 lemma reapply_nil [simp]: "reapply_lets [] e = e"
   by (simp add: reapply_lets_def)
 
-lemma reapply_append [simp]: "reapply_lets (es @ es') e = reapply_lets es (reapply_lets es' e)"
+lemma reapply_cons [simp]: "reapply_lets (e' # es) e = Let\<^sub>d e' (reapply_lets es e)"
   by (simp add: reapply_lets_def)
 
-lemma inner_expr_reducible [simp]: "\<not> is_reducible e \<Longrightarrow> \<not> is_reducible (inner_expr e)"
-  by (induction e) simp_all
+lemma reapply_append [simp]: "reapply_lets (es @ es') e = reapply_lets es (reapply_lets es' e)"
+  by (simp add: reapply_lets_def)
 
 primrec float_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d" where
   "float_lets (Var\<^sub>d x) = Var\<^sub>d x"
@@ -173,10 +162,8 @@ primrec float_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d" where
     in let e\<^sub>1' = inner_expr (float_lets e\<^sub>1)
     in let es\<^sub>2 = strip_lets (float_lets e\<^sub>2) 
     in let e\<^sub>2' = inner_expr (float_lets e\<^sub>2) 
-    in let es\<^sub>1' = if is_reducible e\<^sub>1' then es\<^sub>1 @ [e\<^sub>1'] else es\<^sub>1
-    in let e\<^sub>1'' = if is_reducible e\<^sub>1' then Var\<^sub>d 0 else e\<^sub>1'
-    in reapply_lets (es\<^sub>1' @ map_with_idx 0 (multiincr (length es\<^sub>1')) es\<^sub>2) 
-         (App\<^sub>d (multiincr (length es\<^sub>2) 0 e\<^sub>1'') (multiincr (length es\<^sub>1') (length es\<^sub>2) e\<^sub>2')))"
+    in reapply_lets (es\<^sub>1 @ [e\<^sub>1'] @ map_with_idx 0 (multiincr (Suc (length es\<^sub>1))) es\<^sub>2) 
+         (App\<^sub>d (Var\<^sub>d (length es\<^sub>2)) (multiincr (Suc (length es\<^sub>1)) (length es\<^sub>2) e\<^sub>2')))"
 | "float_lets (Let\<^sub>d e\<^sub>1 e\<^sub>2) = (
     let es\<^sub>1 = strip_lets (float_lets e\<^sub>1)
     in reapply_lets es\<^sub>1 
@@ -225,12 +212,6 @@ lemma let_free_strip_lets [simp]: "let_free e \<Longrightarrow> strip_lets e = [
 
 lemma let_free_inner_expr [simp]: "let_free e \<Longrightarrow> inner_expr e = e"
   by (induction e) simp_all
-
-lemma float_lets_let_floated [simp]: "let_floated e \<Longrightarrow> float_lets e = e"
-  by (induction e) simp_all
-
-lemma float_lets_idempotent [simp]: "float_lets (float_lets e) = float_lets e"
-  by simp
 
 text \<open>And the safety and correctness proofs:\<close>
 
@@ -352,25 +333,25 @@ theorem typing_float_lets [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrig
 proof (induction \<Gamma> e t rule: typing\<^sub>d.induct)
   case (tc\<^sub>d_app \<Gamma> e\<^sub>1 t\<^sub>1 t\<^sub>2 e\<^sub>2)
   let ?es\<^sub>1 = "strip_lets (float_lets e\<^sub>1)"
-  let ?e\<^sub>1' = "inner_expr (float_lets e\<^sub>1)"
+  let ?e\<^sub>1 = "inner_expr (float_lets e\<^sub>1)"
   let ?es\<^sub>2 = "strip_lets (float_lets e\<^sub>2)"
-  let ?es\<^sub>1' = "if is_reducible ?e\<^sub>1' then ?es\<^sub>1 @ [?e\<^sub>1'] else ?es\<^sub>1"
-  from tc\<^sub>d_app obtain ts\<^sub>1 where T1: "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>1 : ts\<^sub>1) \<and> (ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d ?e\<^sub>1' : Arrow t\<^sub>1 t\<^sub>2)" 
+  from tc\<^sub>d_app obtain ts\<^sub>1 where T1: "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>1 : ts\<^sub>1) \<and> (ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d ?e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2)" 
     by fastforce
   from tc\<^sub>d_app obtain ts\<^sub>2 where T2: "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>2 : ts\<^sub>2) \<and> 
     (ts\<^sub>2 @ \<Gamma> \<turnstile>\<^sub>d inner_expr (float_lets e\<^sub>2) : t\<^sub>1)" by fastforce
-  let ?ts\<^sub>1 = "if is_reducible ?e\<^sub>1' then Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1 else ts\<^sub>1"
-  from T1 have "insert_at 0 (Arrow t\<^sub>1 t\<^sub>2) (ts\<^sub>1 @ \<Gamma>) \<turnstile>\<^sub>d\<^sub>b [] : []" by simp
-  with T1 have "\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>1 @ [?e\<^sub>1'] : [Arrow t\<^sub>1 t\<^sub>2] @ ts\<^sub>1" 
-    by (metis typing_bindings_append tc\<^sub>d_bind_cons append_Nil)
-  with T1 have TS1: "\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>1' : ?ts\<^sub>1" by simp
-  with T2 have TS2: "?ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b map_with_idx 0 (multiincr (length ?es\<^sub>1')) ?es\<^sub>2 : ts\<^sub>2" 
-    by (simp add: typing_binding_multiincr)
-  from T1 have "[] @ ?ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d (if is_reducible ?e\<^sub>1' then Var\<^sub>d 0 else ?e\<^sub>1') : Arrow t\<^sub>1 t\<^sub>2" by simp
-  hence "[] @ ts\<^sub>2 @ ?ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d 
-    multiincr (length ts\<^sub>2) 0 (if is_reducible ?e\<^sub>1' then Var\<^sub>d 0 else ?e\<^sub>1') : Arrow t\<^sub>1 t\<^sub>2" 
-      by (metis list.size(3) typing_multiincr)
-  with T2 TS1 TS2 show ?case by (simp add: Let_def)
+  from T1 T2 have TS2: "Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b 
+    map_with_idx 0 (multiincr (Suc (length ?es\<^sub>1))) ?es\<^sub>2 : ts\<^sub>2" 
+      by (metis length_Cons typing_bindings_eq_length typing_binding_multiincr append_Cons)
+  from T1 T2 have X: "ts\<^sub>2 @ Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d Var\<^sub>d (length ?es\<^sub>2) : Arrow t\<^sub>1 t\<^sub>2" by auto
+  from T2 have "ts\<^sub>2 @ Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d 
+    multiincr (Suc (length ts\<^sub>1)) (length ts\<^sub>2) (inner_expr (float_lets e\<^sub>2)) : t\<^sub>1"
+      by (metis append_Cons length_Cons typing_multiincr)
+  with T1 T2 have "ts\<^sub>2 @ Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d 
+    multiincr (Suc (length ?es\<^sub>1)) (length ?es\<^sub>2) (inner_expr (float_lets e\<^sub>2)) : t\<^sub>1" by auto
+  with X have "ts\<^sub>2 @ Arrow t\<^sub>1 t\<^sub>2 # ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d 
+    App\<^sub>d (Var\<^sub>d (length ?es\<^sub>2)) (incr\<^sub>d (length ?es\<^sub>2) (multiincr (length ?es\<^sub>1) (length ?es\<^sub>2) 
+      (inner_expr (float_lets e\<^sub>2)))) : t\<^sub>2" by simp
+  with T1 TS2 show ?case by (cases "ts\<^sub>1 @ \<Gamma>") (auto simp add: Let_def)
 next
   case (tc\<^sub>d_let \<Gamma> e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
   let ?es\<^sub>1 = "strip_lets (float_lets e\<^sub>1)"
@@ -442,9 +423,8 @@ proof (induction e arbitrary: x v)
   case (App\<^sub>d e1 e2)
   let ?es\<^sub>1 = "strip_lets (float_lets e1)"
   let ?es\<^sub>2 = "strip_lets (float_lets e2)"
-  have A: "length ?es\<^sub>2 + (length ?es\<^sub>1 + x) = x + length ?es\<^sub>1 + length ?es\<^sub>2" by simp
-  have B: "length ?es\<^sub>1 + (length ?es\<^sub>2 + x) = x + length ?es\<^sub>1 + length ?es\<^sub>2" by simp
-  from App\<^sub>d show ?case by (simp add: Let_def A B)
+  have A: "length ?es\<^sub>1 + (x + length ?es\<^sub>2) = length ?es\<^sub>2 + (x + length ?es\<^sub>1)" by simp
+  from App\<^sub>d show ?case by (simp add: Let_def add.commute incr_multiincr_higher A)
 qed (simp_all add: Let_def add.commute)
 
 primrec strip_lets_eval_prop :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d list \<Rightarrow> expr\<^sub>d \<Rightarrow> bool" where
@@ -490,9 +470,17 @@ next
 next
   case (ev\<^sub>d_let1 e\<^sub>1 e\<^sub>1' e\<^sub>2)
   then obtain e\<^sub>1'' where "float_lets e\<^sub>1 \<leadsto>\<^sub>d e\<^sub>1'' \<and> float_lets e\<^sub>1'' = float_lets e\<^sub>1'" by blast
+  hence "strip_lets_eval_prop e\<^sub>1'' (strip_lets (float_lets e\<^sub>1)) (inner_expr (float_lets e\<^sub>1))" by simp
 
 
-  have "float_lets (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>d e'' \<and> float_lets e'' = float_lets (Let\<^sub>d e\<^sub>1' e\<^sub>2)" by simp 
+  have "reapply_lets (strip_lets (float_lets e\<^sub>1))
+         (Let\<^sub>d (inner_expr (float_lets e\<^sub>1)) (multiincr (length (strip_lets (float_lets e\<^sub>1))) (Suc 0) (float_lets e\<^sub>2))) \<leadsto>\<^sub>d
+    e'' \<and>
+    float_lets e'' =
+    reapply_lets (strip_lets (float_lets e\<^sub>1'))
+         (Let\<^sub>d (inner_expr (float_lets e\<^sub>1')) (multiincr (length (strip_lets (float_lets e\<^sub>1'))) (Suc 0) (float_lets e\<^sub>2)))" by simp
+  hence "float_lets (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>d e'' \<and> float_lets e'' = float_lets (Let\<^sub>d e\<^sub>1' e\<^sub>2)" 
+    by (simp add: Let_def)
   thus ?case by blast
 next
   case (ev\<^sub>d_let2 e\<^sub>1 e\<^sub>2)
