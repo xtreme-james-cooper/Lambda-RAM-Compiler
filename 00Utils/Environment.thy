@@ -128,6 +128,9 @@ lemma decr_le [simp]: "y \<le> x \<Longrightarrow> decr x y = y"
 lemma decr_gt [simp]: "y \<ge> x \<Longrightarrow> decr x (Suc y) = y"
   by (induction x y rule: decr.induct) simp_all
 
+lemma decr_gt': "y > x \<Longrightarrow> decr x y = y - 1"
+  by (induction x y rule: decr.induct) simp_all
+
 lemma decr_eq_idx [simp]: "x \<noteq> y \<Longrightarrow> decr y x = y \<Longrightarrow> x = Suc y"
   by (induction y x rule: decr.induct) simp_all
 

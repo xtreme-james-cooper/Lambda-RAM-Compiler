@@ -116,6 +116,9 @@ lemma incr\<^sub>d_subst_swap2 [simp]: "x \<le> y \<Longrightarrow>
 lemma subst\<^sub>d_incr_cancel [simp]: "subst\<^sub>d x e' (incr\<^sub>d x e) = e"
   by (induction e arbitrary: x e') (simp_all, metis incr_not_eq)
 
+lemma subst\<^sub>d_incr_cancel': "subst\<^sub>d x e' \<circ> incr\<^sub>d x = id"
+  by auto
+
 lemma subst\<^sub>d_subst_swap [simp]: "y \<le> x \<Longrightarrow> 
   subst\<^sub>d x e\<^sub>1 (subst\<^sub>d y e\<^sub>2 e) = subst\<^sub>d y (subst\<^sub>d x e\<^sub>1 e\<^sub>2) (subst\<^sub>d (Suc x) (incr\<^sub>d y e\<^sub>1) e)"
 proof (induction e arbitrary: x y e\<^sub>1 e\<^sub>2)

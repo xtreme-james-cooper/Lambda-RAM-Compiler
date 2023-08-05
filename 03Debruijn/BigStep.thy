@@ -63,7 +63,7 @@ next
   ultimately show ?case by simp
 qed fastforce+
 
-theorem complete\<^sub>d\<^sub>b [simp]: "iter (\<leadsto>\<^sub>d) e v \<Longrightarrow> value\<^sub>d v \<Longrightarrow> e \<Down>\<^sub>d v"
+theorem complete\<^sub>d\<^sub>b: "iter (\<leadsto>\<^sub>d) e v \<Longrightarrow> value\<^sub>d v \<Longrightarrow> e \<Down>\<^sub>d v"
   by (induction e v rule: iter.induct) simp_all
 
 theorem correct\<^sub>d\<^sub>b: "e \<Down>\<^sub>d v \<Longrightarrow> iter (\<leadsto>\<^sub>d) e v"
@@ -89,7 +89,7 @@ theorem progress\<^sub>d\<^sub>b [simp]: "[] \<turnstile>\<^sub>d e : t \<Longri
 proof -
   assume "[] \<turnstile>\<^sub>d e : t"
   then obtain v where "value\<^sub>d v \<and> iter (\<leadsto>\<^sub>d) e v" by fastforce
-  thus ?thesis by fastforce
+  thus ?thesis using complete\<^sub>d\<^sub>b by fastforce
 qed
 
 end
