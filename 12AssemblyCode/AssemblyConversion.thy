@@ -116,7 +116,7 @@ lemma [simp]: "lookup cd x = Some op \<Longrightarrow> (assembly_map cd pc = 0) 
   by (induction cd pc rule: assembly_map.induct) simp_all
 
 definition assemble_code :: "code\<^sub>b list \<Rightarrow> assm list" where
-  "assemble_code cd = concat (map_with_idx (assemble_op (assembly_map cd)) cd)"
+  "assemble_code cd = concat (map_with_idx 0 (assemble_op (assembly_map cd)) cd)"
 
 definition assemble_heap :: "(nat \<Rightarrow> nat) \<Rightarrow> (nat \<Rightarrow> pointer_tag \<times> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> 
     memseg \<times> nat" where
@@ -207,27 +207,26 @@ proof -
 qed
 
 lemma assemble_code_lookup'' [simp]: "lookup cd pc = Some op \<Longrightarrow> x \<le> assemble_op_len op \<Longrightarrow> 
-  lookup (concat (map_with_idx (assemble_op (assembly_map (cd' @ cd)) \<circ> (+) k) cd)) (x + assembly_map cd pc) = 
+  lookup (concat (map_with_idx k (assemble_op (assembly_map (cd' @ cd))) cd)) (x + assembly_map cd pc) = 
     lookup (assemble_op (assembly_map (cd' @ cd)) (pc + k) op) x"
 proof (induction cd pc arbitrary: cd' k rule: assembly_map.induct)
   case (3 op' cd y)
   moreover hence "lookup cd y = Some op" by simp
-  ultimately have "lookup (concat (map_with_idx (assemble_op (assembly_map ((cd' @ [op']) @ cd)) \<circ> 
-    (+) (Suc k)) cd)) (x + assembly_map cd y) =
+  ultimately have "lookup (concat (map_with_idx (Suc k) (assemble_op (assembly_map ((cd' @ [op']) @ cd))) cd)) (x + assembly_map cd y) =
       lookup (assemble_op (assembly_map ((cd' @ [op']) @ cd)) (y + Suc k) op) x" by blast
-  hence "lookup (concat (map_with_idx (assemble_op (assembly_map (cd' @ op' # cd)) \<circ> (+) (Suc k)) cd))
+  hence "lookup (concat (map_with_idx (Suc k) (assemble_op (assembly_map (cd' @ op' # cd))) cd))
     (x + assembly_map cd y) =
       lookup (assemble_op (assembly_map (cd' @ op' # cd)) (Suc (y + k)) op) x" by simp
   moreover have "assemble_op (assembly_map (cd' @ op' # cd)) \<circ> (+) (Suc k) = 
     (\<lambda>z. assemble_op (assembly_map (cd' @ op' # cd)) (Suc (k + z)))" by auto
   ultimately have "lookup (assemble_op (assembly_map (cd' @ op' # cd)) k op' @
-      concat (map_with_idx (\<lambda>z. assemble_op (assembly_map (cd' @ op' # cd)) (Suc (k + z))) cd))
+      concat (map_with_idx (Suc k) (assemble_op (assembly_map (cd' @ op' # cd))) cd))
      (assemble_op_len op' + (Suc (x + assembly_map cd y))) =
     lookup (assemble_op (assembly_map (cd' @ op' # cd)) (Suc (y + k)) op) x" by simp
   moreover have "assemble_op_len op' + (Suc (x + assembly_map cd y)) = 
     Suc (x + (assemble_op_len op' + assembly_map cd y))" by simp
   ultimately have "lookup (assemble_op (assembly_map (cd' @ op' # cd)) k op' @
-      concat (map_with_idx (\<lambda>z. assemble_op (assembly_map (cd' @ op' # cd)) (Suc (k + z))) cd))
+      concat (map_with_idx (Suc k) (assemble_op (assembly_map (cd' @ op' # cd))) cd))
      (Suc (x + (assemble_op_len op' + assembly_map cd y))) =
     lookup (assemble_op (assembly_map (cd' @ op' # cd)) (Suc (y + k)) op) x"
     by metis
@@ -235,11 +234,11 @@ proof (induction cd pc arbitrary: cd' k rule: assembly_map.induct)
 qed simp_all
 
 lemma assemble_code_lookup' [simp]: "lookup cd pc = Some op \<Longrightarrow> x \<le> assemble_op_len op \<Longrightarrow> 
-  lookup (concat (map_with_idx (assemble_op (assembly_map (cd' @ cd))) cd)) (x + assembly_map cd pc) = 
+  lookup (concat (map_with_idx 0 (assemble_op (assembly_map (cd' @ cd))) cd)) (x + assembly_map cd pc) = 
     lookup (assemble_op (assembly_map (cd' @ cd)) pc op) x"
 proof -
   assume "lookup cd pc = Some op" and "x \<le> assemble_op_len op"
-  hence "lookup (concat (map_with_idx (assemble_op (assembly_map (cd' @ cd)) \<circ> (+) 0) cd)) (x + assembly_map cd pc) = 
+  hence "lookup (concat (map_with_idx 0 (assemble_op (assembly_map (cd' @ cd))) cd)) (x + assembly_map cd pc) = 
     lookup (assemble_op (assembly_map (cd' @ cd)) (pc + 0) op) x" 
     by (metis assemble_code_lookup'')
   thus ?thesis by simp
@@ -374,13 +373,6 @@ proof (unfold assembleable_env_def assembleable_vals_def assembleable_heap_def,
     then (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) y < p\<^sub>h
     else (\<Delta>(p\<^sub>\<Delta> := \<V> (Suc p\<^sub>\<V>), Suc p\<^sub>\<Delta> := p\<^sub>\<Delta>')) y < Suc (Suc p\<^sub>\<Delta>))" by auto
 qed
-
-lemma [simp]: "assembleable_heap h b\<^sub>h b\<^sub>\<Delta> (length \<C>) \<Longrightarrow>
-       assembleable_env \<Delta> b\<^sub>\<Delta> b\<^sub>h \<Longrightarrow>
-       assembleable_vals \<V> (Suc b\<^sub>\<V>) b\<^sub>h \<Longrightarrow>
-       assembleable_stack s (Suc b\<^sub>s) b\<^sub>\<Delta> (length \<C>) \<Longrightarrow>
-       odd b\<^sub>s \<Longrightarrow> assembleable_env (\<Delta>(b\<^sub>\<Delta> := \<V> b\<^sub>\<V>, Suc b\<^sub>\<Delta> := s b\<^sub>s)) (Suc (Suc b\<^sub>\<Delta>)) b\<^sub>h"
-  by simp
 
 lemma [simp]: "assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h \<Longrightarrow> 
     assembleable_vals (\<V>(p\<^sub>\<V> := k)) (Suc p\<^sub>\<V>) p\<^sub>h = (even p\<^sub>h \<and> k < p\<^sub>h \<and> even k)"

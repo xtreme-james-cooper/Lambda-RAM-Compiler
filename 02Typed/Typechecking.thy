@@ -639,7 +639,11 @@ next
   from S1 S2 V1 V2 V12 have D: "subst_vars ?\<sigma> = {}" by simp 
 
 
-  have F: "?\<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr vs (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(Var ?v, \<tau>\<^sub>1)])" by simp 
+  have "extend_subst ?v (to_unifiable t\<^sub>2) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>\<^sub>1 \<and>
+    extend_subst ?v (to_unifiable t\<^sub>2) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>\<^sub>2 \<and>
+    to_unifiable t\<^sub>2 = subst (extend_subst ?v (to_unifiable t\<^sub>2) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2)) (eliminate_vars vs \<tau>\<^sub>1)" 
+      by simp
+  with tc\<^sub>t_let have F: "?\<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr vs (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(Var ?v, \<tau>\<^sub>1)])" by simp 
   from S1 S2 have G: "valid_ty_subst ?\<sigma>" by simp
   from S1 S2 V1 V2 V12 have "idempotent ?\<sigma>" by simp
   with E A B C D F G show ?case by blast

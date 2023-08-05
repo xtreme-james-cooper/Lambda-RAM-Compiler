@@ -85,7 +85,7 @@ next
   ultimately have "\<And>n. \<C> \<tturnstile> S\<^sub>f (H h b\<^sub>h) (H \<Delta> b\<^sub>\<Delta>) (\<V> b\<^sub>\<V> # listify_heap \<V> b\<^sub>\<V>) 
       (Suc p\<^sub>\<C> # s (Suc n) # listify_heap (s \<circ> Suc) n) \<leadsto>\<^sub>f 
     S\<^sub>f (H h b\<^sub>h) (H (\<Delta>(b\<^sub>\<Delta> := \<V> b\<^sub>\<V>, Suc b\<^sub>\<Delta> := s (Suc n))) (Suc (Suc b\<^sub>\<Delta>))) 
-      (listify_heap \<V> b\<^sub>\<V>) (p\<^sub>\<C> # b\<^sub>\<Delta> # listify_heap (s \<circ> Suc) n)" by (metis ev\<^sub>f_pushenv)
+      (listify_heap \<V> b\<^sub>\<V>) (p\<^sub>\<C> # Suc (Suc b\<^sub>\<Delta>) # listify_heap (s \<circ> Suc) n)" by (metis ev\<^sub>f_pushenv) 
   with ev\<^sub>r_pushenv show ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
   case (ev\<^sub>r_return \<C> p\<^sub>\<C> h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
@@ -192,7 +192,7 @@ next
   moreover then obtain b\<^sub>\<V> where "b\<^sub>\<V>' = Suc b\<^sub>\<V> \<and> \<V>\<^sub>r b\<^sub>\<V> = v \<and> listify_heap \<V>\<^sub>r b\<^sub>\<V> = \<V>\<^sub>f" by fastforce
   moreover from ev\<^sub>f_pushenv have "\<C> \<tturnstile> S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r (Suc b\<^sub>\<V>) s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
     S\<^sub>r h\<^sub>r b\<^sub>h (\<Delta>\<^sub>r(b\<^sub>\<Delta> := \<V>\<^sub>r b\<^sub>\<V>, Suc b\<^sub>\<Delta> := s\<^sub>r (Suc b\<^sub>s))) (Suc (Suc b\<^sub>\<Delta>)) \<V>\<^sub>r b\<^sub>\<V> 
-      (s\<^sub>r(Suc b\<^sub>s := b\<^sub>\<Delta>)) (Suc (Suc b\<^sub>s)) p\<^sub>\<C>" by simp
+      (s\<^sub>r(Suc b\<^sub>s := Suc (Suc b\<^sub>\<Delta>))) (Suc (Suc b\<^sub>s)) p\<^sub>\<C>" by simp
   ultimately show ?case by auto
 next
   case (ev\<^sub>f_return \<C> p\<^sub>\<C> h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta> s\<^sub>f)

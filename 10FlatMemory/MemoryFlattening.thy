@@ -170,6 +170,11 @@ lemma halloc_list_flatten_closure [dest]: "
     \<exists>h\<^sub>v' v\<^sub>v. h\<^sub>f' = hsplay flatten_closure h\<^sub>v' \<and> v\<^sub>h = 2 * v\<^sub>v \<and> halloc h\<^sub>v c = (h\<^sub>v', v\<^sub>v)"
   by (cases "halloc h\<^sub>v c") simp_all
 
+lemma halloc_list_flatten_environment [dest]: "
+  halloc_list (flatten_environment \<Delta>\<^sub>v) [2 * v\<^sub>v, 2 * p\<^sub>\<Delta>\<^sub>v] = (\<Delta>\<^sub>f', p\<^sub>\<Delta>\<^sub>f') \<Longrightarrow> 
+    \<exists>\<Delta>\<^sub>v' p\<^sub>\<Delta>\<^sub>v'. halloc \<Delta>\<^sub>v (v\<^sub>v, p\<^sub>\<Delta>\<^sub>v) = (\<Delta>\<^sub>v', p\<^sub>\<Delta>\<^sub>v') \<and> \<Delta>\<^sub>f' = flatten_environment \<Delta>\<^sub>v' \<and> p\<^sub>\<Delta>\<^sub>f' = 2 * p\<^sub>\<Delta>\<^sub>v'"
+  by (cases "halloc \<Delta>\<^sub>v (v\<^sub>v, p\<^sub>\<Delta>\<^sub>v)") simp_all
+
 text \<open>And we prove completeness. Despite losing the type tags, the pointer tags provide (just) 
 enough information to prove this, but in a larger language this might well simply be false. Consider 
 a simple sum constructor, Inl v | Inr v, which might be represented by [0, v] or [1, v] depending on 
@@ -233,8 +238,15 @@ next
     S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v'', p\<^sub>\<C>') # (p\<^sub>\<Delta>\<^sub>v, p\<^sub>\<C>) # s\<^sub>v)" by simp
   with S X show ?case by blast
 next
-  case (ev\<^sub>f_pushenv \<C> p\<^sub>\<C> \<Delta> v p\<^sub>\<Delta> \<Delta>' p\<^sub>\<Delta>' h \<V> s)
-  then show ?case by simp
+  case (ev\<^sub>f_pushenv \<C> p\<^sub>\<C> \<Delta>\<^sub>f v\<^sub>f p\<^sub>\<Delta>\<^sub>f \<Delta>\<^sub>f' p\<^sub>\<Delta>\<^sub>f' h\<^sub>f \<V>\<^sub>f s\<^sub>f)
+  then obtain h\<^sub>v \<Delta>\<^sub>v v\<^sub>v \<V>\<^sub>v p\<^sub>\<Delta>\<^sub>v s\<^sub>v where "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>v # \<V>\<^sub>v) ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
+    h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> v\<^sub>f = 2 * v\<^sub>v \<and> \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> 
+      s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>\<Delta>\<^sub>v" by fastforce
+  moreover with ev\<^sub>f_pushenv obtain \<Delta>\<^sub>v' p\<^sub>\<Delta>\<^sub>v' where "halloc \<Delta>\<^sub>v (v\<^sub>v, p\<^sub>\<Delta>\<^sub>v) = (\<Delta>\<^sub>v', p\<^sub>\<Delta>\<^sub>v') \<and> 
+    \<Delta>\<^sub>f' = flatten_environment \<Delta>\<^sub>v' \<and> p\<^sub>\<Delta>\<^sub>f' = 2 * p\<^sub>\<Delta>\<^sub>v'" by fastforce
+  moreover with ev\<^sub>f_pushenv have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>v # \<V>\<^sub>v) ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
+    S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V>\<^sub>v ((Suc p\<^sub>\<Delta>\<^sub>v', p\<^sub>\<C>) # s\<^sub>v)" by simp
+  ultimately show ?case by fastforce
 next
   case (ev\<^sub>f_return \<C> p\<^sub>\<C> h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
   then obtain h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v p\<^sub>\<Delta>\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
