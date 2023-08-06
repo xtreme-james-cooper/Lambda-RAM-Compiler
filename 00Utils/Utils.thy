@@ -205,4 +205,7 @@ lemma suc_even [simp]: "Suc (Suc 0) dvd Suc x \<Longrightarrow> odd x"
 lemma even_down [simp]: "Suc (Suc 0) dvd Suc (Suc x) = (Suc (Suc 0) dvd x)"
   by presburger
 
+lemma dvd_2_suc [dest]: "Suc (Suc 0) dvd Suc x \<Longrightarrow> Suc (Suc 0) dvd x \<Longrightarrow> False"
+  by presburger
+
 end

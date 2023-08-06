@@ -3,7 +3,8 @@ theory Compiler
 begin
 
 abbreviation code_compile :: "ty expr\<^sub>s \<Rightarrow> mach list" where
-  "code_compile \<equiv> disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco_code \<circ> encode \<circ> unname"
+  "code_compile \<equiv> 
+    disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco_code \<circ> encode \<circ> float_lets \<circ> unname"
 
 abbreviation compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where 
   "compile \<equiv> map_option (apfst code_compile) \<circ> typecheck"
