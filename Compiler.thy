@@ -52,28 +52,29 @@ proof -
   with TN have VT: "value\<^sub>s v\<^sub>t \<and> Map.empty \<turnstile>\<^sub>t v\<^sub>t : t" by simp
   hence VN: "value\<^sub>s (erase v\<^sub>t)" by simp
   from ET have EN: "erase e\<^sub>t \<Down>\<^sub>s erase v\<^sub>t" by simp
-  from TN have TD: "[] \<turnstile>\<^sub>d unname e\<^sub>t : t" by simp
-  from ET TN have ED: "unname e\<^sub>t \<Down>\<^sub>d unname v\<^sub>t" by fastforce
-  hence VD: "value\<^sub>d (unname v\<^sub>t)" by simp
-  from ED have "iter (\<leadsto>\<^sub>d) (unname e\<^sub>t) (unname v\<^sub>t)" by (metis correct\<^sub>d\<^sub>b)
-  with ED EN TD have ES: "iter (\<leadsto>\<^sub>k) (S\<^sub>k False [FReturn\<^sub>k] (unname e\<^sub>t)) (S\<^sub>k True [] (unname v\<^sub>t))" 
-    by simp
-  from TD have TC: "SE\<^sub>c [FReturn\<^sub>c []] [] (unname e\<^sub>t) :\<^sub>c t" 
-    by (metisx tcc_state_ev tc\<^sub>c_nil tcc_snil tcc_scons_ret latest_environment.simps(4))
-  with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (SE\<^sub>c [FReturn\<^sub>c []] [] (unname e\<^sub>t)) (SC\<^sub>c [] c) \<and> 
-    declosure c = unname v\<^sub>t" by fastforce
-  from TC EC have "iter (\<leadsto>\<^sub>e) (encode_state (SE\<^sub>c [FReturn\<^sub>c []] [] (unname e\<^sub>t))) 
+  from TN have TD: "[] \<turnstile>\<^sub>d float_lets (unname e\<^sub>t) : t" by simp
+  from ET TN have "unname e\<^sub>t \<Down>\<^sub>d unname v\<^sub>t" by fastforce
+  hence ED: "float_lets (unname e\<^sub>t) \<Down>\<^sub>d float_lets (unname v\<^sub>t)" by simp
+  hence VD: "value\<^sub>d (float_lets (unname v\<^sub>t))" by (metis eval\<^sub>d_to_value)
+  from ED have "iter (\<leadsto>\<^sub>d) (float_lets (unname e\<^sub>t)) (float_lets (unname v\<^sub>t))" by (metis correct\<^sub>d\<^sub>b)
+  with VD TD have ES: "iter (\<leadsto>\<^sub>k) (S\<^sub>k False [FReturn\<^sub>k] (float_lets (unname e\<^sub>t))) 
+    (S\<^sub>k True [] (float_lets (unname v\<^sub>t)))" by simp
+  from TD have TC: "SE\<^sub>c [FReturn\<^sub>c []] [] (float_lets (unname e\<^sub>t)) :\<^sub>c t" 
+    by (metis tcc_state_ev tc\<^sub>c_nil tcc_snil tcc_scons_ret latest_environment.simps(6))
+  with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (SE\<^sub>c [FReturn\<^sub>c []] [] (float_lets (unname e\<^sub>t))) 
+    (SC\<^sub>c [] c) \<and> declosure c = float_lets (unname v\<^sub>t)" by fastforce
+  from TC EC have "iter (\<leadsto>\<^sub>e) (encode_state (SE\<^sub>c [FReturn\<^sub>c []] [] (float_lets (unname e\<^sub>t)))) 
     (encode_state (SC\<^sub>c [] c))" by (metis correct\<^sub>e_iter)
-  hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e [] [([], encode (unname e\<^sub>t))]) (S\<^sub>e [encode_closure c] [])" 
+  hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e [] [([], encode (float_lets (unname e\<^sub>t)))]) (S\<^sub>e [encode_closure c] [])" 
     by (simp add: encode_def)
-  moreover have "complete_lams_state (S\<^sub>e [] [([], encode (unname e\<^sub>t))])" by simp
-  ultimately have "iter (\<leadsto>\<^sub>e) (tco_state (S\<^sub>e [] [([], encode (unname e\<^sub>t))])) 
+  moreover have "complete_lams_state (S\<^sub>e [] [([], encode (float_lets (unname e\<^sub>t)))])" by simp
+  ultimately have "iter (\<leadsto>\<^sub>e) (tco_state (S\<^sub>e [] [([], encode (float_lets (unname e\<^sub>t)))])) 
     (tco_state (S\<^sub>e [encode_closure c] []))" by (metis correctness\<^sub>t\<^sub>c\<^sub>o_iter)
-  hence ET: "iter (\<leadsto>\<^sub>e) (S\<^sub>e [] [([], tco_code (encode (unname e\<^sub>t)))]) 
+  hence ET: "iter (\<leadsto>\<^sub>e) (S\<^sub>e [] [([], tco_code (encode (float_lets (unname e\<^sub>t))))]) 
     (S\<^sub>e [tco_val (encode_closure c)] [])" by (simp add: encode_def)
-  let ?cd = "(flatten_code \<circ> tco_code \<circ> encode \<circ> unname) e\<^sub>t"
+  let ?cd = "(flatten_code \<circ> tco_code \<circ> encode \<circ> float_lets \<circ> unname) e\<^sub>t"
   have UB: "unflatten_state ?cd (S\<^sub>b [] [([], length ?cd)]) = 
-    S\<^sub>e [] [([], tco_code (encode (unname e\<^sub>t)))]" by simp
+    S\<^sub>e [] [([], tco_code (encode (float_lets (unname e\<^sub>t))))]" by simp
   have "orderly_state ?cd (S\<^sub>b [] [([], length ?cd)])" by simp
   with ET UB obtain v\<^sub>b where EB: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>b) (S\<^sub>b [] [([], length ?cd)]) (S\<^sub>b [v\<^sub>b] []) \<and> 
     tco_val (encode_closure c) = unflatten_closure ?cd v\<^sub>b" by (metis eval\<^sub>b_end)
@@ -163,6 +164,10 @@ text \<open>We have now proven the correctness of our compiler; but, as Donald K
 bugs in the above code; I have only proved it correct, not tried it." [8] So we will leave off with 
 some small example programs, to show what it looks like in practice.\<close>
 
+text \<open>We define the Church booleans \<open>C\<^sub>t\<^sub>r\<^sub>u\<^sub>e\<close>, \<open>C\<^sub>f\<^sub>a\<^sub>l\<^sub>s\<^sub>e\<close>, and \<open>C\<^sub>i\<^sub>f\<close>, and then make two simple programs,
+\<open>C\<^sub>i\<^sub>f C\<^sub>t\<^sub>r\<^sub>u\<^sub>e 3 5\<close> and \<open>C\<^sub>i\<^sub>f C\<^sub>f\<^sub>a\<^sub>l\<^sub>s\<^sub>e 3 5\<close>, and then show that their compiled code computes to 3 and 5 
+respectively.\<close>
+
 abbreviation churchTrue :: "unit expr\<^sub>s" 
   where "churchTrue \<equiv> Lam\<^sub>s (V ''x'') () (Lam\<^sub>s (V ''y'') () (Var\<^sub>s (V ''x'')))"
 
@@ -174,7 +179,23 @@ abbreviation churchIf :: "unit expr\<^sub>s"
     Lam\<^sub>s (V ''b'') () (Lam\<^sub>s (V ''x'') () (Lam\<^sub>s (V ''y'') () 
       (App\<^sub>s (App\<^sub>s (Var\<^sub>s (V ''b'')) (Var\<^sub>s (V ''x''))) (Var\<^sub>s (V ''y'')))))"
 
-value "compile (Let\<^sub>s (V ''churchTrue'') churchTrue (Let\<^sub>s (V ''churchIf'') churchIf (
-       App\<^sub>s (App\<^sub>s (App\<^sub>s (Var\<^sub>s (V ''churchIf'')) (Var\<^sub>s (V ''churchTrue''))) (Const\<^sub>s 3)) (Const\<^sub>s 5))))"
+abbreviation prog1 :: "unit expr\<^sub>s"
+  where "prog1 \<equiv> 
+    Let\<^sub>s (V ''churchTrue'') churchTrue (
+    Let\<^sub>s (V ''churchIf'') churchIf (
+      App\<^sub>s (App\<^sub>s (App\<^sub>s (Var\<^sub>s (V ''churchIf'')) (Var\<^sub>s (V ''churchTrue''))) (Const\<^sub>s 3)) (Const\<^sub>s 5)))"
 
+abbreviation prog2 :: "unit expr\<^sub>s"
+  where "prog2 \<equiv> 
+    Let\<^sub>s (V ''churchFalse'') churchFalse (
+    Let\<^sub>s (V ''churchIf'') churchIf (
+      App\<^sub>s (App\<^sub>s (App\<^sub>s (Var\<^sub>s (V ''churchIf'')) (Var\<^sub>s (V ''churchFalse''))) (Const\<^sub>s 3)) (Const\<^sub>s 5)))"
+
+value "compile prog1" text \<open> \<longrightarrow> Some ([JMP R5, STOI R4 0, ..., STO R3 R1], Num)\<close>
+value "compile prog2" text \<open> \<longrightarrow> Some ([JMP R5, STOI R4 0, ..., STO R3 R1], Num)\<close>
+
+value "let (cd, t) = the (compile prog1) 
+       in print_mach_state t (the (alg_evalm cd 379 (initial_state cd)))" text \<open> \<longrightarrow> Number 3\<close>
+value "let (cd, t) = the (compile prog2) 
+       in print_mach_state t (the (alg_evalm cd 377 (initial_state cd)))" text \<open> \<longrightarrow> Number 5\<close>
 end

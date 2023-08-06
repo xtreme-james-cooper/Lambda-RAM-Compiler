@@ -241,6 +241,9 @@ lemma unname_to_let [dest]: "Let\<^sub>d e\<^sub>d\<^sub>1 e\<^sub>d\<^sub>2 = u
     \<exists>x e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2. e\<^sub>t = Let\<^sub>s x e\<^sub>t\<^sub>1 e\<^sub>t\<^sub>2 \<and> e\<^sub>d\<^sub>1 = unname e\<^sub>t\<^sub>1 \<and> e\<^sub>d\<^sub>2 = unname' [x] e\<^sub>t\<^sub>2"
   by (cases e\<^sub>t) (simp_all add: unname_def)
 
+lemma unname_val [simp]: "value\<^sub>d (unname e\<^sub>t) = value\<^sub>s e\<^sub>t"
+  by (induction e\<^sub>t) (simp_all add: unname_def)
+
 theorem complete\<^sub>d [simp]: "unname e\<^sub>t \<Down>\<^sub>d v\<^sub>d \<Longrightarrow> free_vars\<^sub>s e\<^sub>t = {} \<Longrightarrow> \<exists>v\<^sub>t. e\<^sub>t \<Down>\<^sub>s v\<^sub>t \<and> v\<^sub>d = unname v\<^sub>t"
 proof (induction "unname e\<^sub>t" v\<^sub>d arbitrary: e\<^sub>t rule: big_eval\<^sub>d.induct)
   case (bev\<^sub>d_const n)

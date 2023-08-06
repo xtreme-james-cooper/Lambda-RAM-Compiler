@@ -79,6 +79,25 @@ lemma dead_code_terminated [simp]: "dead_code \<C> \<Longrightarrow> properly_te
 lemma tcoed_code_terminated [simp]: "properly_terminated\<^sub>e (tco_code \<C>) = properly_terminated\<^sub>e \<C>"
   by (induction \<C> rule: tco_code.induct) simp_all
 
+fun pops_at_end :: "code\<^sub>e list \<Rightarrow> bool" where
+  "pops_at_end [] = True"
+| "pops_at_end (PushLam\<^sub>e \<C>' # \<C>) = (pops_at_end \<C>' \<and> pops_at_end \<C>)"
+| "pops_at_end (PopEnv\<^sub>e # \<C>) = dead_code \<C>"
+| "pops_at_end (op # \<C>) = pops_at_end \<C>"
+
+lemma dead_code_has_pops_at_end [simp]: "dead_code \<C> \<Longrightarrow> pops_at_end \<C>"
+  by (induction \<C> rule: pops_at_end.induct) simp_all
+
+lemma tcoed_code_pop_free [simp]: "pop_free (tco_code \<C>) = pops_at_end \<C>"
+  by (induction \<C> rule: tco_code.induct) simp_all
+
+lemma let_floated_pops_at_end' [simp]: "pops_at_end \<C> \<Longrightarrow> let_floated e \<Longrightarrow> 
+    (\<not>let_free e \<Longrightarrow> dead_code \<C>) \<Longrightarrow> pops_at_end (encode' e @ \<C>)"
+  by (induction e arbitrary: \<C>) simp_all
+
+lemma let_floated_pops_at_end [simp]: "let_floated e \<Longrightarrow> pops_at_end (encode e)"
+  by (simp add: encode_def)
+
 text \<open>We will of course prove that tail-call removal is semantics-preserving, but we will not 
 formally prove that it really is "an optimization". Instead, we will prove some much simpler results 
 that indicate _why_ it is an optimization, and gesture towards what a full proof would need to 

@@ -36,6 +36,12 @@ fun evalm :: "mach list \<Rightarrow> mach_state \<rightharpoonup> mach_state" w
   "evalm cd (MS rs mem 0) = None"
 | "evalm cd (MS rs mem (Suc pc)) = Some (evalm_step (cd ! pc) rs mem pc)"
 
+fun alg_evalm :: "mach list \<Rightarrow> nat \<Rightarrow> mach_state \<rightharpoonup> mach_state" where 
+  "alg_evalm cd 0 \<Sigma> = Some \<Sigma>"
+| "alg_evalm cd (Suc x) \<Sigma> = (case evalm cd \<Sigma> of
+      None \<Rightarrow> None
+    | Some \<Sigma>' \<Rightarrow> alg_evalm cd x \<Sigma>')"
+
 abbreviation evalm_relation :: "mach list \<Rightarrow> mach_state \<Rightarrow> mach_state \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>m" 50) where 
   "cd \<tturnstile> \<Sigma> \<leadsto>\<^sub>m \<Sigma>' \<equiv> (evalm cd \<Sigma> = Some \<Sigma>')"
 

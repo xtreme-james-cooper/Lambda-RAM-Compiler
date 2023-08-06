@@ -55,6 +55,9 @@ primrec print_mach_state :: "ty \<Rightarrow> mach_state \<Rightarrow> print" wh
 lemma [simp]: "print_nexpr (erase e) = print_nexpr e" 
   by (induction e) simp_all
 
+lemma [simp]: "value\<^sub>d e \<Longrightarrow> print_dexpr (float_lets e) = print_dexpr e" 
+  by (induction e) (simp_all add: Let_def)
+
 lemma [simp]: "print_dexpr (unname e) = print_nexpr e" 
   by (induction e) (simp_all add: unname_def)
 

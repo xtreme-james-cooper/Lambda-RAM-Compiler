@@ -23,3 +23,4 @@ Refactorings:
 - Use ints insted of nats for machine code
 - Alter environment layout to make lookups more efficient
 - Make consts use ints instead of nats?
+- Change up encode
