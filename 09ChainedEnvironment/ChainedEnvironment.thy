@@ -18,12 +18,33 @@ closures occupy a varying (though compile-time-predictable) amount of space; but
 variable lookup becomes very cheap (just a single pointer indirection). Alternately, we could store 
 environments as linked lists, making copying cheap and environments easy to extend in multiple 
 directions at once, but at the cost of making variable lookups expensive (a sequence of pointer 
-indirections proportional to their Debruijn index).\<close>
+indirections proportional to their Debruijn index). Neither approach seems attractive; in each case,
+an operation that "should be" constant-time (or at least "cheap") is instead linear in the number of
+bound variables.\<close>
 
-text \<open>We will take the latter approach. We create a second heap, containing a linked-list (or 
+text \<open>Fortunately, there is a clever third option that combines many of the strengths of both 
+representations. Because we have let-floated our bindings, every let-binder is in a list of bindings 
+directly below a lambda-binder (or at the outside of the expression at the top level). This means 
+that every time the lambda-abstraction is instantiated, all the let-bindings must also be 
+instantiated; so, without losing any sharing, we can allocate the environment for all the binders 
+together in one contiguous block. This permits the cheap pointer-copying environment-sharing of the 
+second method above, while reducing the cost of variable lookups to proportional to the number of 
+enclosing _functions_ rather than enclosing binders. This key optimization makes the whole system 
+adequately efficient, and is more-or-less how real language implementations allocate environment 
+memory*.\<close>
+
+text \<open>We will take this last approach. We create a second heap, containing a linked-list (or 
 rather, pointer-linked tree) of pointers into our first, value, heap. All environments are now 
 pointers into this second heap, which means that our heaps point to each other; we keep them 
-separate for simplicity, although later on we will collapse them into a single memory.\<close>
+separate for simplicity, although much later on we will collapse them into a single memory.\<close>
+
+text \<open>*We are slightly less efficient than real implementations because in practice most lambda 
+abstractions occur in blocks too, and a sequence of lambdas is usually instantiated all at once. 
+This allows for the further optimization of allocating environment frames for an entire block of 
+lambdas at once, producing a slight loss of sharing on curried applications in exchange for further 
+reducing lookup times to proportional to the number of enclosing lambda-_sequences_. Since most 
+functions are defined at the top level, this means that lookups are close to constant-time. See our 
+further work section.\<close>
 
 text \<open>To begin with, we define a lookup function for our linked-tree environments. Since we index 
 from the leaves towards the root, we don't actually have to deal with the tree structure; each 
@@ -36,8 +57,8 @@ fun chain_lookup :: "('a \<times> ptr) heap \<Rightarrow> ptr \<Rightarrow> nat 
 | "chain_lookup h (Suc p) (Suc x) = chain_lookup h (snd (hlookup h p)) x"
 
 text \<open>From here, the new evaluation state and relation is simple. The only tricky point is to 
-remember that instead of just pushing values on top of the \<Delta>ironment in \<open>ev\<^sub>v_apply\<close> or \<open>ev\<^sub>v_jump\<close>,
-we must allocate a new cons cell (i.e., a pair) in the \<Delta>ironment heap.\<close>
+remember that instead of just pushing values on top of the environment in \<open>ev\<^sub>v_apply\<close> or \<open>ev\<^sub>v_jump\<close>,
+we must allocate a new cons cell (i.e., a pair) in the environment heap.\<close>
 
 datatype closure\<^sub>v = 
   Const\<^sub>v nat

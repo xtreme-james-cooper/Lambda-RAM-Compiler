@@ -39,8 +39,8 @@ one extra evaluation step substituting it back away in each \<open>App\<^sub>s\<
 \<open>Lookup\<^sub>e\<close> in the compiled tree-code. It will be made up for, hopefully, by the savings from not 
 having to pop the environments at the end of each function.\<close>
 
-text \<open>This transformation has one even more useful consequence, but it is not yet implemented - see
-the "Further Work" section at the end.\<close>
+text \<open>This transformation also has one even more useful consequence, which we will return to in 
+section 9.\<close>
 
 text \<open>We begin by defining our let-floated normal form.\<close>
 

@@ -11,6 +11,7 @@ Goals:
 - Make printing part of the code
 - Make initialization part of the code
 - Let-polymorphism
+- <8 pass compilation
 
 Refactorings: 
 

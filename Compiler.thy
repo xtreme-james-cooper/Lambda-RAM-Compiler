@@ -164,9 +164,9 @@ text \<open>We have now proven the correctness of our compiler; but, as Donald K
 bugs in the above code; I have only proved it correct, not tried it." [8] So we will leave off with 
 some small example programs, to show what it looks like in practice.\<close>
 
-text \<open>We define the Church booleans \<open>C\<^sub>t\<^sub>r\<^sub>u\<^sub>e\<close>, \<open>C\<^sub>f\<^sub>a\<^sub>l\<^sub>s\<^sub>e\<close>, and \<open>C\<^sub>i\<^sub>f\<close>, and then make two simple programs,
-\<open>C\<^sub>i\<^sub>f C\<^sub>t\<^sub>r\<^sub>u\<^sub>e 3 5\<close> and \<open>C\<^sub>i\<^sub>f C\<^sub>f\<^sub>a\<^sub>l\<^sub>s\<^sub>e 3 5\<close>, and then show that their compiled code computes to 3 and 5 
-respectively.\<close>
+text \<open>We define the Church booleans \<open>C\<^sub>t\<^sub>r\<^sub>u\<^sub>e\<close> and \<open>C\<^sub>f\<^sub>a\<^sub>l\<^sub>s\<^sub>e\<close>, and the Church boolean selector \<open>C\<^sub>i\<^sub>f\<close>, and 
+then make two simple programs, \<open>C\<^sub>i\<^sub>f C\<^sub>t\<^sub>r\<^sub>u\<^sub>e 3 5\<close> and \<open>C\<^sub>i\<^sub>f C\<^sub>f\<^sub>a\<^sub>l\<^sub>s\<^sub>e 3 5\<close>, and show that their compiled code 
+computes to 3 and 5 respectively.\<close>
 
 abbreviation churchTrue :: "unit expr\<^sub>s" 
   where "churchTrue \<equiv> Lam\<^sub>s (V ''x'') () (Lam\<^sub>s (V ''y'') () (Var\<^sub>s (V ''x'')))"
@@ -198,4 +198,5 @@ value "let (cd, t) = the (compile prog1)
        in print_mach_state t (the (alg_evalm cd 333 (initial_state cd)))" text \<open> \<longrightarrow> Number 3\<close>
 value "let (cd, t) = the (compile prog2) 
        in print_mach_state t (the (alg_evalm cd 331 (initial_state cd)))" text \<open> \<longrightarrow> Number 5\<close>
+
 end

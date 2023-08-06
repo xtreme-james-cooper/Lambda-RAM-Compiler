@@ -10,7 +10,7 @@ difference in properties, and will take quite a lot of work to establish in the 
 
 text \<open>We first define our typing relation. Thanks to the tags on binders (the only difficult part of 
 typing the lambda-calculus), we can straightforwardly check that an expression has a given type. In 
-fact, we would even write it as an Isabelle function; however, since type-reconstruction is 
+fact, we could even write it as an Isabelle function; however, since type-reconstruction is 
 performed separately and only once, and the typing judgement is only ever used to prove facts with,
 we go with the simpler inductive relation form.\<close>
 
