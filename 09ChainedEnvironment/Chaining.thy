@@ -232,7 +232,7 @@ lemma unchain_lam_reverse [dest]: "Lam\<^sub>h \<Delta>\<^sub>h p\<^sub>C = unch
 theorem correct\<^sub>v [simp]: "\<C> \<tturnstile> unchain_state \<Sigma>\<^sub>v \<leadsto>\<^sub>h \<Sigma>\<^sub>h \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>v'. (\<C> \<tturnstile> \<Sigma>\<^sub>v \<leadsto>\<^sub>v \<Sigma>\<^sub>v') \<and> \<Sigma>\<^sub>h = unchain_state \<Sigma>\<^sub>v'"
 proof (induction "unchain_state \<Sigma>\<^sub>v" \<Sigma>\<^sub>h arbitrary: \<Sigma>\<^sub>v rule: eval\<^sub>h.induct)
-  case (ev\<^sub>h_lookup \<C> p\<^sub>\<C> x \<Delta>\<^sub>h v h\<^sub>h \<V> s\<^sub>h)
+  case (ev\<^sub>h_lookup \<C> p\<^sub>\<C> x y z \<Delta>\<^sub>h v h\<^sub>h \<V> s\<^sub>h)
   then obtain h\<^sub>v \<Delta>\<^sub>v s\<^sub>v' where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> s\<^sub>v' \<and> h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> 
     (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
@@ -264,7 +264,7 @@ next
     by simp
   with S SF P X show ?case by blast
 next
-  case (ev\<^sub>h_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' h\<^sub>h \<Delta>\<^sub>h h\<^sub>h' v \<V> s\<^sub>h)
+  case (ev\<^sub>h_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' n h\<^sub>h \<Delta>\<^sub>h h\<^sub>h' v \<V> s\<^sub>h)
   then obtain h\<^sub>v \<Delta>\<^sub>v s\<^sub>v' where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> s\<^sub>v' \<and> h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> 
     (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
@@ -466,7 +466,7 @@ qed
 
 lemma eval_preserves_chained [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>v \<leadsto>\<^sub>v \<Sigma>\<^sub>v' \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow> chained_state \<Sigma>\<^sub>v'"
 proof (induction \<Sigma>\<^sub>v \<Sigma>\<^sub>v' rule: eval\<^sub>v.induct)
-  case (ev\<^sub>v_lookup \<C> p\<^sub>\<C> x \<Delta> p v h \<V> s)
+  case (ev\<^sub>v_lookup \<C> p\<^sub>\<C> x y z \<Delta> p v h \<V> s)
   thus ?case by (cases p) auto
 qed auto
 

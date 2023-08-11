@@ -11,9 +11,9 @@ memorable name and because it could easily be made into such, but we will never 
 representation ourselves.)\<close>
 
 datatype code\<^sub>b = 
-  Lookup\<^sub>b nat
+  Lookup\<^sub>b nat nat nat
   | PushCon\<^sub>b nat
-  | PushLam\<^sub>b nat
+  | PushLam\<^sub>b nat nat
   | Apply\<^sub>b
   | PushEnv\<^sub>b
   | Return\<^sub>b
@@ -41,11 +41,11 @@ which relies on the code pointer always decreasing to prove termination.\<close>
 
 inductive eval\<^sub>b :: "code\<^sub>b list \<Rightarrow> state\<^sub>b \<Rightarrow> state\<^sub>b \<Rightarrow> bool" 
     (infix "\<tturnstile> _ \<leadsto>\<^sub>b" 50) where
-  ev\<^sub>b_lookup [simp]: "lookup \<C> p = Some (Lookup\<^sub>b x) \<Longrightarrow> lookup \<Delta> x = Some v \<Longrightarrow> 
+  ev\<^sub>b_lookup [simp]: "lookup \<C> p = Some (Lookup\<^sub>b x y z) \<Longrightarrow> lookup \<Delta> x = Some v \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (v # \<V>) ((\<Delta>, p) # s)" 
 | ev\<^sub>b_pushcon [simp]: "lookup \<C> p = Some (PushCon\<^sub>b n) \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (Const\<^sub>b n # \<V>) ((\<Delta>, p) # s)"
-| ev\<^sub>b_pushlam [simp]: "lookup \<C> p = Some (PushLam\<^sub>b p') \<Longrightarrow> 
+| ev\<^sub>b_pushlam [simp]: "lookup \<C> p = Some (PushLam\<^sub>b p' n) \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (Lam\<^sub>b \<Delta> p' # \<V>) ((\<Delta>, p) # s)"
 | ev\<^sub>b_apply [simp]: "lookup \<C> p = Some Apply\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((v # \<Delta>', p') # (\<Delta>, p) # s)"

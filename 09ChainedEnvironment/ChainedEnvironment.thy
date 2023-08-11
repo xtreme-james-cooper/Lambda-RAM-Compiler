@@ -33,11 +33,6 @@ enclosing _functions_ rather than enclosing binders. This key optimization makes
 adequately efficient, and is more-or-less how real language implementations allocate environment 
 memory*.\<close>
 
-text \<open>We will take this last approach. We create a second heap, containing a linked-list (or 
-rather, pointer-linked tree) of pointers into our first, value, heap. All environments are now 
-pointers into this second heap, which means that our heaps point to each other; we keep them 
-separate for simplicity, although much later on we will collapse them into a single memory.\<close>
-
 text \<open>*We are slightly less efficient than real implementations because in practice most lambda 
 abstractions occur in blocks too, and a sequence of lambdas is usually instantiated all at once. 
 This allows for the further optimization of allocating environment frames for an entire block of 
@@ -45,6 +40,11 @@ lambdas at once, producing a slight loss of sharing on curried applications in e
 reducing lookup times to proportional to the number of enclosing lambda-_sequences_. Since most 
 functions are defined at the top level, this means that lookups are close to constant-time. See our 
 further work section.\<close>
+
+text \<open>We will take this last approach. We create a second heap, containing a linked-list (or 
+rather, pointer-linked tree) of pointers into our first, value, heap. All environments are now 
+pointers into this second heap, which means that our heaps point to each other; we keep them 
+separate for simplicity, although much later on we will collapse them into a single memory.\<close>
 
 text \<open>To begin with, we define a lookup function for our linked-tree environments. Since we index 
 from the leaves towards the root, we don't actually have to deal with the tree structure; each 
@@ -68,11 +68,11 @@ datatype state\<^sub>v =
   S\<^sub>v "closure\<^sub>v heap" "(ptr \<times> ptr) heap" "ptr list" "(ptr \<times> nat) list"
 
 inductive eval\<^sub>v :: "code\<^sub>b list \<Rightarrow> state\<^sub>v \<Rightarrow> state\<^sub>v \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>v" 50) where
-  ev\<^sub>v_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x) \<Longrightarrow> chain_lookup \<Delta> p\<^sub>\<Delta> x = Some v \<Longrightarrow>
+  ev\<^sub>v_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x y z) \<Longrightarrow> chain_lookup \<Delta> p\<^sub>\<Delta> x = Some v \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta> (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"
 | ev\<^sub>v_pushcon [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushCon\<^sub>b n) \<Longrightarrow> halloc h (Const\<^sub>v n) = (h', v) \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h' \<Delta> (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"
-| ev\<^sub>v_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>') \<Longrightarrow> halloc h (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>') = (h', v) \<Longrightarrow> 
+| ev\<^sub>v_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>' n) \<Longrightarrow> halloc h (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>') = (h', v) \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h' \<Delta> (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"
 | ev\<^sub>v_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' \<Longrightarrow>
     halloc \<Delta> (v\<^sub>1, p\<^sub>\<Delta>') = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow> 

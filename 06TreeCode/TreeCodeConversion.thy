@@ -1,5 +1,5 @@
 theory TreeCodeConversion
-  imports TreeCode "../05Closure/Closure" "../00Utils/Iteration"
+  imports TreeCode "../05Closure/Closure" "../03Debruijn/LetFloating"
 begin
 
 subsection \<open>Compilation to Tree-Code\<close>
@@ -12,9 +12,9 @@ the end of every code block, too; we never encode the \<open>Jump\<^sub>e\<close
 little later.\<close>
 
 primrec encode' :: "expr\<^sub>d \<Rightarrow> code\<^sub>e list" where
-  "encode' (Var\<^sub>d x) = [Lookup\<^sub>e x]"
+  "encode' (Var\<^sub>d x) = [Lookup\<^sub>e x 0 0]"
 | "encode' (Const\<^sub>d n) = [PushCon\<^sub>e n]"
-| "encode' (Lam\<^sub>d t e) = [PushLam\<^sub>e (encode' e @ [Return\<^sub>e])]"
+| "encode' (Lam\<^sub>d t e) = [PushLam\<^sub>e (encode' e @ [Return\<^sub>e]) (length (strip_lets e))]"
 | "encode' (App\<^sub>d e\<^sub>1 e\<^sub>2) = encode' e\<^sub>1 @ encode' e\<^sub>2 @ [Apply\<^sub>e]"
 | "encode' (Let\<^sub>d e\<^sub>1 e\<^sub>2) = encode' e\<^sub>1 @ PushEnv\<^sub>e # encode' e\<^sub>2 @ [PopEnv\<^sub>e]"
 
@@ -97,9 +97,9 @@ proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>c.induct)
   then obtain t' \<Gamma> where "(s\<^sub>c :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment s\<^sub>c = Some \<Delta> \<and> 
     lookup \<Gamma> x = Some t'" by fastforce
   then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>c = (map encode_closure \<Delta>, \<C>) # s\<^sub>e" by auto
-  with ev\<^sub>c_var have "S\<^sub>e (vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, Lookup\<^sub>e x # \<C>) # s\<^sub>e) \<leadsto>\<^sub>e 
+  with ev\<^sub>c_var have "S\<^sub>e (vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, Lookup\<^sub>e x 0 0 # \<C>) # s\<^sub>e) \<leadsto>\<^sub>e 
     S\<^sub>e (encode_closure c # vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, \<C>) # s\<^sub>e)" by simp
-  hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e (vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, Lookup\<^sub>e x # \<C>) # s\<^sub>e))
+  hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e (vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, Lookup\<^sub>e x 0 0 # \<C>) # s\<^sub>e))
     (S\<^sub>e (encode_closure c # vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, \<C>) # s\<^sub>e))" 
       by (metis iter_one)
   with S show ?case by simp
@@ -116,9 +116,10 @@ next
   then obtain t' \<Gamma> where "(s\<^sub>c :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment s\<^sub>c = Some \<Delta> \<and>
     (\<Gamma> \<turnstile>\<^sub>d Lam\<^sub>d tt e : t')" by fastforce
   then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>c = (map encode_closure \<Delta>, \<C>) # s\<^sub>e" by auto
-  have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, PushLam\<^sub>e (encode e) # \<C>) # s\<^sub>e)) 
-    (S\<^sub>e (Lam\<^sub>e (map encode_closure \<Delta>) (encode e) # vals_from_stack s\<^sub>c)
-      ((map encode_closure \<Delta>, \<C>) # s\<^sub>e))" by (metis ev\<^sub>e_pushlam iter_one)
+  have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (vals_from_stack s\<^sub>c) 
+    ((map encode_closure \<Delta>, PushLam\<^sub>e (encode e) (length (strip_lets e)) # \<C>) # s\<^sub>e)) 
+      (S\<^sub>e (Lam\<^sub>e (map encode_closure \<Delta>) (encode e) # vals_from_stack s\<^sub>c)
+        ((map encode_closure \<Delta>, \<C>) # s\<^sub>e))" by (metis ev\<^sub>e_pushlam iter_one)
   with S show ?case by (simp add: encode_def)
 next
   case (ret\<^sub>c_app2 t\<^sub>1 \<Delta> e\<^sub>1 s\<^sub>c c\<^sub>2)
@@ -226,16 +227,17 @@ lemma encode'_not_nil [simp]: "encode' e \<noteq> []"
 lemma encode_not_nil [simp]: "encode e \<noteq> []"
   by (simp add: encode_def)
 
-lemma encode_to_lookup [dest]: "encode' e @ \<C>' = Lookup\<^sub>e x # \<C> \<Longrightarrow> 
-    head_expr e = Var\<^sub>d x \<and> \<C> = tl (encode' e) @ \<C>'"
+lemma encode_to_lookup [dest]: "encode' e @ \<C>' = Lookup\<^sub>e x y z # \<C> \<Longrightarrow> 
+    head_expr e = Var\<^sub>d x \<and> \<C> = tl (encode' e) @ \<C>' \<and> y = 0 \<and> z = 0"
   by (induction e arbitrary: \<C>') fastforce+
 
 lemma encode_to_pushcon [dest]: "encode' e @ \<C>' = PushCon\<^sub>e n # \<C> \<Longrightarrow> 
     head_expr e = Const\<^sub>d n \<and> \<C> = tl (encode' e) @ \<C>'"
   by (induction e arbitrary: \<C>') fastforce+
 
-lemma encode_to_pushlam [dest]: "encode' e @ \<C>' = PushLam\<^sub>e \<C>'' # \<C> \<Longrightarrow> 
-    \<exists>t e'. head_expr e = Lam\<^sub>d t e' \<and> \<C>'' = encode e' \<and> \<C> = tl (encode' e) @ \<C>'"
+lemma encode_to_pushlam [dest]: "encode' e @ \<C>' = PushLam\<^sub>e \<C>'' n # \<C> \<Longrightarrow> 
+  \<exists>t e'. head_expr e = Lam\<^sub>d t e' \<and> \<C>'' = encode e' \<and> \<C> = tl (encode' e) @ \<C>' \<and> 
+    n = length (strip_lets e')"
   using encode_def by (induction e arbitrary: \<C>') fastforce+
 
 lemma encode_to_apply [dest]: "encode' e @ \<C>' = Apply\<^sub>e # \<C> \<Longrightarrow> False"
@@ -285,13 +287,13 @@ lemma prepend_to_jump [dest]: "prepend_to_top_frame (encode' e) s\<^sub>e = (\<D
     False"
   by (induction "encode' e" s\<^sub>e rule: prepend_to_top_frame.induct) auto
 
-lemma encode_stack_to_lookup [dest]: "stack_from_stack s\<^sub>c = (\<Delta>\<^sub>e, Lookup\<^sub>e x # \<C>) # s\<^sub>e \<Longrightarrow> 
+lemma encode_stack_to_lookup [dest]: "stack_from_stack s\<^sub>c = (\<Delta>\<^sub>e, Lookup\<^sub>e x y z # \<C>) # s\<^sub>e \<Longrightarrow> 
   \<exists>\<Delta>\<^sub>c e s\<^sub>c' \<C>'. s\<^sub>c = FApp1\<^sub>c \<Delta>\<^sub>c e # s\<^sub>c' \<and> stack_from_stack s\<^sub>c' = (\<Delta>\<^sub>e, \<C>') # s\<^sub>e \<and> 
-    head_expr e = Var\<^sub>d x \<and> \<C> = tl (encode' e) @ Apply\<^sub>e # \<C>'"
+    head_expr e = Var\<^sub>d x \<and> \<C> = tl (encode' e) @ Apply\<^sub>e # \<C>' \<and> y = 0 \<and> z = 0"
 proof (induction s\<^sub>c rule: stack_from_stack.induct)
   case (2 \<Delta> e s\<^sub>c)
   then obtain \<C>' where "stack_from_stack s\<^sub>c = (\<Delta>\<^sub>e, \<C>') # s\<^sub>e \<and> 
-    encode' e @ Apply\<^sub>e # \<C>' = Lookup\<^sub>e x # \<C>" by fastforce
+    encode' e @ Apply\<^sub>e # \<C>' = Lookup\<^sub>e x y z # \<C>" by fastforce
   thus ?case by auto
 qed auto
 
@@ -305,15 +307,16 @@ proof (induction s\<^sub>c rule: stack_from_stack.induct)
   thus ?case by auto
 qed auto
 
-lemma encode_stack_to_pushlam [dest]: "stack_from_stack s\<^sub>c = (\<Delta>\<^sub>e, PushLam\<^sub>e \<C>' # \<C>) # s\<^sub>e \<Longrightarrow> 
+lemma encode_stack_to_pushlam [dest]: "stack_from_stack s\<^sub>c = (\<Delta>\<^sub>e, PushLam\<^sub>e \<C>' n # \<C>) # s\<^sub>e \<Longrightarrow> 
   \<exists>\<Delta>\<^sub>c e s\<^sub>c' t e' \<C>''. s\<^sub>c = FApp1\<^sub>c \<Delta>\<^sub>c e # s\<^sub>c' \<and> stack_from_stack s\<^sub>c' = (\<Delta>\<^sub>e, \<C>'') # s\<^sub>e \<and> 
-    head_expr e = Lam\<^sub>d t e' \<and> \<C> = tl (encode' e) @ Apply\<^sub>e # \<C>'' \<and> \<C>' = encode e'"
+    head_expr e = Lam\<^sub>d t e' \<and> \<C> = tl (encode' e) @ Apply\<^sub>e # \<C>'' \<and> \<C>' = encode e' \<and> 
+      n = length (strip_lets e')"
 proof (induction s\<^sub>c rule: stack_from_stack.induct)
   case (2 \<Delta>\<^sub>c e s\<^sub>c)
   then obtain \<C>'' where "stack_from_stack s\<^sub>c = (\<Delta>\<^sub>e, \<C>'') # s\<^sub>e \<and> 
-    encode' e @ Apply\<^sub>e # \<C>'' = PushLam\<^sub>e \<C>' # \<C>" by fastforce
+    encode' e @ Apply\<^sub>e # \<C>'' = PushLam\<^sub>e \<C>' n # \<C>" by fastforce
   moreover then obtain t e' where "head_expr e = Lam\<^sub>d t e' \<and> \<C>' = encode e' \<and> 
-    \<C> = tl (encode' e) @ Apply\<^sub>e # \<C>''" by (metis encode_to_pushlam)
+    \<C> = tl (encode' e) @ Apply\<^sub>e # \<C>'' \<and> n = length (strip_lets e')" by (metis encode_to_pushlam)
   ultimately show ?case by auto
 qed auto
 
@@ -345,16 +348,16 @@ lemma encode_stack_to_jump [dest]: "stack_from_stack s = (\<Delta>\<^sub>e, Jump
   by (induction s rule: stack_from_stack.induct) auto
 
 lemma encode_state_to_lookup [dest, consumes 1, case_names SE\<^sub>c SC\<^sub>c]: "
-  encode_state \<Sigma>\<^sub>c = S\<^sub>e \<V> ((\<Delta>\<^sub>e, Lookup\<^sub>e x # \<C>) # s\<^sub>e) \<Longrightarrow> 
-    (\<And>s\<^sub>c \<Delta>\<^sub>c e \<C>'. head_expr e = Var\<^sub>d x \<Longrightarrow> \<C> = tl (encode' e) @ \<C>' \<Longrightarrow> 
+  encode_state \<Sigma>\<^sub>c = S\<^sub>e \<V> ((\<Delta>\<^sub>e, Lookup\<^sub>e x y z # \<C>) # s\<^sub>e) \<Longrightarrow> 
+    (\<And>s\<^sub>c \<Delta>\<^sub>c e \<C>'. head_expr e = Var\<^sub>d x \<Longrightarrow> y = 0 \<Longrightarrow> z = 0 \<Longrightarrow> \<C> = tl (encode' e) @ \<C>' \<Longrightarrow> 
       stack_from_stack s\<^sub>c = ((\<Delta>\<^sub>e, \<C>') # s\<^sub>e) \<Longrightarrow> \<V> = vals_from_stack s\<^sub>c \<Longrightarrow> P (SE\<^sub>c s\<^sub>c \<Delta>\<^sub>c e)) \<Longrightarrow> 
-    (\<And>s\<^sub>c c \<Delta>\<^sub>c e \<C>'. head_expr e = Var\<^sub>d x \<Longrightarrow> \<C> = tl (encode' e) @ Apply\<^sub>e # \<C>' \<Longrightarrow> 
-      stack_from_stack s\<^sub>c = ((\<Delta>\<^sub>e, \<C>') # s\<^sub>e) \<Longrightarrow> \<V> = encode_closure c # vals_from_stack s\<^sub>c \<Longrightarrow> 
-      P (SC\<^sub>c (FApp1\<^sub>c \<Delta>\<^sub>c e # s\<^sub>c) c)) \<Longrightarrow> P \<Sigma>\<^sub>c"
+    (\<And>s\<^sub>c c \<Delta>\<^sub>c e \<C>'. head_expr e = Var\<^sub>d x \<Longrightarrow> y = 0 \<Longrightarrow> z = 0 \<Longrightarrow> 
+      \<C> = tl (encode' e) @ Apply\<^sub>e # \<C>' \<Longrightarrow> stack_from_stack s\<^sub>c = ((\<Delta>\<^sub>e, \<C>') # s\<^sub>e) \<Longrightarrow> 
+      \<V> = encode_closure c # vals_from_stack s\<^sub>c \<Longrightarrow> P (SC\<^sub>c (FApp1\<^sub>c \<Delta>\<^sub>c e # s\<^sub>c) c)) \<Longrightarrow> P \<Sigma>\<^sub>c"
 proof (induction \<Sigma>\<^sub>c)
   case (SE\<^sub>c s \<Delta> e)
   moreover then obtain \<C>' where "stack_from_stack s = (\<Delta>\<^sub>e, \<C>') # s\<^sub>e \<and> 
-    encode' e @ \<C>' = Lookup\<^sub>e x # \<C>" by auto
+    encode' e @ \<C>' = Lookup\<^sub>e x y z # \<C>" by auto
   ultimately show ?case by auto
 qed auto
 
@@ -373,20 +376,20 @@ proof (induction \<Sigma>\<^sub>c)
 qed auto
 
 lemma encode_state_to_pushlam [dest, consumes 1, case_names SE\<^sub>c SC\<^sub>c]: "
-  encode_state \<Sigma>\<^sub>c = S\<^sub>e \<V> ((\<Delta>\<^sub>e, PushLam\<^sub>e \<C>' # \<C>) # s\<^sub>e) \<Longrightarrow> 
+  encode_state \<Sigma>\<^sub>c = S\<^sub>e \<V> ((\<Delta>\<^sub>e, PushLam\<^sub>e \<C>' n # \<C>) # s\<^sub>e) \<Longrightarrow> 
     (\<And>s\<^sub>c \<Delta>\<^sub>c e tt e' \<C>''. \<Sigma>\<^sub>c = SE\<^sub>c s\<^sub>c \<Delta>\<^sub>c e \<Longrightarrow> head_expr e = Lam\<^sub>d tt e' \<Longrightarrow> 
-      \<C> = tl (encode' e) @ \<C>'' \<Longrightarrow> \<C>' = encode e' \<Longrightarrow> \<V> = vals_from_stack s\<^sub>c \<Longrightarrow> 
-      stack_from_stack s\<^sub>c = (\<Delta>\<^sub>e, \<C>'') # s\<^sub>e \<Longrightarrow> P) \<Longrightarrow> 
+      \<C> = tl (encode' e) @ \<C>'' \<Longrightarrow> \<C>' = encode e' \<Longrightarrow> n = length (strip_lets e') \<Longrightarrow> 
+      \<V> = vals_from_stack s\<^sub>c \<Longrightarrow> stack_from_stack s\<^sub>c = (\<Delta>\<^sub>e, \<C>'') # s\<^sub>e \<Longrightarrow> P) \<Longrightarrow> 
     (\<And>s\<^sub>c c \<Delta>\<^sub>c e tt e' \<C>''. \<Sigma>\<^sub>c = SC\<^sub>c (FApp1\<^sub>c \<Delta>\<^sub>c e # s\<^sub>c) c \<Longrightarrow> head_expr e = Lam\<^sub>d tt e' \<Longrightarrow> 
-      \<C> = tl (encode' e) @ Apply\<^sub>e # \<C>'' \<Longrightarrow> \<C>' = encode e' \<Longrightarrow> 
+      \<C> = tl (encode' e) @ Apply\<^sub>e # \<C>'' \<Longrightarrow> \<C>' = encode e' \<Longrightarrow> n = length (strip_lets e') \<Longrightarrow> 
       \<V> = encode_closure c # vals_from_stack s\<^sub>c \<Longrightarrow> stack_from_stack s\<^sub>c = (\<Delta>\<^sub>e, \<C>'') # s\<^sub>e \<Longrightarrow> P) \<Longrightarrow> 
     P"
 proof (induction \<Sigma>\<^sub>c)
   case (SE\<^sub>c s\<^sub>c \<Delta>\<^sub>c e)
   moreover then obtain \<C>'' where "stack_from_stack s\<^sub>c = (\<Delta>\<^sub>e, \<C>'') # s\<^sub>e \<and> 
-    encode' e @ \<C>'' = PushLam\<^sub>e \<C>' # \<C>" by auto
+    encode' e @ \<C>'' = PushLam\<^sub>e \<C>' n # \<C>" by auto
   moreover then obtain tt e' where "head_expr e = Lam\<^sub>d tt e' \<and> \<C>' = encode e' \<and> 
-    \<C> = tl (encode' e) @ \<C>''" by (metis encode_to_pushlam)
+    \<C> = tl (encode' e) @ \<C>'' \<and> n = length (strip_lets e')" by (metis encode_to_pushlam)
   ultimately show ?case by auto
 qed auto
 
@@ -419,8 +422,8 @@ text \<open>And now, we can finally prove completeness.\<close>
 theorem complete\<^sub>e [simp]: "encode_state \<Sigma>\<^sub>c \<leadsto>\<^sub>e \<Sigma>\<^sub>t' \<Longrightarrow> \<Sigma>\<^sub>c :\<^sub>c t \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>c'. iter (\<leadsto>\<^sub>c) \<Sigma>\<^sub>c \<Sigma>\<^sub>c' \<and> \<Sigma>\<^sub>t' = encode_state \<Sigma>\<^sub>c'"
 proof (induction "encode_state \<Sigma>\<^sub>c" \<Sigma>\<^sub>t' rule: eval\<^sub>e.induct)
-  case (ev\<^sub>e_lookup \<Delta>\<^sub>e x v \<V> \<C> s\<^sub>e)
-  hence X: "encode_state \<Sigma>\<^sub>c = S\<^sub>e \<V> ((\<Delta>\<^sub>e, Lookup\<^sub>e x # \<C>) # s\<^sub>e)" by simp
+  case (ev\<^sub>e_lookup \<Delta>\<^sub>e x v \<V> y z \<C> s\<^sub>e)
+  hence X: "encode_state \<Sigma>\<^sub>c = S\<^sub>e \<V> ((\<Delta>\<^sub>e, Lookup\<^sub>e x y z # \<C>) # s\<^sub>e)" by simp
   from X ev\<^sub>e_lookup(1, 3) show ?case
   proof (induction rule: encode_state_to_lookup)
     case (SE\<^sub>c s\<^sub>c \<Delta>\<^sub>c e \<C>')
@@ -462,8 +465,8 @@ next
     with SC\<^sub>c show ?case by auto
   qed
 next
-  case (ev\<^sub>e_pushlam \<V> \<Delta>\<^sub>e \<C>' \<C> s\<^sub>e)
-  hence X: "encode_state \<Sigma>\<^sub>c = S\<^sub>e \<V> ((\<Delta>\<^sub>e, PushLam\<^sub>e \<C>' # \<C>) # s\<^sub>e)" by simp
+  case (ev\<^sub>e_pushlam \<V> \<Delta>\<^sub>e \<C>' n \<C> s\<^sub>e)
+  hence X: "encode_state \<Sigma>\<^sub>c = S\<^sub>e \<V> ((\<Delta>\<^sub>e, PushLam\<^sub>e \<C>' n # \<C>) # s\<^sub>e)" by simp
   from X ev\<^sub>e_pushlam(2) show ?case
   proof (induction rule: encode_state_to_pushlam)
     case (SE\<^sub>c s\<^sub>c \<Delta>\<^sub>c e tt e' \<C>'')

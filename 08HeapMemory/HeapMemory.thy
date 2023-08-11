@@ -22,11 +22,11 @@ popping; but beyond that, things are mostly the same as the previous stage, and 
 duplicate values, only pointers to them.\<close>
 
 inductive eval\<^sub>h :: "code\<^sub>b list \<Rightarrow> state\<^sub>h \<Rightarrow> state\<^sub>h \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>h" 50) where
-  ev\<^sub>h_lookup [simp]: "lookup \<C> p = Some (Lookup\<^sub>b x) \<Longrightarrow> lookup \<Delta> x = Some v \<Longrightarrow> 
+  ev\<^sub>h_lookup [simp]: "lookup \<C> p = Some (Lookup\<^sub>b x y z) \<Longrightarrow> lookup \<Delta> x = Some v \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h (v # \<V>) ((\<Delta>, p) # s)"
 | ev\<^sub>h_pushcon [simp]: "lookup \<C> p = Some (PushCon\<^sub>b n) \<Longrightarrow> halloc h (Const\<^sub>h n) = (h', v) \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h' (v # \<V>) ((\<Delta>, p) # s)"
-| ev\<^sub>h_pushlam [simp]: "lookup \<C> p = Some (PushLam\<^sub>b p') \<Longrightarrow> halloc h (Lam\<^sub>h \<Delta> p') = (h', v) \<Longrightarrow>
+| ev\<^sub>h_pushlam [simp]: "lookup \<C> p = Some (PushLam\<^sub>b p' n) \<Longrightarrow> halloc h (Lam\<^sub>h \<Delta> p') = (h', v) \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h' (v # \<V>) ((\<Delta>, p) # s)"
 | ev\<^sub>h_apply [simp]: "lookup \<C> p = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>h h (v\<^sub>1 # v\<^sub>2 # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> ((v\<^sub>1 # \<Delta>', p') # (\<Delta>, p) # s)"

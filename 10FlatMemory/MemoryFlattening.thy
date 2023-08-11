@@ -186,7 +186,7 @@ value, breaking completeness.\<close>
 theorem complete\<^sub>f: "\<C> \<tturnstile> flatten \<Sigma>\<^sub>v \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow> 
   \<exists>\<Sigma>\<^sub>v'. (\<C> \<tturnstile> \<Sigma>\<^sub>v \<leadsto>\<^sub>v \<Sigma>\<^sub>v') \<and> flatten \<Sigma>\<^sub>v' = \<Sigma>\<^sub>f'" 
 proof (induction "flatten \<Sigma>\<^sub>v" \<Sigma>\<^sub>f' rule: eval\<^sub>f.induct)
-  case (ev\<^sub>f_lookup \<C> p\<^sub>\<C> x \<Delta>\<^sub>f p\<^sub>\<Delta>\<^sub>f v\<^sub>f h\<^sub>f \<V>\<^sub>f s\<^sub>f)
+  case (ev\<^sub>f_lookup \<C> p\<^sub>\<C> x y z \<Delta>\<^sub>f p\<^sub>\<Delta>\<^sub>f v\<^sub>f h\<^sub>f \<V>\<^sub>f s\<^sub>f)
   then obtain h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v p\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
     h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> 
     s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>v" by fastforce
@@ -211,7 +211,7 @@ next
     by simp
   with S X show ?case by blast
 next
-  case (ev\<^sub>f_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' h\<^sub>f p\<^sub>\<Delta>\<^sub>f h\<^sub>f' v\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f s\<^sub>f)
+  case (ev\<^sub>f_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' n h\<^sub>f p\<^sub>\<Delta>\<^sub>f h\<^sub>f' v\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f s\<^sub>f)
   then obtain h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v p\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
     h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> 
     s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>v" by fastforce

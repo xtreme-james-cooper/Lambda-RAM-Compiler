@@ -26,12 +26,12 @@ fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonu
     if even p then flat_lookup h (hlookup h (Suc p)) x else None)"
 
 inductive eval\<^sub>f :: "code\<^sub>b list \<Rightarrow> state\<^sub>f \<Rightarrow> state\<^sub>f \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>f" 50) where
-  ev\<^sub>f_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x) \<Longrightarrow> flat_lookup \<Delta> p\<^sub>\<Delta> x = Some v \<Longrightarrow> 
+  ev\<^sub>f_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x y z) \<Longrightarrow> flat_lookup \<Delta> p\<^sub>\<Delta> x = Some v \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta> (v # \<V>) (p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
 | ev\<^sub>f_pushcon [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushCon\<^sub>b n) \<Longrightarrow> 
     halloc_list h [(PConst, n), (PConst, 0)] = (h', v) \<Longrightarrow>
       \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h' \<Delta> (v # \<V>) (p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
-| ev\<^sub>f_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>') \<Longrightarrow> 
+| ev\<^sub>f_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>' n) \<Longrightarrow> 
     halloc_list h [(PEnv, p\<^sub>\<Delta>), (PCode, p\<^sub>\<C>')] = (h', v) \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h' \<Delta> (v # \<V>) (p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
 | ev\<^sub>f_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = (PEnv, p\<^sub>\<Delta>') \<Longrightarrow> 

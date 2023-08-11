@@ -57,13 +57,13 @@ text \<open>Completeness is a simple induction, now.\<close>
 theorem complete\<^sub>r [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>r \<leadsto>\<^sub>r \<Sigma>\<^sub>r' \<Longrightarrow> restructurable \<Sigma>\<^sub>r \<Longrightarrow> 
   \<C> \<tturnstile> restructure \<Sigma>\<^sub>r \<leadsto>\<^sub>f restructure \<Sigma>\<^sub>r'"
 proof (induction \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>r.induct)
-  case (ev\<^sub>r_lookup \<C> p\<^sub>\<C> x \<Delta> s b\<^sub>s y h b\<^sub>h b\<^sub>\<Delta> \<V> b\<^sub>\<V>\<V>)
+  case (ev\<^sub>r_lookup \<C> p\<^sub>\<C> x z w \<Delta> s b\<^sub>s y h b\<^sub>h b\<^sub>\<Delta> \<V> b\<^sub>\<V>)
   thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
   case (ev\<^sub>r_pushcon \<C> p\<^sub>\<C> n h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
   thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
-  case (ev\<^sub>r_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
+  case (ev\<^sub>r_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' n h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s b\<^sub>s)
   thus ?case by (cases b\<^sub>s) (auto split: nat.splits)
 next
   case (ev\<^sub>r_apply \<C> p\<^sub>\<C> h \<V> b\<^sub>\<V> p\<^sub>\<Delta> p\<^sub>\<C>' b\<^sub>h \<Delta> b\<^sub>\<Delta> s b\<^sub>s)
@@ -127,7 +127,7 @@ lemma restructure_to_final_state [dest]: "S\<^sub>f h\<^sub>f \<Delta>\<^sub>f \
 theorem correct\<^sub>r [simp]: "\<C> \<tturnstile> restructure \<Sigma>\<^sub>r \<leadsto>\<^sub>f \<Sigma>\<^sub>f' \<Longrightarrow> 
   \<exists>\<Sigma>\<^sub>r'. (\<C> \<tturnstile> \<Sigma>\<^sub>r \<leadsto>\<^sub>r \<Sigma>\<^sub>r') \<and> \<Sigma>\<^sub>f' = restructure \<Sigma>\<^sub>r'"
 proof (induction "restructure \<Sigma>\<^sub>r" \<Sigma>\<^sub>f' rule: eval\<^sub>f.induct)
-  case (ev\<^sub>f_lookup \<C> p\<^sub>\<C> x \<Delta>\<^sub>f p\<^sub>\<Delta> v h\<^sub>f \<V>\<^sub>f s\<^sub>f)
+  case (ev\<^sub>f_lookup \<C> p\<^sub>\<C> x y z \<Delta>\<^sub>f p\<^sub>\<Delta> v h\<^sub>f \<V>\<^sub>f s\<^sub>f)
   then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s where S: "h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> 
     \<V>\<^sub>f = listify_heap \<V>\<^sub>r b\<^sub>\<V> \<and> p\<^sub>\<Delta> = s\<^sub>r (Suc b\<^sub>s) \<and> s\<^sub>f = listify_heap (s\<^sub>r \<circ> Suc) b\<^sub>s \<and> 
       \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>)" by fastforce
@@ -151,7 +151,7 @@ next
       (\<V>\<^sub>r(b\<^sub>\<V> := b\<^sub>h)) (Suc b\<^sub>\<V>) s\<^sub>r (Suc (Suc b\<^sub>s)) p\<^sub>\<C>" by (metis ev\<^sub>r_pushcon)
   with S X show ?case by blast
 next
-  case (ev\<^sub>f_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' h\<^sub>f p\<^sub>\<Delta> h\<^sub>f' v \<Delta>\<^sub>f \<V>\<^sub>f s\<^sub>f)
+  case (ev\<^sub>f_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' n h\<^sub>f p\<^sub>\<Delta> h\<^sub>f' v \<Delta>\<^sub>f \<V>\<^sub>f s\<^sub>f)
   then obtain h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r b\<^sub>s where S: "h\<^sub>f = H h\<^sub>r b\<^sub>h \<and> \<Delta>\<^sub>f = H \<Delta>\<^sub>r b\<^sub>\<Delta> \<and> 
     \<V>\<^sub>f = listify_heap \<V>\<^sub>r b\<^sub>\<V> \<and> p\<^sub>\<Delta> = s\<^sub>r (Suc b\<^sub>s) \<and> s\<^sub>f = listify_heap (s\<^sub>r \<circ> Suc) b\<^sub>s \<and> 
       \<Sigma>\<^sub>r = S\<^sub>r h\<^sub>r b\<^sub>h \<Delta>\<^sub>r b\<^sub>\<Delta> \<V>\<^sub>r b\<^sub>\<V> s\<^sub>r (Suc (Suc b\<^sub>s)) (Suc p\<^sub>\<C>)" by fastforce

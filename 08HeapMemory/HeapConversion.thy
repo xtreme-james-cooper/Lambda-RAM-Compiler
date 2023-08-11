@@ -119,7 +119,7 @@ lemma unheap_to_lam [simp]: "unheap_closure h v = Lam\<^sub>b \<Delta>\<^sub>b p
 theorem correct\<^sub>h [simp]: "\<C> \<tturnstile> unheap \<Sigma>\<^sub>h \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> 
   \<exists>\<Sigma>\<^sub>h'. (\<C> \<tturnstile> \<Sigma>\<^sub>h \<leadsto>\<^sub>h \<Sigma>\<^sub>h') \<and> \<Sigma>\<^sub>b' = unheap \<Sigma>\<^sub>h'"
 proof (induction "unheap \<Sigma>\<^sub>h" \<Sigma>\<^sub>b' rule: eval\<^sub>b.induct)
-  case (ev\<^sub>b_lookup \<C> p x \<Delta>\<^sub>b v \<V>\<^sub>b s\<^sub>b)
+  case (ev\<^sub>b_lookup \<C> p x y z \<Delta>\<^sub>b v \<V>\<^sub>b s\<^sub>b)
   then obtain h \<V>\<^sub>h \<Delta>\<^sub>h s\<^sub>h where "\<Sigma>\<^sub>h = S\<^sub>h h \<V>\<^sub>h ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<and> \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h \<and> 
     \<Delta>\<^sub>b = map (unheap_closure h) \<Delta>\<^sub>h \<and> s\<^sub>b = unheap_stack h s\<^sub>h" by fastforce
   moreover with ev\<^sub>b_lookup obtain vv where "lookup \<Delta>\<^sub>h x = Some vv \<and> v = unheap_closure h vv" 
@@ -137,7 +137,7 @@ next
     by simp
   ultimately show ?case by fastforce
 next
-  case (ev\<^sub>b_pushlam \<C> p p' \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
+  case (ev\<^sub>b_pushlam \<C> p p' n \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
   moreover then obtain h \<V>\<^sub>h \<Delta>\<^sub>h s\<^sub>h where S: "\<Sigma>\<^sub>h = S\<^sub>h h \<V>\<^sub>h ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<and> 
     \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h \<and> \<Delta>\<^sub>b = map (unheap_closure h) \<Delta>\<^sub>h \<and> s\<^sub>b = unheap_stack h s\<^sub>h" 
       by fastforce

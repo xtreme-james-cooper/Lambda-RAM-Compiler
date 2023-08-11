@@ -20,10 +20,16 @@ although we do not enforce syntactically - that every code block ends with a \<o
 tree-structured code in the next stage; but the second return-like operation \<open>Jump\<^sub>e\<close> will also come 
 in useful for tail-call optimization soon.\<close>
 
+text \<open>We also add a few pieces of computationally-irrelevant to assist compilation later. Each 
+\<open>Lookup\<^sub>e\<close> has, besides the actual index of the variable to be looked up, the number of intervening 
+lambdas and the index of the variable in that last lambda. \<open>PushLam\<^sub>e\<close>, likewise, stores the number 
+of variables defined locally in its body. These two pieces of data will help us use a more efficient
+variable-lookup strategy later.\<close>
+
 datatype code\<^sub>e = 
-  Lookup\<^sub>e nat
+  Lookup\<^sub>e nat nat nat
   | PushCon\<^sub>e nat
-  | PushLam\<^sub>e "code\<^sub>e list"
+  | PushLam\<^sub>e "code\<^sub>e list" nat
   | Apply\<^sub>e
   | PushEnv\<^sub>e
   | PopEnv\<^sub>e
@@ -32,14 +38,14 @@ datatype code\<^sub>e =
 
 fun properly_terminated\<^sub>e :: "code\<^sub>e list \<Rightarrow> bool" where
   "properly_terminated\<^sub>e [] = False"
-| "properly_terminated\<^sub>e (PushLam\<^sub>e \<C>' # \<C>) = (properly_terminated\<^sub>e \<C>' \<and> properly_terminated\<^sub>e \<C>)"
+| "properly_terminated\<^sub>e (PushLam\<^sub>e \<C>' n # \<C>) = (properly_terminated\<^sub>e \<C>' \<and> properly_terminated\<^sub>e \<C>)"
 | "properly_terminated\<^sub>e (Return\<^sub>e # \<C>) = (\<C> = [])"
 | "properly_terminated\<^sub>e (Jump\<^sub>e # \<C>) = (\<C> = [])"
 | "properly_terminated\<^sub>e (op # \<C>) = properly_terminated\<^sub>e \<C>"
 
 fun pop_free :: "code\<^sub>e list \<Rightarrow> bool" where
   "pop_free [] = True"
-| "pop_free (PushLam\<^sub>e \<C>' # \<C>) = (pop_free \<C>' \<and> pop_free \<C>)"
+| "pop_free (PushLam\<^sub>e \<C>' n # \<C>) = (pop_free \<C>' \<and> pop_free \<C>)"
 | "pop_free (PopEnv\<^sub>e # \<C>) = False"
 | "pop_free (op # \<C>) = pop_free \<C>"
 
@@ -69,9 +75,9 @@ later.)\<close>
 
 inductive eval\<^sub>e :: "state\<^sub>e \<Rightarrow> state\<^sub>e \<Rightarrow> bool" (infix "\<leadsto>\<^sub>e" 50) where
   ev\<^sub>e_lookup [simp]: "lookup \<Delta> x = Some v \<Longrightarrow> 
-    S\<^sub>e \<V> ((\<Delta>, Lookup\<^sub>e x # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (v # \<V>) ((\<Delta>, \<C>) # s)"
+    S\<^sub>e \<V> ((\<Delta>, Lookup\<^sub>e x y z # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (v # \<V>) ((\<Delta>, \<C>) # s)"
 | ev\<^sub>e_pushcon [simp]: "S\<^sub>e \<V> ((\<Delta>, PushCon\<^sub>e n # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (Const\<^sub>e n # \<V>) ((\<Delta>, \<C>) # s)"
-| ev\<^sub>e_pushlam [simp]: "S\<^sub>e \<V> ((\<Delta>, PushLam\<^sub>e \<C>' # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (Lam\<^sub>e \<Delta> \<C>' # \<V>) ((\<Delta>, \<C>) # s)"
+| ev\<^sub>e_pushlam [simp]: "S\<^sub>e \<V> ((\<Delta>, PushLam\<^sub>e \<C>' n # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (Lam\<^sub>e \<Delta> \<C>' # \<V>) ((\<Delta>, \<C>) # s)"
 | ev\<^sub>e_apply [simp]: "S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' # \<V>) ((\<Delta>, Apply\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e 
     S\<^sub>e \<V> ((v # \<Delta>', \<C>') # (\<Delta>, \<C>) # s)"
 | ev\<^sub>e_pushenv [simp]: "S\<^sub>e (v # \<V>) ((\<Delta>, PushEnv\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((v # \<Delta>, \<C>) # s)"

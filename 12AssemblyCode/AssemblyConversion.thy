@@ -4,16 +4,16 @@ theory AssemblyConversion
 begin
 
 primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
-  "assemble_op_len (Lookup\<^sub>b x) = 7 + 2 * x"
+  "assemble_op_len (Lookup\<^sub>b x y z) = 7 + 2 * x"
 | "assemble_op_len (PushCon\<^sub>b k) = 5"
-| "assemble_op_len (PushLam\<^sub>b pc) = 9"
+| "assemble_op_len (PushLam\<^sub>b pc n) = 9"
 | "assemble_op_len Apply\<^sub>b = 20"
 | "assemble_op_len PushEnv\<^sub>b = 11"
 | "assemble_op_len Return\<^sub>b = 5"
 | "assemble_op_len Jump\<^sub>b = 19"
 
 primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> code\<^sub>b \<Rightarrow> assm list" where
-  "assemble_op mp ix (Lookup\<^sub>b x) = [
+  "assemble_op mp ix (Lookup\<^sub>b x y z) = [
     AMov (Reg Acc) (Con 0),
     AAdd Vals (Con 1),
     AMov (Mem Vals) (Reg Acc),
@@ -32,7 +32,7 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
     AMov (Mem Hp) (Con k),
     AAdd Vals (Con 1),
     AMov (Mem Vals) (Reg Hp)]"
-| "assemble_op mp ix (PushLam\<^sub>b pc) = [
+| "assemble_op mp ix (PushLam\<^sub>b pc n) = [
     AAdd Hp (Con 1), 
     AMov (Mem Hp) (Con (mp pc)), 
     AMov (Reg Acc) (Con 0),
@@ -294,13 +294,13 @@ primrec assembleable :: "state\<^sub>r \<Rightarrow> code\<^sub>b list \<Rightar
       assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<and> assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h \<and> 
         assembleable_stack s p\<^sub>s p\<^sub>\<Delta> (length \<C>) \<and> even p\<^sub>s \<and> (p\<^sub>s = 0 \<longrightarrow> p\<^sub>\<C> = 0))"
 
-lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (Lookup\<^sub>b x)"
+lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (Lookup\<^sub>b x y z)"
   by (induction \<C>) auto
 
 lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (PushCon\<^sub>b k)"
   by (induction \<C>) auto
 
-lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (PushLam\<^sub>b p\<^sub>\<C>)"
+lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (PushLam\<^sub>b p\<^sub>\<C> n)"
   by (induction \<C>) auto
 
 lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some Apply\<^sub>b"
@@ -654,7 +654,7 @@ lemma [simp]: "(case_memseg hp ep vp sp a)(Stk := sp') = case_memseg hp ep vp sp
 lemma [simp]: "(case_memseg hp ep vp sp a)(Acc := a') = case_memseg hp ep vp sp a'"
   by rule (simp split: memseg.splits)
 
-lemma [simp]: "unstr_lookup e a x = Some v \<Longrightarrow> lookup cd pc = Some (Lookup\<^sub>b y) \<Longrightarrow> x \<le> y \<Longrightarrow> 
+lemma [simp]: "unstr_lookup e a x = Some v \<Longrightarrow> lookup cd pc = Some (Lookup\<^sub>b y z w) \<Longrightarrow> x \<le> y \<Longrightarrow> 
   pc < length cd \<Longrightarrow> a \<le> ep \<Longrightarrow> assembleable_env e ep hp \<Longrightarrow> iter_eval\<^sub>a (assemble_code cd) 
     (5 + 2 * x) (S\<^sub>a (case_prod (case_memseg h (assemble_env e ep) vs sh undefined)) 
       (case_memseg (Hp, hp) (Env, ep) (Vals, vp) (Stk, sp) (Env, a)) 
@@ -701,7 +701,7 @@ qed simp_all
 theorem correcta [simp]: "cd\<^sub>b \<tturnstile> \<Sigma>\<^sub>r \<leadsto>\<^sub>r \<Sigma>\<^sub>r' \<Longrightarrow> assembleable \<Sigma>\<^sub>r cd\<^sub>b \<Longrightarrow> 
   \<exists>n. iter_eval\<^sub>a (assemble_code cd\<^sub>b) n (assm_state cd\<^sub>b \<Sigma>\<^sub>r) = Some (assm_state cd\<^sub>b \<Sigma>\<^sub>r')"
 proof (induction cd\<^sub>b \<Sigma>\<^sub>r \<Sigma>\<^sub>r' rule: eval\<^sub>r.induct)
-  case (ev\<^sub>r_lookup cd pc x e sh sp y h hp ep vs vp)
+  case (ev\<^sub>r_lookup cd pc x z w e sh sp y h hp ep vs vp)
   moreover hence "odd sp" by simp
   moreover from ev\<^sub>r_lookup have "lookup (assemble_code cd) (7 + 2 * x + assembly_map cd pc) = 
     Some (AMov (Reg Acc) (Reg Stk))" by simp
@@ -760,7 +760,7 @@ next
              split: prod.splits memseg.splits)
   thus ?case by auto
 next
-  case (ev\<^sub>r_pushlam cd pc pc' h hp e ep vs vp sh sp)
+  case (ev\<^sub>r_pushlam cd pc pc' n h hp e ep vs vp sh sp)
   moreover from ev\<^sub>r_pushlam have "lookup (assemble_code cd) (9 + assembly_map cd pc) = 
     Some (AMov (Mem Vals) (Reg Hp))" by simp
   moreover from ev\<^sub>r_pushlam have "lookup (assemble_code cd) (8 + assembly_map cd pc) = 
@@ -1003,10 +1003,10 @@ lemma assembly_map_flatten' [simp]: "properly_terminated\<^sub>e cd \<Longrighta
   assembly_map (lib @ flatten_code' (length lib) cd) (length lib + code_list_size cd) = 
     sum_list (map (Suc \<circ> assemble_op_len) (lib @ flatten_code' (length lib) cd))"
 proof (induction "length lib" cd arbitrary: lib rule: flatten_code'.induct)
-  case (4 \<C>' \<C>)
+  case (4 \<C>' n \<C>)
   let ?\<C>\<^sub>b' = "flatten_code' (length lib) \<C>'"
   let ?\<C>\<^sub>b = "flatten_code' (length lib + length ?\<C>\<^sub>b') \<C>"
-  have X: "assembly_map (lib @ ?\<C>\<^sub>b' @ ?\<C>\<^sub>b @ [PushLam\<^sub>b (length lib + length ?\<C>\<^sub>b')]) 
+  have X: "assembly_map (lib @ ?\<C>\<^sub>b' @ ?\<C>\<^sub>b @ [PushLam\<^sub>b (length lib + length ?\<C>\<^sub>b') n]) 
     (length (lib @ ?\<C>\<^sub>b' @ ?\<C>\<^sub>b)) = assembly_map (lib @ ?\<C>\<^sub>b' @ ?\<C>\<^sub>b) (length (lib @ ?\<C>\<^sub>b' @ ?\<C>\<^sub>b))"
       by (metis append_assoc assembly_map_postpend)
   from 4 have "properly_terminated\<^sub>e \<C> \<Longrightarrow> pop_free \<C> \<Longrightarrow> 
