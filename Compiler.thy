@@ -195,7 +195,7 @@ value "compile prog1" text \<open> \<longrightarrow> Some ([JMP R5, STOI R4 0, .
 value "compile prog2" text \<open> \<longrightarrow> Some ([JMP R5, STOI R4 0, ..., STO R3 R1], Num)\<close>
 
 value "let (cd, t) = the (compile prog1) 
-       in print_mach_state t (the (alg_evalm cd 379 (initial_state cd)))" text \<open> \<longrightarrow> Number 3\<close>
+       in print_mach_state t (the (alg_evalm cd 333 (initial_state cd)))" text \<open> \<longrightarrow> Number 3\<close>
 value "let (cd, t) = the (compile prog2) 
-       in print_mach_state t (the (alg_evalm cd 377 (initial_state cd)))" text \<open> \<longrightarrow> Number 5\<close>
+       in print_mach_state t (the (alg_evalm cd 331 (initial_state cd)))" text \<open> \<longrightarrow> Number 5\<close>
 end
