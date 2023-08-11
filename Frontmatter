@@ -39,7 +39,7 @@ subsection - Overview of the compiler
 Impsired by [2], the compiler is divided into a number of quite small passes. Each pass 
 reduces the complexity of the source language or evaluation state slightly; by composing them all 
 together we move from the big-step lambda calculus evaluation of the source language to code 
-execution in an extremely simple register-RAM machine. The fourteen stages are as follows:
+execution in an extremely simple register-RAM machine. The fifteen stages are as follows:
 
 1) Source Language. This is the lambda-calculus enhanced with simple integer arithmetic, products, 
 and sums. It is evaluated using a big-step natural semantics.
@@ -52,8 +52,10 @@ Programming Languages_ [5].
 their use of named variables. At this point we switch to a nameless Debruijn representation. This 
 stage is also important because it is at this point that we switch to a small-step semantics, and 
 prove termination; our correctness and completeness theorems allow us to extend this result back to 
-our original language. We also adjust the positions of our let-bindings ("let-floating") to make the 
-code more efficient down the line.
+our original language. 
+
+3b) Let-floating. We also adjust the positions of our let-bindings to make the code more efficient, 
+and allow for more sophisticated and efficient memory layouts down the line.
 
 4) Stack Evaluation. The small-step evaluation of the Debruijn stage still requires nested 
 evaluation of subterms. We now eliminate this by introducing an explicit evaluation stack. 
@@ -68,7 +70,7 @@ closures.
 6) Tree Code Compilation. Now we begin the actual process of compiling the source. Until now, 
 evaluation has been directed by examining the expression under evaluation. We now perform this 
 examination at compile-time, converting these expressions into a list of operations, and evaluate by 
-executing the list. The code is tree-structured, because the "TPushLam" operation contains a sublist 
+executing the list. The code is tree-structured, because the "PushLam" operation contains a sublist 
 with the code for the function body.
 
 6b) Tail-Call Elimination. Our one optimization pass. We add a second kind of return, a jump, which 
@@ -138,7 +140,6 @@ need a well-formedness condition:
 well_formed \<Sigma>\<^sub>c \<Longrightarrow> convert \<Sigma>\<^sub>c \<leadsto>\<^sub>a \<Sigma>\<^sub>a' \<Longrightarrow> 
   \<exists>\<Sigma>\<^sub>c'. well_formed \<Sigma>\<^sub>c' \<and> convert \<Sigma>\<^sub>c' = \<Sigma>\<^sub>a' \<and> iter (\<leadsto>\<^sub>c) \<Sigma>\<^sub>c \<Sigma>\<^sub>c'
 
-
 Once this key lemma has been completed, the remainder is simple: an easy generalization to iterated 
 evaluation of the abstract state, and then a proof that a final state of the concrete version prints 
 the same value as the final state of the abstract version. (We use "printing" as our standard of 
@@ -152,13 +153,13 @@ After each individual pass has been defined and proven, we combine the individua
 theorems into our final two theorems. If compilation fails, then it was because of a typechecking 
 error, and no well-typed version of our source program can exist:
 
-alg_compile e = None \<Longrightarrow> \<nexists>e\<^sub>t t. (Map.empty \<turnstile> e : t) \<and> e = erase e\<^sub>t
+compile e = None \<Longrightarrow> \<nexists>e\<^sub>t t. (Map.empty \<turnstile> e : t) \<and> e = erase e\<^sub>t
 
 If compilation succeeds, then it has found a type for our program, and there is some value that our 
 source program evaluates to, and the compiled machine code will eventually evaluate to a final 
 state, and the printed outputs of that value and that machine state are identical:
 
-alg_compile e = Some (cd, t) \<Longrightarrow> \<exists>e\<^sub>t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> erase e\<^sub>t = e \<and>
+compile e = Some (cd, t) \<Longrightarrow> \<exists>e\<^sub>t. (Map.empty \<turnstile>\<^sub>t e\<^sub>t : t) \<and> erase e\<^sub>t = e \<and>
   \<exists>v. valn v \<and> e \<Down> v \<and> 
     (\<exists>\<Sigma>. final_state \<Sigma> \<and> iter (\<tturnstile> cd \<leadsto>) (initial_state cd) \<Sigma> \<and> print_mach_state \<Sigma> = print_nexpr v)
 
