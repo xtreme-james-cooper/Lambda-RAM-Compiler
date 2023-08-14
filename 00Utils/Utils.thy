@@ -53,6 +53,10 @@ lemma list_all_map_with_idx [simp]: "(\<And>k a. p (f k a) = p a) \<Longrightarr
     list_all p (map_with_idx x f as) = list_all p as"
   by (induction as arbitrary: x) simp_all
 
+primrec mapfst :: "('a \<Rightarrow> 'a) \<Rightarrow> 'a list \<Rightarrow> 'a list" where
+  "mapfst f [] = []"
+| "mapfst f (a # as) = f a # as"
+
 fun nat_to_string' :: "nat \<Rightarrow> char" where
   "nat_to_string' 0 = CHR 48"
 | "nat_to_string' (Suc 0) = CHR 49"

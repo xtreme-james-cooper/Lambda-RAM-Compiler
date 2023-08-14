@@ -40,7 +40,7 @@ one extra evaluation step substituting it back away in each \<open>App\<^sub>s\<
 having to pop the environments at the end of each function.\<close>
 
 text \<open>This transformation also has one even more useful consequence, which we will return to in 
-section 9.\<close>
+section 10.\<close>
 
 text \<open>We begin by defining our let-floated normal form.\<close>
 

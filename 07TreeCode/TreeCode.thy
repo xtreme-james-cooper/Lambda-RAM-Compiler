@@ -20,12 +20,6 @@ although we do not enforce syntactically - that every code block ends with a \<o
 tree-structured code in the next stage; but the second return-like operation \<open>Jump\<^sub>e\<close> will also come 
 in useful for tail-call optimization soon.\<close>
 
-text \<open>We also add a few pieces of computationally-irrelevant to assist compilation later. Each 
-\<open>Lookup\<^sub>e\<close> has, besides the actual index of the variable to be looked up, the number of intervening 
-lambdas and the index of the variable in that last lambda. \<open>PushLam\<^sub>e\<close>, likewise, stores the number 
-of variables defined locally in its body. These two pieces of data will help us use a more efficient
-variable-lookup strategy later.\<close>
-
 datatype code\<^sub>e = 
   Lookup\<^sub>e nat nat nat
   | PushCon\<^sub>e nat
