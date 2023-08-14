@@ -1,5 +1,5 @@
 theory HeapMemory
-  imports "../07ByteCode/ByteCode" Heap
+  imports "../08ByteCode/ByteCode" Heap
 begin
 
 subsection \<open>Heap-Memory Values\<close>

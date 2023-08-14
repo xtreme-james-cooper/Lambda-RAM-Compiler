@@ -1,5 +1,5 @@
 theory CodeFlattening
-  imports ByteCode "../06TreeCode/TreeCode"
+  imports ByteCode "../07TreeCode/TreeCode"
 begin
 
 subsection \<open>Code Flattening\<close>

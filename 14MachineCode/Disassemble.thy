@@ -1,5 +1,5 @@
 theory Disassemble
-  imports MachineCode "../12AssemblyCode/AssemblyCode"
+  imports MachineCode "../13AssemblyCode/AssemblyCode"
 begin
 
 primrec register_map :: "memseg \<Rightarrow> reg" where

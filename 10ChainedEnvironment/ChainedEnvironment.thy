@@ -1,5 +1,5 @@
 theory ChainedEnvironment
-  imports "../07ByteCode/ByteCode" "../08HeapMemory/Heap"
+  imports "../08ByteCode/ByteCode" "../09HeapMemory/Heap"
 begin
 
 section \<open>Chained environments\<close>

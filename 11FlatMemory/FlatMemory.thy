@@ -1,5 +1,5 @@
 theory FlatMemory
-  imports "../07ByteCode/ByteCode" "../08HeapMemory/Heap" PointerTag
+  imports "../08ByteCode/ByteCode" "../09HeapMemory/Heap" PointerTag
 begin
 
 text \<open>The chained memory stage is quite low-level, but it still possesses some structured data: 

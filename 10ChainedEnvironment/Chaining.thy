@@ -1,5 +1,5 @@
 theory Chaining
-  imports ChainedEnvironment "../08HeapMemory/HeapMemory"
+  imports ChainedEnvironment "../09HeapMemory/HeapMemory"
 begin
 
 section \<open>Chaining environments\<close>

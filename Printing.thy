@@ -1,8 +1,8 @@
 theory Printing
   imports "02Typed/Typechecking" "03Debruijn/NameRemoval" "05Closure/ClosureConversion" 
-    "06TreeCode/TreeCodeConversion" "06TreeCode/TailCallOptimization" "07ByteCode/CodeFlattening" 
-    "08HeapMemory/HeapConversion" "09ChainedEnvironment/Chaining" "10FlatMemory/MemoryFlattening" 
-    "12AssemblyCode/AssemblyConversion" "13MachineCode/Disassemble" 
+    "07TreeCode/TreeCodeConversion" "07TreeCode/TailCallOptimization" "08ByteCode/CodeFlattening" 
+    "09HeapMemory/HeapConversion" "10ChainedEnvironment/Chaining" "11FlatMemory/MemoryFlattening" 
+    "13AssemblyCode/AssemblyConversion" "14MachineCode/Disassemble" 
 begin
 
 datatype print = Number nat | Fun

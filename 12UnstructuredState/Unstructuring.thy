@@ -1,5 +1,5 @@
 theory Unstructuring
-  imports UnstructuredState "../10FlatMemory/FlatMemory"
+  imports UnstructuredState "../11FlatMemory/FlatMemory"
 begin
 
 subsection \<open>State Unstructuring\<close>

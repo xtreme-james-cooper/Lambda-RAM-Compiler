@@ -1,5 +1,5 @@
 theory MemoryFlattening                   
-  imports FlatMemory "../08HeapMemory/HeapConversion" "../09ChainedEnvironment/Chaining"
+  imports FlatMemory "../09HeapMemory/HeapConversion" "../10ChainedEnvironment/Chaining"
 begin
 
 subsection \<open>Memory Flattening\<close>
