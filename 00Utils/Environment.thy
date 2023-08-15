@@ -1,5 +1,5 @@
 theory Environment
-  imports Main
+  imports Utils
 begin
 
 subsection \<open>Environments\<close>
@@ -34,6 +34,14 @@ lemma lookup_in_set [elim]: "lookup as x = Some a \<Longrightarrow> a \<in> set 
 lemma lookup_map [simp]: "lookup (map f as) x = map_option f (lookup as x)"
   by (induction as x rule: lookup.induct) simp_all
 
+lemma lookup_cons_fst [simp]: "lookup (cons_fst a as) x = (case x of
+    0 \<Rightarrow> (case lookup as 0 of None \<Rightarrow> Some [a] | Some aa \<Rightarrow> Some (a # aa))
+  | Suc x' \<Rightarrow> lookup as x)"
+proof (induction as x rule: lookup.induct)
+  case (1 x)
+  then show ?case by (cases x) simp_all
+qed simp_all
+
 lemma lookup_append_fst [simp]: "x < length as \<Longrightarrow> lookup (as @ bs) x = lookup as x"
   by (induction as x rule: lookup.induct) simp_all
 
@@ -48,6 +56,20 @@ lemma lookup_has_prop [elim]: "list_all p as \<Longrightarrow> lookup as x = Som
 
 lemma lookup_idx_equiv [simp]: "lookup as x = Some a \<Longrightarrow> as ! x = a"
   by (induction as x rule: lookup.induct) simp_all
+
+lemma dom_lookup_empty [simp]: "dom (lookup []) = {}"
+  by (simp add: dom_def)
+
+lemma dom_lookup_cons [simp]: "dom (lookup (a # as)) = insert 0 (Suc ` dom (lookup as))"
+proof (unfold dom_def)
+  have "\<And>x. x \<in> {aa. lookup (a # as) aa \<noteq> None} = (x \<in> insert 0 (Suc ` {a. lookup as a \<noteq> None}))"
+  proof -
+    fix x
+    show "(x \<in> {aa. lookup (a # as) aa \<noteq> None}) = (x \<in> insert 0 (Suc ` {a. lookup as a \<noteq> None}))"
+      by (cases x) auto
+  qed
+  thus "{aa. lookup (a # as) aa \<noteq> None} = insert 0 (Suc ` {a. lookup as a \<noteq> None})" by auto
+qed
 
 text \<open>Before we can talk about the other major function on environments, \<open>insert_at\<close>, we must define 
 some helper functions on nats, \<open>incr\<close> and \<open>decr\<close>. If \<open>y\<close> is an index into an environment and \<open>x\<close> is 
@@ -121,6 +143,13 @@ qed simp_all
 
 lemma incr_suc_le [simp]: "incr (Suc y) x \<le> y = (x \<le> y)"
   by (induction x y rule: incr.induct) simp_all
+
+lemma incr_neq_eq_lemma: "\<forall>z. y \<noteq> incr x z \<Longrightarrow> x = y"
+proof -
+  assume "\<forall>z. y \<noteq> incr x z" 
+  hence "y \<noteq> incr x (if x < y then y - 1 else y)" by simp
+  thus "x = y" by (cases "x = y") (simp_all add: incr_le incr_above split: if_splits)
+qed
 
 lemma decr_le [simp]: "y \<le> x \<Longrightarrow> decr x y = y"
   by (induction x y rule: decr.induct) simp_all
@@ -215,6 +244,18 @@ proof (induction as)
   thus ?case by (induction bs) simp_all
 qed simp_all
 
+lemma concat_insert_at_0 [simp]: "concat (insert_at 0 [a] as) = insert_at 0 a (concat as)"
+proof (induction as)
+  case (Cons b as)
+  thus ?case by (cases b, cases as) simp_all
+qed simp_all
+
+lemma concat_cons_fst_insert_at [simp]: "concat (cons_fst a as) = insert_at 0 a (concat as)"
+proof (induction as)
+  case (Cons b as)
+  thus ?case by (cases b, cases as) simp_all
+qed simp_all
+
 lemma insert_at_list_all [simp]: "list_all2 p as bs \<Longrightarrow> p a b \<Longrightarrow> x \<le> length as \<Longrightarrow> 
   list_all2 p (insert_at x a as) (insert_at x b bs)"
 proof (induction x a as arbitrary: bs rule: insert_at.induct)
@@ -238,8 +279,8 @@ proof (induction x a as arbitrary: y rule: insert_at.induct)
   then show ?case by (induction y) simp_all
 qed simp_all
 
-lemma lookup_at_decr [simp]: "x \<le> length as \<Longrightarrow> x \<noteq> y \<Longrightarrow> 
-  lookup as (decr x y) = lookup (insert_at x a as) y"
+lemma lookup_at_decr: "x \<le> length as \<Longrightarrow> x \<noteq> y \<Longrightarrow> 
+  lookup (insert_at x a as) y = lookup as (decr x y)"
 proof (induction x a as arbitrary: y rule: insert_at.induct)
   case (1 a')
   then show ?case by (induction y) simp_all
@@ -258,6 +299,21 @@ proof (induction x a as rule: insert_at.induct)
   moreover hence "map (f(a' := b)) (insert_at x a' as) = insert_at x b (map f as)" by fastforce
   ultimately show ?case by auto
 qed auto
+
+lemma dom_lookup_insert [simp]: "x \<le> length as \<Longrightarrow> 
+    dom (lookup (insert_at x a as)) = insert x (incr x ` dom (lookup as))"
+proof (unfold dom_def)
+  assume X: "x \<le> length as"
+  have "\<And>y z. \<forall>xa. lookup as xa = None \<or> z \<noteq> incr x xa \<Longrightarrow> lookup (insert_at x a as) z = Some y \<Longrightarrow> 
+    z = x" 
+  proof -
+    fix y z
+    assume "\<forall>w. lookup as w = None \<or> z \<noteq> incr x w" and "lookup (insert_at x a as) z = Some y"
+    with X show "z = x" using incr_neq_eq_lemma by (cases "\<exists>w. z = incr x w") (auto, force)
+  qed
+  with X show "{aa. lookup (insert_at x a as) aa \<noteq> None} = 
+    insert x (incr x ` {a. lookup as a \<noteq> None})" by (auto simp add: image_iff)
+qed
 
 text \<open>\<open>insert_at\<close> gets its own swap lemma: the canonical order is from smallest index to largest.\<close>
 

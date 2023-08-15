@@ -53,9 +53,9 @@ lemma list_all_map_with_idx [simp]: "(\<And>k a. p (f k a) = p a) \<Longrightarr
     list_all p (map_with_idx x f as) = list_all p as"
   by (induction as arbitrary: x) simp_all
 
-primrec mapfst :: "('a \<Rightarrow> 'a) \<Rightarrow> 'a list \<Rightarrow> 'a list" where
-  "mapfst f [] = []"
-| "mapfst f (a # as) = f a # as"
+primrec cons_fst :: "'a \<Rightarrow> 'a list list \<Rightarrow> 'a list list" where
+  "cons_fst b [] = [[b]]"
+| "cons_fst b (bs # bss) = (b # bs) # bss"
 
 fun nat_to_string' :: "nat \<Rightarrow> char" where
   "nat_to_string' 0 = CHR 48"
@@ -201,6 +201,12 @@ lemma snd_pair [simp]: "(a, b) = f x \<Longrightarrow> snd (f x) = b"
   by (metis snd_conv)
 
 lemma plus_zero [simp]: "(+) (0::nat) = id"
+  by auto
+
+lemma plus_one [simp]: "(+) (Suc 0) = Suc"
+  by auto
+
+lemma suc_comp_plus [simp]: "Suc \<circ> (+) x = (+) (Suc x)"
   by auto
 
 lemma suc_even [simp]: "Suc (Suc 0) dvd Suc x \<Longrightarrow> odd x"

@@ -1,5 +1,5 @@
 theory Heap
-  imports "../00Utils/Environment" "../00Utils/Utils"
+  imports "../00Utils/Environment"
 begin
 
 section \<open>Heap Memory\<close>

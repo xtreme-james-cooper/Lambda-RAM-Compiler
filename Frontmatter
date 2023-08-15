@@ -179,7 +179,6 @@ v : a value (an expression in normal form, or later a closure)
 t : a type
 \<Gamma> : a typing context
 \<Phi> : a naming context
-\<Psi> : a variable-index map
 \<Sigma> : an evaluation state
 s : an evaluation (or call) stack
 \<C> : a block of code

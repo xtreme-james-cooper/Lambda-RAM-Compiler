@@ -53,7 +53,6 @@ lists to lists-of-lists, representing the eventual linked-list-of-frames they wi
 our variable indexes with frame-offset pairs. (We also precalculate and store the size of the frame 
 associated with a lambda-expression and store it for use later as well.)\<close>
 
-
 datatype expr\<^sub>g = 
   Var\<^sub>g nat nat
   | Const\<^sub>g nat
@@ -73,7 +72,7 @@ inductive typing\<^sub>g :: "ty list list \<Rightarrow> expr\<^sub>g \<Rightarro
 | tc\<^sub>g_const [simp]: "\<Gamma> \<turnstile>\<^sub>g Const\<^sub>g n : Num"
 | tc\<^sub>g_lam [simp]: "insert_at 0 [t\<^sub>1] \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g Lam\<^sub>g t\<^sub>1 e (let_count e) : Arrow t\<^sub>1 t\<^sub>2"
 | tc\<^sub>g_app [simp]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>1 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g App\<^sub>g e\<^sub>1 e\<^sub>2 : t\<^sub>2"
-| tc\<^sub>g_let [simp]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1 \<Longrightarrow> mapfst (insert_at 0 t\<^sub>1) \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g Let\<^sub>g e\<^sub>1 e\<^sub>2 : t\<^sub>2"
+| tc\<^sub>g_let [simp]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1 \<Longrightarrow> cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g Let\<^sub>g e\<^sub>1 e\<^sub>2 : t\<^sub>2"
 
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Var\<^sub>g x y : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Const\<^sub>g n : t"
@@ -127,9 +126,11 @@ next
 qed simp_all
 
 lemma "c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> True"
-  and tc_closure_mapfst [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> 
-    mapfst ((#) c) \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s mapfst (insert_at 0 t) \<Gamma>"
+  and tc_closure_cons_fst [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> cons_fst c \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s cons_fst t \<Gamma>"
   by (induction c t and \<Delta> \<Gamma> rule: typing_closure\<^sub>g_typing_environment\<^sub>g.inducts) simp_all
+
+lemma env_length_same [simp]: "cs # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s ts # \<Gamma> \<Longrightarrow> length cs = length ts"
+  by (induction cs arbitrary: ts) auto
 
 lemma canonical_num\<^sub>g [dest]: "c :\<^sub>g\<^sub>c\<^sub>l Num \<Longrightarrow> \<exists>n. c = Num\<^sub>g n"
   by (induction c Num rule: typing_closure\<^sub>g_typing_environment\<^sub>g.inducts(1)) simp_all
@@ -145,23 +146,23 @@ datatype frame\<^sub>g =
   | FPop\<^sub>g closure\<^sub>g
   | FReturn\<^sub>g "closure\<^sub>g list list"
 
-fun latest_environment :: "frame\<^sub>g list \<rightharpoonup> closure\<^sub>g list list" where
-  "latest_environment [] = None"
-| "latest_environment (FApp1\<^sub>g \<Delta> e # s) = latest_environment s"
-| "latest_environment (FApp2\<^sub>g c # s) = latest_environment s"
-| "latest_environment (FLet\<^sub>g \<Delta> e # s) = latest_environment s"
-| "latest_environment (FPop\<^sub>g c # s) = map_option (mapfst ((#) c)) (latest_environment s)"
-| "latest_environment (FReturn\<^sub>g \<Delta> # s) = Some \<Delta>"
+fun latest_environment\<^sub>g :: "frame\<^sub>g list \<rightharpoonup> closure\<^sub>g list list" where
+  "latest_environment\<^sub>g [] = None"
+| "latest_environment\<^sub>g (FApp1\<^sub>g \<Delta> e # s) = latest_environment\<^sub>g s"
+| "latest_environment\<^sub>g (FApp2\<^sub>g c # s) = latest_environment\<^sub>g s"
+| "latest_environment\<^sub>g (FLet\<^sub>g \<Delta> e # s) = latest_environment\<^sub>g s"
+| "latest_environment\<^sub>g (FPop\<^sub>g c # s) = map_option (cons_fst c) (latest_environment\<^sub>g s)"
+| "latest_environment\<^sub>g (FReturn\<^sub>g \<Delta> # s) = Some \<Delta>"
 
 inductive typing_stack\<^sub>g :: "frame\<^sub>g list \<Rightarrow> ty \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>g _ \<rightarrow>" 50) where
   tcc_snil [simp]: "[] :\<^sub>g t \<rightarrow> t"
 | tcc_scons_app1 [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>1 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> 
-    latest_environment s = Some \<Delta> \<Longrightarrow> FApp1\<^sub>g \<Delta> e # s :\<^sub>g Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
-| tcc_scons_app2 [simp]: "c :\<^sub>g\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> latest_environment s \<noteq> None \<Longrightarrow> 
+    latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> FApp1\<^sub>g \<Delta> e # s :\<^sub>g Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
+| tcc_scons_app2 [simp]: "c :\<^sub>g\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> latest_environment\<^sub>g s \<noteq> None \<Longrightarrow> 
     FApp2\<^sub>g c # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
-| tcc_scons_let [simp]: "latest_environment s = Some \<Delta> \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> 
-    mapfst (insert_at 0 t\<^sub>1) \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> FLet\<^sub>g \<Delta> e # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
-| tcc_scons_pop [simp]: "latest_environment s = Some \<Delta> \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l tt \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> 
+| tcc_scons_let [simp]: "latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow>
+    cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> FLet\<^sub>g \<Delta> e # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
+| tcc_scons_pop [simp]: "latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l tt \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> 
     FPop\<^sub>g c # s :\<^sub>g t' \<rightarrow> t"
 | tcc_scons_ret [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>g \<Delta> # s :\<^sub>g t' \<rightarrow> t"
 
@@ -181,7 +182,7 @@ primrec final\<^sub>g :: "state\<^sub>g \<Rightarrow> bool" where
 | "final\<^sub>g (SC\<^sub>g s c) = (s = [])"
 
 inductive typecheck_state\<^sub>g :: "state\<^sub>g \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>g" 50) where
-  tcc_state_ev [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> latest_environment s = Some \<Delta> \<Longrightarrow> 
+  tcc_state_ev [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> 
     \<Gamma> \<turnstile>\<^sub>g e : t' \<Longrightarrow> SE\<^sub>g s \<Delta> e :\<^sub>g t"
 | tcc_state_ret [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l t' \<Longrightarrow> SC\<^sub>g s c :\<^sub>g t"
 
@@ -200,7 +201,7 @@ inductive eval\<^sub>g :: "state\<^sub>g \<Rightarrow> state\<^sub>g \<Rightarro
 | ret\<^sub>g_app1 [simp]: "SC\<^sub>g (FApp1\<^sub>g \<Delta> e\<^sub>2 # s) c\<^sub>1 \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c\<^sub>1 # s) \<Delta> e\<^sub>2"
 | ret\<^sub>g_app2 [simp]: "SC\<^sub>g (FApp2\<^sub>g (Fun\<^sub>g t \<Delta> e\<^sub>1 n) # s) c\<^sub>2 \<leadsto>\<^sub>g 
     SE\<^sub>g (FReturn\<^sub>g ([c\<^sub>2] # \<Delta>) # s) ([c\<^sub>2] # \<Delta>) e\<^sub>1"
-| ret\<^sub>g_let [simp]: "SC\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # s) c\<^sub>1 \<leadsto>\<^sub>g SE\<^sub>g (FPop\<^sub>g c\<^sub>1 # s) (mapfst ((#) c\<^sub>1) \<Delta>) e\<^sub>2"
+| ret\<^sub>g_let [simp]: "SC\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # s) c\<^sub>1 \<leadsto>\<^sub>g SE\<^sub>g (FPop\<^sub>g c\<^sub>1 # s) (cons_fst c\<^sub>1 \<Delta>) e\<^sub>2"
 | ret\<^sub>g_pop [simp]: "SC\<^sub>g (FPop\<^sub>g c' # s) c \<leadsto>\<^sub>g SC\<^sub>g s c"
 | ret\<^sub>g_ret [simp]: "SC\<^sub>g (FReturn\<^sub>g \<Delta> # s) c \<leadsto>\<^sub>g SC\<^sub>g s c"
 
@@ -245,7 +246,7 @@ next
   ultimately show ?case by fastforce
 next
   case (tcc_scons_let s \<Delta> \<Gamma> t\<^sub>1 e t\<^sub>2 t)
-  have "SC\<^sub>g (FLet\<^sub>g \<Delta> e # s) c \<leadsto>\<^sub>g SE\<^sub>g (FPop\<^sub>g c # s) (mapfst ((#) c) \<Delta>) e" by simp
+  have "SC\<^sub>g (FLet\<^sub>g \<Delta> e # s) c \<leadsto>\<^sub>g SE\<^sub>g (FPop\<^sub>g c # s) (cons_fst c \<Delta>) e" by simp
   thus ?case by fastforce
 next
   case (tcc_scons_pop s \<Delta> c' \<Gamma> t' t)
@@ -274,18 +275,18 @@ proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>g.induct)
 next
   case (ev\<^sub>g_app s \<Delta> e\<^sub>1 e\<^sub>2)
   then obtain t\<^sub>1 t\<^sub>2 \<Gamma> where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>1)" 
-   and X: "(\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2)" by blast
+   and X: "(\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>g s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2)" by blast
   hence "FApp1\<^sub>g \<Delta> e\<^sub>2 # s :\<^sub>g Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"  by fastforce
   with X show ?case by fastforce
 next
   case (ev\<^sub>g_let s \<Delta> e\<^sub>1 e\<^sub>2)
-  then obtain \<Gamma> t\<^sub>2 t\<^sub>1 where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (mapfst (insert_at 0 t\<^sub>1) \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2)" 
-    and X: "(\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1) \<and> (\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment s = Some \<Delta>" by fastforce
+  then obtain \<Gamma> t\<^sub>2 t\<^sub>1 where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2)" 
+    and X: "(\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1) \<and> (\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>g s = Some \<Delta>" by fastforce
   hence "FLet\<^sub>g \<Delta> e\<^sub>2 # s :\<^sub>g t\<^sub>1 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
 next
   case (ret\<^sub>g_app1 \<Delta> e\<^sub>2 s c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "(\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>1)" 
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "(\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>g s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>1)" 
    and "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (c\<^sub>1 :\<^sub>g\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2)" by blast
   hence "FApp2\<^sub>g c\<^sub>1 # s :\<^sub>g t\<^sub>1 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
@@ -298,9 +299,9 @@ next
   with Y Z show ?case by fastforce
 next
   case (ret\<^sub>g_let \<Delta> e\<^sub>2 s c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "mapfst (insert_at 0 t\<^sub>1) \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2" and "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>" 
-    and A: "c\<^sub>1 :\<^sub>g\<^sub>c\<^sub>l t\<^sub>1" and Y: "s :\<^sub>g t\<^sub>2 \<rightarrow> t" and Z: "latest_environment s = Some \<Delta>" by fastforce
-  hence W: "mapfst ((#) c\<^sub>1) \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s mapfst (insert_at 0 t\<^sub>1) \<Gamma>" by simp
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2" and "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>" 
+    and A: "c\<^sub>1 :\<^sub>g\<^sub>c\<^sub>l t\<^sub>1" and Y: "s :\<^sub>g t\<^sub>2 \<rightarrow> t" and Z: "latest_environment\<^sub>g s = Some \<Delta>" by fastforce
+  hence W: "cons_fst c\<^sub>1 \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s cons_fst t\<^sub>1 \<Gamma>" by simp
   from Y Z A have "FPop\<^sub>g c\<^sub>1 # s :\<^sub>g t\<^sub>2 \<rightarrow> t" by simp
   with X Z W show ?case by fastforce
 qed fastforce+

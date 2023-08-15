@@ -87,14 +87,14 @@ text \<open>Because the conversion functions run forwards, we can once again pro
 We again have to use \<open>iter\<close> in our statement of the theorem, because the frame-adjustment evaluation
 steps (\<open>ret\<^sub>c_app1\<close> and \<open>ret\<^sub>c_app2\<close>) are not matched by any steps in the tree-code evaluation.\<close>
 
-lemma lookup_latest [dest]: "latest_environment s\<^sub>c = Some \<Delta> \<Longrightarrow> 
+lemma lookup_latest [dest]: "latest_environment\<^sub>c s\<^sub>c = Some \<Delta> \<Longrightarrow> 
     \<exists>\<C> s\<^sub>e. stack_from_stack s\<^sub>c = (map encode_closure \<Delta>, \<C>) # s\<^sub>e"
   by (induction s\<^sub>c arbitrary: \<Delta> rule: stack_from_stack.induct) fastforce+
 
 theorem correct\<^sub>e [simp]: "\<Sigma> \<leadsto>\<^sub>c \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>c t \<Longrightarrow> iter (\<leadsto>\<^sub>e) (encode_state \<Sigma>) (encode_state \<Sigma>')"
 proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>c.induct)
   case (ev\<^sub>c_var \<Delta> x c s\<^sub>c)
-  then obtain t' \<Gamma> where "(s\<^sub>c :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment s\<^sub>c = Some \<Delta> \<and> 
+  then obtain t' \<Gamma> where "(s\<^sub>c :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>c s\<^sub>c = Some \<Delta> \<and> 
     lookup \<Gamma> x = Some t'" by fastforce
   then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>c = (map encode_closure \<Delta>, \<C>) # s\<^sub>e" by auto
   with ev\<^sub>c_var have "S\<^sub>e (vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, Lookup\<^sub>e x 0 0 # \<C>) # s\<^sub>e) \<leadsto>\<^sub>e 
@@ -105,7 +105,7 @@ proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>c.induct)
   with S show ?case by simp
 next
   case (ev\<^sub>c_con s\<^sub>c \<Delta> n)
-  then obtain \<Gamma> where "(s\<^sub>c :\<^sub>c Num \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment s\<^sub>c = Some \<Delta>" by fastforce
+  then obtain \<Gamma> where "(s\<^sub>c :\<^sub>c Num \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>c s\<^sub>c = Some \<Delta>" by fastforce
   then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>c = (map encode_closure \<Delta>, \<C>) # s\<^sub>e" by auto
   have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, PushCon\<^sub>e n # \<C>) # s\<^sub>e)) 
     (S\<^sub>e (Const\<^sub>e n # vals_from_stack s\<^sub>c) ((map encode_closure \<Delta>, \<C>) # s\<^sub>e))" 
@@ -113,7 +113,7 @@ next
   with S show ?case by simp
 next
   case (ev\<^sub>c_lam s\<^sub>c \<Delta> tt e)
-  then obtain t' \<Gamma> where "(s\<^sub>c :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment s\<^sub>c = Some \<Delta> \<and>
+  then obtain t' \<Gamma> where "(s\<^sub>c :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>c s\<^sub>c = Some \<Delta> \<and>
     (\<Gamma> \<turnstile>\<^sub>d Lam\<^sub>d tt e : t')" by fastforce
   then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>c = (map encode_closure \<Delta>, \<C>) # s\<^sub>e" by auto
   have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (vals_from_stack s\<^sub>c) 
@@ -124,7 +124,7 @@ next
 next
   case (ret\<^sub>c_app2 t\<^sub>1 \<Delta> e\<^sub>1 s\<^sub>c c\<^sub>2)
   then obtain \<Gamma> t\<^sub>2 \<Delta>' where "(\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2) \<and> (s\<^sub>c :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> 
-    latest_environment s\<^sub>c = Some \<Delta>' \<and> (c\<^sub>2 :\<^sub>c\<^sub>l t\<^sub>1)" by blast
+    latest_environment\<^sub>c s\<^sub>c = Some \<Delta>' \<and> (c\<^sub>2 :\<^sub>c\<^sub>l t\<^sub>1)" by blast
   then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>c = (map encode_closure \<Delta>', \<C>) # s\<^sub>e" by auto
   hence "iter (\<leadsto>\<^sub>e) 
     (S\<^sub>e (encode_closure c\<^sub>2 # Lam\<^sub>e (map encode_closure \<Delta>) (encode e\<^sub>1) # vals_from_stack s\<^sub>c) 
@@ -134,7 +134,7 @@ next
   with S show ?case by (simp add: encode_def)
 next
   case (ret\<^sub>c_let \<Delta> e\<^sub>2 s\<^sub>c c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where "latest_environment s\<^sub>c = Some \<Delta> \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where "latest_environment\<^sub>c s\<^sub>c = Some \<Delta> \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
     (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2) \<and> (s\<^sub>c :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (c\<^sub>1 :\<^sub>c\<^sub>l t\<^sub>1)" by blast
   then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>c = (map encode_closure \<Delta>, \<C>) # s\<^sub>e" by auto
   have "iter (\<leadsto>\<^sub>e)
@@ -146,7 +146,7 @@ next
   with S show ?case by simp
 next
   case (ret\<^sub>c_pop c' s\<^sub>c c)
-  then obtain \<Delta> tt t' where "latest_environment s\<^sub>c = Some \<Delta> \<and> (c' :\<^sub>c\<^sub>l tt) \<and> (s\<^sub>c :\<^sub>c t' \<rightarrow> t) \<and> 
+  then obtain \<Delta> tt t' where "latest_environment\<^sub>c s\<^sub>c = Some \<Delta> \<and> (c' :\<^sub>c\<^sub>l tt) \<and> (s\<^sub>c :\<^sub>c t' \<rightarrow> t) \<and> 
     (c :\<^sub>c\<^sub>l t')" by fastforce
   then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>c = (map encode_closure \<Delta>, \<C>) # s\<^sub>e" by auto
   have "iter (\<leadsto>\<^sub>e)

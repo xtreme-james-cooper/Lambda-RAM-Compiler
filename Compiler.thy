@@ -60,7 +60,7 @@ proof -
   with VD TD have ES: "iter (\<leadsto>\<^sub>k) (S\<^sub>k False [FReturn\<^sub>k] (float_lets (unname e\<^sub>t))) 
     (S\<^sub>k True [] (float_lets (unname v\<^sub>t)))" by simp
   from TD have TC: "SE\<^sub>c [FReturn\<^sub>c []] [] (float_lets (unname e\<^sub>t)) :\<^sub>c t" 
-    by (metis tcc_state_ev tc\<^sub>c_nil tcc_snil tcc_scons_ret latest_environment.simps(6))
+    by (metis tcc_state_ev tc\<^sub>c_nil tcc_snil tcc_scons_ret latest_environment\<^sub>c.simps(6))
   with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (SE\<^sub>c [FReturn\<^sub>c []] [] (float_lets (unname e\<^sub>t))) 
     (SC\<^sub>c [] c) \<and> declosure c = float_lets (unname v\<^sub>t)" by fastforce
   from TC EC have "iter (\<leadsto>\<^sub>e) (encode_state (SE\<^sub>c [FReturn\<^sub>c []] [] (float_lets (unname e\<^sub>t)))) 

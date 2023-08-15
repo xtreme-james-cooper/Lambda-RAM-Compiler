@@ -143,9 +143,7 @@ lemma tc\<^sub>d_subst [simp]: "insert_at x t' \<Gamma> \<turnstile>\<^sub>d e :
   \<Gamma> \<turnstile>\<^sub>d subst\<^sub>d x e' e : t"
 proof (induction "insert_at x t' \<Gamma>" e t arbitrary: \<Gamma> x e' rule: typing\<^sub>d.induct)
   case (tc\<^sub>d_var y t)
-  moreover have "x \<le> length \<Gamma> \<Longrightarrow> x \<noteq> y \<Longrightarrow> lookup \<Gamma> (decr x y) = lookup (insert_at x t' \<Gamma>) y" 
-    by simp
-  ultimately show ?case by fastforce
+  thus ?case using lookup_at_decr by fastforce
 qed fastforce+ 
 
 lemma subst\<^sub>d_above_bounds [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> x \<ge> length \<Gamma> \<Longrightarrow> subst\<^sub>d x e' e = e"

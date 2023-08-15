@@ -144,7 +144,7 @@ next
   thus ?case by simp
 next
   case (ev\<^sub>c_let s \<Delta> e\<^sub>1 e\<^sub>2)
-  then obtain \<Gamma> t' where "(s :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment s = Some \<Delta> \<and> 
+  then obtain \<Gamma> t' where "(s :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>c s = Some \<Delta> \<and> 
     (\<Gamma> \<turnstile>\<^sub>d Let\<^sub>d e\<^sub>1 e\<^sub>2 : t')" by fastforce
   hence "map (incr\<^sub>d 0 \<circ> declosure) \<Delta> = map declosure \<Delta>" by fastforce
   hence "iter (\<leadsto>\<^sub>k) (S\<^sub>k False (declosure_stack s) (Let\<^sub>d (multisubst (map declosure \<Delta>) e\<^sub>1)
@@ -164,7 +164,7 @@ next
 next
   case (ret\<^sub>c_app2 t\<^sub>1 \<Delta> e\<^sub>1 s\<^sub>c c\<^sub>2)
   then obtain \<Gamma> t\<^sub>2 where T: "(\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2) \<and> (s\<^sub>c :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and>
-    latest_environment s\<^sub>c \<noteq> None \<and> (c\<^sub>2 :\<^sub>c\<^sub>l t\<^sub>1)" by fastforce
+    latest_environment\<^sub>c s\<^sub>c \<noteq> None \<and> (c\<^sub>2 :\<^sub>c\<^sub>l t\<^sub>1)" by fastforce
   hence "multisubst (map declosure \<Delta>) (declosure c\<^sub>2) = declosure c\<^sub>2" by fastforce
   moreover have "iter (\<leadsto>\<^sub>k) 
     (S\<^sub>k True (FApp2\<^sub>k (Lam\<^sub>d t\<^sub>1 (multisubst' (Suc 0) (map (incr\<^sub>d 0 \<circ> declosure) \<Delta>) e\<^sub>1)) # 
@@ -175,7 +175,7 @@ next
   ultimately show ?case by (simp add: multisubst_subst_swap)
 next
   case (ret\<^sub>c_let \<Delta> e\<^sub>2 s c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where T: "latest_environment s = Some \<Delta> \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where T: "latest_environment\<^sub>c s = Some \<Delta> \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
     (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2) \<and> (s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (c\<^sub>1 :\<^sub>c\<^sub>l t\<^sub>1)" by fastforce
   hence X: "map (incr\<^sub>d 0 \<circ> declosure) \<Delta> = map declosure \<Delta>" by fastforce
   from T have "multisubst (map declosure \<Delta>) (declosure c\<^sub>1) = declosure c\<^sub>1" by fastforce
@@ -344,7 +344,7 @@ next
   then obtain s' \<Delta> e' where S: "s = declosure_stack s' \<and> \<Sigma>\<^sub>c = SE\<^sub>c s' \<Delta> e' \<and> 
     Lam\<^sub>d tt e = multisubst (map declosure \<Delta>) e'" by fastforce
   with ev\<^sub>k_lam obtain t' \<Gamma> where T: "(s' :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
-    latest_environment s' = Some \<Delta> \<and> \<Gamma> \<turnstile>\<^sub>d e' : t'" by fastforce
+    latest_environment\<^sub>c s' = Some \<Delta> \<and> \<Gamma> \<turnstile>\<^sub>d e' : t'" by fastforce
   thus ?case
   proof (cases "\<exists>e''. e' = Lam\<^sub>d tt e''")
     case True
@@ -394,7 +394,7 @@ next
   then obtain c s\<^sub>c' where S': "s\<^sub>c = FApp2\<^sub>c c # s\<^sub>c' \<and> Lam\<^sub>d t\<^sub>1 e\<^sub>1 = declosure c \<and> 
     s = declosure_stack s\<^sub>c'" by fastforce
   from ev\<^sub>k_app3 S S' obtain t' t\<^sub>2 \<Delta> where T: "(c :\<^sub>c\<^sub>l Arrow t' t\<^sub>2) \<and> (s\<^sub>c' :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> 
-    latest_environment s\<^sub>c' = Some \<Delta> \<and> c\<^sub>2 :\<^sub>c\<^sub>l t'" by fastforce
+    latest_environment\<^sub>c s\<^sub>c' = Some \<Delta> \<and> c\<^sub>2 :\<^sub>c\<^sub>l t'" by fastforce
   with S' obtain \<Delta>' e\<^sub>1' where C: "c = Lam\<^sub>c t\<^sub>1 \<Delta>' e\<^sub>1' \<and> 
     e\<^sub>1 = multisubst' (Suc 0) (map declosure \<Delta>') e\<^sub>1'" by (metis declose_to_lam)
   with T obtain \<Gamma> where "(\<Delta>' :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>1' : t\<^sub>2) \<and> t' = t\<^sub>1" by fastforce
@@ -412,7 +412,7 @@ next
   then obtain e\<^sub>1' e\<^sub>2' where E: "e' = Let\<^sub>d e\<^sub>1' e\<^sub>2' \<and> e\<^sub>1 = multisubst (map declosure \<Delta>) e\<^sub>1' \<and> 
     e\<^sub>2 = multisubst' (Suc 0) (map (incr\<^sub>d 0 \<circ> declosure) \<Delta>) e\<^sub>2'" by fastforce
   with ev\<^sub>k_let1 S obtain \<Gamma> t' where T: "(s\<^sub>c :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
-    latest_environment s\<^sub>c = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>d Let\<^sub>d e\<^sub>1' e\<^sub>2' : t')" by blast
+    latest_environment\<^sub>c s\<^sub>c = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>d Let\<^sub>d e\<^sub>1' e\<^sub>2' : t')" by blast
   hence X: "map (incr\<^sub>d 0 \<circ> declosure) \<Delta> = map declosure \<Delta>" by fastforce
   have I: "iter (\<leadsto>\<^sub>c) (SE\<^sub>c s\<^sub>c \<Delta> (Let\<^sub>d e\<^sub>1' e\<^sub>2')) (SE\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2' # s\<^sub>c) \<Delta> e\<^sub>1')" 
     by (metis ev\<^sub>c_let iter_one)
@@ -427,7 +427,7 @@ next
   then obtain \<Delta> e\<^sub>2' s\<^sub>c' where S': "s\<^sub>c = FLet\<^sub>c \<Delta> e\<^sub>2' # s\<^sub>c' \<and> 
     e\<^sub>2 = multisubst' (Suc 0) (map declosure \<Delta>) e\<^sub>2' \<and> s = declosure_stack s\<^sub>c'" by fastforce
   with ev\<^sub>k_let2 S have "SC\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2' # s\<^sub>c') c :\<^sub>c t" by simp
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where T: "latest_environment s\<^sub>c' = Some \<Delta> \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where T: "latest_environment\<^sub>c s\<^sub>c' = Some \<Delta> \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
     (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2' : t\<^sub>2) \<and> (s\<^sub>c' :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (c :\<^sub>c\<^sub>l t\<^sub>1)" by fastforce
   hence X: "map (incr\<^sub>d 0 \<circ> declosure) \<Delta> = map declosure \<Delta>" by fastforce
   from T have Y: "multisubst (map declosure \<Delta>) (declosure c) = declosure c" by fastforce
