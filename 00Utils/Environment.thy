@@ -51,6 +51,9 @@ lemma lookup_append_length [simp]: "lookup (as @ bs) (length as) = lookup bs 0"
 lemma lookup_append_snd [simp]: "lookup (as @ bs) (length as + n) = lookup bs n"
   by (induction as) simp_all
 
+lemma lookup_append_snd_map [simp]: "lookup (map f as @ bs) (length as + n) = lookup bs n"
+  by (induction as) simp_all
+
 lemma lookup_has_prop [elim]: "list_all p as \<Longrightarrow> lookup as x = Some a \<Longrightarrow> p a"
   by (induction as x rule: lookup.induct) simp_all
 

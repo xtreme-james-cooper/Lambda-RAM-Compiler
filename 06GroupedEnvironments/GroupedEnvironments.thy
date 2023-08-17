@@ -88,12 +88,12 @@ datatype closure\<^sub>g =
 
 inductive typing_closure\<^sub>g :: "closure\<^sub>g \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>g\<^sub>c\<^sub>l" 50)
       and typing_environment\<^sub>g :: "closure\<^sub>g list list \<Rightarrow> ty list list \<Rightarrow> bool" (infix ":\<^sub>g\<^sub>c\<^sub>l\<^sub>s" 50) where
-  tc\<^sub>c_const [simp]: "Num\<^sub>g n :\<^sub>g\<^sub>c\<^sub>l Num"
-| tc\<^sub>c_lam [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> insert_at 0 [t\<^sub>1] \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> 
+  tc\<^sub>g_const [simp]: "Num\<^sub>g n :\<^sub>g\<^sub>c\<^sub>l Num"
+| tc\<^sub>g_lam [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> insert_at 0 [t\<^sub>1] \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> 
     Fun\<^sub>g t\<^sub>1 \<Delta> e (let_count e) :\<^sub>g\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2"
-| tc\<^sub>c_nil [simp]: "[] :\<^sub>g\<^sub>c\<^sub>l\<^sub>s []"
-| tc\<^sub>c_cons_nil [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> [] # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s [] # \<Gamma>"
-| tc\<^sub>c_cons_cons [simp]: "c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow>  cs # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s ts # \<Gamma> \<Longrightarrow> (c # cs) # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s (t # ts) # \<Gamma>"
+| tc\<^sub>g_nil [simp]: "[] :\<^sub>g\<^sub>c\<^sub>l\<^sub>s []"
+| tc\<^sub>g_cons_nil [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> [] # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s [] # \<Gamma>"
+| tc\<^sub>g_cons_cons [simp]: "c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow>  cs # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s ts # \<Gamma> \<Longrightarrow> (c # cs) # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s (t # ts) # \<Gamma>"
 
 inductive_cases [elim]:"Num\<^sub>g n :\<^sub>g\<^sub>c\<^sub>l t"
 inductive_cases [elim]: "Fun\<^sub>g t\<^sub>1 \<Delta> e n :\<^sub>g\<^sub>c\<^sub>l t"
@@ -105,23 +105,23 @@ lemma  "c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> True"
   and lookup_in_env\<^sub>g [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> lookup \<Gamma> x = Some ts \<Longrightarrow> lookup ts y = Some t \<Longrightarrow>
     \<exists>cs c. lookup \<Delta> x = Some cs \<and> lookup cs y = Some c \<and> c :\<^sub>g\<^sub>c\<^sub>l t"
 proof (induction c t and \<Delta> \<Gamma> arbitrary: and x ts y rule: typing_closure\<^sub>g_typing_environment\<^sub>g.inducts)
-  case (tc\<^sub>c_cons_nil \<Delta> \<Gamma>)
+  case (tc\<^sub>g_cons_nil \<Delta> \<Gamma>)
   thus ?case by (cases x) simp_all
 next
-  case (tc\<^sub>c_cons_cons c t' cs \<Delta> ts' \<Gamma>)
+  case (tc\<^sub>g_cons_cons c t' cs \<Delta> ts' \<Gamma>)
   thus ?case 
   proof (cases x)
     case 0
-    with tc\<^sub>c_cons_cons show ?thesis 
+    with tc\<^sub>g_cons_cons show ?thesis 
     proof (cases y)
       case (Suc y)
       have "lookup (ts' # \<Gamma>) 0 = Some ts'" by simp
-      with tc\<^sub>c_cons_cons 0 Suc show ?thesis by fastforce
+      with tc\<^sub>g_cons_cons 0 Suc show ?thesis by fastforce
     qed auto
   next
     case (Suc x)
-    with tc\<^sub>c_cons_cons Suc have "lookup (ts' # \<Gamma>) (Suc x) = Some ts" by simp
-    with tc\<^sub>c_cons_cons Suc show ?thesis by (cases y) fastforce+
+    with tc\<^sub>g_cons_cons Suc have "lookup (ts' # \<Gamma>) (Suc x) = Some ts" by simp
+    with tc\<^sub>g_cons_cons Suc show ?thesis by (cases y) fastforce+
   qed
 qed simp_all
 
@@ -155,16 +155,16 @@ fun latest_environment\<^sub>g :: "frame\<^sub>g list \<rightharpoonup> closure\
 | "latest_environment\<^sub>g (FReturn\<^sub>g \<Delta> # s) = Some \<Delta>"
 
 inductive typing_stack\<^sub>g :: "frame\<^sub>g list \<Rightarrow> ty \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>g _ \<rightarrow>" 50) where
-  tcc_snil [simp]: "[] :\<^sub>g t \<rightarrow> t"
-| tcc_scons_app1 [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>1 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> 
+  tcg_snil [simp]: "[] :\<^sub>g t \<rightarrow> t"
+| tcg_scons_app1 [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>1 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> 
     latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> FApp1\<^sub>g \<Delta> e # s :\<^sub>g Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
-| tcc_scons_app2 [simp]: "c :\<^sub>g\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> latest_environment\<^sub>g s \<noteq> None \<Longrightarrow> 
+| tcg_scons_app2 [simp]: "c :\<^sub>g\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> latest_environment\<^sub>g s \<noteq> None \<Longrightarrow> 
     FApp2\<^sub>g c # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
-| tcc_scons_let [simp]: "latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow>
+| tcg_scons_let [simp]: "latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow>
     cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> FLet\<^sub>g \<Delta> e # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
-| tcc_scons_pop [simp]: "latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l tt \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> 
+| tcg_scons_pop [simp]: "latest_environment\<^sub>g s \<noteq> None \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l tt \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> 
     FPop\<^sub>g c # s :\<^sub>g t' \<rightarrow> t"
-| tcc_scons_ret [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>g \<Delta> # s :\<^sub>g t' \<rightarrow> t"
+| tcg_scons_ret [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>g \<Delta> # s :\<^sub>g t' \<rightarrow> t"
 
 inductive_cases [elim]: "[] :\<^sub>g t' \<rightarrow> t"
 inductive_cases [elim]: "FApp1\<^sub>g \<Delta> e # s :\<^sub>g t' \<rightarrow> t"
@@ -182,9 +182,9 @@ primrec final\<^sub>g :: "state\<^sub>g \<Rightarrow> bool" where
 | "final\<^sub>g (SC\<^sub>g s c) = (s = [])"
 
 inductive typecheck_state\<^sub>g :: "state\<^sub>g \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>g" 50) where
-  tcc_state_ev [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> 
+  tcg_state_ev [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> 
     \<Gamma> \<turnstile>\<^sub>g e : t' \<Longrightarrow> SE\<^sub>g s \<Delta> e :\<^sub>g t"
-| tcc_state_ret [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l t' \<Longrightarrow> SC\<^sub>g s c :\<^sub>g t"
+| tcg_state_ret [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l t' \<Longrightarrow> SC\<^sub>g s c :\<^sub>g t"
 
 inductive_cases [elim]: "SE\<^sub>g s \<Delta> e :\<^sub>g t"
 inductive_cases [elim]: "SC\<^sub>g s c :\<^sub>g t"
@@ -234,26 +234,26 @@ qed
 
 lemma eval\<^sub>g_from_value [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l t' \<Longrightarrow> s = [] \<or> (\<exists>\<Sigma>'. SC\<^sub>g s c \<leadsto>\<^sub>g \<Sigma>')"
 proof (induction s t' t rule: typing_stack\<^sub>g.induct)
-  case (tcc_scons_app1 \<Delta> \<Gamma> e\<^sub>2 t\<^sub>1 s t\<^sub>2 t)
+  case (tcg_scons_app1 \<Delta> \<Gamma> e\<^sub>2 t\<^sub>1 s t\<^sub>2 t)
   moreover hence "SC\<^sub>g (FApp1\<^sub>g \<Delta> e\<^sub>2 # s) c \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c # s) \<Delta> e\<^sub>2" by simp
   ultimately show ?case by fastforce
 next
-  case (tcc_scons_app2 c\<^sub>1 t\<^sub>1 t\<^sub>2 s t)
+  case (tcg_scons_app2 c\<^sub>1 t\<^sub>1 t\<^sub>2 s t)
   then obtain \<Delta> ts e where "c\<^sub>1 = Fun\<^sub>g t\<^sub>1 \<Delta> e (let_count e) \<and> (\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s ts) \<and> 
     (insert_at 0 [t\<^sub>1] ts \<turnstile>\<^sub>g e : t\<^sub>2)" by blast
   moreover hence "SC\<^sub>g (FApp2\<^sub>g (Fun\<^sub>g t\<^sub>1 \<Delta> e (let_count e)) # s) c \<leadsto>\<^sub>g 
     SE\<^sub>g (FReturn\<^sub>g ([c] # \<Delta>) # s) ([c] # \<Delta>) e" by simp
   ultimately show ?case by fastforce
 next
-  case (tcc_scons_let s \<Delta> \<Gamma> t\<^sub>1 e t\<^sub>2 t)
+  case (tcg_scons_let s \<Delta> \<Gamma> t\<^sub>1 e t\<^sub>2 t)
   have "SC\<^sub>g (FLet\<^sub>g \<Delta> e # s) c \<leadsto>\<^sub>g SE\<^sub>g (FPop\<^sub>g c # s) (cons_fst c \<Delta>) e" by simp
   thus ?case by fastforce
 next
-  case (tcc_scons_pop s \<Delta> c' \<Gamma> t' t)
+  case (tcg_scons_pop s c' \<Gamma> t' t)
   have "SC\<^sub>g (FPop\<^sub>g c' # s) c \<leadsto>\<^sub>g SC\<^sub>g s c" by simp
   thus ?case by fastforce
 next
-  case (tcc_scons_ret \<Delta> \<Gamma> s t' t)
+  case (tcg_scons_ret \<Delta> \<Gamma> s t' t)
   have "SC\<^sub>g (FReturn\<^sub>g \<Delta> # s) c \<leadsto>\<^sub>g SC\<^sub>g s c" by simp
   thus ?case by fastforce
 qed simp_all

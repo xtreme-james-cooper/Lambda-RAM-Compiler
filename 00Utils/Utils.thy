@@ -209,6 +209,9 @@ lemma plus_one [simp]: "(+) (Suc 0) = Suc"
 lemma suc_comp_plus [simp]: "Suc \<circ> (+) x = (+) (Suc x)"
   by auto
 
+lemma apfst_suc [simp]: "(\<lambda>(y, z). (y, if y = 0 then Suc z else z)) \<circ> apfst Suc = apfst Suc"
+  by auto
+
 lemma suc_even [simp]: "Suc (Suc 0) dvd Suc x \<Longrightarrow> odd x"
   by presburger
 

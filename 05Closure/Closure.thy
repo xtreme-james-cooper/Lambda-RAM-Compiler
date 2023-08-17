@@ -92,7 +92,7 @@ inductive typing_stack\<^sub>c :: "frame\<^sub>c list \<Rightarrow> ty \<Rightar
     FApp2\<^sub>c c # s :\<^sub>c t\<^sub>1 \<rightarrow> t"
 | tcc_scons_let [simp]: "latest_environment\<^sub>c s = Some \<Delta> \<Longrightarrow> \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> 
     insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>2 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> FLet\<^sub>c \<Delta> e # s :\<^sub>c t\<^sub>1 \<rightarrow> t"
-| tcc_scons_pop [simp]: "latest_environment\<^sub>c s = Some \<Delta> \<Longrightarrow> c :\<^sub>c\<^sub>l tt \<Longrightarrow> s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> 
+| tcc_scons_pop [simp]: "latest_environment\<^sub>c s \<noteq> None \<Longrightarrow> c :\<^sub>c\<^sub>l tt \<Longrightarrow> s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> 
     FPop\<^sub>c c # s :\<^sub>c t' \<rightarrow> t"
 | tcc_scons_ret [simp]: "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>c \<Delta> # s :\<^sub>c t' \<rightarrow> t"
 
@@ -185,7 +185,7 @@ next
   have "SC\<^sub>c (FLet\<^sub>c \<Delta> e # s) c \<leadsto>\<^sub>c SE\<^sub>c (FPop\<^sub>c c # s) (c # \<Delta>) e" by simp
   thus ?case by fastforce
 next
-  case (tcc_scons_pop s \<Delta> c' \<Gamma> t' t)
+  case (tcc_scons_pop s c' \<Gamma> t' t)
   have "SC\<^sub>c (FPop\<^sub>c c' # s) c \<leadsto>\<^sub>c SC\<^sub>c s c" by simp
   thus ?case by fastforce
 next
