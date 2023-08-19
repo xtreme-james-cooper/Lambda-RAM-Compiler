@@ -12,7 +12,7 @@ position.\<close>
 
 fun flatten_code' :: "nat \<Rightarrow> code\<^sub>e list \<Rightarrow> code\<^sub>b list" where
   "flatten_code' p [] = []"
-| "flatten_code' p (Lookup\<^sub>e x y z # \<C>) = flatten_code' p \<C> @ [Lookup\<^sub>b x y z]"
+| "flatten_code' p (Lookup\<^sub>e x y # \<C>) = flatten_code' p \<C> @ [Lookup\<^sub>b x y]"
 | "flatten_code' p (PushCon\<^sub>e n # \<C>) = flatten_code' p \<C> @ [PushCon\<^sub>b n]"
 | "flatten_code' p (PushLam\<^sub>e \<C>' n # \<C>) = (
     let \<C>\<^sub>b' = flatten_code' p \<C>'
@@ -45,7 +45,7 @@ length.)\<close>
 
 primrec code_size :: "code\<^sub>e \<Rightarrow> nat"
     and code_list_size :: "code\<^sub>e list \<Rightarrow> nat" where
-  "code_size (Lookup\<^sub>e x y z) = 1"
+  "code_size (Lookup\<^sub>e x y) = 1"
 | "code_size (PushCon\<^sub>e n) = 1"
 | "code_size (PushLam\<^sub>e \<C> n) = Suc (code_list_size \<C>)"
 | "code_size Apply\<^sub>e = 1"
@@ -93,7 +93,7 @@ operation.\<close>
 fun unflatten_code :: "code\<^sub>b list \<Rightarrow> nat \<Rightarrow> code\<^sub>e list" where
   "unflatten_code \<C> 0 = []"
 | "unflatten_code \<C> (Suc p) = (case lookup \<C> p of
-      Some (Lookup\<^sub>b x y z) \<Rightarrow> Lookup\<^sub>e x y z # unflatten_code \<C> p
+      Some (Lookup\<^sub>b x y) \<Rightarrow> Lookup\<^sub>e x y # unflatten_code \<C> p
     | Some (PushCon\<^sub>b n) \<Rightarrow>  PushCon\<^sub>e n # unflatten_code \<C> p
     | Some (PushLam\<^sub>b p' n) \<Rightarrow> (
         if p' \<le> p then PushLam\<^sub>e (unflatten_code \<C> p') n # unflatten_code \<C> p else undefined) 
@@ -105,15 +105,16 @@ fun unflatten_code :: "code\<^sub>b list \<Rightarrow> nat \<Rightarrow> code\<^
 
 primrec unflatten_closure :: "code\<^sub>b list \<Rightarrow> closure\<^sub>b \<Rightarrow> closure\<^sub>e" where
   "unflatten_closure \<C> (Const\<^sub>b n) = Const\<^sub>e n"
-| "unflatten_closure \<C> (Lam\<^sub>b \<Delta> p) = Lam\<^sub>e (map (unflatten_closure \<C>) \<Delta>) (unflatten_code \<C> p)"
+| "unflatten_closure \<C> (Lam\<^sub>b \<Delta> p n) = 
+    Lam\<^sub>e (map (map (unflatten_closure \<C>)) \<Delta>) (unflatten_code \<C> p) n"
 
 abbreviation unflatten_values :: "code\<^sub>b list \<Rightarrow> closure\<^sub>b list \<Rightarrow> closure\<^sub>e list" where
   "unflatten_values \<C> \<V> \<equiv> map (unflatten_closure \<C>) \<V>"
 
-primrec unflatten_frame :: "code\<^sub>b list \<Rightarrow> (closure\<^sub>b list \<times> nat) \<Rightarrow> frame\<^sub>e" where
-  "unflatten_frame \<C> (\<Delta>, p) = (unflatten_values \<C> \<Delta>, unflatten_code \<C> p)"
+primrec unflatten_frame :: "code\<^sub>b list \<Rightarrow> (closure\<^sub>b list list \<times> nat) \<Rightarrow> frame\<^sub>e" where
+  "unflatten_frame \<C> (\<Delta>, p) = (map (unflatten_values \<C>) \<Delta>, unflatten_code \<C> p)"
 
-abbreviation unflatten_stack :: "code\<^sub>b list \<Rightarrow> (closure\<^sub>b list \<times> nat) list \<Rightarrow> frame\<^sub>e list" where
+abbreviation unflatten_stack :: "code\<^sub>b list \<Rightarrow> (closure\<^sub>b list list \<times> nat) list \<Rightarrow> frame\<^sub>e list" where
   "unflatten_stack \<C> s \<equiv> map (unflatten_frame \<C>) s"
 
 primrec unflatten_state :: "code\<^sub>b list \<Rightarrow> state\<^sub>b \<Rightarrow> state\<^sub>e" where
@@ -166,13 +167,13 @@ primrec orderly_code :: "code\<^sub>b list \<Rightarrow> nat \<Rightarrow> bool"
 
 primrec orderly_closure :: "nat \<Rightarrow> closure\<^sub>b \<Rightarrow> bool" where
   "orderly_closure n (Const\<^sub>b m) = True"
-| "orderly_closure n (Lam\<^sub>b \<Delta> p) = (0 < p \<and> p \<le> n \<and> list_all (orderly_closure n) \<Delta>)"
+| "orderly_closure n (Lam\<^sub>b \<Delta> p m) = (0 < p \<and> p \<le> n \<and> list_all (list_all (orderly_closure n)) \<Delta>)"
 
-fun orderly_stack :: "(closure\<^sub>b list \<times> nat) list \<Rightarrow> nat \<Rightarrow> bool" where
+fun orderly_stack :: "(closure\<^sub>b list list \<times> nat) list \<Rightarrow> nat \<Rightarrow> bool" where
   "orderly_stack [] n = True"
 | "orderly_stack ((\<Delta>, 0) # s) n = False"
 | "orderly_stack ((\<Delta>, Suc p) # s) n = 
-    (p < n \<and> list_all (orderly_closure n) \<Delta> \<and> orderly_stack s n)"
+    (p < n \<and> list_all (list_all (orderly_closure n)) \<Delta> \<and> orderly_stack s n)"
 
 primrec orderly_state :: "code\<^sub>b list \<Rightarrow> state\<^sub>b \<Rightarrow> bool" where
   "orderly_state \<C> (S\<^sub>b \<V> s) = (orderly_code \<C> 0 \<and> properly_terminated\<^sub>b \<C> \<and> 
@@ -225,7 +226,7 @@ text \<open>Evaluation preserves the property of being orderly:\<close>
 lemma eval_preserves_orderly [simp]: "\<C>\<^sub>b \<tturnstile> \<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<C>\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow> 
   orderly_state \<C>\<^sub>b \<Sigma>\<^sub>b'"
 proof (induction \<C>\<^sub>b \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: eval\<^sub>b.induct)
-  case (ev\<^sub>b_lookup cd pc x env v vs s)
+  case (ev\<^sub>b_lookup cd pc x y env vs v \<V> s)
   thus ?case by (cases pc, cases cd) auto
 next
   case (ev\<^sub>b_pushcon cd pc k vs env s)
@@ -258,65 +259,65 @@ straightforward:\<close>
 theorem complete\<^sub>b [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>b \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> orderly_state \<C> \<Sigma>\<^sub>b \<Longrightarrow> 
   iter (\<leadsto>\<^sub>e) (unflatten_state \<C> \<Sigma>\<^sub>b) (unflatten_state \<C> \<Sigma>\<^sub>b')"
 proof (induction \<Sigma>\<^sub>b \<Sigma>\<^sub>b' rule: eval\<^sub>b.induct)
-  case (ev\<^sub>b_lookup \<C> p x y z \<Delta> v \<V> s)
-  hence "S\<^sub>e (unflatten_values \<C> \<V>) ((unflatten_values \<C> \<Delta>, unflatten_code \<C> (Suc p)) # 
+  case (ev\<^sub>b_lookup \<C> p x y \<Delta> vs v \<V> s)
+  hence "S\<^sub>e (unflatten_values \<C> \<V>) ((map (unflatten_values \<C>) \<Delta>, unflatten_code \<C> (Suc p)) # 
     unflatten_stack \<C> s) \<leadsto>\<^sub>e
-    S\<^sub>e (unflatten_closure \<C> v # unflatten_values \<C> \<V>) ((unflatten_values \<C> \<Delta>, unflatten_code \<C> p) # 
-    unflatten_stack \<C> s)" by simp
+    S\<^sub>e (unflatten_closure \<C> v # unflatten_values \<C> \<V>) ((map (unflatten_values \<C>) \<Delta>, 
+    unflatten_code \<C> p) # unflatten_stack \<C> s)" by simp
   thus ?case by simp
 next
   case (ev\<^sub>b_pushcon \<C> p k \<V> \<Delta> s)
-  hence "S\<^sub>e (unflatten_values \<C> \<V>) ((unflatten_values \<C> \<Delta>, unflatten_code \<C> (Suc p)) # 
+  hence "S\<^sub>e (unflatten_values \<C> \<V>) ((map (unflatten_values \<C>) \<Delta>, unflatten_code \<C> (Suc p)) # 
     unflatten_stack \<C> s) \<leadsto>\<^sub>e
-    S\<^sub>e (Const\<^sub>e k # unflatten_values \<C> \<V>) ((unflatten_values \<C> \<Delta>, unflatten_code \<C> p) # 
+    S\<^sub>e (Const\<^sub>e k # unflatten_values \<C> \<V>) ((map (unflatten_values \<C>) \<Delta>, unflatten_code \<C> p) # 
     unflatten_stack \<C> s)" by simp
   thus ?case by simp
 next
   case (ev\<^sub>b_pushlam \<C> p p' n \<V> \<Delta> s)
   moreover hence X: "p' \<le> p" by auto
-  moreover have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (unflatten_values \<C> \<V>) ((unflatten_values \<C> \<Delta>, 
+  moreover have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (unflatten_values \<C> \<V>) ((map (unflatten_values \<C>) \<Delta>, 
     PushLam\<^sub>e (unflatten_code \<C> p') n # unflatten_code \<C> p) # unflatten_stack \<C> s))
-    (S\<^sub>e (Lam\<^sub>e (unflatten_values \<C> \<Delta>) (unflatten_code \<C> p') # unflatten_values \<C> \<V>) 
-    ((unflatten_values \<C> \<Delta>, unflatten_code \<C> p) # unflatten_stack \<C> s))" 
+    (S\<^sub>e (Lam\<^sub>e (map (unflatten_values \<C>) \<Delta>) (unflatten_code \<C> p') n # unflatten_values \<C> \<V>) 
+    ((map (unflatten_values \<C>) \<Delta>, unflatten_code \<C> p) # unflatten_stack \<C> s))" 
       by (metis ev\<^sub>e_pushlam iter_one)
   ultimately show ?case by simp
 next
-  case (ev\<^sub>b_apply \<C> p v \<Delta>' p' \<V> \<Delta> s)
-  hence "S\<^sub>e (unflatten_closure \<C> v # Lam\<^sub>e (unflatten_values \<C> \<Delta>') (unflatten_code \<C> p') # 
+  case (ev\<^sub>b_apply \<C> p v \<Delta>' p' n \<V> \<Delta> s)
+  hence "S\<^sub>e (unflatten_closure \<C> v # Lam\<^sub>e (map (unflatten_values \<C>) \<Delta>') (unflatten_code \<C> p') n # 
     unflatten_values \<C> \<V>) 
-    ((unflatten_values \<C> \<Delta>, unflatten_code \<C> (Suc p)) # unflatten_stack \<C> s) \<leadsto>\<^sub>e
-    S\<^sub>e (unflatten_values \<C> \<V>) ((unflatten_closure \<C> v # unflatten_values \<C> \<Delta>', 
-    unflatten_code \<C> p') # (unflatten_values \<C> \<Delta>, unflatten_code \<C> p) # unflatten_stack \<C> s)" 
+    ((map (unflatten_values \<C>) \<Delta>, unflatten_code \<C> (Suc p)) # unflatten_stack \<C> s) \<leadsto>\<^sub>e
+    S\<^sub>e (unflatten_values \<C> \<V>) (([unflatten_closure \<C> v] # map (unflatten_values \<C>) \<Delta>', 
+    unflatten_code \<C> p') # (map (unflatten_values \<C>) \<Delta>, unflatten_code \<C> p) # unflatten_stack \<C> s)" 
       by simp
   thus ?case by simp
 next
   case (ev\<^sub>b_pushenv \<C> p v \<V> \<Delta> s)
   have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (unflatten_closure \<C> v # unflatten_values \<C> \<V>)
-    ((unflatten_values \<C> \<Delta>, PushEnv\<^sub>e # unflatten_code \<C> p) # unflatten_stack \<C> s))
-    (S\<^sub>e (unflatten_values \<C> \<V>) ((unflatten_closure \<C> v # unflatten_values \<C> \<Delta>, unflatten_code \<C> p) # 
-      unflatten_stack \<C> s))" by (metis ev\<^sub>e_pushenv iter_one)
+    ((map (unflatten_values \<C> )\<Delta>, PushEnv\<^sub>e # unflatten_code \<C> p) # unflatten_stack \<C> s))
+    (S\<^sub>e (unflatten_values \<C> \<V>) ((cons_fst (unflatten_closure \<C> v) (map (unflatten_values \<C>) \<Delta>), 
+      unflatten_code \<C> p) # unflatten_stack \<C> s))" by (metis ev\<^sub>e_pushenv iter_one)
   with ev\<^sub>b_pushenv show ?case by simp
 next
   case (ev\<^sub>b_return \<C> p \<V> \<Delta> s)
-  moreover have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (unflatten_values \<C> \<V>) ((unflatten_values \<C> \<Delta>, [Return\<^sub>e]) # 
+  moreover have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (unflatten_values \<C> \<V>) ((map (unflatten_values \<C>) \<Delta>, [Return\<^sub>e]) # 
     unflatten_stack \<C> s))
     (S\<^sub>e (unflatten_values \<C> \<V>) (unflatten_stack \<C> s))" by (metis ev\<^sub>e_return iter_one)
   ultimately show ?case by simp
 next
-  case (ev\<^sub>b_jump \<C> p v \<Delta>' p' \<V> \<Delta> s)
-  have "S\<^sub>e (unflatten_closure \<C> v # Lam\<^sub>e (unflatten_values \<C> \<Delta>') (unflatten_code \<C> p') # 
-    unflatten_values \<C> \<V>) ((unflatten_values \<C> \<Delta>, [Jump\<^sub>e]) # unflatten_stack \<C> s) \<leadsto>\<^sub>e 
-    S\<^sub>e (unflatten_values \<C> \<V>) ((unflatten_closure \<C> v # unflatten_values \<C> \<Delta>', 
+  case (ev\<^sub>b_jump \<C> p v \<Delta>' p' n \<V> \<Delta> s)
+  have "S\<^sub>e (unflatten_closure \<C> v # Lam\<^sub>e (map (unflatten_values \<C>) \<Delta>') (unflatten_code \<C> p') n # 
+    unflatten_values \<C> \<V>) ((map (unflatten_values \<C>) \<Delta>, [Jump\<^sub>e]) # unflatten_stack \<C> s) \<leadsto>\<^sub>e 
+    S\<^sub>e (unflatten_values \<C> \<V>) (([unflatten_closure \<C> v] # map (unflatten_values \<C>) \<Delta>', 
     unflatten_code \<C> p') # unflatten_stack \<C> s)" by (metis ev\<^sub>e_jump)
   with ev\<^sub>b_jump have "S\<^sub>e (unflatten_closure \<C> v # 
-    Lam\<^sub>e (unflatten_values \<C> \<Delta>') (unflatten_code \<C> p') # unflatten_values \<C> \<V>)
-    ((unflatten_values \<C> \<Delta>, unflatten_code \<C> (Suc p)) # unflatten_stack \<C> s) \<leadsto>\<^sub>e
-    S\<^sub>e (unflatten_values \<C> \<V>) ((unflatten_closure \<C> v # unflatten_values \<C> \<Delta>', 
+    Lam\<^sub>e (map (unflatten_values \<C>) \<Delta>') (unflatten_code \<C> p') n # unflatten_values \<C> \<V>)
+    ((map (unflatten_values \<C>) \<Delta>, unflatten_code \<C> (Suc p)) # unflatten_stack \<C> s) \<leadsto>\<^sub>e
+    S\<^sub>e (unflatten_values \<C> \<V>) (([unflatten_closure \<C> v] # map (unflatten_values \<C>) \<Delta>', 
     unflatten_code \<C> p') # unflatten_stack \<C> s)" by simp
   hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e (unflatten_closure \<C> v # 
-    Lam\<^sub>e (unflatten_values \<C> \<Delta>') (unflatten_code \<C> p') # unflatten_values \<C> \<V>)
-    ((unflatten_values \<C> \<Delta>, unflatten_code \<C> (Suc p)) # unflatten_stack \<C> s))
-    (S\<^sub>e (unflatten_values \<C> \<V>) ((unflatten_closure \<C> v # unflatten_values \<C> \<Delta>', 
+    Lam\<^sub>e (map (unflatten_values \<C>) \<Delta>') (unflatten_code \<C> p') n # unflatten_values \<C> \<V>)
+    ((map (unflatten_values \<C>) \<Delta>, unflatten_code \<C> (Suc p)) # unflatten_stack \<C> s))
+    (S\<^sub>e (unflatten_values \<C> \<V>) (([unflatten_closure \<C> v] # map (unflatten_values \<C>) \<Delta>', 
     unflatten_code \<C> p') # unflatten_stack \<C> s))" 
       by (metis iter_one)
   thus ?case by simp
@@ -324,9 +325,9 @@ qed
 
 text \<open>But it means correctness needs the usual supply of reconstruction lemmas.\<close>
 
-lemma unflatten_to_lookup [dest]: "Lookup\<^sub>e x y z # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<Longrightarrow> 
+lemma unflatten_to_lookup [dest]: "Lookup\<^sub>e x y # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<Longrightarrow> 
   orderly_code \<C>\<^sub>b 0 \<Longrightarrow> p < length \<C>\<^sub>b \<Longrightarrow> 
-    lookup \<C>\<^sub>b p = Some (Lookup\<^sub>b x y z) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p"
+    lookup \<C>\<^sub>b p = Some (Lookup\<^sub>b x y) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p"
   by (simp split: option.splits code\<^sub>b.splits)
 
 lemma unflatten_to_pushcon [dest]: "PushCon\<^sub>e n # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<Longrightarrow> 
@@ -359,20 +360,20 @@ lemma unflatten_to_jump [dest]: "Jump\<^sub>e # \<C>\<^sub>e = unflatten_code \<
     orderly_code \<C>\<^sub>b 0 \<Longrightarrow> p < length \<C>\<^sub>b \<Longrightarrow> lookup \<C>\<^sub>b p = Some Jump\<^sub>b \<and> \<C>\<^sub>e = []"
   by (simp split: option.splits code\<^sub>b.splits)
 
-lemma unflatten_stack_to_lookup [dest]: "(\<Delta>\<^sub>e, Lookup\<^sub>e x y z # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b \<Longrightarrow> 
+lemma unflatten_stack_to_lookup [dest]: "(\<Delta>\<^sub>e, Lookup\<^sub>e x y # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b \<Longrightarrow> 
   orderly_code \<C>\<^sub>b 0 \<Longrightarrow> orderly_stack s\<^sub>b (length \<C>\<^sub>b) \<Longrightarrow> \<exists>\<Delta>\<^sub>b p s\<^sub>b'. 
-    s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some (Lookup\<^sub>b x y z) \<and> 
+    s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some (Lookup\<^sub>b x y) \<and> 
       \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'"
 proof (induction s\<^sub>b "length \<C>\<^sub>b" rule: orderly_stack.induct)
   case (3 \<Delta>\<^sub>b p s\<^sub>b')
-  hence "Lookup\<^sub>e x y z # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<and> orderly_code \<C>\<^sub>b 0 \<and> p < length \<C>\<^sub>b" by simp
-  hence "lookup \<C>\<^sub>b p = Some (Lookup\<^sub>b x y z) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p" by blast
+  hence "Lookup\<^sub>e x y # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<and> orderly_code \<C>\<^sub>b 0 \<and> p < length \<C>\<^sub>b" by simp
+  hence "lookup \<C>\<^sub>b p = Some (Lookup\<^sub>b x y) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p" by blast
   with 3 show ?case by simp
 qed simp_all
 
 lemma unflatten_stack_to_pushcon [dest]: "(\<Delta>\<^sub>e, PushCon\<^sub>e n # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b \<Longrightarrow> 
   orderly_code \<C>\<^sub>b 0 \<Longrightarrow> orderly_stack s\<^sub>b (length \<C>\<^sub>b) \<Longrightarrow> 
-    \<exists>\<Delta>\<^sub>b p s\<^sub>b'. s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> 
+    \<exists>\<Delta>\<^sub>b p s\<^sub>b'. s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> 
       lookup \<C>\<^sub>b p = Some (PushCon\<^sub>b n) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'"
 proof (induction s\<^sub>b "length \<C>\<^sub>b" rule: orderly_stack.induct)
   case (3 \<Delta>\<^sub>b p s\<^sub>b')
@@ -383,8 +384,8 @@ qed simp_all
 
 lemma unflatten_stack_to_pushlam [dest]: "(\<Delta>\<^sub>e, PushLam\<^sub>e \<C>\<^sub>e' n # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b \<Longrightarrow> 
   orderly_code \<C>\<^sub>b 0 \<Longrightarrow> orderly_stack s\<^sub>b (length \<C>\<^sub>b) \<Longrightarrow> \<exists>\<Delta>\<^sub>b p s\<^sub>b' p'. 
-    s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some (PushLam\<^sub>b p' n) \<and> 
-      \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> \<C>\<^sub>e' = unflatten_code \<C>\<^sub>b p' \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'"
+  s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some (PushLam\<^sub>b p' n) \<and> 
+  \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> \<C>\<^sub>e' = unflatten_code \<C>\<^sub>b p' \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'"
 proof (induction s\<^sub>b "length \<C>\<^sub>b" rule: orderly_stack.induct)
   case (3 \<Delta>\<^sub>b p s\<^sub>b')
   hence "PushLam\<^sub>e \<C>\<^sub>e' n # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<and> orderly_code \<C>\<^sub>b 0 \<and> p < length \<C>\<^sub>b" 
@@ -396,7 +397,7 @@ qed simp_all
 
 lemma unflatten_stack_to_apply [dest]: "(\<Delta>\<^sub>e, Apply\<^sub>e # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b \<Longrightarrow> 
   orderly_code \<C>\<^sub>b 0 \<Longrightarrow> orderly_stack s\<^sub>b (length \<C>\<^sub>b) \<Longrightarrow> \<exists>\<Delta>\<^sub>b p s\<^sub>b'. s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Apply\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Apply\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
       s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'"
 proof (induction s\<^sub>b "length \<C>\<^sub>b" rule: orderly_stack.induct)
   case (3 \<Delta>\<^sub>b p s\<^sub>b')
@@ -407,7 +408,7 @@ qed simp_all
 
 lemma unflatten_stack_to_pushenv [dest]: "(\<Delta>\<^sub>e, PushEnv\<^sub>e # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b \<Longrightarrow> 
   orderly_code \<C>\<^sub>b 0 \<Longrightarrow> orderly_stack s\<^sub>b (length \<C>\<^sub>b) \<Longrightarrow> \<exists>\<Delta>\<^sub>b p s\<^sub>b'. s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some PushEnv\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some PushEnv\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
       s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'"
 proof (induction s\<^sub>b "length \<C>\<^sub>b" rule: orderly_stack.induct)
   case (3 \<Delta>\<^sub>b p s\<^sub>b')
@@ -423,7 +424,8 @@ lemma unflatten_stack_to_pop [dest]: "(\<Delta>\<^sub>e, PopEnv\<^sub>e # \<C>\<
 
 lemma unflatten_stack_to_return [dest]: "(\<Delta>\<^sub>e, Return\<^sub>e # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b \<Longrightarrow> 
   orderly_code \<C>\<^sub>b 0 \<Longrightarrow> orderly_stack s\<^sub>b (length \<C>\<^sub>b) \<Longrightarrow> \<exists>\<Delta>\<^sub>b p s\<^sub>b'. s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Return\<^sub>b \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b' \<and> \<C>\<^sub>e = []"
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Return\<^sub>b \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b' \<and> 
+      \<C>\<^sub>e = []"
 proof (induction s\<^sub>b "length \<C>\<^sub>b" rule: orderly_stack.induct)
   case (3 \<Delta>\<^sub>b p s\<^sub>b')
   hence "Return\<^sub>e # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<and> orderly_code \<C>\<^sub>b 0 \<and> p < length \<C>\<^sub>b" by simp
@@ -433,7 +435,7 @@ qed simp_all
 
 lemma unflatten_stack_to_jump [dest]: "(\<Delta>\<^sub>e, Jump\<^sub>e # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b \<Longrightarrow> 
   orderly_code \<C>\<^sub>b 0 \<Longrightarrow> orderly_stack s\<^sub>b (length \<C>\<^sub>b) \<Longrightarrow> \<exists>\<Delta>\<^sub>b p s\<^sub>b'. s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Jump\<^sub>b \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'"
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Jump\<^sub>b \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'"
 proof (induction s\<^sub>b "length \<C>\<^sub>b" rule: orderly_stack.induct)
   case (3 \<Delta>\<^sub>b p s\<^sub>b')
   hence "Jump\<^sub>e # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<and> orderly_code \<C>\<^sub>b 0 \<and> p < length \<C>\<^sub>b" by simp
@@ -441,8 +443,8 @@ proof (induction s\<^sub>b "length \<C>\<^sub>b" rule: orderly_stack.induct)
   with 3 show ?case by simp
 qed simp_all
 
-lemma unflatten_to_lam [dest]: "Lam\<^sub>e \<Delta>\<^sub>e \<C>\<^sub>e = unflatten_closure \<C>\<^sub>b v\<^sub>b \<Longrightarrow> 
-    \<exists>\<Delta>\<^sub>b p. v\<^sub>b = Lam\<^sub>b \<Delta>\<^sub>b p \<and> \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p"
+lemma unflatten_to_lam [dest]: "Lam\<^sub>e \<Delta>\<^sub>e \<C>\<^sub>e n = unflatten_closure \<C>\<^sub>b v\<^sub>b \<Longrightarrow> 
+    \<exists>\<Delta>\<^sub>b p. v\<^sub>b = Lam\<^sub>b \<Delta>\<^sub>b p n \<and> \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p"
   by (induction v\<^sub>b) simp_all
 
 lemma unflatten_state [dest]: "S\<^sub>e \<V>\<^sub>e s\<^sub>e = unflatten_state \<C> \<Sigma>\<^sub>b \<Longrightarrow> \<exists>\<V>\<^sub>b s\<^sub>b. 
@@ -452,25 +454,27 @@ lemma unflatten_state [dest]: "S\<^sub>e \<V>\<^sub>e s\<^sub>e = unflatten_stat
 theorem correct\<^sub>b [simp]: "unflatten_state \<C>\<^sub>b \<Sigma>\<^sub>b \<leadsto>\<^sub>e \<Sigma>\<^sub>e' \<Longrightarrow> orderly_state \<C>\<^sub>b \<Sigma>\<^sub>b \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>b'. iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) \<Sigma>\<^sub>b \<Sigma>\<^sub>b' \<and> unflatten_state \<C>\<^sub>b \<Sigma>\<^sub>b' = \<Sigma>\<^sub>e'"
 proof (induction "unflatten_state \<C>\<^sub>b \<Sigma>\<^sub>b" \<Sigma>\<^sub>e' rule: eval\<^sub>e.induct)
-  case (ev\<^sub>e_lookup \<Delta>\<^sub>e x v \<V>\<^sub>e y z \<C>\<^sub>e s\<^sub>e)
+  case (ev\<^sub>e_lookup \<Delta>\<^sub>e x vs y v \<V>\<^sub>e \<C>\<^sub>e s\<^sub>e)
   then obtain \<V>\<^sub>b s\<^sub>b where B: "\<Sigma>\<^sub>b = S\<^sub>b \<V>\<^sub>b s\<^sub>b \<and> \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b \<and> 
-    (\<Delta>\<^sub>e, Lookup\<^sub>e x y z # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
+    (\<Delta>\<^sub>e, Lookup\<^sub>e x y # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
   with ev\<^sub>e_lookup have "orderly_code \<C>\<^sub>b 0 \<and> orderly_stack s\<^sub>b (length \<C>\<^sub>b)" by simp
   with B obtain \<Delta>\<^sub>b p s\<^sub>b' where S: "s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some (Lookup\<^sub>b x y z) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
-      s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" by (metis unflatten_stack_to_lookup)
-  with ev\<^sub>e_lookup obtain v' where V: "lookup \<Delta>\<^sub>b x = Some v' \<and> unflatten_closure \<C>\<^sub>b v' = v"
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some (Lookup\<^sub>b x y) \<and> 
+    \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" by (metis unflatten_stack_to_lookup)
+  with ev\<^sub>e_lookup obtain vs' where VS: "lookup \<Delta>\<^sub>b x = Some vs' \<and> 
+    map (unflatten_closure \<C>\<^sub>b) vs' = vs" by fastforce
+  with ev\<^sub>e_lookup obtain v' where V: "lookup vs' y = Some v' \<and> unflatten_closure \<C>\<^sub>b v' = v" 
     by fastforce
-  with S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b (v' # \<V>\<^sub>b) ((\<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
+  with S VS have "\<C>\<^sub>b \<tturnstile> S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b (v' # \<V>\<^sub>b) ((\<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
   hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) (S\<^sub>b (v' # \<V>\<^sub>b) ((\<Delta>\<^sub>b, p) # s\<^sub>b'))" by simp
-  with B S V show ?case by fastforce
+  with B S VS V show ?case by fastforce
 next
   case (ev\<^sub>e_pushcon \<V>\<^sub>e \<Delta>\<^sub>e n \<C>\<^sub>e s\<^sub>e)
   then obtain \<V>\<^sub>b s\<^sub>b where B: "\<Sigma>\<^sub>b = S\<^sub>b \<V>\<^sub>b s\<^sub>b \<and> \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b \<and> 
     (\<Delta>\<^sub>e, PushCon\<^sub>e n # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
   with ev\<^sub>e_pushcon have "orderly_code \<C>\<^sub>b 0 \<and> orderly_stack s\<^sub>b (length \<C>\<^sub>b)" by simp
   with B obtain \<Delta>\<^sub>b p s\<^sub>b' where S: "s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some (PushCon\<^sub>b n) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some (PushCon\<^sub>b n) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
       s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" by (metis unflatten_stack_to_pushcon)
   with S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b (Const\<^sub>b n # \<V>\<^sub>b) ((\<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
   hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) (S\<^sub>b (Const\<^sub>b n # \<V>\<^sub>b) ((\<Delta>\<^sub>b, p) # s\<^sub>b'))" by simp
@@ -481,27 +485,28 @@ next
     (\<Delta>\<^sub>e, PushLam\<^sub>e \<C>\<^sub>e' n # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
   with ev\<^sub>e_pushlam have "orderly_code \<C>\<^sub>b 0 \<and> orderly_stack s\<^sub>b (length \<C>\<^sub>b)" by simp
   with B obtain \<Delta>\<^sub>b p s\<^sub>b' p' where S: "s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some (PushLam\<^sub>b p' n) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
-      s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b' \<and> \<C>\<^sub>e' = unflatten_code \<C>\<^sub>b p'" by (metis unflatten_stack_to_pushlam)
-  with S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b (Lam\<^sub>b \<Delta>\<^sub>b p' # \<V>\<^sub>b) ((\<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
-  hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) (S\<^sub>b (Lam\<^sub>b \<Delta>\<^sub>b p' # \<V>\<^sub>b) ((\<Delta>\<^sub>b, p) # s\<^sub>b'))" by simp
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some (PushLam\<^sub>b p' n) \<and> 
+      \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b' \<and> \<C>\<^sub>e' = unflatten_code \<C>\<^sub>b p'" 
+    by (metis unflatten_stack_to_pushlam)
+  with S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b (Lam\<^sub>b \<Delta>\<^sub>b p' n # \<V>\<^sub>b) ((\<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
+  hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) (S\<^sub>b (Lam\<^sub>b \<Delta>\<^sub>b p' n # \<V>\<^sub>b) ((\<Delta>\<^sub>b, p) # s\<^sub>b'))" 
+    by simp
   with B S show ?case by fastforce
 next
-  case (ev\<^sub>e_apply v\<^sub>e \<Delta>\<^sub>e' \<C>\<^sub>e' \<V>\<^sub>e \<Delta>\<^sub>e \<C>\<^sub>e s\<^sub>e)
-  then obtain \<V>\<^sub>b s\<^sub>b where B: "\<Sigma>\<^sub>b = S\<^sub>b \<V>\<^sub>b s\<^sub>b \<and> 
-    v\<^sub>e # Lam\<^sub>e \<Delta>\<^sub>e' \<C>\<^sub>e' # \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b \<and> (\<Delta>\<^sub>e, Apply\<^sub>e # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b" 
-      by fastforce
+  case (ev\<^sub>e_apply v\<^sub>e \<Delta>\<^sub>e' \<C>\<^sub>e' n \<V>\<^sub>e \<Delta>\<^sub>e \<C>\<^sub>e s\<^sub>e)
+  then obtain \<V>\<^sub>b s\<^sub>b where B: "\<Sigma>\<^sub>b = S\<^sub>b \<V>\<^sub>b s\<^sub>b \<and> v\<^sub>e # Lam\<^sub>e \<Delta>\<^sub>e' \<C>\<^sub>e' n # \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b \<and> 
+    (\<Delta>\<^sub>e, Apply\<^sub>e # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
   with ev\<^sub>e_apply have "orderly_code \<C>\<^sub>b 0 \<and> orderly_stack s\<^sub>b (length \<C>\<^sub>b)" by simp
   with B obtain \<Delta>\<^sub>b p s\<^sub>b' where S: "s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Apply\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Apply\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
       s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" by (metis unflatten_stack_to_apply)
-  from B obtain v\<^sub>b \<Delta>\<^sub>b' p' \<V>\<^sub>b' where V: "\<V>\<^sub>b = v\<^sub>b # Lam\<^sub>b \<Delta>\<^sub>b' p' # \<V>\<^sub>b' \<and> 
-    v\<^sub>e = unflatten_closure \<C>\<^sub>b v\<^sub>b \<and> \<Delta>\<^sub>e' = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b' \<and> \<C>\<^sub>e' = unflatten_code \<C>\<^sub>b p' \<and>
-      \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b'" by fastforce
-  from S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (v\<^sub>b # Lam\<^sub>b \<Delta>\<^sub>b' p' # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b
-    S\<^sub>b \<V>\<^sub>b' ((v\<^sub>b # \<Delta>\<^sub>b', p') # (\<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
-  hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b (v\<^sub>b # Lam\<^sub>b \<Delta>\<^sub>b' p' # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) 
-    (S\<^sub>b \<V>\<^sub>b' ((v\<^sub>b # \<Delta>\<^sub>b', p') # (\<Delta>\<^sub>b, p) # s\<^sub>b'))" by simp
+  from B obtain v\<^sub>b \<Delta>\<^sub>b' p' \<V>\<^sub>b' where V: "\<V>\<^sub>b = v\<^sub>b # Lam\<^sub>b \<Delta>\<^sub>b' p' n # \<V>\<^sub>b' \<and> 
+    v\<^sub>e = unflatten_closure \<C>\<^sub>b v\<^sub>b \<and> \<Delta>\<^sub>e' = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b' \<and> 
+      \<C>\<^sub>e' = unflatten_code \<C>\<^sub>b p' \<and> \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b'" by fastforce
+  from S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (v\<^sub>b # Lam\<^sub>b \<Delta>\<^sub>b' p' n # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b
+    S\<^sub>b \<V>\<^sub>b' (([v\<^sub>b] # \<Delta>\<^sub>b', p') # (\<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
+  hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b (v\<^sub>b # Lam\<^sub>b \<Delta>\<^sub>b' p' n # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) 
+    (S\<^sub>b \<V>\<^sub>b' (([v\<^sub>b] # \<Delta>\<^sub>b', p') # (\<Delta>\<^sub>b, p) # s\<^sub>b'))" by simp
   with B S V show ?case by auto       
 next
   case (ev\<^sub>e_pushenv v\<^sub>e \<V>\<^sub>e \<Delta>\<^sub>e \<C>\<^sub>e s\<^sub>e)
@@ -509,17 +514,18 @@ next
     ((\<Delta>\<^sub>e, PushEnv\<^sub>e # \<C>\<^sub>e) # s\<^sub>e) = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
   with ev\<^sub>e_pushenv have "orderly_code \<C>\<^sub>b 0 \<and> orderly_stack s\<^sub>b (length \<C>\<^sub>b)" by simp
   with B obtain \<Delta>\<^sub>b p s\<^sub>b' where E: "s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some PushEnv\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some PushEnv\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p \<and> 
       s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" by (metis unflatten_stack_to_pushenv)
   from B obtain v\<^sub>b \<V>\<^sub>b' where V: "\<V>\<^sub>b = v\<^sub>b # \<V>\<^sub>b' \<and> v\<^sub>e = unflatten_closure \<C>\<^sub>b v\<^sub>b \<and> 
     \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b'" by fastforce
-  from E have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b \<V>\<^sub>b' ((v\<^sub>b # \<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
-  hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) (S\<^sub>b \<V>\<^sub>b' ((v\<^sub>b # \<Delta>\<^sub>b, p) # s\<^sub>b'))" by simp
+  from E have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b \<V>\<^sub>b' ((cons_fst v\<^sub>b \<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
+  hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) (S\<^sub>b \<V>\<^sub>b' ((cons_fst v\<^sub>b \<Delta>\<^sub>b, p) # s\<^sub>b'))" 
+    by simp
   with B E V show ?case by auto
 next
-  case (ev\<^sub>e_popenv \<V> v \<Delta> \<C> s)
+  case (ev\<^sub>e_popenv \<Delta> \<V> v \<C> s)
   then obtain \<V>\<^sub>b s\<^sub>b where "\<Sigma>\<^sub>b = S\<^sub>b \<V>\<^sub>b s\<^sub>b \<and> \<V> = unflatten_values \<C>\<^sub>b \<V>\<^sub>b \<and> 
-    ((v # \<Delta>, PopEnv\<^sub>e # \<C>) # s) = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
+    ((cons_fst v \<Delta>, PopEnv\<^sub>e # \<C>) # s) = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
   moreover with ev\<^sub>e_popenv have "orderly_code \<C>\<^sub>b 0 \<and> orderly_stack s\<^sub>b (length \<C>\<^sub>b)" by simp
   ultimately show ?case by (metis unflatten_stack_to_pop)
 next
@@ -528,27 +534,27 @@ next
     (\<Delta>\<^sub>e, Return\<^sub>e # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
   with ev\<^sub>e_return have "orderly_code \<C>\<^sub>b 0 \<and> orderly_stack s\<^sub>b (length \<C>\<^sub>b)" by simp
   with B obtain \<Delta>\<^sub>b p s\<^sub>b' where S: "s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Return\<^sub>b \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" 
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Return\<^sub>b \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" 
       by (metis unflatten_stack_to_return)
   with S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b \<V>\<^sub>b s\<^sub>b'" by simp
   hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b \<V>\<^sub>b ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) (S\<^sub>b \<V>\<^sub>b s\<^sub>b')" by simp
   with B S show ?case by fastforce
 next
-  case (ev\<^sub>e_jump v \<Delta>\<^sub>e' \<C>\<^sub>e' \<V>\<^sub>e \<Delta>\<^sub>e \<C>\<^sub>e s\<^sub>e)
+  case (ev\<^sub>e_jump v \<Delta>\<^sub>e' \<C>\<^sub>e' n \<V>\<^sub>e \<Delta>\<^sub>e \<C>\<^sub>e s\<^sub>e)
   then obtain \<V>\<^sub>b s\<^sub>b where B: "\<Sigma>\<^sub>b = S\<^sub>b \<V>\<^sub>b s\<^sub>b \<and> 
-    v # Lam\<^sub>e \<Delta>\<^sub>e' \<C>\<^sub>e' # \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b \<and> 
+    v # Lam\<^sub>e \<Delta>\<^sub>e' \<C>\<^sub>e' n # \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b \<and> 
       (\<Delta>\<^sub>e, Jump\<^sub>e # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
   with ev\<^sub>e_jump have "orderly_code \<C>\<^sub>b 0 \<and> orderly_stack s\<^sub>b (length \<C>\<^sub>b)" by simp
   with B obtain \<Delta>\<^sub>b p s\<^sub>b' where S: "s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> 
-    \<Delta>\<^sub>e = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Jump\<^sub>b \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" 
+    \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> lookup \<C>\<^sub>b p = Some Jump\<^sub>b \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" 
       by (metis unflatten_stack_to_jump)
-  from B obtain vb \<Delta>\<^sub>b' p' \<V>\<^sub>b' where V: "\<V>\<^sub>b = vb # Lam\<^sub>b \<Delta>\<^sub>b' p' # \<V>\<^sub>b' \<and> 
-    v = unflatten_closure \<C>\<^sub>b vb \<and> \<Delta>\<^sub>e' = unflatten_values \<C>\<^sub>b \<Delta>\<^sub>b' \<and> \<C>\<^sub>e' = unflatten_code \<C>\<^sub>b p' \<and>
+  from B obtain vb \<Delta>\<^sub>b' p' \<V>\<^sub>b' where V: "\<V>\<^sub>b = vb # Lam\<^sub>b \<Delta>\<^sub>b' p' n # \<V>\<^sub>b' \<and> 
+    v = unflatten_closure \<C>\<^sub>b vb \<and> \<Delta>\<^sub>e' = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b' \<and> \<C>\<^sub>e' = unflatten_code \<C>\<^sub>b p' \<and>
       \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b'" by fastforce
-  from S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (vb # Lam\<^sub>b \<Delta>\<^sub>b' p' # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b
-    S\<^sub>b \<V>\<^sub>b' ((vb # \<Delta>\<^sub>b', p') # s\<^sub>b')" by simp
-  hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b (vb # Lam\<^sub>b \<Delta>\<^sub>b' p' # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) 
-    (S\<^sub>b \<V>\<^sub>b' ((vb # \<Delta>\<^sub>b', p') # s\<^sub>b'))" by simp
+  from S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (vb # Lam\<^sub>b \<Delta>\<^sub>b' p' n # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b
+    S\<^sub>b \<V>\<^sub>b' (([vb] # \<Delta>\<^sub>b', p') # s\<^sub>b')" by simp
+  hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b (vb # Lam\<^sub>b \<Delta>\<^sub>b' p' n # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) 
+    (S\<^sub>b \<V>\<^sub>b' (([vb] # \<Delta>\<^sub>b', p') # s\<^sub>b'))" by simp
   with B S V show ?case by auto                                              
 qed
 

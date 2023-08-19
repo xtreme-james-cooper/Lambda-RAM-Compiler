@@ -21,7 +21,7 @@ tree-structured code in the next stage; but the second return-like operation \<o
 in useful for tail-call optimization soon.\<close>
 
 datatype code\<^sub>e = 
-  Lookup\<^sub>e nat nat nat
+  Lookup\<^sub>e nat nat
   | PushCon\<^sub>e nat
   | PushLam\<^sub>e "code\<^sub>e list" nat
   | Apply\<^sub>e
@@ -48,14 +48,14 @@ codeblock in closures-proper.\<close>
 
 datatype closure\<^sub>e = 
   Const\<^sub>e nat
-  | Lam\<^sub>e "closure\<^sub>e list" "code\<^sub>e list"
+  | Lam\<^sub>e "closure\<^sub>e list list" "code\<^sub>e list" nat
 
 text \<open>Our state, however, is greatly changed. In particular, the call stack has to be divided in 
 two: part of it becomes the call stack proper, with frames containing the call environment and a 
 block of yet-to-be-executed code, and the remainder becomes a value stack that \<open>PushX\<^sub>e\<close> operations 
 push onto and \<open>Apply\<^sub>e\<close> operations pop off.\<close>
 
-type_synonym frame\<^sub>e = "closure\<^sub>e list \<times> code\<^sub>e list"
+type_synonym frame\<^sub>e = "closure\<^sub>e list list \<times> code\<^sub>e list"
 
 datatype state\<^sub>e = S\<^sub>e "closure\<^sub>e list" "frame\<^sub>e list"
 
@@ -68,16 +68,16 @@ exhausted), we pop that frame off the callstack. (The final \<open>ev\<^sub>e_ju
 later.)\<close>
 
 inductive eval\<^sub>e :: "state\<^sub>e \<Rightarrow> state\<^sub>e \<Rightarrow> bool" (infix "\<leadsto>\<^sub>e" 50) where
-  ev\<^sub>e_lookup [simp]: "lookup \<Delta> x = Some v \<Longrightarrow> 
-    S\<^sub>e \<V> ((\<Delta>, Lookup\<^sub>e x y z # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (v # \<V>) ((\<Delta>, \<C>) # s)"
+  ev\<^sub>e_lookup [simp]: "lookup \<Delta> x = Some vs \<Longrightarrow> lookup vs y = Some v \<Longrightarrow>
+    S\<^sub>e \<V> ((\<Delta>, Lookup\<^sub>e x y # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (v # \<V>) ((\<Delta>, \<C>) # s)"
 | ev\<^sub>e_pushcon [simp]: "S\<^sub>e \<V> ((\<Delta>, PushCon\<^sub>e n # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (Const\<^sub>e n # \<V>) ((\<Delta>, \<C>) # s)"
-| ev\<^sub>e_pushlam [simp]: "S\<^sub>e \<V> ((\<Delta>, PushLam\<^sub>e \<C>' n # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (Lam\<^sub>e \<Delta> \<C>' # \<V>) ((\<Delta>, \<C>) # s)"
-| ev\<^sub>e_apply [simp]: "S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' # \<V>) ((\<Delta>, Apply\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e 
-    S\<^sub>e \<V> ((v # \<Delta>', \<C>') # (\<Delta>, \<C>) # s)"
-| ev\<^sub>e_pushenv [simp]: "S\<^sub>e (v # \<V>) ((\<Delta>, PushEnv\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((v # \<Delta>, \<C>) # s)"
-| ev\<^sub>e_popenv [simp]: "S\<^sub>e \<V> ((v # \<Delta>, PopEnv\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((\<Delta>, \<C>) # s)"
+| ev\<^sub>e_pushlam [simp]: "S\<^sub>e \<V> ((\<Delta>, PushLam\<^sub>e \<C>' n # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (Lam\<^sub>e \<Delta> \<C>' n # \<V>) ((\<Delta>, \<C>) # s)"
+| ev\<^sub>e_apply [simp]: "S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' n # \<V>) ((\<Delta>, Apply\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e 
+    S\<^sub>e \<V> (([v] # \<Delta>', \<C>') # (\<Delta>, \<C>) # s)"
+| ev\<^sub>e_pushenv [simp]: "S\<^sub>e (v # \<V>) ((\<Delta>, PushEnv\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((cons_fst v \<Delta>, \<C>) # s)"
+| ev\<^sub>e_popenv [simp]: "S\<^sub>e \<V> (((v # vs) # \<Delta>, PopEnv\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((vs # \<Delta>, \<C>) # s)"
 | ev\<^sub>e_return [simp]: "S\<^sub>e \<V> ((\<Delta>, Return\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> s"
-| ev\<^sub>e_jump [simp]: "S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' # \<V>) ((\<Delta>, Jump\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((v # \<Delta>', \<C>') # s)"
+| ev\<^sub>e_jump [simp]: "S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' n # \<V>) ((\<Delta>, Jump\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> (([v] # \<Delta>', \<C>') # s)"
 
 text \<open>Without typing, our list of safety properties has become quite short: just determinism. We 
 could still type our codeblocks, and thence our state; we would need to give each tree-code 
@@ -91,13 +91,13 @@ means for a state to be "correct".\<close>
 theorem determinism\<^sub>e: "\<Sigma> \<leadsto>\<^sub>e \<Sigma>' \<Longrightarrow> \<Sigma> \<leadsto>\<^sub>e \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>e.induct)
   case ev\<^sub>e_lookup
-  from ev\<^sub>e_lookup(2, 1) show ?case by (induction rule: eval\<^sub>e.cases) simp_all 
+  from ev\<^sub>e_lookup(3, 1, 2) show ?case by (induction rule: eval\<^sub>e.cases) simp_all 
 next
   case ev\<^sub>e_pushcon
-  thus ?case by  (induction rule: eval\<^sub>e.cases) simp_all 
+  thus ?case by (induction rule: eval\<^sub>e.cases) simp_all 
 next
   case ev\<^sub>e_pushlam
-  thus ?case by  (induction rule: eval\<^sub>e.cases) simp_all  
+  thus ?case by (induction rule: eval\<^sub>e.cases) simp_all  
 next
   case ev\<^sub>e_apply
   thus ?case by (induction rule: eval\<^sub>e.cases) simp_all 

@@ -57,6 +57,10 @@ lemma lookup_append_snd_map [simp]: "lookup (map f as @ bs) (length as + n) = lo
 lemma lookup_has_prop [elim]: "list_all p as \<Longrightarrow> lookup as x = Some a \<Longrightarrow> p a"
   by (induction as x rule: lookup.induct) simp_all
 
+lemma lookup_has_prop2 [elim]: "list_all (list_all p) bss \<Longrightarrow> lookup bss x = Some bs \<Longrightarrow> 
+    lookup bs y = Some b \<Longrightarrow> p b"
+  by (induction bss x rule: lookup.induct) auto
+
 lemma lookup_idx_equiv [simp]: "lookup as x = Some a \<Longrightarrow> as ! x = a"
   by (induction as x rule: lookup.induct) simp_all
 

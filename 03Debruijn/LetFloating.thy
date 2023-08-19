@@ -44,31 +44,31 @@ section 10.\<close>
 
 text \<open>We begin by defining our let-floated normal form.\<close>
 
-abbreviation is_var :: "expr\<^sub>d \<Rightarrow> bool" where
-  "is_var e \<equiv> (case e of Var\<^sub>d x \<Rightarrow> True | _ \<Rightarrow> False)"
+abbreviation is_var\<^sub>d :: "expr\<^sub>d \<Rightarrow> bool" where
+  "is_var\<^sub>d e \<equiv> (case e of Var\<^sub>d x \<Rightarrow> True | _ \<Rightarrow> False)"
 
-primrec let_free :: "expr\<^sub>d \<Rightarrow> bool" where
-  "let_free (Var\<^sub>d x) = True"
-| "let_free (Const\<^sub>d n) = True"
-| "let_free (Lam\<^sub>d t e) = True"
-| "let_free (App\<^sub>d e\<^sub>1 e\<^sub>2) = (let_free e\<^sub>1 \<and> let_free e\<^sub>2)"
-| "let_free (Let\<^sub>d e\<^sub>1 e\<^sub>2) = False"
+primrec let_free\<^sub>d :: "expr\<^sub>d \<Rightarrow> bool" where
+  "let_free\<^sub>d (Var\<^sub>d x) = True"
+| "let_free\<^sub>d (Const\<^sub>d n) = True"
+| "let_free\<^sub>d (Lam\<^sub>d t e) = True"
+| "let_free\<^sub>d (App\<^sub>d e\<^sub>1 e\<^sub>2) = (let_free\<^sub>d e\<^sub>1 \<and> let_free\<^sub>d e\<^sub>2)"
+| "let_free\<^sub>d (Let\<^sub>d e\<^sub>1 e\<^sub>2) = False"
 
-primrec let_floated :: "expr\<^sub>d \<Rightarrow> bool" where
-  "let_floated (Var\<^sub>d x) = True"
-| "let_floated (Const\<^sub>d n) = True"
-| "let_floated (Lam\<^sub>d t e) = let_floated e"
-| "let_floated (App\<^sub>d e\<^sub>1 e\<^sub>2) = 
-    (let_free e\<^sub>1 \<and> let_free e\<^sub>2 \<and> (is_var e\<^sub>1 \<or> value\<^sub>d e\<^sub>1) \<and> let_floated e\<^sub>1 \<and> let_floated e\<^sub>2)"
-| "let_floated (Let\<^sub>d e\<^sub>1 e\<^sub>2) = (let_free e\<^sub>1 \<and> let_floated e\<^sub>1 \<and> let_floated e\<^sub>2)"
+primrec let_floated\<^sub>d :: "expr\<^sub>d \<Rightarrow> bool" where
+  "let_floated\<^sub>d (Var\<^sub>d x) = True"
+| "let_floated\<^sub>d (Const\<^sub>d n) = True"
+| "let_floated\<^sub>d (Lam\<^sub>d t e) = let_floated\<^sub>d e"
+| "let_floated\<^sub>d (App\<^sub>d e\<^sub>1 e\<^sub>2) = 
+    (let_free\<^sub>d e\<^sub>1 \<and> let_free\<^sub>d e\<^sub>2 \<and> (is_var\<^sub>d e\<^sub>1 \<or> value\<^sub>d e\<^sub>1) \<and> let_floated\<^sub>d e\<^sub>1 \<and> let_floated\<^sub>d e\<^sub>2)"
+| "let_floated\<^sub>d (Let\<^sub>d e\<^sub>1 e\<^sub>2) = (let_free\<^sub>d e\<^sub>1 \<and> let_floated\<^sub>d e\<^sub>1 \<and> let_floated\<^sub>d e\<^sub>2)"
 
-lemma is_var_val [simp]: "value\<^sub>d e \<Longrightarrow> \<not>is_var e"
+lemma is_var\<^sub>d\<^sub>d_val [simp]: "value\<^sub>d e \<Longrightarrow> \<not>is_var\<^sub>d e"
   by (induction e) simp_all
 
-lemma is_var_incr [simp]: "is_var (incr\<^sub>d x e) = is_var e"
+lemma is_var\<^sub>d\<^sub>d_incr [simp]: "is_var\<^sub>d (incr\<^sub>d x e) = is_var\<^sub>d e"
   by (induction e) simp_all
 
-lemma is_var_subst [simp]: "value\<^sub>d v \<Longrightarrow> is_var (subst\<^sub>d x v e) = (\<exists>y. e = Var\<^sub>d y \<and> x \<noteq> y)"
+lemma is_var\<^sub>d\<^sub>d_subst [simp]: "value\<^sub>d v \<Longrightarrow> is_var\<^sub>d (subst\<^sub>d x v e) = (\<exists>y. e = Var\<^sub>d y \<and> x \<noteq> y)"
   by (induction e) simp_all
 
 text \<open>Then, the let-floating transformation itself. We have to define a multiple-increment function
@@ -103,7 +103,7 @@ lemma multiincr_plus [simp]: "multiincr n k (multiincr k 0 e) = multiincr k 0 (m
 lemma multiincr_val [simp]: "value\<^sub>d (multiincr x y e) = value\<^sub>d e"
   by (induction x) simp_all
 
-lemma is_var_multiincr [simp]: "is_var (multiincr x y e) = is_var e"
+lemma is_var\<^sub>d\<^sub>d_multiincr [simp]: "is_var\<^sub>d (multiincr x y e) = is_var\<^sub>d e"
   by (induction x) simp_all
 
 lemma incr_multiincr_higher: "incr\<^sub>d y (multiincr x y e) = incr\<^sub>d (x + y) (multiincr x y e)"
@@ -219,7 +219,7 @@ primrec float_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d" where
     in let e\<^sub>1' = inner_expr (float_lets e\<^sub>1)
     in let es\<^sub>2 = strip_lets (float_lets e\<^sub>2) 
     in let e\<^sub>2' = inner_expr (float_lets e\<^sub>2) 
-    in if is_var e\<^sub>1' \<or> value\<^sub>d e\<^sub>1'
+    in if is_var\<^sub>d e\<^sub>1' \<or> value\<^sub>d e\<^sub>1'
        then reapply_lets (es\<^sub>1 @ map_with_idx 0 (multiincr (length es\<^sub>1)) es\<^sub>2) 
          (App\<^sub>d (multiincr (length es\<^sub>2) 0 e\<^sub>1') (multiincr (length es\<^sub>1) (length es\<^sub>2) e\<^sub>2'))
        else reapply_lets (es\<^sub>1 @ [e\<^sub>1'] @ map_with_idx 0 (multiincr (Suc (length es\<^sub>1))) es\<^sub>2) 
@@ -229,51 +229,51 @@ primrec float_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d" where
     in reapply_lets es\<^sub>1 
           (Let\<^sub>d (inner_expr (float_lets e\<^sub>1)) (multiincr (length es\<^sub>1) 1 (float_lets e\<^sub>2))))"
 
-lemma incr_let_free [simp]: "let_free (incr\<^sub>d x e) = let_free e"
+lemma incr_let_free\<^sub>d [simp]: "let_free\<^sub>d (incr\<^sub>d x e) = let_free\<^sub>d e"
   by (induction e arbitrary: x) simp_all
 
-lemma incr_let_free_map [simp]: "list_all let_free (map (incr\<^sub>d x) es) = list_all let_free es"
+lemma incr_let_free\<^sub>d_map [simp]: "list_all let_free\<^sub>d (map (incr\<^sub>d x) es) = list_all let_free\<^sub>d es"
   by (induction es) simp_all
 
-lemma multiincr_let_free [simp]: "let_free (multiincr x y e) = let_free e"
+lemma multiincr_let_free\<^sub>d [simp]: "let_free\<^sub>d (multiincr x y e) = let_free\<^sub>d e"
   by (induction x) simp_all
 
-lemma incr_let_floated [simp]: "let_floated (incr\<^sub>d x e) = let_floated e"
+lemma incr_let_floated\<^sub>d [simp]: "let_floated\<^sub>d (incr\<^sub>d x e) = let_floated\<^sub>d e"
   by (induction e arbitrary: x) simp_all
 
-lemma incr_let_floated_map [simp]: "list_all let_floated (map (incr\<^sub>d x) es) = 
-    list_all let_floated es"
+lemma incr_let_floated\<^sub>d_map [simp]: "list_all let_floated\<^sub>d (map (incr\<^sub>d x) es) = 
+    list_all let_floated\<^sub>d es"
   by (induction es) simp_all
 
-lemma multiincr_let_floated [simp]: "let_floated (multiincr x y e) = let_floated e"
+lemma multiincr_let_floated\<^sub>d [simp]: "let_floated\<^sub>d (multiincr x y e) = let_floated\<^sub>d e"
   by (induction x) simp_all
 
-lemma strip_lets_free [simp]: "let_floated e \<Longrightarrow> list_all let_free (strip_lets e)"
+lemma strip_lets_free [simp]: "let_floated\<^sub>d e \<Longrightarrow> list_all let_free\<^sub>d (strip_lets e)"
   by (induction e) simp_all
 
-lemma inner_expr_free [simp]: "let_floated e \<Longrightarrow> let_free (inner_expr e)"
+lemma inner_expr_free [simp]: "let_floated\<^sub>d e \<Longrightarrow> let_free\<^sub>d (inner_expr e)"
   by (induction e) simp_all
 
-lemma strip_lets_normalized [simp]: "let_floated e \<Longrightarrow> list_all let_floated (strip_lets e)"
+lemma strip_lets_normalized [simp]: "let_floated\<^sub>d e \<Longrightarrow> list_all let_floated\<^sub>d (strip_lets e)"
   by (induction e) simp_all
 
-lemma inner_expr_normalized [simp]: "let_floated e \<Longrightarrow> let_floated (inner_expr e)"
+lemma inner_expr_normalized [simp]: "let_floated\<^sub>d e \<Longrightarrow> let_floated\<^sub>d (inner_expr e)"
   by (induction e) simp_all
 
-lemma reapply_lets_normalized [simp]: "let_floated (reapply_lets es e) = 
-    (list_all let_free es \<and> list_all let_floated es \<and> let_floated e)"
+lemma reapply_lets_normalized [simp]: "let_floated\<^sub>d (reapply_lets es e) = 
+    (list_all let_free\<^sub>d es \<and> list_all let_floated\<^sub>d es \<and> let_floated\<^sub>d e)"
   by (induction es) auto
 
-lemma float_lets_normalizes [simp]: "let_floated (float_lets e)"
+lemma float_lets_normalizes [simp]: "let_floated\<^sub>d (float_lets e)"
   by (induction e) (simp_all add: Let_def)
 
-lemma let_free_strip_lets [simp]: "let_free e \<Longrightarrow> strip_lets e = []"
+lemma let_free\<^sub>d_strip_lets [simp]: "let_free\<^sub>d e \<Longrightarrow> strip_lets e = []"
   by (induction e) simp_all
 
-lemma let_free_inner_expr [simp]: "let_free e \<Longrightarrow> inner_expr e = e"
+lemma let_free\<^sub>d_inner_expr [simp]: "let_free\<^sub>d e \<Longrightarrow> inner_expr e = e"
   by (induction e) simp_all
 
-lemma float_lets_floated [simp]: "let_floated e \<Longrightarrow> float_lets e = e"
+lemma float_lets_floated [simp]: "let_floated\<^sub>d e \<Longrightarrow> float_lets e = e"
   by (induction e) (simp_all add: Let_def)
 
 theorem float_lets_idempotent [simp]: "float_lets (float_lets e) = float_lets e"
@@ -406,7 +406,7 @@ proof (induction \<Gamma> e t rule: typing\<^sub>d.induct)
   from tc\<^sub>d_app obtain ts\<^sub>2 where T2: "(\<Gamma> \<turnstile>\<^sub>d\<^sub>b ?es\<^sub>2 : ts\<^sub>2) \<and> 
     (ts\<^sub>2 @ \<Gamma> \<turnstile>\<^sub>d inner_expr (float_lets e\<^sub>2) : t\<^sub>1)" by fastforce
   show ?case
-  proof (cases "is_var ?e\<^sub>1 \<or> value\<^sub>d ?e\<^sub>1")
+  proof (cases "is_var\<^sub>d ?e\<^sub>1 \<or> value\<^sub>d ?e\<^sub>1")
     case True
     from T1 T2 have TS2: "ts\<^sub>1 @ \<Gamma> \<turnstile>\<^sub>d\<^sub>b map_with_idx 0 (multiincr (length ?es\<^sub>1)) ?es\<^sub>2 : ts\<^sub>2" 
       by (metis typing_bindings_eq_length typing_binding_multiincr)
@@ -604,7 +604,7 @@ proof (induction e e' rule: big_eval\<^sub>d.induct)
   let ?es\<^sub>2 = "strip_lets (float_lets e\<^sub>2)"
   let ?e\<^sub>2 = "inner_expr (float_lets e\<^sub>2)"
   from bev\<^sub>d_app show ?case
-  proof (cases "is_var ?e\<^sub>1 \<or> value\<^sub>d ?e\<^sub>1")
+  proof (cases "is_var\<^sub>d ?e\<^sub>1 \<or> value\<^sub>d ?e\<^sub>1")
     case False
     from bev\<^sub>d_app have "subst\<^sub>d 0 (Lam\<^sub>d t (float_lets e\<^sub>1')) (reapply_lets (map_with_idx 0 incr\<^sub>d ?es\<^sub>2) 
       (App\<^sub>d (Var\<^sub>d (length ?es\<^sub>2)) (incr\<^sub>d (length ?es\<^sub>2) ?e\<^sub>2))) \<Down>\<^sub>d float_lets v" by simp

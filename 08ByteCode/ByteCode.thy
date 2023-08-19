@@ -11,7 +11,7 @@ memorable name and because it could easily be made into such, but we will never 
 representation ourselves.)\<close>
 
 datatype code\<^sub>b = 
-  Lookup\<^sub>b nat nat nat
+  Lookup\<^sub>b nat nat
   | PushCon\<^sub>b nat
   | PushLam\<^sub>b nat nat
   | Apply\<^sub>b
@@ -21,10 +21,10 @@ datatype code\<^sub>b =
 
 datatype closure\<^sub>b = 
   Const\<^sub>b nat
-  | Lam\<^sub>b "closure\<^sub>b list" nat
+  | Lam\<^sub>b "closure\<^sub>b list list" nat nat
 
 datatype state\<^sub>b = 
-  S\<^sub>b "closure\<^sub>b list" "(closure\<^sub>b list \<times> nat) list"
+  S\<^sub>b "closure\<^sub>b list" "(closure\<^sub>b list list \<times> nat) list"
 
 text \<open>The evaluation relation is rather similar to our previous one, except with code-pointers into
 our main bytecode block instead of storing the code in the stack and closures directly. The relation
@@ -39,27 +39,26 @@ evaluated from right-to-left; that is, the operation at address x+1 will be exec
 operation at x. This is mostly to simplify some later operations, in particular \<open>unflatten_code\<close>, 
 which relies on the code pointer always decreasing to prove termination.\<close>
 
-inductive eval\<^sub>b :: "code\<^sub>b list \<Rightarrow> state\<^sub>b \<Rightarrow> state\<^sub>b \<Rightarrow> bool" 
-    (infix "\<tturnstile> _ \<leadsto>\<^sub>b" 50) where
-  ev\<^sub>b_lookup [simp]: "lookup \<C> p = Some (Lookup\<^sub>b x y z) \<Longrightarrow> lookup \<Delta> x = Some v \<Longrightarrow> 
-    \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (v # \<V>) ((\<Delta>, p) # s)" 
+inductive eval\<^sub>b :: "code\<^sub>b list \<Rightarrow> state\<^sub>b \<Rightarrow> state\<^sub>b \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>b" 50) where
+  ev\<^sub>b_lookup [simp]: "lookup \<C> p = Some (Lookup\<^sub>b x y) \<Longrightarrow> lookup \<Delta> x = Some vs \<Longrightarrow> 
+    lookup vs y = Some v \<Longrightarrow> \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (v # \<V>) ((\<Delta>, p) # s)" 
 | ev\<^sub>b_pushcon [simp]: "lookup \<C> p = Some (PushCon\<^sub>b n) \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (Const\<^sub>b n # \<V>) ((\<Delta>, p) # s)"
 | ev\<^sub>b_pushlam [simp]: "lookup \<C> p = Some (PushLam\<^sub>b p' n) \<Longrightarrow> 
-    \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (Lam\<^sub>b \<Delta> p' # \<V>) ((\<Delta>, p) # s)"
+    \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (Lam\<^sub>b \<Delta> p' n # \<V>) ((\<Delta>, p) # s)"
 | ev\<^sub>b_apply [simp]: "lookup \<C> p = Some Apply\<^sub>b \<Longrightarrow> 
-    \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((v # \<Delta>', p') # (\<Delta>, p) # s)"
+    \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' n # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> (([v] # \<Delta>', p') # (\<Delta>, p) # s)"
 | ev\<^sub>b_pushenv [simp]: "lookup \<C> p = Some PushEnv\<^sub>b \<Longrightarrow> 
-    \<C> \<tturnstile> S\<^sub>b (v # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((v # \<Delta>, p) # s)"
+    \<C> \<tturnstile> S\<^sub>b (v # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((cons_fst v \<Delta>, p) # s)"
 | ev\<^sub>b_return [simp]: "lookup \<C> p = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> s"
 | ev\<^sub>b_jump [simp]: "lookup \<C> p = Some Jump\<^sub>b \<Longrightarrow> 
-    \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((v # \<Delta>', p') # s)"
+    \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' n # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> (([v] # \<Delta>', p') # s)"
 
 theorem determinismb: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>b \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>b \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<C> \<Sigma> \<Sigma>' rule: eval\<^sub>b.induct)
   case ev\<^sub>b_lookup
-  from ev\<^sub>b_lookup(3, 1, 2) show ?case by (induction rule: eval\<^sub>b.cases) simp_all 
+  from ev\<^sub>b_lookup(4, 1, 2, 3) show ?case by (induction rule: eval\<^sub>b.cases) simp_all 
 next
   case ev\<^sub>b_pushcon
   from ev\<^sub>b_pushcon(2, 1) show ?case by (induction rule: eval\<^sub>b.cases) simp_all 

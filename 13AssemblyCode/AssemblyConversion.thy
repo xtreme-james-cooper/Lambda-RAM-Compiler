@@ -4,7 +4,7 @@ theory AssemblyConversion
 begin
 
 primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
-  "assemble_op_len (Lookup\<^sub>b x y z) = 7 + 2 * x"
+  "assemble_op_len (Lookup\<^sub>b x y) = 7 + 2 * x"
 | "assemble_op_len (PushCon\<^sub>b k) = 5"
 | "assemble_op_len (PushLam\<^sub>b pc n) = 9"
 | "assemble_op_len Apply\<^sub>b = 20"
@@ -13,7 +13,7 @@ primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
 | "assemble_op_len Jump\<^sub>b = 19"
 
 primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> code\<^sub>b \<Rightarrow> assm list" where
-  "assemble_op mp ix (Lookup\<^sub>b x y z) = [
+  "assemble_op mp ix (Lookup\<^sub>b x y) = [
     AMov (Reg Acc) (Con 0),
     AAdd Vals (Con 1),
     AMov (Mem Vals) (Reg Acc),
@@ -294,7 +294,7 @@ primrec assembleable :: "state\<^sub>r \<Rightarrow> code\<^sub>b list \<Rightar
       assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<and> assembleable_vals \<V> p\<^sub>\<V> p\<^sub>h \<and> 
         assembleable_stack s p\<^sub>s p\<^sub>\<Delta> (length \<C>) \<and> even p\<^sub>s \<and> (p\<^sub>s = 0 \<longrightarrow> p\<^sub>\<C> = 0))"
 
-lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (Lookup\<^sub>b x y z)"
+lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (Lookup\<^sub>b x y)"
   by (induction \<C>) auto
 
 lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (PushCon\<^sub>b k)"

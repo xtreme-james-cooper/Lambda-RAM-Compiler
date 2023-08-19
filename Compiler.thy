@@ -88,7 +88,7 @@ proof -
   with EH SH obtain \<Sigma>\<^sub>c\<^sub>e' where ECE: "iter (\<tturnstile> ?cd \<leadsto>\<^sub>v) 
     (S\<^sub>v hempty hempty [] [(0, length ?cd)]) \<Sigma>\<^sub>c\<^sub>e' \<and> S\<^sub>h h\<^sub>h [v\<^sub>h] [] = unchain_state \<Sigma>\<^sub>c\<^sub>e'" by fastforce
   then obtain h\<^sub>c\<^sub>e env\<^sub>h where VCE: "\<Sigma>\<^sub>c\<^sub>e' = S\<^sub>v h\<^sub>c\<^sub>e env\<^sub>h [v\<^sub>h] [] \<and> h\<^sub>h = unchain_heap h\<^sub>c\<^sub>e env\<^sub>h" 
-    by (metis unchain_state_reverse map_is_Nil_conv)
+    by (metisx unchain_state_reverse map_is_Nil_conv)
   let ?nmem = "\<lambda>x. undefined"
   have CS: "chained_state (S\<^sub>v hempty hempty [] [(0, length ?cd)])" by simp
   with ECE VCE have "iter (\<tturnstile> ?cd \<leadsto>\<^sub>f) (flatten (S\<^sub>v hempty hempty [] [(0, length ?cd)]))

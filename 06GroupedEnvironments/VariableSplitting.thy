@@ -1,5 +1,5 @@
 theory VariableSplitting
-  imports GroupedEnvironments "../05Closure/Closure"
+  imports GroupedEnvironments "../05Closure/Closure" "../03Debruijn/LetFloating"
 begin
 
 section \<open>Variable splitting\<close>
@@ -697,5 +697,19 @@ proof -
     by (metis tcg_state_ev tcg_scons_ret tcg_snil tc\<^sub>g_nil latest_environment\<^sub>g.simps(6))
   with X show ?thesis by simp
 qed
+
+text \<open>We also prove that our let-floating predicates match.\<close>
+
+lemma split_vars_non_redex [simp]: "non_redex\<^sub>g (split_vars' \<Phi> e) = (is_var\<^sub>d e \<or> value\<^sub>d e)"
+  by (induction e arbitrary: \<Phi>) (simp_all add: Let_def split: prod.splits)
+
+lemma split_vars_let_free [simp]: "let_free\<^sub>g (split_vars' \<Phi> e) = let_free\<^sub>d e"
+  by (induction e arbitrary: \<Phi>) (simp_all add: Let_def split: prod.splits)
+
+lemma split_vars_let_floated' [simp]: "let_floated\<^sub>g (split_vars' \<Phi> e) = let_floated\<^sub>d e"
+  by (induction e arbitrary: \<Phi>) (simp_all add: Let_def split: prod.splits)
+
+lemma split_vars_let_floated [simp]: "let_floated\<^sub>g (split_vars e) = let_floated\<^sub>d e"
+  by (simp add: split_vars_def)
 
 end

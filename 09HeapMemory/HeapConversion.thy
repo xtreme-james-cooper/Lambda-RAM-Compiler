@@ -50,7 +50,7 @@ proof (induction h x rule: unheap_closure.induct)
     with 1 show ?thesis
     proof (cases "list_all ((>) x) \<Delta>")
       case True
-      from Lam\<^sub>h 1 have "list_all (hcontains h) \<Delta>" by (metis hlookup_all bounded_closure.simps(2))
+      from Lam\<^sub>h 1 have "list_all (hcontains h) \<Delta>" by (metisx hlookup_all bounded_closure.simps(2))
       hence S: "\<And>y. y \<in> set \<Delta> \<Longrightarrow> hcontains h y" by auto
       from 1 Lam\<^sub>h True have "\<And>y. y \<in> set \<Delta> \<Longrightarrow> hcontains h y \<Longrightarrow> 
         unheap_closure h' y = unheap_closure h y" by simp

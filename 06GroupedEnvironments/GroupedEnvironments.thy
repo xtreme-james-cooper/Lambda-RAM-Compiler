@@ -342,4 +342,28 @@ next
   thus ?case by (induction rule: eval\<^sub>g.cases) simp_all 
 qed
 
+text \<open>We also redefine our let-floating predicates for our new datatype.\<close>
+
+primrec non_redex\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
+  "non_redex\<^sub>g (Var\<^sub>g x y) = True"
+| "non_redex\<^sub>g (Const\<^sub>g n) = True"
+| "non_redex\<^sub>g (Lam\<^sub>g t e n) = True"
+| "non_redex\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = False"
+| "non_redex\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = False"
+
+primrec let_free\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
+  "let_free\<^sub>g (Var\<^sub>g x y) = True"
+| "let_free\<^sub>g (Const\<^sub>g n) = True"
+| "let_free\<^sub>g (Lam\<^sub>g t e n) = True"
+| "let_free\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = (let_free\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>2)"
+| "let_free\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = False"
+
+primrec let_floated\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
+  "let_floated\<^sub>g (Var\<^sub>g x y) = True"
+| "let_floated\<^sub>g (Const\<^sub>g n) = True"
+| "let_floated\<^sub>g (Lam\<^sub>g t e n) = let_floated\<^sub>g e"
+| "let_floated\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = 
+    (let_free\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>2 \<and> non_redex\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>2)"
+| "let_floated\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = (let_free\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>2)"
+
 end

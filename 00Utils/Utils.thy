@@ -57,6 +57,20 @@ primrec cons_fst :: "'a \<Rightarrow> 'a list list \<Rightarrow> 'a list list" w
   "cons_fst b [] = [[b]]"
 | "cons_fst b (bs # bss) = (b # bs) # bss"
 
+lemma cons_fst_inj [simp]: "as \<noteq> [] \<Longrightarrow> list_all ((\<noteq>) []) as \<Longrightarrow> 
+  (cons_fst a as = cons_fst b bs) = (a = b \<and> as = bs)"
+proof (induction as arbitrary: bs)
+  case (Cons a as)
+  thus ?case by (induction bs) auto
+qed simp_all
+
+lemma map_cons_fst [simp]: "map (map f) (cons_fst a as) = cons_fst (f a) (map (map f) as)"
+  by (induction as) simp_all
+
+lemma list_all_cons_fst [simp]: "list_all (list_all p) (cons_fst a as) = 
+    (p a \<and> list_all (list_all p) as)"
+  by (induction as) simp_all
+
 fun nat_to_string' :: "nat \<Rightarrow> char" where
   "nat_to_string' 0 = CHR 48"
 | "nat_to_string' (Suc 0) = CHR 49"
@@ -196,6 +210,9 @@ qed
 
 lemma list_all_elem [elim]: "list_all f env \<Longrightarrow> x \<in> set env \<Longrightarrow> f x"
   by (induction env) auto
+
+lemma map_not_null [simp]: "(\<noteq>) [] \<circ> map f = (\<noteq>) []"
+  by auto
 
 lemma snd_pair [simp]: "(a, b) = f x \<Longrightarrow> snd (f x) = b"
   by (metis snd_conv)
