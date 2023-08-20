@@ -208,8 +208,11 @@ next
   thus ?case by (induction n) simp_all
 qed
 
-lemma list_all_elem [elim]: "list_all f env \<Longrightarrow> x \<in> set env \<Longrightarrow> f x"
-  by (induction env) auto
+lemma list_all_elem [elim]: "list_all p as \<Longrightarrow> a \<in> set as \<Longrightarrow> p a"
+  by (induction as) auto
+
+lemma list_all_elem2 [elim]: "list_all (list_all p) bss \<Longrightarrow> bs \<in> set bss \<Longrightarrow> b \<in> set bs \<Longrightarrow> p b"
+  by (induction bss) auto
 
 lemma map_not_null [simp]: "(\<noteq>) [] \<circ> map f = (\<noteq>) []"
   by auto

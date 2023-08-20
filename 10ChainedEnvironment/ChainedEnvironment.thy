@@ -6,11 +6,7 @@ section \<open>Chained environments\<close>
 
 text \<open>We still have one place where information is duplicated: our environments themselves. They now 
 consist of lists of pointers rather than lists of values, but we still copy the list every time we 
-create a new function closure. At first we might think we could resolve this with the same trick we 
-used last stage, of storing the environments in the heap (or a new heap) and simply sharing pointers
-to them, but in fact this will not work. The problem is that unlike values, which once created never 
-change, an environment stored in a closure can be extended - and since a function closure can be 
-applied multiple times, extended in different ways.\<close>
+create a new function closure.\<close>
 
 text \<open>We actually face a choice here. We could commit to copying the list every time, as a 
 contiguous block of data; this would be expensive every time a closure was copied, and mean that 

@@ -11,19 +11,18 @@ constant time. So we don't have to worry about it.\<close>
 
 text \<open>Or do we? Looking ahead a bit, we will eventually need to represent our environments somehow 
 in a concrete machine: probably as contiguous arrays of pointers. This makes our \<open>lookup\<close> operation 
-as cheap as it should be, just an array access. But there is a problem: we don't only have one 
-environment. In a simpler block-structured language without function closures, we could use a single 
-stack as our environment, pushing and popping new bindings each time they go in and out of scope, 
-and accessing variables cheaply. But we have functions that close over their declaration 
-environment, and moreover these closures can be duplicated and applied multiple times - and thus 
-have their environments extended in different ways. Blindly copying the environments every time we 
-need a new closure keeps our lookups cheap, but means that every function application takes time
-linear in the size of the function closure's environment - an extremely unattractive prospect. 
-Alternately, we could keep representing environments by a linked list, which can have new bindings 
-cons'd onto the end cheaply and repeatedly, but means we _have to_ use the recursive list-search
-implementation of \<open>lookup\<close>, making every variable reference take time proportional to its Debruijn 
-index. Since any program is going to have many applications and variables, neither approach seems
-attractive.\<close>
+as cheap as it should be, just an array access followed by a pointer lookup. But there is a problem: 
+we don't only have one environment. In a simpler block-structured language without function 
+closures, we could use a single stack as our environment, pushing and popping new bindings each time 
+they go in and out of scope, and accessing variables cheaply. But we have functions that close over 
+their declaration environment, and moreover these closures can be duplicated and applied multiple 
+times - and thus have their environments extended in different ways. Blindly copying the 
+environments every time we need a new closure keeps our lookups cheap, but means that every function 
+application takes time linear in the size of the function closure's environment. Alternately, we 
+could keep representing environments by a linked list, which can have new bindings cons'd onto the 
+end cheaply and repeatedly, but means we _have to_ use the recursive list-search implementation of 
+\<open>lookup\<close>, making every variable reference take time proportional to its Debruijn index. Since any 
+program is going to have many applications and variables, neither approach seems attractive.\<close>
 
 text \<open>Fortunately, there is a clever third option that combines many of the strengths of both 
 representations. Because we have let-floated our bindings, every let-binder is in a list of bindings 

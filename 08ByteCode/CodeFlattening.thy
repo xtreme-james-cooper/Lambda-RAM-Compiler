@@ -523,9 +523,9 @@ next
     by simp
   with B E V show ?case by auto
 next
-  case (ev\<^sub>e_popenv \<Delta> \<V> v \<C> s)
+  case (ev\<^sub>e_popenv \<V> v vs \<Delta> \<C> s)
   then obtain \<V>\<^sub>b s\<^sub>b where "\<Sigma>\<^sub>b = S\<^sub>b \<V>\<^sub>b s\<^sub>b \<and> \<V> = unflatten_values \<C>\<^sub>b \<V>\<^sub>b \<and> 
-    ((cons_fst v \<Delta>, PopEnv\<^sub>e # \<C>) # s) = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
+    (((v # vs) # \<Delta>, PopEnv\<^sub>e # \<C>) # s) = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
   moreover with ev\<^sub>e_popenv have "orderly_code \<C>\<^sub>b 0 \<and> orderly_stack s\<^sub>b (length \<C>\<^sub>b)" by simp
   ultimately show ?case by (metis unflatten_stack_to_pop)
 next
