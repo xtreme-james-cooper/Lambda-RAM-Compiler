@@ -16,7 +16,7 @@ primrec encode' :: "expr\<^sub>g \<Rightarrow> code\<^sub>e list" where
 | "encode' (Const\<^sub>g n) = [PushCon\<^sub>e n]"
 | "encode' (Lam\<^sub>g t e n) = [PushLam\<^sub>e (encode' e @ [Return\<^sub>e]) n]"
 | "encode' (App\<^sub>g e\<^sub>1 e\<^sub>2) = encode' e\<^sub>1 @ encode' e\<^sub>2 @ [Apply\<^sub>e]"
-| "encode' (Let\<^sub>g e\<^sub>1 e\<^sub>2) = encode' e\<^sub>1 @ PushEnv\<^sub>e # encode' e\<^sub>2 @ [PopEnv\<^sub>e]"
+| "encode' (Let\<^sub>g e\<^sub>1 e\<^sub>2) = encode' e\<^sub>1 @ PushEnv\<^sub>e # encode' e\<^sub>2"
 
 definition encode :: "expr\<^sub>g \<Rightarrow> code\<^sub>e list" where
   "encode e \<equiv> encode' e @ [Return\<^sub>e]"
@@ -37,7 +37,6 @@ fun vals_from_stack :: "frame\<^sub>g list \<Rightarrow> closure\<^sub>e list" w
 | "vals_from_stack (FApp1\<^sub>g \<Delta> e # s\<^sub>g) = vals_from_stack s\<^sub>g"
 | "vals_from_stack (FApp2\<^sub>g c # s\<^sub>g) = encode_closure c # vals_from_stack s\<^sub>g"
 | "vals_from_stack (FLet\<^sub>g \<Delta> e # s\<^sub>g) = vals_from_stack s\<^sub>g"
-| "vals_from_stack (FPop\<^sub>g c # s\<^sub>g) = vals_from_stack s\<^sub>g"
 | "vals_from_stack (FReturn\<^sub>g \<Delta> # s\<^sub>g) = vals_from_stack s\<^sub>g"
 
 text \<open>The callstack requires some more careful work. Each frame represents a place where we are part
@@ -61,9 +60,7 @@ fun stack_from_stack :: "frame\<^sub>g list \<Rightarrow> frame\<^sub>e list" wh
     prepend_to_top_frame (encode' e @ [Apply\<^sub>e]) (stack_from_stack s\<^sub>g)"
 | "stack_from_stack (FApp2\<^sub>g c # s\<^sub>g) = prepend_to_top_frame [Apply\<^sub>e] (stack_from_stack s\<^sub>g)"
 | "stack_from_stack (FLet\<^sub>g \<Delta> e # s\<^sub>g) = 
-    prepend_to_top_frame (PushEnv\<^sub>e # encode' e @ [PopEnv\<^sub>e]) (stack_from_stack s\<^sub>g)"
-| "stack_from_stack (FPop\<^sub>g c # s\<^sub>g) = 
-    prepend_to_top_frame [PopEnv\<^sub>e] (prepend_to_top_env (encode_closure c) (stack_from_stack s\<^sub>g))"
+    prepend_to_top_frame (PushEnv\<^sub>e # encode' e) (stack_from_stack s\<^sub>g)"
 | "stack_from_stack (FReturn\<^sub>g \<Delta> # s\<^sub>g) = 
     (map (map encode_closure) \<Delta>, [Return\<^sub>e]) # stack_from_stack s\<^sub>g"
 
@@ -142,21 +139,10 @@ next
   then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>g = (map (map encode_closure) \<Delta>, \<C>) # s\<^sub>e" by auto
   have "iter (\<leadsto>\<^sub>e)
     (S\<^sub>e (encode_closure c\<^sub>1 # vals_from_stack s\<^sub>g)
-      ((map (map encode_closure) \<Delta>, PushEnv\<^sub>e # encode' e\<^sub>2 @ PopEnv\<^sub>e # \<C>) # s\<^sub>e))
+      ((map (map encode_closure) \<Delta>, PushEnv\<^sub>e # encode' e\<^sub>2 @ \<C>) # s\<^sub>e))
     (S\<^sub>e (vals_from_stack s\<^sub>g)
-      ((cons_fst (encode_closure c\<^sub>1) (map (map encode_closure) \<Delta>), encode' e\<^sub>2 @ PopEnv\<^sub>e # \<C>) # s\<^sub>e))" 
+      ((cons_fst (encode_closure c\<^sub>1) (map (map encode_closure) \<Delta>), encode' e\<^sub>2 @ \<C>) # s\<^sub>e))" 
     by (metis ev\<^sub>e_pushenv iter_one)
-  with S show ?case by simp
-next
-  case (ret\<^sub>g_pop c' s\<^sub>g c)
-  then obtain \<Delta> tt t' where "latest_environment\<^sub>g s\<^sub>g = Some \<Delta> \<and> (c' :\<^sub>g\<^sub>c\<^sub>l tt) \<and> (s\<^sub>g :\<^sub>g t' \<rightarrow> t) \<and> 
-    (c :\<^sub>g\<^sub>c\<^sub>l t')" by fastforce
-  then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>g = (map (map encode_closure) \<Delta>, \<C>) # s\<^sub>e" by auto
-  hence "iter (\<leadsto>\<^sub>e)
-    (S\<^sub>e (encode_closure c # vals_from_stack s\<^sub>g)
-      ((cons_fst (encode_closure c') (map (map encode_closure) \<Delta>), PopEnv\<^sub>e # \<C>) # s\<^sub>e))
-    (S\<^sub>e (encode_closure c # vals_from_stack s\<^sub>g) ((map (map encode_closure) \<Delta>, \<C>) # s\<^sub>e))" 
-      by (metis ev\<^sub>e_popenv iter_one)
   with S show ?case by simp
 next
   case (ret\<^sub>g_ret \<Delta> s\<^sub>g c)
@@ -248,9 +234,6 @@ lemma encode_to_apply [dest]: "encode' e @ \<C>' = Apply\<^sub>e # \<C> \<Longri
 lemma encode_to_push [dest]: "encode' e @ \<C>' = PushEnv\<^sub>e # \<C> \<Longrightarrow> False"
   by (induction e arbitrary: \<C>') simp_all
 
-lemma encode_to_pop [dest]: "encode' e @ \<C>' = PopEnv\<^sub>e # \<C> \<Longrightarrow> False"
-  by (induction e arbitrary: \<C>') simp_all
-
 lemma encode_to_return [dest]: "encode' e @ \<C>' = Return\<^sub>e # \<C> \<Longrightarrow> False"
   by (induction e arbitrary: \<C>') simp_all
 
@@ -274,10 +257,6 @@ lemma prepend_to_apply [dest]: "prepend_to_top_frame (encode' e) s\<^sub>e = (\<
   by (induction "encode' e" s\<^sub>e rule: prepend_to_top_frame.induct) auto
 
 lemma prepend_to_push [dest]: "prepend_to_top_frame (encode' e) s\<^sub>e = (\<Delta>, PushEnv\<^sub>e # \<C>) # s\<^sub>e' \<Longrightarrow> 
-    False"
-  by (induction "encode' e" s\<^sub>e rule: prepend_to_top_frame.induct) auto
-
-lemma prepend_to_pop [dest]: "prepend_to_top_frame (encode' e) s\<^sub>e = (\<Delta>, PopEnv\<^sub>e # \<C>) # s\<^sub>e' \<Longrightarrow> 
     False"
   by (induction "encode' e" s\<^sub>e rule: prepend_to_top_frame.induct) auto
 
@@ -326,20 +305,9 @@ lemma encode_stack_to_apply [dest]: "stack_from_stack s = (\<Delta>\<^sub>e, App
   by (induction s rule: stack_from_stack.induct) auto
 
 lemma encode_stack_to_pushenv [dest]: "stack_from_stack s = (\<Delta>\<^sub>e, PushEnv\<^sub>e # \<C>) # s\<^sub>e \<Longrightarrow> 
-  \<exists>s\<^sub>g' \<Delta> e \<C>'. s = FLet\<^sub>g \<Delta> e # s\<^sub>g' \<and> \<C> = encode' e @ PopEnv\<^sub>e # \<C>' \<and> 
+  \<exists>s\<^sub>g' \<Delta> e \<C>'. s = FLet\<^sub>g \<Delta> e # s\<^sub>g' \<and> \<C> = encode' e @ \<C>' \<and> 
     stack_from_stack s\<^sub>g' = (\<Delta>\<^sub>e, \<C>') # s\<^sub>e"
   by (induction s rule: stack_from_stack.induct) auto
-
-lemma encode_stack_to_popenv [dest]: "stack_from_stack s = (\<Delta>\<^sub>e, PopEnv\<^sub>e # \<C>) # s\<^sub>e \<Longrightarrow> 
-  \<exists>s\<^sub>g' c \<Delta>\<^sub>e'. s = FPop\<^sub>g c # s\<^sub>g' \<and> \<Delta>\<^sub>e = cons_fst (encode_closure c) \<Delta>\<^sub>e' \<and> 
-    stack_from_stack s\<^sub>g' = (\<Delta>\<^sub>e', \<C>) # s\<^sub>e"
-proof (induction s rule: stack_from_stack.induct)
-  case (5 c s\<^sub>g)
-  hence "prepend_to_top_env (encode_closure c) (stack_from_stack s\<^sub>g) = (\<Delta>\<^sub>e, \<C>) # s\<^sub>e" by auto
-  then obtain \<Delta>' where "stack_from_stack s\<^sub>g = (\<Delta>', \<C>) # s\<^sub>e \<and> \<Delta>\<^sub>e = cons_fst (encode_closure c) \<Delta>'" 
-    by auto
-  then show ?case by auto
-qed auto
 
 lemma encode_stack_to_return [dest]: "stack_from_stack s = (\<Delta>\<^sub>e, Return\<^sub>e # \<C>) # s\<^sub>e \<Longrightarrow> 
   \<exists>\<Delta>\<^sub>g s\<^sub>g'. s = FReturn\<^sub>g \<Delta>\<^sub>g # s\<^sub>g' \<and> \<Delta>\<^sub>e = map (map encode_closure) \<Delta>\<^sub>g \<and> s\<^sub>e = stack_from_stack s\<^sub>g' \<and> 
@@ -404,11 +372,6 @@ lemma encode_state_to_apply [dest]: "
 lemma encode_state_to_pushenv [dest]: "encode_state \<Sigma>\<^sub>g = S\<^sub>e (v # \<V>) ((\<Delta>\<^sub>e, PushEnv\<^sub>e # \<C>) # s\<^sub>e) \<Longrightarrow> 
   \<exists>c s\<^sub>g. \<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g c \<and> v = encode_closure c \<and> \<V> = vals_from_stack s\<^sub>g \<and> 
     stack_from_stack s\<^sub>g = (\<Delta>\<^sub>e, PushEnv\<^sub>e # \<C>) # s\<^sub>e"
-  by (induction \<Sigma>\<^sub>g) auto
-
-lemma encode_state_to_popenv [dest]: "encode_state \<Sigma>\<^sub>g = S\<^sub>e \<V> ((cons_fst v \<Delta>\<^sub>e, PopEnv\<^sub>e # \<C>) # s\<^sub>e) \<Longrightarrow>
-  \<exists>c s\<^sub>g. \<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g c \<and> \<V> = encode_closure c # vals_from_stack s\<^sub>g \<and> 
-    stack_from_stack s\<^sub>g = (cons_fst v \<Delta>\<^sub>e, PopEnv\<^sub>e # \<C>) # s\<^sub>e"
   by (induction \<Sigma>\<^sub>g) auto
 
 lemma encode_state_to_return [dest]: "encode_state \<Sigma>\<^sub>g = S\<^sub>e \<V> ((\<Delta>\<^sub>e, Return\<^sub>e # \<C>) # s\<^sub>e) \<Longrightarrow> 
@@ -519,17 +482,6 @@ next
   hence "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g') c) (SE\<^sub>g (FPop\<^sub>g c # s\<^sub>g') (cons_fst c \<Delta>\<^sub>g) e)" 
     by (metis iter_one)
   with S S' show ?case by auto
-next
-  case (ev\<^sub>e_popenv \<V> v vs \<Delta>\<^sub>e \<C> s\<^sub>e)
-  hence "encode_state \<Sigma>\<^sub>g = S\<^sub>e \<V> (((v # vs) # \<Delta>\<^sub>e, PopEnv\<^sub>e # \<C>) # s\<^sub>e)" by simp
-  then obtain c s\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g c \<and> \<V> = encode_closure c # vals_from_stack s\<^sub>g \<and> 
-    stack_from_stack s\<^sub>g = ((v # vs) # \<Delta>\<^sub>e, PopEnv\<^sub>e # \<C>) # s\<^sub>e" by auto
-  then obtain s\<^sub>g' c' \<Delta>\<^sub>e' where S': "s\<^sub>g = FPop\<^sub>g c' # s\<^sub>g' \<and> 
-    (v # vs) # \<Delta>\<^sub>e = (encode_closure c' # vs) # \<Delta>\<^sub>e' \<and> stack_from_stack s\<^sub>g' = (\<Delta>\<^sub>e', \<C>) # s\<^sub>e" 
-      by auto
-  have "SC\<^sub>g (FPop\<^sub>g c' # s\<^sub>g') c \<leadsto>\<^sub>g SC\<^sub>g s\<^sub>g' c" by simp
-  hence "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FPop\<^sub>g c' # s\<^sub>g') c) (SC\<^sub>g s\<^sub>g' c)" by (metis iter_one)
-  with ev\<^sub>e_popenv S S' show ?case by auto
 next
   case (ev\<^sub>e_return \<V> \<Delta>\<^sub>e \<C> s\<^sub>e)
   hence "encode_state \<Sigma>\<^sub>g = S\<^sub>e \<V> ((\<Delta>\<^sub>e, Return\<^sub>e # \<C>) # s\<^sub>e)" by simp

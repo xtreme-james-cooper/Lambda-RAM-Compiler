@@ -79,6 +79,30 @@ inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Lam\<^sub>g t' e n : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g App\<^sub>g e\<^sub>1 e\<^sub>2 : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Let\<^sub>g e\<^sub>1 e\<^sub>2 : t"
 
+text \<open>We also redefine our let-floating predicates for our new datatype.\<close>
+
+primrec non_redex\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
+  "non_redex\<^sub>g (Var\<^sub>g x y) = True"
+| "non_redex\<^sub>g (Const\<^sub>g n) = True"
+| "non_redex\<^sub>g (Lam\<^sub>g t e n) = True"
+| "non_redex\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = False"
+| "non_redex\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = False"
+
+primrec let_free\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
+  "let_free\<^sub>g (Var\<^sub>g x y) = True"
+| "let_free\<^sub>g (Const\<^sub>g n) = True"
+| "let_free\<^sub>g (Lam\<^sub>g t e n) = True"
+| "let_free\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = (let_free\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>2)"
+| "let_free\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = False"
+
+primrec let_floated\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
+  "let_floated\<^sub>g (Var\<^sub>g x y) = True"
+| "let_floated\<^sub>g (Const\<^sub>g n) = True"
+| "let_floated\<^sub>g (Lam\<^sub>g t e n) = let_floated\<^sub>g e"
+| "let_floated\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = 
+    (let_free\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>2 \<and> non_redex\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>2)"
+| "let_floated\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = (let_free\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>2)"
+
 text \<open>Closures, frames, and states need to be changed similarly.\<close>
 
 datatype closure\<^sub>g = 
@@ -88,7 +112,7 @@ datatype closure\<^sub>g =
 inductive typing_closure\<^sub>g :: "closure\<^sub>g \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>g\<^sub>c\<^sub>l" 50)
       and typing_environment\<^sub>g :: "closure\<^sub>g list list \<Rightarrow> ty list list \<Rightarrow> bool" (infix ":\<^sub>g\<^sub>c\<^sub>l\<^sub>s" 50) where
   tc\<^sub>g_const [simp]: "Num\<^sub>g n :\<^sub>g\<^sub>c\<^sub>l Num"
-| tc\<^sub>g_lam [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> insert_at 0 [t\<^sub>1] \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> 
+| tc\<^sub>g_lam [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> insert_at 0 [t\<^sub>1] \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> let_floated\<^sub>g e \<Longrightarrow> 
     Fun\<^sub>g t\<^sub>1 \<Delta> e (let_count e) :\<^sub>g\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2"
 | tc\<^sub>g_nil [simp]: "[] :\<^sub>g\<^sub>c\<^sub>l\<^sub>s []"
 | tc\<^sub>g_cons_nil [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> [] # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s [] # \<Gamma>"
@@ -142,7 +166,6 @@ datatype frame\<^sub>g =
   FApp1\<^sub>g "closure\<^sub>g list list" expr\<^sub>g
   | FApp2\<^sub>g closure\<^sub>g
   | FLet\<^sub>g "closure\<^sub>g list list" expr\<^sub>g
-  | FPop\<^sub>g closure\<^sub>g
   | FReturn\<^sub>g "closure\<^sub>g list list"
 
 fun latest_environment\<^sub>g :: "frame\<^sub>g list \<rightharpoonup> closure\<^sub>g list list" where
@@ -150,19 +173,24 @@ fun latest_environment\<^sub>g :: "frame\<^sub>g list \<rightharpoonup> closure\
 | "latest_environment\<^sub>g (FApp1\<^sub>g \<Delta> e # s) = latest_environment\<^sub>g s"
 | "latest_environment\<^sub>g (FApp2\<^sub>g c # s) = latest_environment\<^sub>g s"
 | "latest_environment\<^sub>g (FLet\<^sub>g \<Delta> e # s) = latest_environment\<^sub>g s"
-| "latest_environment\<^sub>g (FPop\<^sub>g c # s) = map_option (cons_fst c) (latest_environment\<^sub>g s)"
 | "latest_environment\<^sub>g (FReturn\<^sub>g \<Delta> # s) = Some \<Delta>"
+
+fun return_headed\<^sub>g :: "frame\<^sub>g list \<Rightarrow> bool" where
+  "return_headed\<^sub>g (FReturn\<^sub>g \<Delta> # s) = True"
+| "return_headed\<^sub>g s = False"
+
+lemma return_headed_elim [dest]: "return_headed\<^sub>g s \<Longrightarrow> \<exists>s' \<Delta>. s = FReturn\<^sub>g \<Delta> # s'"
+  by (cases s rule: return_headed\<^sub>g.cases) simp_all
 
 inductive typing_stack\<^sub>g :: "frame\<^sub>g list \<Rightarrow> ty \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>g _ \<rightarrow>" 50) where
   tcg_snil [simp]: "[] :\<^sub>g t \<rightarrow> t"
-| tcg_scons_app1 [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>1 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> 
-    latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> FApp1\<^sub>g \<Delta> e # s :\<^sub>g Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
+| tcg_scons_app1 [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>1 \<Longrightarrow> let_floated\<^sub>g e \<Longrightarrow> let_free\<^sub>g e \<Longrightarrow> 
+    s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> FApp1\<^sub>g \<Delta> e # s :\<^sub>g Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
 | tcg_scons_app2 [simp]: "c :\<^sub>g\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> latest_environment\<^sub>g s \<noteq> None \<Longrightarrow> 
     FApp2\<^sub>g c # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
 | tcg_scons_let [simp]: "latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow>
-    cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> FLet\<^sub>g \<Delta> e # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
-| tcg_scons_pop [simp]: "latest_environment\<^sub>g s \<noteq> None \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l tt \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> 
-    FPop\<^sub>g c # s :\<^sub>g t' \<rightarrow> t"
+    cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> let_floated\<^sub>g e \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> return_headed\<^sub>g s \<Longrightarrow> 
+    FLet\<^sub>g \<Delta> e # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
 | tcg_scons_ret [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>g \<Delta> # s :\<^sub>g t' \<rightarrow> t"
 
 inductive_cases [elim]: "[] :\<^sub>g t' \<rightarrow> t"
@@ -182,7 +210,7 @@ primrec final\<^sub>g :: "state\<^sub>g \<Rightarrow> bool" where
 
 inductive typecheck_state\<^sub>g :: "state\<^sub>g \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>g" 50) where
   tcg_state_ev [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> 
-    \<Gamma> \<turnstile>\<^sub>g e : t' \<Longrightarrow> SE\<^sub>g s \<Delta> e :\<^sub>g t"
+    \<Gamma> \<turnstile>\<^sub>g e : t' \<Longrightarrow> let_floated\<^sub>g e \<Longrightarrow> let_free\<^sub>g e \<or> return_headed\<^sub>g s \<Longrightarrow> SE\<^sub>g s \<Delta> e :\<^sub>g t"
 | tcg_state_ret [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l t' \<Longrightarrow> SC\<^sub>g s c :\<^sub>g t"
 
 inductive_cases [elim]: "SE\<^sub>g s \<Delta> e :\<^sub>g t"
@@ -196,17 +224,18 @@ inductive eval\<^sub>g :: "state\<^sub>g \<Rightarrow> state\<^sub>g \<Rightarro
 | ev\<^sub>g_con [simp]: "SE\<^sub>g s \<Delta> (Const\<^sub>g n) \<leadsto>\<^sub>g SC\<^sub>g s (Num\<^sub>g n)"
 | ev\<^sub>g_lam [simp]: "SE\<^sub>g s \<Delta> (Lam\<^sub>g t e n) \<leadsto>\<^sub>g SC\<^sub>g s (Fun\<^sub>g t \<Delta> e n)"
 | ev\<^sub>g_app [simp]: "SE\<^sub>g s \<Delta> (App\<^sub>g e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FApp1\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1"
-| ev\<^sub>g_let [simp]: "SE\<^sub>g s \<Delta> (Let\<^sub>g e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1"
+| ev\<^sub>g_let [simp]: "SE\<^sub>g (FReturn\<^sub>g \<Delta> # s) \<Delta> (Let\<^sub>g e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s) \<Delta> e\<^sub>1"
 | ret\<^sub>g_app1 [simp]: "SC\<^sub>g (FApp1\<^sub>g \<Delta> e\<^sub>2 # s) c\<^sub>1 \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c\<^sub>1 # s) \<Delta> e\<^sub>2"
 | ret\<^sub>g_app2 [simp]: "SC\<^sub>g (FApp2\<^sub>g (Fun\<^sub>g t \<Delta> e\<^sub>1 n) # s) c\<^sub>2 \<leadsto>\<^sub>g 
     SE\<^sub>g (FReturn\<^sub>g ([c\<^sub>2] # \<Delta>) # s) ([c\<^sub>2] # \<Delta>) e\<^sub>1"
-| ret\<^sub>g_let [simp]: "SC\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # s) c\<^sub>1 \<leadsto>\<^sub>g SE\<^sub>g (FPop\<^sub>g c\<^sub>1 # s) (cons_fst c\<^sub>1 \<Delta>) e\<^sub>2"
-| ret\<^sub>g_pop [simp]: "SC\<^sub>g (FPop\<^sub>g c' # s) c \<leadsto>\<^sub>g SC\<^sub>g s c"
+| ret\<^sub>g_let [simp]: "SC\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s) c\<^sub>1 \<leadsto>\<^sub>g 
+    SE\<^sub>g (FReturn\<^sub>g (cons_fst c\<^sub>1 \<Delta>) # s) (cons_fst c\<^sub>1 \<Delta>) e\<^sub>2"
 | ret\<^sub>g_ret [simp]: "SC\<^sub>g (FReturn\<^sub>g \<Delta> # s) c \<leadsto>\<^sub>g SC\<^sub>g s c"
 
 text \<open>And the safety theorems:\<close>
 
-lemma eval\<^sub>g_from_nonvalue [simp]: "\<Gamma> \<turnstile>\<^sub>g e : t \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<exists>\<Sigma>'. SE\<^sub>g s \<Delta> e \<leadsto>\<^sub>g \<Sigma>'"
+lemma eval\<^sub>g_from_nonvalue [simp]: "\<Gamma> \<turnstile>\<^sub>g e : t \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> let_free\<^sub>g e \<or> return_headed\<^sub>g s \<Longrightarrow>
+  latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> \<exists>\<Sigma>'. SE\<^sub>g s \<Delta> e \<leadsto>\<^sub>g \<Sigma>'"
 proof (induction \<Gamma> e t rule: typing\<^sub>g.induct)
   case (tc\<^sub>g_var \<Gamma> x ts y t)
   then obtain cs c where "lookup \<Delta> x = Some cs \<and> lookup cs y = Some c \<and> c :\<^sub>g\<^sub>c\<^sub>l t"
@@ -227,7 +256,8 @@ next
   thus ?case by fastforce
 next
   case (tc\<^sub>g_let \<Gamma> e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
-  have "SE\<^sub>g s \<Delta> (Let\<^sub>g e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1" by simp
+  then obtain s' where "s = FReturn\<^sub>g \<Delta> # s'" by auto
+  hence "SE\<^sub>g s \<Delta> (Let\<^sub>g e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1" by simp
   thus ?case by fastforce
 qed
 
@@ -245,11 +275,8 @@ next
   ultimately show ?case by fastforce
 next
   case (tcg_scons_let s \<Delta> \<Gamma> t\<^sub>1 e t\<^sub>2 t)
-  have "SC\<^sub>g (FLet\<^sub>g \<Delta> e # s) c \<leadsto>\<^sub>g SE\<^sub>g (FPop\<^sub>g c # s) (cons_fst c \<Delta>) e" by simp
-  thus ?case by fastforce
-next
-  case (tcg_scons_pop s c' \<Gamma> t' t)
-  have "SC\<^sub>g (FPop\<^sub>g c' # s) c \<leadsto>\<^sub>g SC\<^sub>g s c" by simp
+  then obtain s' where "s = FReturn\<^sub>g \<Delta> # s'" by auto
+  hence "SC\<^sub>g (FLet\<^sub>g \<Delta> e # s) c \<leadsto>\<^sub>g SE\<^sub>g (FReturn\<^sub>g (cons_fst c \<Delta>) # s') (cons_fst c \<Delta>) e" by simp
   thus ?case by fastforce
 next
   case (tcg_scons_ret \<Delta> \<Gamma> s t' t)
@@ -273,36 +300,38 @@ proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>g.induct)
   with ev\<^sub>g_var X show ?case by simp
 next
   case (ev\<^sub>g_app s \<Delta> e\<^sub>1 e\<^sub>2)
-  then obtain t\<^sub>1 t\<^sub>2 \<Gamma> where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>1)" 
-   and X: "(\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>g s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2)" by blast
-  hence "FApp1\<^sub>g \<Delta> e\<^sub>2 # s :\<^sub>g Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"  by fastforce
+  then obtain t\<^sub>1 t\<^sub>2 \<Gamma> where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>1) \<and> let_floated\<^sub>g e\<^sub>2 \<and> let_free\<^sub>g e\<^sub>2" 
+   and X: "(\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>g s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2) \<and> 
+    let_floated\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>1" by fastforce
+  hence "FApp1\<^sub>g \<Delta> e\<^sub>2 # s :\<^sub>g Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
 next
-  case (ev\<^sub>g_let s \<Delta> e\<^sub>1 e\<^sub>2)
-  then obtain \<Gamma> t\<^sub>2 t\<^sub>1 where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2)" 
-    and X: "(\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1) \<and> (\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>g s = Some \<Delta>" by fastforce
-  hence "FLet\<^sub>g \<Delta> e\<^sub>2 # s :\<^sub>g t\<^sub>1 \<rightarrow> t" by fastforce
+  case (ev\<^sub>g_let \<Delta> s e\<^sub>1 e\<^sub>2)
+  then obtain \<Gamma> t\<^sub>2 t\<^sub>1 where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>2" 
+    and X: "(\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1) \<and> (\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>1" by fastforce
+  hence "FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s :\<^sub>g t\<^sub>1 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
 next
   case (ret\<^sub>g_app1 \<Delta> e\<^sub>2 s c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "(\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>g s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>1)" 
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "(\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>g s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>1) \<and>
+    let_floated\<^sub>g e\<^sub>2 \<and> let_free\<^sub>g e\<^sub>2" 
    and "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (c\<^sub>1 :\<^sub>g\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2)" by blast
   hence "FApp2\<^sub>g c\<^sub>1 # s :\<^sub>g t\<^sub>1 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
 next
   case (ret\<^sub>g_app2 t\<^sub>1 \<Delta> e\<^sub>1 n s c\<^sub>2)
-  then obtain \<Gamma> t\<^sub>2 where X: "s :\<^sub>g t\<^sub>2 \<rightarrow> t" and Y: "insert_at 0 [t\<^sub>1] \<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>2" 
+  then obtain \<Gamma> t\<^sub>2 where X: "s :\<^sub>g t\<^sub>2 \<rightarrow> t" and Y: "(insert_at 0 [t\<^sub>1] \<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>1" 
    and "(\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> (c\<^sub>2 :\<^sub>g\<^sub>c\<^sub>l t\<^sub>1)" by blast
   hence Z: "[c\<^sub>2] # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s insert_at 0 [t\<^sub>1] \<Gamma>" by (cases \<Gamma>) simp_all
   with X have "FReturn\<^sub>g ([c\<^sub>2] # \<Delta>) # s :\<^sub>g t\<^sub>2 \<rightarrow> t" by simp
   with Y Z show ?case by fastforce
 next
   case (ret\<^sub>g_let \<Delta> e\<^sub>2 s c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2" and "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>" 
-    and A: "c\<^sub>1 :\<^sub>g\<^sub>c\<^sub>l t\<^sub>1" and Y: "s :\<^sub>g t\<^sub>2 \<rightarrow> t" and Z: "latest_environment\<^sub>g s = Some \<Delta>" by fastforce
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "(cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>2" and "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>" 
+    and Z: "c\<^sub>1 :\<^sub>g\<^sub>c\<^sub>l t\<^sub>1" and Y: "s :\<^sub>g t\<^sub>2 \<rightarrow> t" by fastforce
   hence W: "cons_fst c\<^sub>1 \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s cons_fst t\<^sub>1 \<Gamma>" by simp
-  from Y Z A have "FPop\<^sub>g c\<^sub>1 # s :\<^sub>g t\<^sub>2 \<rightarrow> t" by simp
-  with X Z W show ?case by fastforce
+  with Y have "FReturn\<^sub>g (cons_fst c\<^sub>1 \<Delta>) # s :\<^sub>g t\<^sub>2 \<rightarrow> t" by simp
+  with X W show ?case by fastforce
 qed fastforce+
 
 lemma preservation\<^sub>g_iter [simp]: "iter (\<leadsto>\<^sub>g) \<Sigma> \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>g t \<Longrightarrow> \<Sigma>' :\<^sub>g t"
@@ -334,35 +363,8 @@ next
   case (ret\<^sub>g_let \<Delta> e\<^sub>2 s c\<^sub>1)
   thus ?case by (induction rule: eval\<^sub>g.cases) simp_all 
 next
-  case (ret\<^sub>g_pop s c)
-  thus ?case by (induction rule: eval\<^sub>g.cases) simp_all 
-next
   case (ret\<^sub>g_ret \<Delta> s c)
   thus ?case by (induction rule: eval\<^sub>g.cases) simp_all 
 qed
-
-text \<open>We also redefine our let-floating predicates for our new datatype.\<close>
-
-primrec non_redex\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
-  "non_redex\<^sub>g (Var\<^sub>g x y) = True"
-| "non_redex\<^sub>g (Const\<^sub>g n) = True"
-| "non_redex\<^sub>g (Lam\<^sub>g t e n) = True"
-| "non_redex\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = False"
-| "non_redex\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = False"
-
-primrec let_free\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
-  "let_free\<^sub>g (Var\<^sub>g x y) = True"
-| "let_free\<^sub>g (Const\<^sub>g n) = True"
-| "let_free\<^sub>g (Lam\<^sub>g t e n) = True"
-| "let_free\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = (let_free\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>2)"
-| "let_free\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = False"
-
-primrec let_floated\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
-  "let_floated\<^sub>g (Var\<^sub>g x y) = True"
-| "let_floated\<^sub>g (Const\<^sub>g n) = True"
-| "let_floated\<^sub>g (Lam\<^sub>g t e n) = let_floated\<^sub>g e"
-| "let_floated\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = 
-    (let_free\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>2 \<and> non_redex\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>2)"
-| "let_floated\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = (let_free\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>2)"
 
 end

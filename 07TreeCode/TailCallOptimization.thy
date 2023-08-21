@@ -18,31 +18,26 @@ constant space, just like an imperative loop. This improvement is precisely what
 \<open>Jump\<^sub>e\<close> instruction to express.\<close>
 
 text \<open>What exactly do we change with tail-call optimization? We replace every sequence of an
-\<open>Apply\<^sub>e\<close> followed by a \<open>Return\<^sub>e\<close> with a \<open>Jump\<^sub>e\<close>, obviously. But we also can eliminate any number of 
-intervening \<open>PopEnv\<^sub>e\<close>s, since a pop followed by a return is just a return; and thanks to our 
-let-floating phase, we know that _every_ \<open>PopEnv\<^sub>e\<close> occurs just before a \<open>Return\<^sub>e\<close>, so we can 
-eliminate them all. We also eliminate certain frames from the call stack: specifically, any frame 
-that consists nothing but a sequence of \<open>PopEnv\<^sub>e\<close>s followed by a \<open>Return\<^sub>e\<close>. We mark these frames as 
+\<open>Apply\<^sub>e\<close> followed by a \<open>Return\<^sub>e\<close> with a \<open>Jump\<^sub>e\<close>, obviously. We also eliminate certain frames from the 
+call stack: specifically, any frame that consists nothing but a \<open>Return\<^sub>e\<close>. We mark these frames as 
 \<open>dead_frame\<close>s.\<close>
 
 fun dead_code :: "code\<^sub>e list \<Rightarrow> bool" where
   "dead_code [] = False"
 | "dead_code (Return\<^sub>e # \<C>) = (\<C> = [])"
-| "dead_code (PopEnv\<^sub>e # \<C>) = dead_code \<C>"
 | "dead_code (op # \<C>) = False"
 
 primrec dead_frame :: "frame\<^sub>e \<Rightarrow> bool" where
   "dead_frame (\<V>, \<C>) = dead_code \<C>"
 
-text \<open>The optimization itself is simple: we convert the code, eliminating 
-\<open>Apply\<^sub>e; PopEnv\<^sub>e ... PopEnv\<^sub>e ; Return\<^sub>e\<close>s, then map the conversion up through the levels of the state, 
-taking care to also eliminate the dead frames in the stack:\<close>
+text \<open>The optimization itself is simple: we convert the code, eliminating \<open>Apply\<^sub>e; Return\<^sub>e\<close>s, then 
+map the conversion up through the levels of the state, taking care to also eliminate the dead frames 
+in the stack:\<close>
 
 fun tco_code :: "code\<^sub>e list \<Rightarrow> code\<^sub>e list" where
   "tco_code [] = []"
 | "tco_code (Apply\<^sub>e # \<C>) = (if dead_code \<C> then [Jump\<^sub>e] else Apply\<^sub>e # tco_code \<C>)"
 | "tco_code (PushLam\<^sub>e \<C>' n # \<C>) = PushLam\<^sub>e (tco_code \<C>') n # tco_code \<C>"
-| "tco_code (PopEnv\<^sub>e # \<C>) = (if dead_code \<C> then [Return\<^sub>e] else PopEnv\<^sub>e # tco_code \<C>)"
 | "tco_code (op # \<C>) = op # tco_code \<C>"
 
 primrec tco_val :: "closure\<^sub>e \<Rightarrow> closure\<^sub>e" where
@@ -80,25 +75,6 @@ lemma dead_code_terminated [simp]: "dead_code \<C> \<Longrightarrow> properly_te
 lemma tcoed_code_terminated [simp]: "properly_terminated\<^sub>e (tco_code \<C>) = properly_terminated\<^sub>e \<C>"
   by (induction \<C> rule: tco_code.induct) simp_all
 
-fun pops_at_end :: "code\<^sub>e list \<Rightarrow> bool" where
-  "pops_at_end [] = True"
-| "pops_at_end (PushLam\<^sub>e \<C>' n # \<C>) = (pops_at_end \<C>' \<and> pops_at_end \<C>)"
-| "pops_at_end (PopEnv\<^sub>e # \<C>) = dead_code \<C>"
-| "pops_at_end (op # \<C>) = pops_at_end \<C>"
-
-lemma dead_code_has_pops_at_end [simp]: "dead_code \<C> \<Longrightarrow> pops_at_end \<C>"
-  by (induction \<C> rule: pops_at_end.induct) simp_all
-
-lemma tcoed_code_pop_free [simp]: "pop_free (tco_code \<C>) = pops_at_end \<C>"
-  by (induction \<C> rule: tco_code.induct) simp_all
-
-lemma let_floated\<^sub>d_pops_at_end' [simp]: "pops_at_end \<C> \<Longrightarrow> let_floated\<^sub>g e \<Longrightarrow> 
-    (\<not>let_free\<^sub>g e \<Longrightarrow> dead_code \<C>) \<Longrightarrow> pops_at_end (encode' e @ \<C>)"
-  by (induction e arbitrary: \<C>) simp_all
-
-lemma let_floated\<^sub>d_pops_at_end [simp]: "let_floated\<^sub>g e \<Longrightarrow> pops_at_end (encode e)"
-  by (simp add: encode_def)
-
 text \<open>We will of course prove that tail-call removal is semantics-preserving, but we will not 
 formally prove that it really is "an optimization". Instead, we will prove some much simpler results 
 that indicate _why_ it is an optimization, and gesture towards what a full proof would need to 
@@ -125,13 +101,12 @@ theorem tco_always_smaller_stack [simp]: "
   by (induction \<Sigma>) simp_all
 
 text \<open>Correctness is the easier proof for this pass. First off, we need some auxiliary functions to 
-express that no \<open>PushLam\<^sub>e\<close> contains code for a dead frame, that all \<open>PopEnv\<^sub>e\<close>s precede a \<open>Return\<^sub>e\<close>, 
-and that every return is a \<open>Return\<^sub>e\<close> (as will always be the case, pre-optimization).\<close>
+express that no \<open>PushLam\<^sub>e\<close> contains code for a dead frame and that every return is a \<open>Return\<^sub>e\<close> (as 
+will always be the case, pre-optimization).\<close>
 
 fun complete_lams :: "code\<^sub>e list \<Rightarrow> bool" where
   "complete_lams [] = False"
 | "complete_lams (PushLam\<^sub>e \<C>' n # \<C>) = (\<not> dead_code \<C>' \<and> complete_lams \<C>' \<and> complete_lams \<C>)"
-| "complete_lams (PopEnv\<^sub>e # \<C>) = dead_code \<C>"
 | "complete_lams (Return\<^sub>e # \<C>) = (\<C> = [])"
 | "complete_lams (Jump\<^sub>e # \<C>) = False"
 | "complete_lams (op # \<C>) = complete_lams \<C>"
@@ -293,21 +268,6 @@ next
       by (metis iter_one)
     with False show ?thesis by simp
   qed
-next
-  case (ev\<^sub>e_popenv \<Delta> \<V> v \<C> s)
-  thus ?case
-  proof (cases "dead_code \<C>")
-    case False
-    from ev\<^sub>e_popenv have "S\<^sub>e (map tco_val \<V>) ((cons_fst (tco_val v) (map (map tco_val) \<Delta>), 
-      PopEnv\<^sub>e # tco_code \<C>) # tco_stack s) \<leadsto>\<^sub>e
-        S\<^sub>e (map tco_val \<V>) ((map (map tco_val) \<Delta>, tco_code \<C>) # tco_stack s)" 
-      by (simp add: list.pred_map)
-    hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e (map tco_val \<V>) ((cons_fst (tco_val v) (map (map tco_val) \<Delta>), PopEnv\<^sub>e # 
-      tco_code \<C>) # tco_stack s)) 
-        (S\<^sub>e (map tco_val \<V>) ((map (map tco_val) \<Delta>, tco_code \<C>) # tco_stack s))" 
-      by (metis iter_one)
-    with False show ?thesis by simp
-  qed simp_all
 qed simp_all
 
 lemma correctness\<^sub>t\<^sub>c\<^sub>o_iter: "iter (\<leadsto>\<^sub>e) \<Sigma> \<Sigma>' \<Longrightarrow> complete_lams_state \<Sigma> \<Longrightarrow> 
