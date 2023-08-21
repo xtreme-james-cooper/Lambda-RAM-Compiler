@@ -134,16 +134,14 @@ next
   with S show ?case by (simp add: encode_def)
 next
   case (ret\<^sub>g_let \<Delta> e\<^sub>2 s\<^sub>g c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where "latest_environment\<^sub>g s\<^sub>g = Some \<Delta> \<and> (\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
-    (cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> (s\<^sub>g :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (c\<^sub>1 :\<^sub>g\<^sub>c\<^sub>l t\<^sub>1)" by blast
-  then obtain \<C> s\<^sub>e where S: "stack_from_stack s\<^sub>g = (map (map encode_closure) \<Delta>, \<C>) # s\<^sub>e" by auto
   have "iter (\<leadsto>\<^sub>e)
     (S\<^sub>e (encode_closure c\<^sub>1 # vals_from_stack s\<^sub>g)
-      ((map (map encode_closure) \<Delta>, PushEnv\<^sub>e # encode' e\<^sub>2 @ \<C>) # s\<^sub>e))
+      ((map (map encode_closure) \<Delta>, PushEnv\<^sub>e # encode' e\<^sub>2 @ [Return\<^sub>e]) # stack_from_stack s\<^sub>g))
     (S\<^sub>e (vals_from_stack s\<^sub>g)
-      ((cons_fst (encode_closure c\<^sub>1) (map (map encode_closure) \<Delta>), encode' e\<^sub>2 @ \<C>) # s\<^sub>e))" 
+      ((cons_fst (encode_closure c\<^sub>1) (map (map encode_closure) \<Delta>), encode' e\<^sub>2 @ [Return\<^sub>e]) # 
+      stack_from_stack s\<^sub>g))" 
     by (metis ev\<^sub>e_pushenv iter_one)
-  with S show ?case by simp
+  thus ?case by simp
 next
   case (ret\<^sub>g_ret \<Delta> s\<^sub>g c)
   have "S\<^sub>e (encode_closure c # vals_from_stack s\<^sub>g) ((map (map encode_closure) \<Delta>, [Return\<^sub>e]) # 
@@ -191,21 +189,22 @@ lemma stack_from_tail_expr [simp]: "stack_from_stack (tail_expr \<Delta> e @ s\<
     prepend_to_top_frame (tl (encode' e)) (stack_from_stack s\<^sub>g)"
   by (induction e arbitrary: s\<^sub>g) simp_all
 
-lemma evaluate_to_head_tail [simp]: "
-  iter (\<leadsto>\<^sub>g) (SE\<^sub>g s \<Delta> e) (SE\<^sub>g (tail_expr \<Delta> e @ s) \<Delta> (head_expr e))"
+lemma evaluate_to_head_tail [simp]: "let_floated\<^sub>g e \<Longrightarrow> let_free\<^sub>g e \<or> return_headed\<^sub>g s \<Longrightarrow>
+  latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> 
+    iter (\<leadsto>\<^sub>g) (SE\<^sub>g s \<Delta> e) (SE\<^sub>g (tail_expr \<Delta> e @ s) \<Delta> (head_expr e))"
 proof (induction e arbitrary: s)
   case (App\<^sub>g e\<^sub>1 e\<^sub>2)
+  hence "iter (\<leadsto>\<^sub>g) (SE\<^sub>g (FApp1\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1) 
+    (SE\<^sub>g (tail_expr \<Delta> e\<^sub>1 @ FApp1\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> (head_expr e\<^sub>1))" by simp
   moreover have "SE\<^sub>g s \<Delta> (App\<^sub>g e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FApp1\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1" by simp
   ultimately have "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s \<Delta> (App\<^sub>g e\<^sub>1 e\<^sub>2))
     (SE\<^sub>g (tail_expr \<Delta> e\<^sub>1 @ FApp1\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> (head_expr e\<^sub>1))" 
       by (metis iter_step)
-    thus ?case by simp
+  thus ?case by simp
 next
   case (Let\<^sub>g e1 e2)
-  moreover have "SE\<^sub>g s \<Delta> (Let\<^sub>g e1 e2) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta> e2 # s) \<Delta> e1" by simp
-  ultimately have "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s \<Delta> (Let\<^sub>g e1 e2)) 
-    (SE\<^sub>g (tail_expr \<Delta> e1 @ FLet\<^sub>g \<Delta> e2 # s) \<Delta> (head_expr e1))" by (metis iter_step)
-  then show ?case by simp
+  moreover hence "SE\<^sub>g s \<Delta> (Let\<^sub>g e1 e2) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta> e2 # s) \<Delta> e1" by auto
+  ultimately show ?case by simp
 qed simp_all
 
 text \<open>We now reconstruct encodings, stack-encodings, and state-encodings:\<close>
@@ -389,20 +388,24 @@ theorem complete\<^sub>e [simp]: "encode_state \<Sigma>\<^sub>g \<leadsto>\<^sub
 proof (induction "encode_state \<Sigma>\<^sub>g" \<Sigma>\<^sub>t' rule: eval\<^sub>e.induct)
   case (ev\<^sub>e_lookup \<Delta>\<^sub>e x vs y v \<V> \<C> s\<^sub>e)
   hence X: "encode_state \<Sigma>\<^sub>g = S\<^sub>e \<V> ((\<Delta>\<^sub>e, Lookup\<^sub>e x y # \<C>) # s\<^sub>e)" by simp
-  from X ev\<^sub>e_lookup(1, 3) show ?case
+  from X ev\<^sub>e_lookup show ?case
   proof (induction rule: encode_state_to_lookup)
     case (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e \<C>')
-    have X: "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) \<Delta>\<^sub>g (head_expr e))" by simp
+    hence "latest_environment\<^sub>g s\<^sub>g = Some \<Delta>\<^sub>g \<and> let_floated\<^sub>g e \<and> (let_free\<^sub>g e \<or> return_headed\<^sub>g s\<^sub>g)"
+      by blast
+    hence X: "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) \<Delta>\<^sub>g (head_expr e))" 
+      by simp
     from SE\<^sub>g obtain cs c where C: "lookup \<Delta>\<^sub>g x = Some cs \<and> lookup cs y = Some c \<and> 
       encode_closure c = v" by fastforce
     with X SE\<^sub>g have "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SC\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) c)" by simp
     with SE\<^sub>g C show ?case by auto
   next
     case (SC\<^sub>g s\<^sub>g c \<Delta>\<^sub>g e \<C>')
-    moreover have "iter (\<leadsto>\<^sub>g) (SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e) 
+    hence "latest_environment\<^sub>g s\<^sub>g = Some \<Delta>\<^sub>g \<and> let_floated\<^sub>g e \<and> let_free\<^sub>g e" by blast
+    hence I: "iter (\<leadsto>\<^sub>g) (SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e) 
       (SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g (head_expr e))" by simp
-    moreover have "SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e" by simp
-    ultimately have X: "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c) 
+    have "SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e" by simp
+    with SC\<^sub>g I have X: "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c) 
       (SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g (Var\<^sub>g x y))" by (metis iter_step)
     from SC\<^sub>g obtain cs c' where C: "lookup \<Delta>\<^sub>g x = Some cs \<and> lookup cs y = Some c' \<and> 
       encode_closure c' = v" by fastforce
@@ -416,17 +419,20 @@ next
   from X ev\<^sub>e_pushcon(2) show ?case
   proof (induction rule: encode_state_to_pushcon)
     case (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e \<C>')
-    moreover have "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) \<Delta>\<^sub>g (head_expr e))" by simp
-    ultimately have "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SC\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) (Num\<^sub>g n))" by simp
+    hence "latest_environment\<^sub>g s\<^sub>g = Some \<Delta>\<^sub>g \<and> let_floated\<^sub>g e \<and> (let_free\<^sub>g e \<or> return_headed\<^sub>g s\<^sub>g)"
+      by blast
+    hence "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) \<Delta>\<^sub>g (head_expr e))" by simp
+    with SE\<^sub>g have "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SC\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) (Num\<^sub>g n))" by simp
     with SE\<^sub>g show ?case by auto
   next
     case (SC\<^sub>g s\<^sub>g c \<Delta>\<^sub>g e \<C>')
-    moreover have "iter (\<leadsto>\<^sub>g) (SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e) 
+    hence "latest_environment\<^sub>g s\<^sub>g = Some \<Delta>\<^sub>g \<and> let_floated\<^sub>g e \<and> let_free\<^sub>g e" by blast
+    hence X: "iter (\<leadsto>\<^sub>g) (SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e) 
       (SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g (head_expr e))" by simp
-    moreover have "SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e" by simp
-    moreover have "SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g (Const\<^sub>g n) \<leadsto>\<^sub>g 
+    have Y: "SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e" by simp
+    have "SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g (Const\<^sub>g n) \<leadsto>\<^sub>g 
       SC\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) (Num\<^sub>g n)" by simp
-    ultimately have "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c)
+    with SC\<^sub>g X Y have "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c)
       (SC\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) (Num\<^sub>g n))" 
         by (metis iter_step iter_step_after)
     with SC\<^sub>g show ?case by auto
@@ -437,21 +443,24 @@ next
   from X ev\<^sub>e_pushlam(2) show ?case
   proof (induction rule: encode_state_to_pushlam)
     case (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e tt e' \<C>'')
-    moreover have "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) \<Delta>\<^sub>g (head_expr e))" by simp
-    moreover have "SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) \<Delta>\<^sub>g (Lam\<^sub>g tt e' n) \<leadsto>\<^sub>g 
+    hence "latest_environment\<^sub>g s\<^sub>g = Some \<Delta>\<^sub>g \<and> let_floated\<^sub>g e \<and> (let_free\<^sub>g e \<or> return_headed\<^sub>g s\<^sub>g)"
+      by blast
+    hence X: "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) \<Delta>\<^sub>g (head_expr e))" by simp
+    have "SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) \<Delta>\<^sub>g (Lam\<^sub>g tt e' n) \<leadsto>\<^sub>g 
       SC\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) (Fun\<^sub>g tt \<Delta>\<^sub>g e' n)" by simp
-    ultimately have E: "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SC\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) (Fun\<^sub>g tt \<Delta>\<^sub>g e' n))"
+    with SE\<^sub>g X have E: "iter (\<leadsto>\<^sub>g) (SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e) (SC\<^sub>g (tail_expr \<Delta>\<^sub>g e @ s\<^sub>g) (Fun\<^sub>g tt \<Delta>\<^sub>g e' n))"
       by (metis iter_step_after)
     from SE\<^sub>g have "\<Delta>\<^sub>e = map (map encode_closure) \<Delta>\<^sub>g" by fastforce
     with SE\<^sub>g E show ?case by auto
   next
     case (SC\<^sub>g s\<^sub>g c \<Delta>\<^sub>g e tt e' \<C>'')
-    moreover have "iter (\<leadsto>\<^sub>g) (SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e) 
+    hence "latest_environment\<^sub>g s\<^sub>g = Some \<Delta>\<^sub>g \<and> let_floated\<^sub>g e \<and> let_free\<^sub>g e" by blast
+    hence X: "iter (\<leadsto>\<^sub>g) (SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e) 
       (SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g (head_expr e))" by simp
-    moreover have "SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e" by simp
-    moreover have "SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g (Lam\<^sub>g tt e' n) \<leadsto>\<^sub>g 
+    have Y: "SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g e" by simp
+    have "SE\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) \<Delta>\<^sub>g (Lam\<^sub>g tt e' n) \<leadsto>\<^sub>g 
       SC\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) (Fun\<^sub>g tt \<Delta>\<^sub>g e' n)" by simp
-    ultimately have E: "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c) 
+    with SC\<^sub>g X Y have E: "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g) c) 
       (SC\<^sub>g (tail_expr \<Delta>\<^sub>g e @ FApp2\<^sub>g c # s\<^sub>g) (Fun\<^sub>g tt \<Delta>\<^sub>g e' n))" 
         by (metis iter_step iter_step_after)
     from SC\<^sub>g have "\<Delta>\<^sub>e = map (map encode_closure) \<Delta>\<^sub>g" by fastforce
@@ -476,12 +485,15 @@ next
   hence "encode_state \<Sigma>\<^sub>g = S\<^sub>e (v # \<V>) ((\<Delta>\<^sub>e, PushEnv\<^sub>e # \<C>) # s\<^sub>e)" by simp
   then obtain c s\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g c \<and> v = encode_closure c \<and> \<V> = vals_from_stack s\<^sub>g \<and> 
     stack_from_stack s\<^sub>g = (\<Delta>\<^sub>e, PushEnv\<^sub>e # \<C>) # s\<^sub>e" by auto
-  then obtain s\<^sub>g' \<Delta>\<^sub>g e \<C>' where S':  "s\<^sub>g = FLet\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g' \<and> \<C> = encode' e @ PopEnv\<^sub>e # \<C>' \<and> 
+  then obtain s\<^sub>g' \<Delta>\<^sub>g e \<C>' where S': "s\<^sub>g = FLet\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g' \<and> \<C> = encode' e @ \<C>' \<and> 
     stack_from_stack s\<^sub>g' = (\<Delta>\<^sub>e, \<C>') # s\<^sub>e" by auto
-  have "SC\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g') c \<leadsto>\<^sub>g SE\<^sub>g (FPop\<^sub>g c # s\<^sub>g') (cons_fst c \<Delta>\<^sub>g) e" by simp
-  hence "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g') c) (SE\<^sub>g (FPop\<^sub>g c # s\<^sub>g') (cons_fst c \<Delta>\<^sub>g) e)" 
-    by (metis iter_one)
-  with S S' show ?case by auto
+  from ev\<^sub>e_pushenv S S' have "return_headed\<^sub>g s\<^sub>g' \<and> latest_environment\<^sub>g s\<^sub>g' = Some \<Delta>\<^sub>g" by blast
+  then obtain s\<^sub>g'' where S'': "s\<^sub>g' = FReturn\<^sub>g \<Delta>\<^sub>g # s\<^sub>g''" by auto
+  hence "SC\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g') c \<leadsto>\<^sub>g SE\<^sub>g (FReturn\<^sub>g (cons_fst c \<Delta>\<^sub>g) # s\<^sub>g'') (cons_fst c \<Delta>\<^sub>g) e" 
+    by auto
+  hence "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g') c) 
+    (SE\<^sub>g (FReturn\<^sub>g (cons_fst c \<Delta>\<^sub>g) # s\<^sub>g'') (cons_fst c \<Delta>\<^sub>g) e)" by (metis iter_one)
+  with S S' S'' show ?case by auto
 next
   case (ev\<^sub>e_return \<V> \<Delta>\<^sub>e \<C> s\<^sub>e)
   hence "encode_state \<Sigma>\<^sub>g = S\<^sub>e \<V> ((\<Delta>\<^sub>e, Return\<^sub>e # \<C>) # s\<^sub>e)" by simp
