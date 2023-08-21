@@ -62,14 +62,45 @@ primrec let_floated\<^sub>d :: "expr\<^sub>d \<Rightarrow> bool" where
     (let_free\<^sub>d e\<^sub>1 \<and> let_free\<^sub>d e\<^sub>2 \<and> (is_var\<^sub>d e\<^sub>1 \<or> value\<^sub>d e\<^sub>1) \<and> let_floated\<^sub>d e\<^sub>1 \<and> let_floated\<^sub>d e\<^sub>2)"
 | "let_floated\<^sub>d (Let\<^sub>d e\<^sub>1 e\<^sub>2) = (let_free\<^sub>d e\<^sub>1 \<and> let_floated\<^sub>d e\<^sub>1 \<and> let_floated\<^sub>d e\<^sub>2)"
 
-lemma is_var\<^sub>d\<^sub>d_val [simp]: "value\<^sub>d e \<Longrightarrow> \<not>is_var\<^sub>d e"
+lemma is_var\<^sub>d_val [simp]: "value\<^sub>d e \<Longrightarrow> \<not>is_var\<^sub>d e"
   by (induction e) simp_all
 
-lemma is_var\<^sub>d\<^sub>d_incr [simp]: "is_var\<^sub>d (incr\<^sub>d x e) = is_var\<^sub>d e"
+lemma is_var\<^sub>d_incr [simp]: "is_var\<^sub>d (incr\<^sub>d x e) = is_var\<^sub>d e"
   by (induction e) simp_all
 
-lemma is_var\<^sub>d\<^sub>d_subst [simp]: "value\<^sub>d v \<Longrightarrow> is_var\<^sub>d (subst\<^sub>d x v e) = (\<exists>y. e = Var\<^sub>d y \<and> x \<noteq> y)"
+lemma is_var\<^sub>d_subst [simp]: "value\<^sub>d v \<Longrightarrow> is_var\<^sub>d (subst\<^sub>d x v e) = (\<exists>y. e = Var\<^sub>d y \<and> x \<noteq> y)"
   by (induction e) simp_all
+
+lemma let_free_val [simp]: "value\<^sub>d e \<Longrightarrow> let_free\<^sub>d e"
+  by (induction e) simp_all
+
+lemma let_free_incr [simp]: "let_free\<^sub>d (incr\<^sub>d x e) = let_free\<^sub>d e"
+  by (induction e arbitrary: x) simp_all
+
+lemma incr_let_free\<^sub>d_map [simp]: "list_all let_free\<^sub>d (map (incr\<^sub>d x) es) = list_all let_free\<^sub>d es"
+  by (induction es) simp_all
+
+lemma let_free_subst [simp]: "value\<^sub>d v \<Longrightarrow> let_free\<^sub>d (subst\<^sub>d x v e) = let_free\<^sub>d e"
+  by (induction e arbitrary: x) simp_all
+
+lemma let_free_multisubst [simp]: "list_all value\<^sub>d vs \<Longrightarrow> 
+    let_free\<^sub>d (multisubst' x vs e) = let_free\<^sub>d e"
+  by (induction vs arbitrary: e) simp_all
+
+lemma let_floated_incr [simp]: "let_floated\<^sub>d (incr\<^sub>d x e) = let_floated\<^sub>d e"
+  by (induction e arbitrary: x) simp_all
+
+lemma incr_let_floated\<^sub>d_map [simp]: "list_all let_floated\<^sub>d (map (incr\<^sub>d x) es) = 
+    list_all let_floated\<^sub>d es"
+  by (induction es) simp_all
+
+lemma let_floated_subst [simp]: "value\<^sub>d v \<Longrightarrow> let_floated\<^sub>d v \<Longrightarrow> 
+    let_floated\<^sub>d (subst\<^sub>d x v e) = let_floated\<^sub>d e"
+  by (induction e arbitrary: x v) (simp_all split: expr\<^sub>d.splits)
+
+lemma let_floated_multisubst [simp]: "list_all value\<^sub>d vs \<Longrightarrow> list_all let_floated\<^sub>d vs \<Longrightarrow>
+    let_floated\<^sub>d (multisubst' x vs e) = let_floated\<^sub>d e"
+  by (induction vs arbitrary: e) simp_all
 
 text \<open>Then, the let-floating transformation itself. We have to define a multiple-increment function
 to make sure the variables match properly.\<close>
@@ -103,7 +134,7 @@ lemma multiincr_plus [simp]: "multiincr n k (multiincr k 0 e) = multiincr k 0 (m
 lemma multiincr_val [simp]: "value\<^sub>d (multiincr x y e) = value\<^sub>d e"
   by (induction x) simp_all
 
-lemma is_var\<^sub>d\<^sub>d_multiincr [simp]: "is_var\<^sub>d (multiincr x y e) = is_var\<^sub>d e"
+lemma is_var\<^sub>d_multiincr [simp]: "is_var\<^sub>d (multiincr x y e) = is_var\<^sub>d e"
   by (induction x) simp_all
 
 lemma incr_multiincr_higher: "incr\<^sub>d y (multiincr x y e) = incr\<^sub>d (x + y) (multiincr x y e)"
@@ -229,21 +260,8 @@ primrec float_lets :: "expr\<^sub>d \<Rightarrow> expr\<^sub>d" where
     in reapply_lets es\<^sub>1 
           (Let\<^sub>d (inner_expr (float_lets e\<^sub>1)) (multiincr (length es\<^sub>1) 1 (float_lets e\<^sub>2))))"
 
-lemma incr_let_free\<^sub>d [simp]: "let_free\<^sub>d (incr\<^sub>d x e) = let_free\<^sub>d e"
-  by (induction e arbitrary: x) simp_all
-
-lemma incr_let_free\<^sub>d_map [simp]: "list_all let_free\<^sub>d (map (incr\<^sub>d x) es) = list_all let_free\<^sub>d es"
-  by (induction es) simp_all
-
 lemma multiincr_let_free\<^sub>d [simp]: "let_free\<^sub>d (multiincr x y e) = let_free\<^sub>d e"
   by (induction x) simp_all
-
-lemma incr_let_floated\<^sub>d [simp]: "let_floated\<^sub>d (incr\<^sub>d x e) = let_floated\<^sub>d e"
-  by (induction e arbitrary: x) simp_all
-
-lemma incr_let_floated\<^sub>d_map [simp]: "list_all let_floated\<^sub>d (map (incr\<^sub>d x) es) = 
-    list_all let_floated\<^sub>d es"
-  by (induction es) simp_all
 
 lemma multiincr_let_floated\<^sub>d [simp]: "let_floated\<^sub>d (multiincr x y e) = let_floated\<^sub>d e"
   by (induction x) simp_all

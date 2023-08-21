@@ -1,5 +1,5 @@
 theory Closure
-  imports "../03Debruijn/DebruijnIndices" "../00Utils/Iteration"
+  imports "../03Debruijn/LetFloating" "../00Utils/Iteration"
 begin
 
 section \<open>Closures\<close>
@@ -31,7 +31,8 @@ argument.\<close>
 inductive typing_closure\<^sub>c :: "closure\<^sub>c \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>c\<^sub>l" 50)
       and typing_environment\<^sub>c :: "closure\<^sub>c list \<Rightarrow> ty list \<Rightarrow> bool" (infix ":\<^sub>c\<^sub>l\<^sub>s" 50) where
   tc\<^sub>c_const [simp]: "Const\<^sub>c n :\<^sub>c\<^sub>l Num"
-| tc\<^sub>c_lam [simp]: "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>2 \<Longrightarrow> Lam\<^sub>c t\<^sub>1 \<Delta> e :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2"
+| tc\<^sub>c_lam [simp]: "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>2 \<Longrightarrow> let_floated\<^sub>d e \<Longrightarrow> 
+    Lam\<^sub>c t\<^sub>1 \<Delta> e :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2"
 | tc\<^sub>c_nil [simp]: "[] :\<^sub>c\<^sub>l\<^sub>s []"
 | tc\<^sub>c_cons [simp]: "c :\<^sub>c\<^sub>l t \<Longrightarrow> \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> c # \<Delta> :\<^sub>c\<^sub>l\<^sub>s t # \<Gamma>"
 
@@ -65,7 +66,6 @@ datatype frame\<^sub>c =
   FApp1\<^sub>c "closure\<^sub>c list" expr\<^sub>d
   | FApp2\<^sub>c closure\<^sub>c
   | FLet\<^sub>c "closure\<^sub>c list" expr\<^sub>d
-  | FPop\<^sub>c closure\<^sub>c
   | FReturn\<^sub>c "closure\<^sub>c list"
 
 fun latest_environment\<^sub>c :: "frame\<^sub>c list \<rightharpoonup> closure\<^sub>c list" where
@@ -73,8 +73,14 @@ fun latest_environment\<^sub>c :: "frame\<^sub>c list \<rightharpoonup> closure\
 | "latest_environment\<^sub>c (FApp1\<^sub>c \<Delta> e # s) = latest_environment\<^sub>c s"
 | "latest_environment\<^sub>c (FApp2\<^sub>c c # s) = latest_environment\<^sub>c s"
 | "latest_environment\<^sub>c (FLet\<^sub>c \<Delta> e # s) = latest_environment\<^sub>c s"
-| "latest_environment\<^sub>c (FPop\<^sub>c c # s) = map_option ((#) c) (latest_environment\<^sub>c s)"
 | "latest_environment\<^sub>c (FReturn\<^sub>c \<Delta> # s) = Some \<Delta>"
+
+fun return_headed\<^sub>c :: "frame\<^sub>c list \<Rightarrow> bool" where
+  "return_headed\<^sub>c (FReturn\<^sub>c \<Delta> # s) = True"
+| "return_headed\<^sub>c s = False"
+
+lemma return_headed_elim [dest]: "return_headed\<^sub>c s \<Longrightarrow> \<exists>s' \<Delta>. s = FReturn\<^sub>c \<Delta> # s'"
+  by (cases s rule: return_headed\<^sub>c.cases) simp_all
 
 text \<open>Typing a stack is about the same as it was last time, given the changes to the frames. But 
 there are a couple of points that might seem unnecessary: we check that the latest environment 
@@ -86,21 +92,19 @@ extra structure guaranteed by these checks will be useful in the next stage.\<cl
 
 inductive typing_stack\<^sub>c :: "frame\<^sub>c list \<Rightarrow> ty \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>c _ \<rightarrow>" 50) where
   tcc_snil [simp]: "[] :\<^sub>c t \<rightarrow> t"
-| tcc_scons_app1 [simp]: "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>1 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> 
-    latest_environment\<^sub>c s = Some \<Delta> \<Longrightarrow> FApp1\<^sub>c \<Delta> e # s :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
+| tcc_scons_app1 [simp]: "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>1 \<Longrightarrow> let_floated\<^sub>d e \<Longrightarrow> let_free\<^sub>d e \<Longrightarrow> 
+    s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> latest_environment\<^sub>c s = Some \<Delta> \<Longrightarrow> FApp1\<^sub>c \<Delta> e # s :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"
 | tcc_scons_app2 [simp]: "c :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> latest_environment\<^sub>c s \<noteq> None \<Longrightarrow> 
     FApp2\<^sub>c c # s :\<^sub>c t\<^sub>1 \<rightarrow> t"
 | tcc_scons_let [simp]: "latest_environment\<^sub>c s = Some \<Delta> \<Longrightarrow> \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> 
-    insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>2 \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> FLet\<^sub>c \<Delta> e # s :\<^sub>c t\<^sub>1 \<rightarrow> t"
-| tcc_scons_pop [simp]: "latest_environment\<^sub>c s \<noteq> None \<Longrightarrow> c :\<^sub>c\<^sub>l tt \<Longrightarrow> s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> 
-    FPop\<^sub>c c # s :\<^sub>c t' \<rightarrow> t"
+    insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e : t\<^sub>2 \<Longrightarrow> let_floated\<^sub>d e \<Longrightarrow> s :\<^sub>c t\<^sub>2 \<rightarrow> t \<Longrightarrow> return_headed\<^sub>c s \<Longrightarrow> 
+    FLet\<^sub>c \<Delta> e # s :\<^sub>c t\<^sub>1 \<rightarrow> t"
 | tcc_scons_ret [simp]: "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>c \<Delta> # s :\<^sub>c t' \<rightarrow> t"
 
 inductive_cases [elim]: "[] :\<^sub>c t' \<rightarrow> t"
 inductive_cases [elim]: "FApp1\<^sub>c \<Delta> e # s :\<^sub>c t' \<rightarrow> t"
 inductive_cases [elim]: "FApp2\<^sub>c c # s :\<^sub>c t' \<rightarrow> t"
 inductive_cases [elim]: "FLet\<^sub>c \<Delta> e # s :\<^sub>c t' \<rightarrow> t"
-inductive_cases [elim]: "FPop\<^sub>c c # s :\<^sub>c t' \<rightarrow> t"
 inductive_cases [elim]: "FReturn\<^sub>c \<Delta> # s :\<^sub>c t' \<rightarrow> t"
 
 text \<open>The evaluation state has also been complicated a little. Because expressions and 
@@ -121,7 +125,7 @@ consistency check that will be useful to us later.\<close>
 
 inductive typecheck_state\<^sub>c :: "state\<^sub>c \<Rightarrow> ty \<Rightarrow> bool" (infix ":\<^sub>c" 50) where
   tcc_state_ev [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> latest_environment\<^sub>c s = Some \<Delta> \<Longrightarrow> 
-    \<Gamma> \<turnstile>\<^sub>d e : t' \<Longrightarrow> SE\<^sub>c s \<Delta> e :\<^sub>c t"
+    \<Gamma> \<turnstile>\<^sub>d e : t' \<Longrightarrow> let_floated\<^sub>d e \<Longrightarrow> let_free\<^sub>d e \<or> return_headed\<^sub>c s \<Longrightarrow> SE\<^sub>c s \<Delta> e :\<^sub>c t"
 | tcc_state_ret [simp]: "s :\<^sub>c t' \<rightarrow> t \<Longrightarrow> c :\<^sub>c\<^sub>l t' \<Longrightarrow> SC\<^sub>c s c :\<^sub>c t"
 
 inductive_cases [elim]: "SE\<^sub>c s \<Delta> e :\<^sub>c t"
@@ -129,23 +133,23 @@ inductive_cases [elim]: "SC\<^sub>c s c :\<^sub>c t"
 
 text \<open>Evaluation now makes use of the environments, shuffling them between the state environment 
 slot and the stack frames, and looking up variables in them as appropriate. (Although the state as a 
-whole has no free variables, for the first time the expression under examination might.)\<close>
+whole has no free variables, for the first time, the expression under examination might.)\<close>
 
 inductive eval\<^sub>c :: "state\<^sub>c \<Rightarrow> state\<^sub>c \<Rightarrow> bool" (infix "\<leadsto>\<^sub>c" 50) where
   ev\<^sub>c_var [simp]: "lookup \<Delta> x = Some c \<Longrightarrow> SE\<^sub>c s \<Delta> (Var\<^sub>d x) \<leadsto>\<^sub>c SC\<^sub>c s c"
 | ev\<^sub>c_con [simp]: "SE\<^sub>c s \<Delta> (Const\<^sub>d n) \<leadsto>\<^sub>c SC\<^sub>c s (Const\<^sub>c n)"
 | ev\<^sub>c_lam [simp]: "SE\<^sub>c s \<Delta> (Lam\<^sub>d t e) \<leadsto>\<^sub>c SC\<^sub>c s (Lam\<^sub>c t \<Delta> e)"
 | ev\<^sub>c_app [simp]: "SE\<^sub>c s \<Delta> (App\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>c SE\<^sub>c (FApp1\<^sub>c \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1"
-| ev\<^sub>c_let [simp]: "SE\<^sub>c s \<Delta> (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>c SE\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1"
+| ev\<^sub>c_let [simp]: "SE\<^sub>c (FReturn\<^sub>c \<Delta> # s) \<Delta> (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>c SE\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2 # FReturn\<^sub>c \<Delta> # s) \<Delta> e\<^sub>1"
 | ret\<^sub>c_app1 [simp]: "SC\<^sub>c (FApp1\<^sub>c \<Delta> e\<^sub>2 # s) c\<^sub>1 \<leadsto>\<^sub>c SE\<^sub>c (FApp2\<^sub>c c\<^sub>1 # s) \<Delta> e\<^sub>2"
 | ret\<^sub>c_app2 [simp]: "SC\<^sub>c (FApp2\<^sub>c (Lam\<^sub>c t \<Delta> e\<^sub>1) # s) c\<^sub>2 \<leadsto>\<^sub>c SE\<^sub>c (FReturn\<^sub>c (c\<^sub>2 # \<Delta>) # s) (c\<^sub>2 # \<Delta>) e\<^sub>1"
-| ret\<^sub>c_let [simp]: "SC\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2 # s) c\<^sub>1 \<leadsto>\<^sub>c SE\<^sub>c (FPop\<^sub>c c\<^sub>1 # s) (c\<^sub>1 # \<Delta>) e\<^sub>2"
-| ret\<^sub>c_pop [simp]: "SC\<^sub>c (FPop\<^sub>c c' # s) c \<leadsto>\<^sub>c SC\<^sub>c s c"
+| ret\<^sub>c_let [simp]: "SC\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2 # FReturn\<^sub>c \<Delta> # s) c\<^sub>1 \<leadsto>\<^sub>c SE\<^sub>c (FReturn\<^sub>c (c\<^sub>1 # \<Delta>) # s) (c\<^sub>1 # \<Delta>) e\<^sub>2"
 | ret\<^sub>c_ret [simp]: "SC\<^sub>c (FReturn\<^sub>c \<Delta> # s) c \<leadsto>\<^sub>c SC\<^sub>c s c"
 
 text \<open>And the safety theorems:\<close>
 
-lemma eval\<^sub>c_from_nonvalue [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<exists>\<Sigma>'. SE\<^sub>c s \<Delta> e \<leadsto>\<^sub>c \<Sigma>'"
+lemma eval\<^sub>c_from_nonvalue [simp]: "\<Gamma> \<turnstile>\<^sub>d e : t \<Longrightarrow> let_free\<^sub>d e \<or> return_headed\<^sub>c s \<Longrightarrow> \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> 
+  latest_environment\<^sub>c s = Some \<Delta> \<Longrightarrow> \<exists>\<Sigma>'. SE\<^sub>c s \<Delta> e \<leadsto>\<^sub>c \<Sigma>'"
 proof (induction \<Gamma> e t rule: typing\<^sub>d.induct)
   case (tc\<^sub>d_var \<Gamma> x t)
   then obtain c where "lookup \<Delta> x = Some c \<and> c :\<^sub>c\<^sub>l t" by fastforce
@@ -165,7 +169,8 @@ next
   thus ?case by fastforce
 next
   case (tc\<^sub>d_let \<Gamma> e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
-  have "SE\<^sub>c s \<Delta> (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>c SE\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1" by simp
+  then obtain s' where "s = FReturn\<^sub>c \<Delta> # s'" by auto
+  hence "SE\<^sub>c s \<Delta> (Let\<^sub>d e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>c SE\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1" by simp
   thus ?case by fastforce
 qed
 
@@ -182,12 +187,10 @@ next
   ultimately show ?case by fastforce
 next
   case (tcc_scons_let s \<Delta> \<Gamma> t\<^sub>1 e t\<^sub>2 t)
-  have "SC\<^sub>c (FLet\<^sub>c \<Delta> e # s) c \<leadsto>\<^sub>c SE\<^sub>c (FPop\<^sub>c c # s) (c # \<Delta>) e" by simp
-  thus ?case by fastforce
-next
-  case (tcc_scons_pop s c' \<Gamma> t' t)
-  have "SC\<^sub>c (FPop\<^sub>c c' # s) c \<leadsto>\<^sub>c SC\<^sub>c s c" by simp
-  thus ?case by fastforce
+  then obtain s' where S: "s = FReturn\<^sub>c \<Delta> # s'" by auto
+  moreover have "SC\<^sub>c (FLet\<^sub>c \<Delta> e # FReturn\<^sub>c \<Delta> # s') c \<leadsto>\<^sub>c SE\<^sub>c (FReturn\<^sub>c (c # \<Delta>) # s') (c # \<Delta>) e" 
+    by simp
+  ultimately show ?case by fastforce
 next
   case (tcc_scons_ret \<Delta> \<Gamma> s t' t)
   have "SC\<^sub>c (FReturn\<^sub>c \<Delta> # s) c \<leadsto>\<^sub>c SC\<^sub>c s c" by simp
@@ -209,34 +212,37 @@ proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>c.induct)
 next
   case (ev\<^sub>c_app s \<Delta> e\<^sub>1 e\<^sub>2)
   then obtain t\<^sub>1 t\<^sub>2 \<Gamma> where "(s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (\<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1)" 
-   and X: "(\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>c s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2)" by blast
+   and X: "(\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>c s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2) \<and> let_free\<^sub>d e\<^sub>1 \<and> 
+    let_free\<^sub>d e\<^sub>2 \<and> (is_var\<^sub>d e\<^sub>1 \<or> value\<^sub>d e\<^sub>1) \<and> let_floated\<^sub>d e\<^sub>1 \<and> let_floated\<^sub>d e\<^sub>2" by fastforce
   hence "FApp1\<^sub>c \<Delta> e\<^sub>2 # s :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t"  by fastforce
   with X show ?case by fastforce
 next
-  case (ev\<^sub>c_let s \<Delta> e\<^sub>1 e\<^sub>2)
+  case (ev\<^sub>c_let \<Delta> s e\<^sub>1 e\<^sub>2)
   then obtain \<Gamma> t\<^sub>2 t\<^sub>1 where "(s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2)" 
-    and X: "(\<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>1) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>)\<and> latest_environment\<^sub>c s = Some \<Delta>" by fastforce
-  hence "FLet\<^sub>c \<Delta> e\<^sub>2 # s :\<^sub>c t\<^sub>1 \<rightarrow> t" by fastforce
+    and X: "(\<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>1) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> let_free\<^sub>d e\<^sub>1 \<and> let_floated\<^sub>d e\<^sub>1 \<and> let_floated\<^sub>d e\<^sub>2" 
+      by fastforce
+  hence "FLet\<^sub>c \<Delta> e\<^sub>2 # FReturn\<^sub>c \<Delta> # s :\<^sub>c t\<^sub>1 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
 next
   case (ret\<^sub>c_app1 \<Delta> e\<^sub>2 s c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "(\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>c s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1)" 
-   and "(s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (c\<^sub>1 :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2)" by blast
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "(\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>c s = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>1) \<and> 
+    let_floated\<^sub>d e\<^sub>2 \<and> let_free\<^sub>d e\<^sub>2" and "(s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (c\<^sub>1 :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2)" by blast
   hence "FApp2\<^sub>c c\<^sub>1 # s :\<^sub>c t\<^sub>1 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
 next
   case (ret\<^sub>c_app2 t\<^sub>1 \<Delta> e\<^sub>1 s c\<^sub>2)
-  then obtain \<Gamma> t\<^sub>2 where X: "s :\<^sub>c t\<^sub>2 \<rightarrow> t" and Y: "insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2" 
+  then obtain \<Gamma> t\<^sub>2 where X: "s :\<^sub>c t\<^sub>2 \<rightarrow> t" and Y: "(insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>1 : t\<^sub>2) \<and> let_floated\<^sub>d e\<^sub>1" 
    and "(\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> (c\<^sub>2 :\<^sub>c\<^sub>l t\<^sub>1)" by blast
   hence Z: "c\<^sub>2 # \<Delta> :\<^sub>c\<^sub>l\<^sub>s insert_at 0 t\<^sub>1 \<Gamma>" by (induction \<Gamma>) simp_all
   with X have "FReturn\<^sub>c (c\<^sub>2 # \<Delta>) # s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
   with Y Z show ?case by fastforce
 next
   case (ret\<^sub>c_let \<Delta> e\<^sub>2 s c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2" and "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>" and A: "c\<^sub>1 :\<^sub>c\<^sub>l t\<^sub>1" 
-    and Y: "s :\<^sub>c t\<^sub>2 \<rightarrow> t" and Z: "latest_environment\<^sub>c s = Some \<Delta>" by fastforce
+  then obtain t\<^sub>1 where "(FLet\<^sub>c \<Delta> e\<^sub>2 # FReturn\<^sub>c \<Delta> # s :\<^sub>c t\<^sub>1 \<rightarrow> t) \<and> c\<^sub>1 :\<^sub>c\<^sub>l t\<^sub>1" by fastforce
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2" and "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>" and "c\<^sub>1 :\<^sub>c\<^sub>l t\<^sub>1" 
+    and Y: "s :\<^sub>c t\<^sub>2 \<rightarrow> t" and Z: "let_floated\<^sub>d e\<^sub>2" by fastforce
   hence W: "c\<^sub>1 # \<Delta> :\<^sub>c\<^sub>l\<^sub>s insert_at 0 t\<^sub>1 \<Gamma>" by (cases \<Gamma>) simp_all
-  from Y Z A have "FPop\<^sub>c c\<^sub>1 # s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
+  with Y have "FReturn\<^sub>c (c\<^sub>1 # \<Delta>) # s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
   with X Z W show ?case by fastforce
 qed fastforce+
 
@@ -267,9 +273,6 @@ next
   thus ?case by (induction rule: eval\<^sub>c.cases) simp_all 
 next
   case (ret\<^sub>c_let \<Delta> e\<^sub>2 s c\<^sub>1)
-  thus ?case by (induction rule: eval\<^sub>c.cases) simp_all 
-next
-  case (ret\<^sub>c_pop s c)
   thus ?case by (induction rule: eval\<^sub>c.cases) simp_all 
 next
   case (ret\<^sub>c_ret \<Delta> s c)

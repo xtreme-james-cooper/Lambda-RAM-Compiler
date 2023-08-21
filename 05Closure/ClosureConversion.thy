@@ -20,6 +20,9 @@ proof (induction c)
   thus ?case by (induction \<Delta> arbitrary: e) simp_all
 qed simp_all
 
+lemma declosure_always_value_map [simp]: "list_all value\<^sub>d (map declosure \<Delta>)" 
+  by (induction \<Delta>) simp_all
+
 lemma tc_declosure [simp]: "c :\<^sub>c\<^sub>l t \<Longrightarrow> [] \<turnstile>\<^sub>d declosure c : t"
   and tc_declosure_env [simp]: "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> tc_expr_context \<Gamma> (map declosure \<Delta>)" 
 proof (induction c t and \<Delta> \<Gamma> rule: typing_closure\<^sub>c_typing_environment\<^sub>c.inducts)
@@ -55,6 +58,14 @@ proof (induction c t and \<Delta> \<Gamma> rule: typing_closure\<^sub>c_typing_e
   thus ?case by simp
 qed auto
 
+lemma tc_closure_let_floated [simp]: "c :\<^sub>c\<^sub>l t \<Longrightarrow> let_floated\<^sub>d (declosure c)"
+  and tc_env_let_floated [simp]: "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> list_all let_floated\<^sub>d (map declosure \<Delta>)"
+  by (induction c t and \<Delta> \<Gamma> rule: typing_closure\<^sub>c_typing_environment\<^sub>c.inducts) simp_all
+
+lemma tc_closure_let_free [simp]: "c :\<^sub>c\<^sub>l t \<Longrightarrow> let_free\<^sub>d (declosure c)"
+  and tc_env_let_free [simp]: "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> list_all let_free\<^sub>d (map declosure \<Delta>)"
+  by (induction c t and \<Delta> \<Gamma> rule: typing_closure\<^sub>c_typing_environment\<^sub>c.inducts) simp_all
+
 text \<open>The stack conversion is an easy extension. We throw away the extra environment on \<open>FReturn\<^sub>c\<close> 
 frames.\<close>
 
@@ -64,8 +75,10 @@ fun declosure_stack :: "frame\<^sub>c list \<Rightarrow> frame\<^sub>k list" whe
 | "declosure_stack (FApp2\<^sub>c c # s\<^sub>c) = FApp2\<^sub>k (declosure c) # declosure_stack s\<^sub>c"
 | "declosure_stack (FLet\<^sub>c \<Delta> e # s\<^sub>c) = 
     FLet\<^sub>k (multisubst' 1 (map declosure \<Delta>) e) # declosure_stack s\<^sub>c"
-| "declosure_stack (FPop\<^sub>c c # s\<^sub>c) = FPop\<^sub>k # declosure_stack s\<^sub>c"
 | "declosure_stack (FReturn\<^sub>c \<Delta> # s\<^sub>c) = FReturn\<^sub>k # declosure_stack s\<^sub>c"
+
+lemma return_headed_declosure [simp]: "return_headed\<^sub>k (declosure_stack s\<^sub>c) = return_headed\<^sub>c s\<^sub>c"
+  by (induction s\<^sub>c rule: declosure_stack.induct) simp_all
 
 lemma tc_declosure_stack [simp]: "s\<^sub>c :\<^sub>c t' \<rightarrow> t \<Longrightarrow> declosure_stack s\<^sub>c :\<^sub>k t' \<rightarrow> t"
 proof (induction s\<^sub>c t' t rule: typing_stack\<^sub>c.induct)
@@ -78,6 +91,7 @@ next
   case (tcc_scons_app2 c t\<^sub>1 t\<^sub>2 s\<^sub>c t)
   hence "[] \<turnstile>\<^sub>d declosure c : Arrow t\<^sub>1 t\<^sub>2" by simp
   moreover from tcc_scons_app2 have "declosure_stack s\<^sub>c :\<^sub>k t\<^sub>2 \<rightarrow> t" by simp
+  moreover from tcc_scons_app2 have "let_floated\<^sub>d (declosure c)" by simp
   ultimately show ?case by simp
 next
   case (tcc_scons_let s\<^sub>c \<Delta> \<Gamma> t\<^sub>1 e t\<^sub>2 t)
@@ -104,11 +118,15 @@ proof (induction \<Sigma>\<^sub>c t rule: typecheck_state\<^sub>c.induct)
   moreover from tcc_state_ev have "\<Gamma> \<turnstile>\<^sub>d e : t'" by simp
   ultimately have "[] \<turnstile>\<^sub>d multisubst (map declosure \<Delta>\<^sub>c) e : t'" by simp
   moreover from tcc_state_ev have "declosure_stack s\<^sub>c :\<^sub>k t' \<rightarrow> t" by simp
+  moreover from tcc_state_ev have "let_floated\<^sub>d (multisubst (map declosure \<Delta>\<^sub>c) e)" by simp
+  moreover from tcc_state_ev have "let_free\<^sub>d (multisubst (map declosure \<Delta>\<^sub>c) e) \<or> 
+    return_headed\<^sub>k (declosure_stack s\<^sub>c)" by simp
   ultimately show ?case by simp
 next
   case (tcc_state_ret s\<^sub>c t' t c)
   hence "declosure_stack s\<^sub>c :\<^sub>k t' \<rightarrow> t" by simp
   moreover from tcc_state_ret have "[] \<turnstile>\<^sub>d declosure c : t'" by simp
+  moreover from tcc_state_ret have "let_floated\<^sub>d (declosure c)" by simp
   ultimately show ?case by simp
 qed
 
@@ -143,13 +161,12 @@ next
         (multisubst (map declosure \<Delta>) e\<^sub>1))" by (metis iter_step iter_refl)
   thus ?case by simp
 next
-  case (ev\<^sub>c_let s \<Delta> e\<^sub>1 e\<^sub>2)
-  then obtain \<Gamma> t' where "(s :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> latest_environment\<^sub>c s = Some \<Delta> \<and> 
-    (\<Gamma> \<turnstile>\<^sub>d Let\<^sub>d e\<^sub>1 e\<^sub>2 : t')" by fastforce
+  case (ev\<^sub>c_let \<Delta> s e\<^sub>1 e\<^sub>2)
+  then obtain \<Gamma> t' where "(s :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> (\<Gamma> \<turnstile>\<^sub>d Let\<^sub>d e\<^sub>1 e\<^sub>2 : t')" by fastforce
   hence "map (incr\<^sub>d 0 \<circ> declosure) \<Delta> = map declosure \<Delta>" by fastforce
-  hence "iter (\<leadsto>\<^sub>k) (S\<^sub>k False (declosure_stack s) (Let\<^sub>d (multisubst (map declosure \<Delta>) e\<^sub>1)
+  hence "iter (\<leadsto>\<^sub>k) (S\<^sub>k False (FReturn\<^sub>k # declosure_stack s) (Let\<^sub>d (multisubst (map declosure \<Delta>) e\<^sub>1)
     (multisubst' (Suc 0) (map (incr\<^sub>d 0 \<circ> declosure) \<Delta>) e\<^sub>2)))
-      (S\<^sub>k False (FLet\<^sub>k (multisubst' (Suc 0) (map declosure \<Delta>) e\<^sub>2) # declosure_stack s)
+      (S\<^sub>k False (FLet\<^sub>k (multisubst' (Suc 0) (map declosure \<Delta>) e\<^sub>2) # FReturn\<^sub>k # declosure_stack s)
         (multisubst (map declosure \<Delta>) e\<^sub>1))" by (metis iter_one ev\<^sub>k_let1)
   thus ?case by simp
 next
@@ -175,20 +192,15 @@ next
   ultimately show ?case by (simp add: multisubst_subst_swap)
 next
   case (ret\<^sub>c_let \<Delta> e\<^sub>2 s c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where T: "latest_environment\<^sub>c s = Some \<Delta> \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
-    (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2) \<and> (s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (c\<^sub>1 :\<^sub>c\<^sub>l t\<^sub>1)" by fastforce
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where T: "(\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2 : t\<^sub>2) \<and> (s :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> 
+    (c\<^sub>1 :\<^sub>c\<^sub>l t\<^sub>1)" by fastforce
   hence X: "map (incr\<^sub>d 0 \<circ> declosure) \<Delta> = map declosure \<Delta>" by fastforce
   from T have "multisubst (map declosure \<Delta>) (declosure c\<^sub>1) = declosure c\<^sub>1" by fastforce
   moreover have "iter (\<leadsto>\<^sub>k) (S\<^sub>k True (FLet\<^sub>k (multisubst' (Suc 0) (map declosure \<Delta>) e\<^sub>2) # 
-    declosure_stack s) (declosure c\<^sub>1)) (S\<^sub>k False (FPop\<^sub>k # declosure_stack s) 
+    FReturn\<^sub>k # declosure_stack s) (declosure c\<^sub>1)) (S\<^sub>k False (FReturn\<^sub>k # declosure_stack s) 
       (subst\<^sub>d 0 (declosure c\<^sub>1) (multisubst' (Suc 0) (map declosure \<Delta>) e\<^sub>2)))" 
     by (metis ev\<^sub>k_let2 iter_one)
   ultimately show ?case by (simp add: multisubst_subst_swap X)
-next
-  case (ret\<^sub>c_pop c' s c)
-  have "iter (\<leadsto>\<^sub>k) (S\<^sub>k True (FPop\<^sub>k # declosure_stack s) (declosure c))
-    (S\<^sub>k True (declosure_stack s) (declosure c))" by (metis ev\<^sub>k_pop iter_one)
-  thus ?case by simp
 next
   case (ret\<^sub>c_ret \<Delta> s\<^sub>c c)
   have "S\<^sub>k True (FReturn\<^sub>k # declosure_stack s\<^sub>c) (declosure c) \<leadsto>\<^sub>k 
@@ -228,10 +240,6 @@ lemma declose_to_fapp2 [dest]: "FApp2\<^sub>k e # s\<^sub>k = declosure_stack s\
 lemma declose_to_flet [dest]: "FLet\<^sub>k e # s\<^sub>k = declosure_stack s\<^sub>c \<Longrightarrow> 
   \<exists>\<Delta> e' s\<^sub>c'. s\<^sub>c = FLet\<^sub>c \<Delta> e' # s\<^sub>c' \<and> e = multisubst' (Suc 0) (map declosure \<Delta>) e' \<and> 
     s\<^sub>k = declosure_stack s\<^sub>c'"
-  by (induction s\<^sub>c rule: declosure_stack.induct) simp_all
-
-lemma declose_to_fpop [dest]: "FPop\<^sub>k # s\<^sub>k = declosure_stack s\<^sub>c \<Longrightarrow> 
-    \<exists>c s\<^sub>c'. s\<^sub>c = FPop\<^sub>c c # s\<^sub>c' \<and> s\<^sub>k = declosure_stack s\<^sub>c'"
   by (induction s\<^sub>c rule: declosure_stack.induct) simp_all
 
 lemma declose_to_freturn [dest]: "FReturn\<^sub>k # s\<^sub>k = declosure_stack s\<^sub>c \<Longrightarrow> 
@@ -407,43 +415,36 @@ next
   with S S' C X show ?case by (metis iter_step iter_refl)
 next
   case (ev\<^sub>k_let1 s e\<^sub>1 e\<^sub>2)
-  then obtain s\<^sub>c \<Delta> e' where S: "s = declosure_stack s\<^sub>c \<and> \<Sigma>\<^sub>c = SE\<^sub>c s\<^sub>c \<Delta> e' \<and> 
-    Let\<^sub>d e\<^sub>1 e\<^sub>2 = multisubst (map declosure \<Delta>) e'" by fastforce
+  then obtain s\<^sub>c \<Delta> e' where S: "FReturn\<^sub>k # s = declosure_stack s\<^sub>c \<and> \<Sigma>\<^sub>c = SE\<^sub>c s\<^sub>c \<Delta> e' \<and> 
+    Let\<^sub>d e\<^sub>1 e\<^sub>2 = multisubst (map declosure \<Delta>) e'" by blast
   then obtain e\<^sub>1' e\<^sub>2' where E: "e' = Let\<^sub>d e\<^sub>1' e\<^sub>2' \<and> e\<^sub>1 = multisubst (map declosure \<Delta>) e\<^sub>1' \<and> 
     e\<^sub>2 = multisubst' (Suc 0) (map (incr\<^sub>d 0 \<circ> declosure) \<Delta>) e\<^sub>2'" by fastforce
   with ev\<^sub>k_let1 S obtain \<Gamma> t' where T: "(s\<^sub>c :\<^sub>c t' \<rightarrow> t) \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
     latest_environment\<^sub>c s\<^sub>c = Some \<Delta> \<and> (\<Gamma> \<turnstile>\<^sub>d Let\<^sub>d e\<^sub>1' e\<^sub>2' : t')" by blast
   hence X: "map (incr\<^sub>d 0 \<circ> declosure) \<Delta> = map declosure \<Delta>" by fastforce
-  have I: "iter (\<leadsto>\<^sub>c) (SE\<^sub>c s\<^sub>c \<Delta> (Let\<^sub>d e\<^sub>1' e\<^sub>2')) (SE\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2' # s\<^sub>c) \<Delta> e\<^sub>1')" 
+  from S T obtain s\<^sub>c' where S': "s\<^sub>c = FReturn\<^sub>c \<Delta> # s\<^sub>c' \<and> s = declosure_stack s\<^sub>c'" by fastforce
+  hence I: "iter (\<leadsto>\<^sub>c) (SE\<^sub>c s\<^sub>c \<Delta> (Let\<^sub>d e\<^sub>1' e\<^sub>2')) (SE\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2' # s\<^sub>c) \<Delta> e\<^sub>1')" 
     by (metis ev\<^sub>c_let iter_one)
-  with S have "S\<^sub>k False (FLet\<^sub>k (multisubst' (Suc 0) (map (incr\<^sub>d 0 \<circ> declosure) \<Delta>) e\<^sub>2') # s) 
-    (multisubst (map declosure \<Delta>) e\<^sub>1') = declosure_state (SE\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2' # s\<^sub>c) \<Delta> e\<^sub>1')" 
-      by (simp add: X)
+  from E X S' have "S\<^sub>k False (FLet\<^sub>k e\<^sub>2 # FReturn\<^sub>k # s) e\<^sub>1 = 
+    declosure_state (SE\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2' # s\<^sub>c) \<Delta> e\<^sub>1')" by simp
   with S E I show ?case by metis
 next
   case (ev\<^sub>k_let2 e\<^sub>2 s e\<^sub>1)
-  then obtain s\<^sub>c c where S: "FLet\<^sub>k e\<^sub>2 # s = declosure_stack s\<^sub>c \<and> \<Sigma>\<^sub>c = SC\<^sub>c s\<^sub>c c \<and> e\<^sub>1 = declosure c" 
-    by fastforce
-  then obtain \<Delta> e\<^sub>2' s\<^sub>c' where S': "s\<^sub>c = FLet\<^sub>c \<Delta> e\<^sub>2' # s\<^sub>c' \<and> 
+  then obtain s\<^sub>c c where S: "FLet\<^sub>k e\<^sub>2 # FReturn\<^sub>k # s = declosure_stack s\<^sub>c \<and> \<Sigma>\<^sub>c = SC\<^sub>c s\<^sub>c c \<and> 
+    e\<^sub>1 = declosure c" by blast
+  then obtain \<Delta> e\<^sub>2' \<Delta>' s\<^sub>c' where S': "s\<^sub>c = FLet\<^sub>c \<Delta> e\<^sub>2' # FReturn\<^sub>c \<Delta>' # s\<^sub>c' \<and> 
     e\<^sub>2 = multisubst' (Suc 0) (map declosure \<Delta>) e\<^sub>2' \<and> s = declosure_stack s\<^sub>c'" by fastforce
-  with ev\<^sub>k_let2 S have "SC\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2' # s\<^sub>c') c :\<^sub>c t" by simp
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where T: "latest_environment\<^sub>c s\<^sub>c' = Some \<Delta> \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
-    (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2' : t\<^sub>2) \<and> (s\<^sub>c' :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (c :\<^sub>c\<^sub>l t\<^sub>1)" by fastforce
+  with ev\<^sub>k_let2 S have "SC\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2' # FReturn\<^sub>c \<Delta>' # s\<^sub>c') c :\<^sub>c t" by simp
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where T: "\<Delta>' = \<Delta> \<and> (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> (insert_at 0 t\<^sub>1 \<Gamma> \<turnstile>\<^sub>d e\<^sub>2' : t\<^sub>2) \<and> 
+    (s\<^sub>c' :\<^sub>c t\<^sub>2 \<rightarrow> t) \<and> (c :\<^sub>c\<^sub>l t\<^sub>1)" by fastforce
   hence X: "map (incr\<^sub>d 0 \<circ> declosure) \<Delta> = map declosure \<Delta>" by fastforce
   from T have Y: "multisubst (map declosure \<Delta>) (declosure c) = declosure c" by fastforce
-  have I: "iter (\<leadsto>\<^sub>c) (SC\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2' # s\<^sub>c') c) (SE\<^sub>c (FPop\<^sub>c c # s\<^sub>c') (c # \<Delta>) e\<^sub>2')" 
-    by (metis ret\<^sub>c_let iter_one)
-  from S S' T have "S\<^sub>k False (FPop\<^sub>k # s) (subst\<^sub>d 0 e\<^sub>1 e\<^sub>2) = 
-    declosure_state (SE\<^sub>c (FPop\<^sub>c c # s\<^sub>c') (c # \<Delta>) e\<^sub>2')" by (simp add: multisubst_subst_swap X Y)
-  with S S' I show ?case by metis
-next
-  case (ev\<^sub>k_pop s e)
-  then obtain s\<^sub>c c where S: "FPop\<^sub>k # s = declosure_stack s\<^sub>c \<and> \<Sigma>\<^sub>c = SC\<^sub>c s\<^sub>c c \<and> e = declosure c" 
-    by fastforce
-  then obtain c' s\<^sub>c' where S': "s\<^sub>c = FPop\<^sub>c c' # s\<^sub>c' \<and> s = declosure_stack s\<^sub>c'" by fastforce
-  have I: "iter (\<leadsto>\<^sub>c) (SC\<^sub>c (FPop\<^sub>c c' # s\<^sub>c') c) (SC\<^sub>c s\<^sub>c' c)" by (metis ret\<^sub>c_pop iter_one)
-  from S S' have "S\<^sub>k True s e = declosure_state (SC\<^sub>c s\<^sub>c' c)" by simp
-  with S S' I show ?case by metis
+  have I: "iter (\<leadsto>\<^sub>c) (SC\<^sub>c (FLet\<^sub>c \<Delta> e\<^sub>2' # FReturn\<^sub>c \<Delta> # s\<^sub>c') c) 
+    (SE\<^sub>c (FReturn\<^sub>c (c # \<Delta>) # s\<^sub>c') (c # \<Delta>) e\<^sub>2')" by (metis ret\<^sub>c_let iter_one)
+  from S S' T have "S\<^sub>k False (FReturn\<^sub>k # s) (subst\<^sub>d 0 e\<^sub>1 e\<^sub>2) = 
+    declosure_state (SE\<^sub>c (FReturn\<^sub>c (c # \<Delta>) # s\<^sub>c') (c # \<Delta>) e\<^sub>2')" 
+      by (simp add: multisubst_subst_swap X Y)
+  with S S' T I show ?case by metis
 next
   case (ev\<^sub>k_ret s e)
   then obtain s\<^sub>c c where S: "FReturn\<^sub>k # s = declosure_stack s\<^sub>c \<and> \<Sigma>\<^sub>c = SC\<^sub>c s\<^sub>c c \<and> e = declosure c" 
