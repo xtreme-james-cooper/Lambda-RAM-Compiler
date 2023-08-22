@@ -52,7 +52,7 @@ fun prepend_to_top_frame :: "code\<^sub>e list \<Rightarrow> frame\<^sub>e list 
 
 fun prepend_to_top_env :: "closure\<^sub>e \<Rightarrow> frame\<^sub>e list \<Rightarrow> frame\<^sub>e list" where
   "prepend_to_top_env c [] = []"
-| "prepend_to_top_env c ((\<Delta>, \<C>) # s\<^sub>e) = (cons_fst c \<Delta>, \<C>) # s\<^sub>e"
+| "prepend_to_top_env c ((\<Delta>, \<C>) # s\<^sub>e) = (snoc_fst c \<Delta>, \<C>) # s\<^sub>e"
 
 fun stack_from_stack :: "frame\<^sub>g list \<Rightarrow> frame\<^sub>e list" where
   "stack_from_stack [] = []"
@@ -138,7 +138,7 @@ next
     (S\<^sub>e (encode_closure c\<^sub>1 # vals_from_stack s\<^sub>g)
       ((map (map encode_closure) \<Delta>, PushEnv\<^sub>e # encode' e\<^sub>2 @ [Return\<^sub>e]) # stack_from_stack s\<^sub>g))
     (S\<^sub>e (vals_from_stack s\<^sub>g)
-      ((cons_fst (encode_closure c\<^sub>1) (map (map encode_closure) \<Delta>), encode' e\<^sub>2 @ [Return\<^sub>e]) # 
+      ((snoc_fst (encode_closure c\<^sub>1) (map (map encode_closure) \<Delta>), encode' e\<^sub>2 @ [Return\<^sub>e]) # 
       stack_from_stack s\<^sub>g))" 
     by (metis ev\<^sub>e_pushenv iter_one)
   thus ?case by simp
@@ -248,7 +248,7 @@ lemma prepend_frame_to_cons [dest]: "prepend_to_top_frame \<C>' s\<^sub>e = (\<D
   by (induction \<C>' s\<^sub>e rule: prepend_to_top_frame.induct) simp_all
 
 lemma prepend_env_to_cons [dest]: "prepend_to_top_env c s\<^sub>e = (\<Delta>, \<C>) # s\<^sub>e' \<Longrightarrow> 
-    \<exists>\<Delta>'. s\<^sub>e = (\<Delta>', \<C>) # s\<^sub>e' \<and> \<Delta> = cons_fst c \<Delta>'"
+    \<exists>\<Delta>'. s\<^sub>e = (\<Delta>', \<C>) # s\<^sub>e' \<and> \<Delta> = snoc_fst c \<Delta>'"
   by (induction c s\<^sub>e rule: prepend_to_top_env.induct) simp_all
 
 lemma prepend_to_apply [dest]: "prepend_to_top_frame (encode' e) s\<^sub>e = (\<Delta>, Apply\<^sub>e # \<C>) # s\<^sub>e' \<Longrightarrow> 
@@ -489,10 +489,10 @@ next
     stack_from_stack s\<^sub>g' = (\<Delta>\<^sub>e, \<C>') # s\<^sub>e" by auto
   from ev\<^sub>e_pushenv S S' have "return_headed\<^sub>g s\<^sub>g' \<and> latest_environment\<^sub>g s\<^sub>g' = Some \<Delta>\<^sub>g" by blast
   then obtain s\<^sub>g'' where S'': "s\<^sub>g' = FReturn\<^sub>g \<Delta>\<^sub>g # s\<^sub>g''" by auto
-  hence "SC\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g') c \<leadsto>\<^sub>g SE\<^sub>g (FReturn\<^sub>g (cons_fst c \<Delta>\<^sub>g) # s\<^sub>g'') (cons_fst c \<Delta>\<^sub>g) e" 
+  hence "SC\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g') c \<leadsto>\<^sub>g SE\<^sub>g (FReturn\<^sub>g (snoc_fst c \<Delta>\<^sub>g) # s\<^sub>g'') (snoc_fst c \<Delta>\<^sub>g) e" 
     by auto
   hence "iter (\<leadsto>\<^sub>g) (SC\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e # s\<^sub>g') c) 
-    (SE\<^sub>g (FReturn\<^sub>g (cons_fst c \<Delta>\<^sub>g) # s\<^sub>g'') (cons_fst c \<Delta>\<^sub>g) e)" by (metis iter_one)
+    (SE\<^sub>g (FReturn\<^sub>g (snoc_fst c \<Delta>\<^sub>g) # s\<^sub>g'') (snoc_fst c \<Delta>\<^sub>g) e)" by (metis iter_one)
   with S S' S'' show ?case by auto
 next
   case (ev\<^sub>e_return \<V> \<Delta>\<^sub>e \<C> s\<^sub>e)

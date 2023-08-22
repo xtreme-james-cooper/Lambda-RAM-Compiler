@@ -8,38 +8,10 @@ text \<open>We still have one place where information is duplicated: our environ
 consist of lists of pointers rather than lists of values, but we still copy the list every time we 
 create a new function closure.\<close>
 
-text \<open>We actually face a choice here. We could commit to copying the list every time, as a 
-contiguous block of data; this would be expensive every time a closure was copied, and mean that 
-closures occupy a varying (though compile-time-predictable) amount of space; but, as a consolation,
-variable lookup becomes very cheap (just a single pointer indirection). Alternately, we could store 
-environments as linked lists, making copying cheap and environments easy to extend in multiple 
-directions at once, but at the cost of making variable lookups expensive (a sequence of pointer 
-indirections proportional to their Debruijn index). Neither approach seems attractive; in each case,
-an operation that "should be" constant-time (or at least "cheap") is instead linear in the number of
-bound variables.\<close>
-
-text \<open>Fortunately, there is a clever third option that combines many of the strengths of both 
-representations. Because we have let-floated our bindings, every let-binder is in a list of bindings 
-directly below a lambda-binder (or at the outside of the expression at the top level). This means 
-that every time the lambda-abstraction is instantiated, all the let-bindings must also be 
-instantiated; so, without losing any sharing, we can allocate the environment for all the binders 
-together in one contiguous block. This permits the cheap pointer-copying environment-sharing of the 
-second method above, while reducing the cost of variable lookups to proportional to the number of 
-enclosing _functions_ rather than enclosing binders. This key optimization makes the whole system 
-adequately efficient, and is more-or-less how real language implementations allocate environment 
-memory*.\<close>
-
-text \<open>*We are slightly less efficient than real implementations because in practice most lambda 
-abstractions occur in blocks too, and a sequence of lambdas is usually instantiated all at once. 
-This allows for the further optimization of allocating environment frames for an entire block of 
-lambdas at once, producing a slight loss of sharing on curried applications in exchange for further 
-reducing lookup times to proportional to the number of enclosing lambda-_sequences_. Since most 
-functions are defined at the top level, this means that lookups are close to constant-time. See our 
-further work section.\<close>
-
-text \<open>We will take this last approach. We create a second heap, containing a linked-list (or 
-rather, pointer-linked tree) of pointers into our first, value, heap. All environments are now 
-pointers into this second heap, which means that our heaps point to each other; we keep them 
+text \<open>Fortunately, we have been preparing for this moment for a while now, and everything is in 
+position to lay out our environments in memory. We create a second heap, containing a linked-list 
+(or rather, pointer-linked tree) of lists of pointers into our first, value, heap. All environments 
+are now pointers into this second heap, which means that our heaps point to each other; we keep them 
 separate for simplicity, although much later on we will collapse them into a single memory.\<close>
 
 text \<open>To begin with, we define a lookup function for our linked-tree environments. Since we index 
@@ -64,7 +36,7 @@ datatype state\<^sub>v =
   S\<^sub>v "closure\<^sub>v heap" "(ptr \<times> ptr) heap" "ptr list" "(ptr \<times> nat) list"
 
 inductive eval\<^sub>v :: "code\<^sub>b list \<Rightarrow> state\<^sub>v \<Rightarrow> state\<^sub>v \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>v" 50) where
-  ev\<^sub>v_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x y z) \<Longrightarrow> chain_lookup \<Delta> p\<^sub>\<Delta> x = Some v \<Longrightarrow>
+  ev\<^sub>v_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x y) \<Longrightarrow> chain_lookup \<Delta> p\<^sub>\<Delta> x = Some v \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta> (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"
 | ev\<^sub>v_pushcon [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushCon\<^sub>b n) \<Longrightarrow> halloc h (Const\<^sub>v n) = (h', v) \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h' \<Delta> (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"

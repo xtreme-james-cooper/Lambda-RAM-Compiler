@@ -60,7 +60,9 @@ datatype expr\<^sub>g =
   | Let\<^sub>g expr\<^sub>g expr\<^sub>g
 
 text \<open>Typing remains almost unchanged, but we need to adjust the typing context a little: rather 
-than just a list, it too is a list of lists to match the new way we look up variables.\<close>
+than just a list, it too is a list of lists to match the new way we look up variables. It is worth 
+noting that we flip the frames from how they were previously laid out: each new let-binding in 
+\<open>tc\<^sub>g_let\<close> is added to the end of the frame, not the beginning.\<close>
 
 fun let_count :: "expr\<^sub>g \<Rightarrow> nat" where
   "let_count (Let\<^sub>g e\<^sub>1 e\<^sub>2) = Suc (let_count e\<^sub>2)"
@@ -71,7 +73,7 @@ inductive typing\<^sub>g :: "ty list list \<Rightarrow> expr\<^sub>g \<Rightarro
 | tc\<^sub>g_const [simp]: "\<Gamma> \<turnstile>\<^sub>g Const\<^sub>g n : Num"
 | tc\<^sub>g_lam [simp]: "insert_at 0 [t\<^sub>1] \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g Lam\<^sub>g t\<^sub>1 e (let_count e) : Arrow t\<^sub>1 t\<^sub>2"
 | tc\<^sub>g_app [simp]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>1 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g App\<^sub>g e\<^sub>1 e\<^sub>2 : t\<^sub>2"
-| tc\<^sub>g_let [simp]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1 \<Longrightarrow> cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g Let\<^sub>g e\<^sub>1 e\<^sub>2 : t\<^sub>2"
+| tc\<^sub>g_let [simp]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1 \<Longrightarrow> snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g Let\<^sub>g e\<^sub>1 e\<^sub>2 : t\<^sub>2"
 
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Var\<^sub>g x y : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Const\<^sub>g n : t"
@@ -149,7 +151,7 @@ next
 qed simp_all
 
 lemma "c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> True"
-  and tc_closure_cons_fst [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> cons_fst c \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s cons_fst t \<Gamma>"
+  and tc_closure_snoc_fst [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> snoc_fst c \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s snoc_fst t \<Gamma>"
   by (induction c t and \<Delta> \<Gamma> rule: typing_closure\<^sub>g_typing_environment\<^sub>g.inducts) simp_all
 
 lemma env_length_same [simp]: "cs # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s ts # \<Gamma> \<Longrightarrow> length cs = length ts"
@@ -189,7 +191,7 @@ inductive typing_stack\<^sub>g :: "frame\<^sub>g list \<Rightarrow> ty \<Rightar
 | tcg_scons_app2 [simp]: "c :\<^sub>g\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> latest_environment\<^sub>g s \<noteq> None \<Longrightarrow> 
     FApp2\<^sub>g c # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
 | tcg_scons_let [simp]: "latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow>
-    cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> let_floated\<^sub>g e \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> return_headed\<^sub>g s \<Longrightarrow> 
+    snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> let_floated\<^sub>g e \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> return_headed\<^sub>g s \<Longrightarrow> 
     FLet\<^sub>g \<Delta> e # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
 | tcg_scons_ret [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>g \<Delta> # s :\<^sub>g t' \<rightarrow> t"
 
@@ -229,7 +231,7 @@ inductive eval\<^sub>g :: "state\<^sub>g \<Rightarrow> state\<^sub>g \<Rightarro
 | ret\<^sub>g_app2 [simp]: "SC\<^sub>g (FApp2\<^sub>g (Fun\<^sub>g t \<Delta> e\<^sub>1 n) # s) c\<^sub>2 \<leadsto>\<^sub>g 
     SE\<^sub>g (FReturn\<^sub>g ([c\<^sub>2] # \<Delta>) # s) ([c\<^sub>2] # \<Delta>) e\<^sub>1"
 | ret\<^sub>g_let [simp]: "SC\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s) c\<^sub>1 \<leadsto>\<^sub>g 
-    SE\<^sub>g (FReturn\<^sub>g (cons_fst c\<^sub>1 \<Delta>) # s) (cons_fst c\<^sub>1 \<Delta>) e\<^sub>2"
+    SE\<^sub>g (FReturn\<^sub>g (snoc_fst c\<^sub>1 \<Delta>) # s) (snoc_fst c\<^sub>1 \<Delta>) e\<^sub>2"
 | ret\<^sub>g_ret [simp]: "SC\<^sub>g (FReturn\<^sub>g \<Delta> # s) c \<leadsto>\<^sub>g SC\<^sub>g s c"
 
 text \<open>And the safety theorems:\<close>
@@ -276,7 +278,7 @@ next
 next
   case (tcg_scons_let s \<Delta> \<Gamma> t\<^sub>1 e t\<^sub>2 t)
   then obtain s' where "s = FReturn\<^sub>g \<Delta> # s'" by auto
-  hence "SC\<^sub>g (FLet\<^sub>g \<Delta> e # s) c \<leadsto>\<^sub>g SE\<^sub>g (FReturn\<^sub>g (cons_fst c \<Delta>) # s') (cons_fst c \<Delta>) e" by simp
+  hence "SC\<^sub>g (FLet\<^sub>g \<Delta> e # s) c \<leadsto>\<^sub>g SE\<^sub>g (FReturn\<^sub>g (snoc_fst c \<Delta>) # s') (snoc_fst c \<Delta>) e" by simp
   thus ?case by fastforce
 next
   case (tcg_scons_ret \<Delta> \<Gamma> s t' t)
@@ -307,7 +309,7 @@ next
   with X show ?case by fastforce
 next
   case (ev\<^sub>g_let \<Delta> s e\<^sub>1 e\<^sub>2)
-  then obtain \<Gamma> t\<^sub>2 t\<^sub>1 where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>2" 
+  then obtain \<Gamma> t\<^sub>2 t\<^sub>1 where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>2" 
     and X: "(\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1) \<and> (\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>1" by fastforce
   hence "FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s :\<^sub>g t\<^sub>1 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
@@ -327,10 +329,10 @@ next
   with Y Z show ?case by fastforce
 next
   case (ret\<^sub>g_let \<Delta> e\<^sub>2 s c\<^sub>1)
-  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "(cons_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>2" and "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>" 
+  then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "(snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>2" and "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>" 
     and Z: "c\<^sub>1 :\<^sub>g\<^sub>c\<^sub>l t\<^sub>1" and Y: "s :\<^sub>g t\<^sub>2 \<rightarrow> t" by fastforce
-  hence W: "cons_fst c\<^sub>1 \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s cons_fst t\<^sub>1 \<Gamma>" by simp
-  with Y have "FReturn\<^sub>g (cons_fst c\<^sub>1 \<Delta>) # s :\<^sub>g t\<^sub>2 \<rightarrow> t" by simp
+  hence W: "snoc_fst c\<^sub>1 \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s snoc_fst t\<^sub>1 \<Gamma>" by simp
+  with Y have "FReturn\<^sub>g (snoc_fst c\<^sub>1 \<Delta>) # s :\<^sub>g t\<^sub>2 \<rightarrow> t" by simp
   with X W show ?case by fastforce
 qed fastforce+
 

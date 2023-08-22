@@ -246,9 +246,9 @@ next
     case True
     have "S\<^sub>e (tco_val v # map tco_val \<V>) ((map (map tco_val) \<Delta>, [PushEnv\<^sub>e, Return\<^sub>e]) # 
       tco_stack s) \<leadsto>\<^sub>e 
-        S\<^sub>e (map tco_val \<V>) ((cons_fst (tco_val v) (map (map tco_val) \<Delta>), [Return\<^sub>e]) # tco_stack s)" 
+        S\<^sub>e (map tco_val \<V>) ((snoc_fst (tco_val v) (map (map tco_val) \<Delta>), [Return\<^sub>e]) # tco_stack s)" 
       by simp
-    moreover have "S\<^sub>e (map tco_val \<V>) ((cons_fst (tco_val v) (map (map tco_val) \<Delta>), [Return\<^sub>e]) # 
+    moreover have "S\<^sub>e (map tco_val \<V>) ((snoc_fst (tco_val v) (map (map tco_val) \<Delta>), [Return\<^sub>e]) # 
       tco_stack s) \<leadsto>\<^sub>e
         (S\<^sub>e (map tco_val \<V>) (tco_stack s))" by simp
     ultimately have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (tco_val v # map tco_val \<V>) 
@@ -259,11 +259,11 @@ next
     case False
     have "S\<^sub>e (tco_val v # map tco_val \<V>) ((map (map tco_val) \<Delta>, PushEnv\<^sub>e # tco_code \<C>) # 
       tco_stack s) \<leadsto>\<^sub>e 
-        S\<^sub>e (map tco_val \<V>) ((cons_fst (tco_val v) (map (map tco_val) \<Delta>), tco_code \<C>) # tco_stack s)" 
+        S\<^sub>e (map tco_val \<V>) ((snoc_fst (tco_val v) (map (map tco_val) \<Delta>), tco_code \<C>) # tco_stack s)" 
       by simp
     hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e (tco_val v # map tco_val \<V>) 
       ((map (map tco_val) \<Delta>, PushEnv\<^sub>e # tco_code \<C>) # tco_stack s))
-        (S\<^sub>e (map tco_val \<V>) ((cons_fst (tco_val v) (map (map tco_val) \<Delta>), tco_code \<C>) # 
+        (S\<^sub>e (map tco_val \<V>) ((snoc_fst (tco_val v) (map (map tco_val) \<Delta>), tco_code \<C>) # 
           tco_stack s))" 
       by (metis iter_one)
     with False show ?thesis by simp

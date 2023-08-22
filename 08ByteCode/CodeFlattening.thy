@@ -291,7 +291,7 @@ next
   case (ev\<^sub>b_pushenv \<C> p v \<V> \<Delta> s)
   have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (unflatten_closure \<C> v # unflatten_values \<C> \<V>)
     ((map (unflatten_values \<C> )\<Delta>, PushEnv\<^sub>e # unflatten_code \<C> p) # unflatten_stack \<C> s))
-    (S\<^sub>e (unflatten_values \<C> \<V>) ((cons_fst (unflatten_closure \<C> v) (map (unflatten_values \<C>) \<Delta>), 
+    (S\<^sub>e (unflatten_values \<C> \<V>) ((snoc_fst (unflatten_closure \<C> v) (map (unflatten_values \<C>) \<Delta>), 
       unflatten_code \<C> p) # unflatten_stack \<C> s))" by (metis ev\<^sub>e_pushenv iter_one)
   with ev\<^sub>b_pushenv show ?case by simp
 next
@@ -506,8 +506,8 @@ next
       s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" by (metis unflatten_stack_to_pushenv)
   from B obtain v\<^sub>b \<V>\<^sub>b' where V: "\<V>\<^sub>b = v\<^sub>b # \<V>\<^sub>b' \<and> v\<^sub>e = unflatten_closure \<C>\<^sub>b v\<^sub>b \<and> 
     \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b'" by fastforce
-  from E have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b \<V>\<^sub>b' ((cons_fst v\<^sub>b \<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
-  hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) (S\<^sub>b \<V>\<^sub>b' ((cons_fst v\<^sub>b \<Delta>\<^sub>b, p) # s\<^sub>b'))" 
+  from E have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b \<V>\<^sub>b' ((snoc_fst v\<^sub>b \<Delta>\<^sub>b, p) # s\<^sub>b')" by simp
+  hence "iter (\<tturnstile> \<C>\<^sub>b \<leadsto>\<^sub>b) (S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b')) (S\<^sub>b \<V>\<^sub>b' ((snoc_fst v\<^sub>b \<Delta>\<^sub>b, p) # s\<^sub>b'))" 
     by simp
   with B E V show ?case by auto
 next

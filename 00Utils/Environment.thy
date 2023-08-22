@@ -34,8 +34,8 @@ lemma lookup_in_set [elim]: "lookup as x = Some a \<Longrightarrow> a \<in> set 
 lemma lookup_map [simp]: "lookup (map f as) x = map_option f (lookup as x)"
   by (induction as x rule: lookup.induct) simp_all
 
-lemma lookup_cons_fst [simp]: "lookup (cons_fst a as) x = (case x of
-    0 \<Rightarrow> (case lookup as 0 of None \<Rightarrow> Some [a] | Some aa \<Rightarrow> Some (a # aa))
+lemma lookup_snoc_fst [simp]: "lookup (snoc_fst a as) x = (case x of
+    0 \<Rightarrow> (case lookup as 0 of None \<Rightarrow> Some [a] | Some aa \<Rightarrow> Some (aa @ [a]))
   | Suc x' \<Rightarrow> lookup as x)"
 proof (induction as x rule: lookup.induct)
   case (1 x)
@@ -53,6 +53,28 @@ lemma lookup_append_snd [simp]: "lookup (as @ bs) (length as + n) = lookup bs n"
 
 lemma lookup_append_snd_map [simp]: "lookup (map f as @ bs) (length as + n) = lookup bs n"
   by (induction as) simp_all
+
+lemma lookup_reverse [simp]: "x < length as \<Longrightarrow> lookup (rev as) x = lookup as (length as - Suc x)"
+proof (induction as arbitrary: x rule: rev_induct)
+  case (snoc a as)
+  thus ?case by (induction x) simp_all
+qed simp_all
+
+lemma lookup_append_fst_rev [simp]: "lookup as x = Some a \<Longrightarrow> 
+    lookup (rev as @ bs) (length as - Suc x) = Some a"
+proof (induction as x arbitrary: bs rule: lookup.induct)
+  case (2 a as)
+  thus ?case by simp (metis length_rev lookup.simps(2) lookup_append_length)
+qed simp_all
+
+lemma lookup_append_snd_rev [simp]: "lookup (rev as @ bs) (length as + n) = lookup bs n"
+  by (metis length_rev lookup_append_snd)
+
+lemma lookup_down_lemma: "lookup (as @ [a]) x = Some b \<Longrightarrow> x \<noteq> length as \<Longrightarrow> lookup as x = Some b"
+proof (induction as x rule: lookup.induct)
+  case (1 x)
+  thus ?case by (cases x) simp_all
+qed simp_all
 
 lemma lookup_has_prop [elim]: "list_all p as \<Longrightarrow> lookup as x = Some a \<Longrightarrow> p a"
   by (induction as x rule: lookup.induct) simp_all
@@ -239,6 +261,10 @@ lemma insert_at_length [simp]: "x \<le> length as \<Longrightarrow> length (inse
 lemma insert_at_set [simp]: "x \<le> length as \<Longrightarrow> set (insert_at x a as) = insert a (set as)"
   by (induction x a as rule: insert_at.induct) auto
 
+lemma map_insert_at [simp]: "x \<le> length as \<Longrightarrow> 
+    map f (insert_at x a as) = insert_at x (f a) (map f as)"
+  by (induction x a as rule: insert_at.induct) simp_all
+
 lemma insert_at_append [simp]: "x \<le> length as \<Longrightarrow> insert_at x a as @ bs = insert_at x a (as @ bs)"
 proof (induction x a as rule: insert_at.induct)
   case (1 a')
@@ -257,11 +283,19 @@ proof (induction as)
   thus ?case by (cases b, cases as) simp_all
 qed simp_all
 
-lemma concat_cons_fst_insert_at [simp]: "concat (cons_fst a as) = insert_at 0 a (concat as)"
+lemma concat_snoc_fst_rev [simp]: "insert_at 0 a (concat (map rev as)) = 
+  concat (map rev (snoc_fst a as))"
 proof (induction as)
   case (Cons b as)
-  thus ?case by (cases b, cases as) simp_all
+  thus ?case by (induction b rule: rev_induct, cases as) simp_all
 qed simp_all
+
+lemma concat_snoc_fst_insert_at [simp]: "concat (snoc_fst a as) = 
+    insert_at (case as of [] \<Rightarrow> 0 | b # _ \<Rightarrow> length b) a (concat as)"
+  by (induction as) simp_all
+
+lemma hd_insert_at_zero [simp]: "hd (insert_at 0 a as) = a"
+  by (cases as) simp_all
 
 lemma insert_at_list_all [simp]: "list_all2 p as bs \<Longrightarrow> p a b \<Longrightarrow> x \<le> length as \<Longrightarrow> 
   list_all2 p (insert_at x a as) (insert_at x b bs)"

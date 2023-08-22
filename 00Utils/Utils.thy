@@ -53,23 +53,29 @@ lemma list_all_map_with_idx [simp]: "(\<And>k a. p (f k a) = p a) \<Longrightarr
     list_all p (map_with_idx x f as) = list_all p as"
   by (induction as arbitrary: x) simp_all
 
-primrec cons_fst :: "'a \<Rightarrow> 'a list list \<Rightarrow> 'a list list" where
-  "cons_fst b [] = [[b]]"
-| "cons_fst b (bs # bss) = (b # bs) # bss"
+primrec snoc_fst :: "'a \<Rightarrow> 'a list list \<Rightarrow> 'a list list" where
+  "snoc_fst b [] = [[b]]"
+| "snoc_fst b (bs # bss) = (bs @ [b]) # bss"
 
-lemma cons_fst_inj [simp]: "as \<noteq> [] \<Longrightarrow> list_all ((\<noteq>) []) as \<Longrightarrow> 
-  (cons_fst a as = cons_fst b bs) = (a = b \<and> as = bs)"
+lemma snoc_fst_nil [simp]: "snoc_fst a as \<noteq> []"
+  by (cases as) simp_all
+
+lemma snoc_fst_inj [simp]: "as \<noteq> [] \<Longrightarrow> list_all ((\<noteq>) []) as \<Longrightarrow> 
+  (snoc_fst a as = snoc_fst b bs) = (a = b \<and> as = bs)"
 proof (induction as arbitrary: bs)
   case (Cons a as)
   thus ?case by (induction bs) auto
 qed simp_all
 
-lemma map_cons_fst [simp]: "map (map f) (cons_fst a as) = cons_fst (f a) (map (map f) as)"
+lemma map_snoc_fst [simp]: "map (map f) (snoc_fst a as) = snoc_fst (f a) (map (map f) as)"
   by (induction as) simp_all
 
-lemma list_all_cons_fst [simp]: "list_all (list_all p) (cons_fst a as) = 
-    (p a \<and> list_all (list_all p) as)"
+lemma length_hd_snoc_fst [simp]: "as \<noteq> [] \<Longrightarrow> length (hd (snoc_fst a as)) = Suc (length (hd as))"
   by (induction as) simp_all
+
+lemma list_all_snoc_fst [simp]: "list_all (list_all p) (snoc_fst a as) = 
+    (p a \<and> list_all (list_all p) as)"
+  by (induction as) auto
 
 fun nat_to_string' :: "nat \<Rightarrow> char" where
   "nat_to_string' 0 = CHR 48"

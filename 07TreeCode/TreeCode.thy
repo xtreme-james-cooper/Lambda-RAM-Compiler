@@ -67,7 +67,7 @@ inductive eval\<^sub>e :: "state\<^sub>e \<Rightarrow> state\<^sub>e \<Rightarro
 | ev\<^sub>e_pushlam [simp]: "S\<^sub>e \<V> ((\<Delta>, PushLam\<^sub>e \<C>' n # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e (Lam\<^sub>e \<Delta> \<C>' n # \<V>) ((\<Delta>, \<C>) # s)"
 | ev\<^sub>e_apply [simp]: "S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' n # \<V>) ((\<Delta>, Apply\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e 
     S\<^sub>e \<V> (([v] # \<Delta>', \<C>') # (\<Delta>, \<C>) # s)"
-| ev\<^sub>e_pushenv [simp]: "S\<^sub>e (v # \<V>) ((\<Delta>, PushEnv\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((cons_fst v \<Delta>, \<C>) # s)"
+| ev\<^sub>e_pushenv [simp]: "S\<^sub>e (v # \<V>) ((\<Delta>, PushEnv\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> ((snoc_fst v \<Delta>, \<C>) # s)"
 | ev\<^sub>e_return [simp]: "S\<^sub>e \<V> ((\<Delta>, Return\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> s"
 | ev\<^sub>e_jump [simp]: "S\<^sub>e (v # Lam\<^sub>e \<Delta>' \<C>' n # \<V>) ((\<Delta>, Jump\<^sub>e # \<C>) # s) \<leadsto>\<^sub>e S\<^sub>e \<V> (([v] # \<Delta>', \<C>') # s)"
 

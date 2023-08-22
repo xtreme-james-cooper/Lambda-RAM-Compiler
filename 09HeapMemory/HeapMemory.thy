@@ -32,7 +32,7 @@ inductive eval\<^sub>h :: "code\<^sub>b list \<Rightarrow> state\<^sub>h \<Right
 | ev\<^sub>h_apply [simp]: "lookup \<C> p = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' n \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>h h (v\<^sub>1 # v\<^sub>2 # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> (([v\<^sub>1] # \<Delta>', p') # (\<Delta>, p) # s)"
 | ev\<^sub>h_pushenv [simp]: "lookup \<C> p = Some PushEnv\<^sub>b \<Longrightarrow> 
-    \<C> \<tturnstile> S\<^sub>h h (v # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> ((cons_fst v \<Delta>, p) # s)"
+    \<C> \<tturnstile> S\<^sub>h h (v # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> ((snoc_fst v \<Delta>, p) # s)"
 | ev\<^sub>h_return [simp]: "lookup \<C> p = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> s"
 | ev\<^sub>h_jump [simp]: "lookup \<C> p = Some Jump\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' n \<Longrightarrow>
