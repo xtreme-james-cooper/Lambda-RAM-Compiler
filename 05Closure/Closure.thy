@@ -41,6 +41,15 @@ inductive_cases [elim]: "Lam\<^sub>c t\<^sub>1 \<Delta> e :\<^sub>c\<^sub>l t"
 inductive_cases [elim]: "[] :\<^sub>c\<^sub>l\<^sub>s \<Gamma>"
 inductive_cases [elim]: "c # \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>"
 
+lemma tc_env_append [simp]: "length \<Delta> = length \<Gamma> \<Longrightarrow> \<Delta> @ \<Delta>' :\<^sub>c\<^sub>l\<^sub>s \<Gamma> @ \<Gamma>' = (\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<and> \<Delta>' :\<^sub>c\<^sub>l\<^sub>s \<Gamma>')"
+proof (induction \<Delta> arbitrary: \<Gamma>)
+  case Nil
+  thus ?case by (induction \<Gamma>) simp_all
+next
+  case (Cons c \<Delta>)
+  thus ?case by (induction \<Gamma>) auto
+qed
+
 lemma  "c :\<^sub>c\<^sub>l t \<Longrightarrow> True"
   and lookup_in_env\<^sub>c [simp]: "\<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> lookup \<Gamma> x = Some t \<Longrightarrow> \<exists>c. lookup \<Delta> x = Some c \<and> c :\<^sub>c\<^sub>l t"
 proof (induction c t and \<Delta> \<Gamma> arbitrary: and x rule: typing_closure\<^sub>c_typing_environment\<^sub>c.inducts)

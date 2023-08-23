@@ -321,6 +321,15 @@ fun map_from_env :: "'a list list \<Rightarrow> nat \<times> nat \<rightharpoonu
 lemma map_from_env_empty [simp]: "map_from_env [] = Map.empty"
   by auto
 
+lemma map_from_env_cons_empty' [simp]: "map_from_env [[]] x = None"
+proof (cases x)
+  case (Pair x y)
+  thus ?thesis by (cases x) simp_all
+qed
+
+lemma map_from_env_cons_empty [simp]: "map_from_env [[]] = Map.empty"
+  by auto
+
 lemma lookup_map_from_env [simp]: "lookup \<Delta> x = Some cs \<Longrightarrow> lookup cs y = Some c \<Longrightarrow> 
     map_from_env \<Delta> (x, y) \<noteq> None"
   by (induction \<Delta> "(x, y)" arbitrary: x y rule: map_from_env.induct) simp_all
@@ -335,27 +344,39 @@ qed simp_all
 primrec combine_closure :: "closure\<^sub>g \<Rightarrow> closure\<^sub>c" where
   "combine_closure (Num\<^sub>g n) = Const\<^sub>c n"
 | "combine_closure (Fun\<^sub>g t \<Delta> e n) = 
-    Lam\<^sub>c t (concat (map (map combine_closure) \<Delta>)) 
+    Lam\<^sub>c t (concat (map rev (map (map combine_closure) \<Delta>))) 
       (combine_vars' (inv_map_past_lam (map_from_env \<Delta>)) 1 e)"
 
-primrec combine_frame :: "nat \<Rightarrow> frame\<^sub>g \<Rightarrow> frame\<^sub>c" where
-  "combine_frame n (FApp1\<^sub>g \<Delta> e) = 
-    FApp1\<^sub>c (concat (map (map combine_closure) \<Delta>)) (combine_vars' (map_from_env \<Delta>) n e)"
-| "combine_frame n (FApp2\<^sub>g c) = FApp2\<^sub>c (combine_closure c)"
-| "combine_frame n (FLet\<^sub>g \<Delta> e) = 
-    FLet\<^sub>c (concat (map (map combine_closure) \<Delta>)) 
-      (combine_vars' (inv_map_past_let (map_from_env \<Delta>) n) (Suc n) e)"
-| "combine_frame n (FReturn\<^sub>g \<Delta>) = FReturn\<^sub>c (concat (map (map combine_closure) \<Delta>))"
+abbreviation combine_env :: "closure\<^sub>g list list \<Rightarrow> closure\<^sub>c list" where
+  "combine_env \<Delta> \<equiv> concat (map (rev \<circ> map combine_closure) \<Delta>)"
 
-lemma return_headed_combine_frame [simp]: "return_headed\<^sub>c (map (combine_frame n) s) = 
-    return_headed\<^sub>g s"
-  by (induction s rule: return_headed\<^sub>g.induct) simp_all
+fun combine_stack' :: "frame\<^sub>g list \<Rightarrow> frame\<^sub>c list \<times> nat" where
+  "combine_stack' [] = ([], 0)" 
+| "combine_stack' (FApp1\<^sub>g \<Delta> e # s) = (
+    let (s', n) = combine_stack' s
+    in (FApp1\<^sub>c (combine_env \<Delta>) (combine_vars' (map_from_env \<Delta>) n e) # s', n))"
+| "combine_stack' (FApp2\<^sub>g c # s) = (
+    let (s', n) = combine_stack' s
+    in (FApp2\<^sub>c (combine_closure c) # s', n))"
+| "combine_stack' (FLet\<^sub>g \<Delta> e # s) = (
+    let (s', n) = combine_stack' s
+    in (FLet\<^sub>c (combine_env \<Delta>) (combine_vars' (inv_map_past_let (map_from_env \<Delta>) n) (Suc n) e) # s',
+        n))"
+| "combine_stack' (FReturn\<^sub>g \<Delta> # s) = (
+    let (s', n) = combine_stack' s
+    in (FReturn\<^sub>c (combine_env \<Delta>) # s', length (hd \<Delta>)))"
+
+abbreviation combine_stack :: "frame\<^sub>g list \<Rightarrow> frame\<^sub>c list" where
+  "combine_stack s \<equiv> fst (combine_stack' s)"
+
+lemma return_headed_combine_stack [simp]: "return_headed\<^sub>c (combine_stack s) = return_headed\<^sub>g s"
+  by (induction s rule: combine_stack'.induct) (simp_all split: prod.splits)
 
 primrec combine_state :: "state\<^sub>g \<Rightarrow> state\<^sub>c" where
-  "combine_state (SE\<^sub>g s \<Delta> e) = 
-    SE\<^sub>c (map (combine_frame 0) s) (concat (map (map combine_closure) \<Delta>)) 
-      (combine_vars' (map_from_env \<Delta>) 0 e)"
-| "combine_state (SC\<^sub>g s c) = SC\<^sub>c (map (combine_frame 0) s) (combine_closure c)"
+  "combine_state (SE\<^sub>g s \<Delta> e) = (
+    let (s', n) = combine_stack' s
+    in SE\<^sub>c s' (combine_env \<Delta>) (combine_vars' (map_from_env \<Delta>) n e))"
+| "combine_state (SC\<^sub>g s c) = SC\<^sub>c (combine_stack s) (combine_closure c)"
 
 text \<open>We can now prove our typechecking theorems:\<close>
 
@@ -421,111 +442,143 @@ lemma map_from_env_type_vals [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s
   by auto
 
 lemma typecheck_combine_closure [simp]: "c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> combine_closure c :\<^sub>c\<^sub>l t"
-  and typecheck_concat_combine_closure [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> 
-    concat (map (map combine_closure) \<Delta>) :\<^sub>c\<^sub>l\<^sub>s concat \<Gamma>"
+  and typecheck_concat_combine_closure [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)"
 proof (induction c t and \<Delta> \<Gamma> rule: typing_closure\<^sub>g_typing_environment\<^sub>g.inducts)
   case (tc\<^sub>g_lam \<Delta> \<Gamma> t\<^sub>1 e t\<^sub>2)
   hence X: "map_from_env \<Gamma> = map_from_env \<Delta>" by simp
-  from tc\<^sub>g_lam have "concat (insert_at 0 [t\<^sub>1] \<Gamma>) \<turnstile>\<^sub>d 
-    combine_vars' (map_from_env (insert_at 0 [t\<^sub>1] \<Gamma>)) e : t\<^sub>2" by (metis typecheck_combine)
-  hence "insert_at 0 t\<^sub>1 (concat \<Gamma>) \<turnstile>\<^sub>d combine_vars' (inv_map_past_lam (map_from_env \<Gamma>)) e : t\<^sub>2" 
-    by simp
-  hence "insert_at 0 t\<^sub>1 (concat \<Gamma>) \<turnstile>\<^sub>d combine_vars' (inv_map_past_lam (map_from_env \<Delta>)) e : t\<^sub>2" 
-    using X by metis
-  with tc\<^sub>g_lam show ?case by simp
+  have "lookup (insert_at 0 [t\<^sub>1] \<Gamma>) 0 = Some [t\<^sub>1]" by simp
+  with tc\<^sub>g_lam have "concat (map rev (insert_at 0 [t\<^sub>1] \<Gamma>)) \<turnstile>\<^sub>d 
+    combine_vars' (map_from_env (insert_at 0 [t\<^sub>1] \<Gamma>)) (length [t\<^sub>1]) e : t\<^sub>2" by (metis typecheck_combine)
+  hence "insert_at 0 t\<^sub>1 (concat (map rev \<Gamma>)) \<turnstile>\<^sub>d 
+    combine_vars' (inv_map_past_lam (map_from_env \<Gamma>)) 1 e : t\<^sub>2" by simp
+  hence Y: "insert_at 0 t\<^sub>1 (concat (map rev \<Gamma>)) \<turnstile>\<^sub>d 
+    combine_vars' (inv_map_past_lam (map_from_env \<Delta>)) 1 e : t\<^sub>2" using X by metis
+  from tc\<^sub>g_lam have "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)" by blast
+  with tc\<^sub>g_lam Y show ?case by simp
 qed simp_all
 
-lemma combine_clsoure_mapfst [simp]: "concat (map (map combine_closure) (snoc_fst c \<Delta>)) = 
-    combine_closure c # concat (map (map combine_closure) \<Delta>)"
+lemma combine_env_mapfst [simp]: "combine_env (snoc_fst c \<Delta>) = combine_closure c # combine_env \<Delta>"
   by (induction \<Delta>) simp_all
 
-lemma latest_combine_env [simp]: "latest_environment\<^sub>c (map combine_frame s) =
-  map_option (\<lambda>\<Delta>. concat (map (map combine_closure) \<Delta>)) (latest_environment\<^sub>g s)"
-proof (induction s rule: latest_environment\<^sub>g.induct)
-  case (5 c s)
-  then show ?case by (simp add: option.map_comp comp_def)
-qed simp_all
+lemma latest_combine_env [simp]: "latest_environment\<^sub>c (combine_stack s) =
+    map_option combine_env (latest_environment\<^sub>g s)"
+  by (induction s rule: combine_stack'.induct) (auto simp add: comp_def split: prod.splits)
 
-lemma typecheck_stack [simp]: "s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> map combine_frame s :\<^sub>c t\<^sub>2 \<rightarrow> t"
+lemma typecheck_stack [simp]: "s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> combine_stack s :\<^sub>c t\<^sub>2 \<rightarrow> t"
 proof (induction s t\<^sub>2 t rule: typing_stack\<^sub>g.induct)
   case (tcg_scons_app1 \<Delta> \<Gamma> e t\<^sub>1 s t\<^sub>2 t)
-  hence X: "concat (map (map combine_closure) \<Delta>) :\<^sub>c\<^sub>l\<^sub>s concat \<Gamma>" by simp
+  hence X: "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)" by simp
+  obtain s' n where C: "combine_stack' s = (s', n)" by fastforce
   from tcg_scons_app1 have "map_from_env \<Delta> = map_from_env \<Gamma>" by simp
-  with tcg_scons_app1(2) have Y: "concat \<Gamma> \<turnstile>\<^sub>d combine_vars' (map_from_env \<Delta>) e : t\<^sub>1" by simp
-  from tcg_scons_app1 have "latest_environment\<^sub>c (map combine_frame s) = 
-    Some (concat (map (map combine_closure) \<Delta>))" by simp
-  with tcg_scons_app1(3, 4, 7) X Y show ?case by simp
+  with tcg_scons_app1(2) C have Y: "concat (map rev \<Gamma>) \<turnstile>\<^sub>d combine_vars' (map_from_env \<Delta>) n e : t\<^sub>1" 
+    by simp
+
+  have "\<Gamma> \<turnstile>\<^sub>g e : t \<Longrightarrow> lookup \<Gamma> 0 = Some ts \<Longrightarrow> 
+    concat (map rev \<Gamma>) \<turnstile>\<^sub>d combine_vars' (map_from_env \<Gamma>) (length ts) e : t" by simp
+
+  from tcg_scons_app1 have "latest_environment\<^sub>c (combine_stack s) = Some (combine_env \<Delta>)" by simp
+  with C have Z: "latest_environment\<^sub>c s' = Some (combine_env \<Delta>)" by simp
+
+
+  have "s' :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
+  with tcg_scons_app1(3, 4) X Y Z have "
+    FApp1\<^sub>c (combine_env \<Delta>) (combine_vars' (map_from_env \<Delta>) n e) # s' :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t" by simp
+  with tcg_scons_app1(3, 4, 7) X C Y show ?case by simp
 next
   case (tcg_scons_app2 c t\<^sub>1 t\<^sub>2 s t)
   hence "combine_closure c :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2" by simp
-  moreover from tcg_scons_app2 have "map combine_frame s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
-  moreover from tcg_scons_app2 have "latest_environment\<^sub>c (map combine_frame s) \<noteq> None" by simp
+  moreover from tcg_scons_app2 have "combine_stack s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
+  moreover from tcg_scons_app2 have "latest_environment\<^sub>c (combine_stack s) \<noteq> None" by simp
   ultimately show ?case by simp
 next
   case (tcg_scons_let s \<Delta> \<Gamma> t\<^sub>1 e t\<^sub>2 t)
-  hence "concat (snoc_fst t\<^sub>1 \<Gamma>) \<turnstile>\<^sub>d combine_vars' (map_from_env (snoc_fst t\<^sub>1 \<Gamma>)) e : t\<^sub>2" 
+  hence "concat (snoc_fst t\<^sub>1 \<Gamma>) \<turnstile>\<^sub>d combine_vars' (map_from_env (snoc_fst t\<^sub>1 \<Gamma>)) n e : t\<^sub>2" 
     by (metis typecheck_combine)
-  hence X: "insert_at 0 t\<^sub>1 (concat \<Gamma>) \<turnstile>\<^sub>d combine_vars' (inv_map_past_let (map_from_env \<Gamma>)) e : t\<^sub>2"
+  hence X: "insert_at 0 t\<^sub>1 (concat \<Gamma>) \<turnstile>\<^sub>d combine_vars' (inv_map_past_let (map_from_env \<Gamma>) n) n e : t\<^sub>2"
     by simp
   from tcg_scons_let have "map_from_env \<Delta> = map_from_env \<Gamma>" by simp
   with X have "insert_at 0 t\<^sub>1 (concat \<Gamma>) \<turnstile>\<^sub>d 
-    combine_vars' (inv_map_past_let (map_from_env \<Delta>)) e : t\<^sub>2" by metis
-  moreover from tcg_scons_let have "latest_environment\<^sub>c (map combine_frame s) = 
-    Some (concat (map (map combine_closure) \<Delta>))" by simp
-  moreover from tcg_scons_let have "concat (map (map combine_closure) \<Delta>) :\<^sub>c\<^sub>l\<^sub>s concat \<Gamma>" by simp
-  moreover from tcg_scons_let have "map combine_frame s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
+    combine_vars' (inv_map_past_let (map_from_env \<Delta>) n) n e : t\<^sub>2" by metis
+  moreover from tcg_scons_let have "latest_environment\<^sub>c (combine_stack s) = Some (combine_env \<Delta>)" 
+    by simp
+  moreover from tcg_scons_let have "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)" by simp
+  moreover from tcg_scons_let have "combine_stack s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
   moreover from tcg_scons_let have "
-    let_floated\<^sub>d (combine_vars' (inv_map_past_let (map_from_env \<Delta>)) e)" by simp
-  moreover from tcg_scons_let have "return_headed\<^sub>c (map combine_frame s)" by simp
+    let_floated\<^sub>d (combine_vars' (inv_map_past_let (map_from_env \<Delta>) n) n e)" by simp
+  moreover from tcg_scons_let have "return_headed\<^sub>c (combine_stack s)" by simp
   ultimately show ?case by simp
 next
   case (tcg_scons_ret \<Delta> \<Gamma> s t' t)
-  hence "concat (map (map combine_closure) \<Delta>) :\<^sub>c\<^sub>l\<^sub>s concat \<Gamma>" by simp
-  moreover from tcg_scons_ret have "map combine_frame s :\<^sub>c t' \<rightarrow> t" by simp
+  hence "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)" by simp
+  moreover from tcg_scons_ret have "combine_stack s :\<^sub>c t' \<rightarrow> t" by simp
   ultimately show ?case by simp
 qed simp_all
 
 lemma typecheck_state [simp]: "\<Sigma> :\<^sub>g t \<Longrightarrow> combine_state \<Sigma> :\<^sub>c t"
 proof (induction \<Sigma> t rule: typecheck_state\<^sub>g.induct)
   case (tcg_state_ev s t' t \<Delta> \<Gamma> e)
-  hence "concat \<Gamma> \<turnstile>\<^sub>d combine_vars' (map_from_env \<Gamma>) e : t'" 
+  hence "concat \<Gamma> \<turnstile>\<^sub>d combine_vars' (map_from_env \<Gamma>) 0 e : t'" 
     by (metis typecheck_combine)
-  with tcg_state_ev have "concat \<Gamma> \<turnstile>\<^sub>d combine_vars' (map_from_env \<Delta>) e : t'" by simp
-  moreover from tcg_state_ev have "map combine_frame s :\<^sub>c t' \<rightarrow> t" by simp
-  moreover from tcg_state_ev have "concat (map (map combine_closure) \<Delta>) :\<^sub>c\<^sub>l\<^sub>s concat \<Gamma>" by simp
-  moreover from tcg_state_ev have "latest_environment\<^sub>c (map combine_frame s) = 
-    Some (concat (map (map combine_closure) \<Delta>))" by simp
-  moreover from tcg_state_ev have "let_floated\<^sub>d (combine_vars' (map_from_env \<Delta>) e)" by simp
-  moreover from tcg_state_ev have "let_free\<^sub>d (combine_vars' (map_from_env \<Delta>) e) \<or> 
-    return_headed\<^sub>c (map combine_frame s)" by simp
+  with tcg_state_ev have "concat \<Gamma> \<turnstile>\<^sub>d combine_vars' (map_from_env \<Delta>) 0 e : t'" by simp
+  moreover from tcg_state_ev have "combine_stack s :\<^sub>c t' \<rightarrow> t" by simp
+  moreover from tcg_state_ev have "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)" by simp
+  moreover from tcg_state_ev have "latest_environment\<^sub>c (combine_stack s) = Some (combine_env \<Delta>)" 
+    by simp
+  moreover from tcg_state_ev have "let_floated\<^sub>d (combine_vars' (map_from_env \<Delta>) 0 e)" by simp
+  moreover from tcg_state_ev have "let_free\<^sub>d (combine_vars' (map_from_env \<Delta>) 0 e) \<or> 
+    return_headed\<^sub>c (combine_stack s)" by simp
   ultimately show ?case by simp
 next
   case (tcg_state_ret s t' t c)
-  hence "map combine_frame s :\<^sub>c t' \<rightarrow> t" by simp
+  hence "combine_stack s :\<^sub>c t' \<rightarrow> t" by simp
   moreover from tcg_state_ret have "combine_closure c :\<^sub>c\<^sub>l t'" by simp
   ultimately show ?case by simp
 qed
 
 text \<open>Now, the evaluation correctness theorems. As usual, one way is much simpler than the other.\<close>
 
-theorem completeness\<^sub>g [simp]: "\<Sigma> \<leadsto>\<^sub>g \<Sigma>' \<Longrightarrow> combine_state \<Sigma> \<leadsto>\<^sub>c combine_state \<Sigma>'"
-proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>g.induct)
-  case (ev\<^sub>g_var \<Delta> x cs y c s)
-  hence "lookup (map combine_closure (concat \<Delta>)) (the (map_from_env \<Delta> (x, y))) = 
-    Some (combine_closure c)" by simp
-  thus ?case by (simp add: map_concat)
+lemma lookup_combine_env [simp]: "lookup \<Delta> x = Some cs \<Longrightarrow> lookup cs y = Some c \<Longrightarrow> 
+    lookup (combine_env \<Delta>) (the (map_from_env \<Delta> (x, y))) = Some (combine_closure c)"
+proof (induction \<Delta> "(x, y)" arbitrary: x y rule: map_from_env.induct)
+  case (2 cs \<Delta> y)
+  hence "lookup (map combine_closure cs) y = Some (combine_closure c)" by simp
+  hence "lookup (rev (map combine_closure cs) @ combine_env \<Delta>) 
+    (length (map combine_closure cs) - Suc y) = Some (combine_closure c)" 
+      by (metis lookup_append_fst_rev)
+  with 2 show ?case by simp
 next
-  case (ret\<^sub>g_let \<Delta> e\<^sub>2 s c\<^sub>1)
-  have "insert_at 0 (combine_closure c\<^sub>1) (concat (map (map combine_closure) \<Delta>)) = 
-    combine_closure c\<^sub>1 # concat (map (map combine_closure) \<Delta>)" 
-  proof (induction \<Delta>)
-    case (Cons cs \<Delta>)
-    thus ?case by (cases cs) simp_all
-  qed simp_all
-  thus ?case by simp
+  case (3 cs \<Delta> x y)
+  have X: "length (rev (map combine_closure cs)) = length cs" by simp
+  from 3 show ?case by (cases "map_from_env \<Delta> (x, y)") (simp_all, metis X lookup_append_snd)
 qed simp_all
 
-lemma combine_to_var [dest]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>g : t \<Longrightarrow> Var\<^sub>d x = combine_vars' (map_from_env \<Delta>) e\<^sub>g \<Longrightarrow> 
+theorem completeness\<^sub>g [simp]: "\<Sigma> \<leadsto>\<^sub>g \<Sigma>' \<Longrightarrow> combine_state \<Sigma> \<leadsto>\<^sub>c combine_state \<Sigma>'"
+proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>g.induct)
+  case (ret\<^sub>g_let \<Delta> e\<^sub>2 s c\<^sub>1)
+  obtain s' n where S: "combine_stack' s = (s', n)" by fastforce
+
+  have "SC\<^sub>c 
+      (FLet\<^sub>c (combine_env \<Delta>) 
+       (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) (Suc (length (hd \<Delta>)))
+         e\<^sub>2) # 
+      FReturn\<^sub>c (combine_env \<Delta>) # s') 
+      (combine_closure c\<^sub>1) \<leadsto>\<^sub>c 
+    SE\<^sub>c (FReturn\<^sub>c ((combine_closure c\<^sub>1) # (combine_env \<Delta>)) # s') ((combine_closure c\<^sub>1) # (combine_env \<Delta>)) 
+    (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) (Suc (length (hd \<Delta>)))
+         e\<^sub>2)" by simp
+
+  hence "SC\<^sub>c
+     (FLet\<^sub>c (combine_env \<Delta>)
+       (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) (Suc (length (hd \<Delta>)))
+         e\<^sub>2) #
+      FReturn\<^sub>c (combine_env \<Delta>) # s')
+     (combine_closure c\<^sub>1) \<leadsto>\<^sub>c
+    SE\<^sub>c (FReturn\<^sub>c (combine_closure c\<^sub>1 # combine_env \<Delta>) # s') (combine_closure c\<^sub>1 # combine_env \<Delta>)
+     (combine_vars' (map_from_env (snoc_fst c\<^sub>1 \<Delta>)) (length (hd (snoc_fst c\<^sub>1 \<Delta>))) e\<^sub>2)" by simp
+  with S show ?case by simp
+qed (simp_all split: prod.splits)
+
+lemma combine_to_var [dest]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>g : t \<Longrightarrow> Var\<^sub>d x = combine_vars' (map_from_env \<Delta>) n e\<^sub>g \<Longrightarrow> 
     \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<exists>y z. e\<^sub>g = Var\<^sub>g y z \<and> map_from_env \<Delta> (y, z) = Some x"
 proof (induction \<Gamma> e\<^sub>g t rule: typing\<^sub>g.induct) 
   case (tc\<^sub>g_var \<Gamma> x ts y t)
@@ -534,56 +587,56 @@ proof (induction \<Gamma> e\<^sub>g t rule: typing\<^sub>g.induct)
   with tc\<^sub>g_var show ?case by simp
 qed simp_all
  
-lemma combine_to_con [dest]: "Const\<^sub>d n = combine_vars' \<Phi> e\<^sub>g \<Longrightarrow> e\<^sub>g = Const\<^sub>g n"
+lemma combine_to_con [dest]: "Const\<^sub>d n = combine_vars' \<Phi> m e\<^sub>g \<Longrightarrow> e\<^sub>g = Const\<^sub>g n"
   by (induction e\<^sub>g) simp_all
 
-lemma combine_to_lam [dest]: "Lam\<^sub>d t e\<^sub>c = combine_vars' \<Phi> e\<^sub>g \<Longrightarrow> 
-    \<exists>e\<^sub>g' n. e\<^sub>g = Lam\<^sub>g t e\<^sub>g' n \<and> e\<^sub>c = combine_vars' (inv_map_past_lam \<Phi>) e\<^sub>g'"
+lemma combine_to_lam [dest]: "Lam\<^sub>d t e\<^sub>c = combine_vars' \<Phi> n e\<^sub>g \<Longrightarrow> 
+    \<exists>e\<^sub>g' n. e\<^sub>g = Lam\<^sub>g t e\<^sub>g' n \<and> e\<^sub>c = combine_vars' (inv_map_past_lam \<Phi>) (Suc 0) e\<^sub>g'"
   by (induction e\<^sub>g) simp_all
 
-lemma combine_to_app [dest]: "App\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' \<Phi> e\<^sub>g \<Longrightarrow> 
-    \<exists>e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g. e\<^sub>g = App\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> e\<^sub>1\<^sub>c = combine_vars' \<Phi> e\<^sub>1\<^sub>g \<and> e\<^sub>2\<^sub>c = combine_vars' \<Phi> e\<^sub>2\<^sub>g"
+lemma combine_to_app [dest]: "App\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' \<Phi> n e\<^sub>g \<Longrightarrow> 
+    \<exists>e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g. e\<^sub>g = App\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> e\<^sub>1\<^sub>c = combine_vars' \<Phi> n e\<^sub>1\<^sub>g \<and> e\<^sub>2\<^sub>c = combine_vars' \<Phi> n e\<^sub>2\<^sub>g"
   by (induction e\<^sub>g) simp_all
 
-lemma combine_to_let [dest]: "Let\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' \<Phi> e\<^sub>g \<Longrightarrow> 
-  \<exists>e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g. e\<^sub>g = Let\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> e\<^sub>1\<^sub>c = combine_vars' \<Phi> e\<^sub>1\<^sub>g \<and> 
-    e\<^sub>2\<^sub>c = combine_vars' (inv_map_past_let \<Phi>) e\<^sub>2\<^sub>g"
+lemma combine_to_let [dest]: "Let\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' \<Phi> n e\<^sub>g \<Longrightarrow> 
+  \<exists>e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g. e\<^sub>g = Let\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> e\<^sub>1\<^sub>c = combine_vars' \<Phi> n e\<^sub>1\<^sub>g \<and> 
+    e\<^sub>2\<^sub>c = combine_vars' (inv_map_past_let \<Phi> n) (Suc n) e\<^sub>2\<^sub>g"
   by (induction e\<^sub>g) simp_all
 
 lemma combine_to_lamc [dest]: "Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c = combine_closure c\<^sub>g \<Longrightarrow> 
-  \<exists>\<Delta>\<^sub>g e\<^sub>g n. c\<^sub>g = Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g n \<and> \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> 
-    e\<^sub>c = combine_vars' (inv_map_past_lam (map_from_env \<Delta>\<^sub>g)) e\<^sub>g"
+  \<exists>\<Delta>\<^sub>g e\<^sub>g n. c\<^sub>g = Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g n \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
+    e\<^sub>c = combine_vars' (inv_map_past_lam (map_from_env \<Delta>\<^sub>g)) (Suc 0) e\<^sub>g"
   by (induction c\<^sub>g) simp_all
 
-lemma combine_to_fapp1 [dest]: "FApp1\<^sub>c \<Delta>\<^sub>c e\<^sub>c = combine_frame f\<^sub>g \<Longrightarrow> 
-  \<exists>\<Delta>\<^sub>g e\<^sub>g. f\<^sub>g = FApp1\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> 
-    e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) e\<^sub>g"
-  by (induction f\<^sub>g) simp_all
+lemma combine_to_fapp1 [dest]: "FApp1\<^sub>c \<Delta>\<^sub>c e\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g \<Longrightarrow> 
+  \<exists>n s\<^sub>g' \<Delta>\<^sub>g e\<^sub>g. s\<^sub>g = FApp1\<^sub>g \<Delta>\<^sub>g e\<^sub>g # s\<^sub>g' \<and> combine_stack' s\<^sub>g' = (s\<^sub>c, n) \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
+    e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) n e\<^sub>g"
+  by (induction s\<^sub>g rule: combine_stack'.induct) (simp_all split: prod.splits)
 
-lemma combine_to_fapp2 [dest]: "FApp2\<^sub>c c\<^sub>c = combine_frame f\<^sub>g \<Longrightarrow> 
-  \<exists>c\<^sub>g. f\<^sub>g = FApp2\<^sub>g c\<^sub>g \<and> c\<^sub>c = combine_closure c\<^sub>g"
-  by (induction f\<^sub>g) simp_all
+lemma combine_to_fapp2 [dest]: "FApp2\<^sub>c c\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g \<Longrightarrow> 
+  \<exists>n s\<^sub>g' c\<^sub>g. s\<^sub>g = FApp2\<^sub>g c\<^sub>g # s\<^sub>g' \<and> combine_stack' s\<^sub>g' = (s\<^sub>c, n) \<and> c\<^sub>c = combine_closure c\<^sub>g"
+  by (induction s\<^sub>g rule: combine_stack'.induct) (simp_all split: prod.splits)
 
-lemma combine_to_flet [dest]: "FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>c = combine_frame f\<^sub>g \<Longrightarrow> 
-  \<exists>\<Delta>\<^sub>g e\<^sub>g. f\<^sub>g = FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> 
-    e\<^sub>c = combine_vars' (inv_map_past_let (map_from_env \<Delta>\<^sub>g)) e\<^sub>g"
-  by (induction f\<^sub>g) simp_all
+lemma combine_to_flet [dest]: "FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g \<Longrightarrow> 
+  \<exists>n s\<^sub>g' \<Delta>\<^sub>g e\<^sub>g. s\<^sub>g = FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>g # s\<^sub>g' \<and> combine_stack' s\<^sub>g' = (s\<^sub>c, n) \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
+    e\<^sub>c = combine_vars' (inv_map_past_let (map_from_env \<Delta>\<^sub>g) n) (Suc n) e\<^sub>g"
+  by (induction s\<^sub>g rule: combine_stack'.induct) (simp_all split: prod.splits)
 
-lemma combine_to_freturn [dest]: "FReturn\<^sub>c \<Delta>\<^sub>c = combine_frame f\<^sub>g \<Longrightarrow> 
-    \<exists>\<Delta>\<^sub>g. f\<^sub>g = FReturn\<^sub>g \<Delta>\<^sub>g \<and> \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g)"
-  by (induction f\<^sub>g) simp_all
+lemma combine_to_freturn [dest]: "FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g \<Longrightarrow> 
+    \<exists>n s\<^sub>g' \<Delta>\<^sub>g. s\<^sub>g = FReturn\<^sub>g \<Delta>\<^sub>g # s\<^sub>g' \<and> combine_stack' s\<^sub>g' = (s\<^sub>c, n) \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g"
+  by (induction s\<^sub>g rule: combine_stack'.induct) (simp_all split: prod.splits)
 
 lemma combine_to_eval_state [dest]: "SE\<^sub>c s\<^sub>c \<Delta>\<^sub>c e\<^sub>c = combine_state \<Sigma>\<^sub>g \<Longrightarrow> 
-  \<exists>s\<^sub>g \<Delta>\<^sub>g e\<^sub>g. \<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = map combine_frame s\<^sub>g \<and> 
-    \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) e\<^sub>g"
+  \<exists>s\<^sub>g \<Delta>\<^sub>g e\<^sub>g. \<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
+    e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>g"
   by (induction \<Sigma>\<^sub>g) simp_all
 
 lemma combine_to_return_state [dest]: "SC\<^sub>c s\<^sub>c c\<^sub>c = combine_state \<Sigma>\<^sub>g \<Longrightarrow> 
-    \<exists>s\<^sub>g c\<^sub>g. \<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g c\<^sub>g \<and> s\<^sub>c = map combine_frame s\<^sub>g \<and> c\<^sub>c = combine_closure c\<^sub>g"
+    \<exists>s\<^sub>g c\<^sub>g. \<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g c\<^sub>g \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> c\<^sub>c = combine_closure c\<^sub>g"
   by (induction \<Sigma>\<^sub>g) simp_all
 
 lemma lookup_map_inv [simp]: "map_from_env \<Delta> (y, z) = Some x \<Longrightarrow>
-  lookup (concat (map (map combine_closure) \<Delta>)) x = Some c \<Longrightarrow> 
+  lookup (combine_env \<Delta>) x = Some c \<Longrightarrow> 
     \<exists>cs c\<^sub>g. lookup \<Delta> y = Some cs \<and> lookup cs z = Some c\<^sub>g \<and> c = combine_closure c\<^sub>g" 
   by (induction \<Delta> "(y, z)" arbitrary: x y z rule: map_from_env.induct) (auto split: if_splits)
 
@@ -591,53 +644,50 @@ theorem correctness\<^sub>g [simp]: "combine_state \<Sigma>\<^sub>g \<leadsto>\<
   \<exists>\<Sigma>\<^sub>g'. \<Sigma>\<^sub>g \<leadsto>\<^sub>g \<Sigma>\<^sub>g' \<and> \<Sigma>\<^sub>c' = combine_state \<Sigma>\<^sub>g'"
 proof (induction "combine_state \<Sigma>\<^sub>g" \<Sigma>\<^sub>c' rule: eval\<^sub>c.induct)
   case (ev\<^sub>c_var \<Delta>\<^sub>c x c\<^sub>c s\<^sub>c)
-  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = map combine_frame s\<^sub>g \<and> 
-    \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> Var\<^sub>d x = combine_vars' (map_from_env \<Delta>\<^sub>g) e\<^sub>g" 
-      by auto
+  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> 
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> Var\<^sub>d x = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>g" by auto
   with ev\<^sub>c_var obtain t' \<Gamma> where "(s\<^sub>g :\<^sub>g t' \<rightarrow> t) \<and> (\<Delta>\<^sub>g :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
     latest_environment\<^sub>g s\<^sub>g = Some \<Delta>\<^sub>g \<and> \<Gamma> \<turnstile>\<^sub>g e\<^sub>g : t'" by auto
   with S obtain y z where Y: "e\<^sub>g = Var\<^sub>g y z \<and> map_from_env \<Delta>\<^sub>g (y, z) = Some x" by auto
-  from ev\<^sub>c_var S have "lookup (concat (map (map combine_closure) \<Delta>\<^sub>g)) x = Some c\<^sub>c" by blast
+  from ev\<^sub>c_var S have "lookup (combine_env \<Delta>\<^sub>g) x = Some c\<^sub>c" by blast
   with Y obtain cs c\<^sub>g where "lookup \<Delta>\<^sub>g y = Some cs \<and> lookup cs z = Some c\<^sub>g \<and> c\<^sub>c = combine_closure c\<^sub>g" 
     using lookup_map_inv by blast
   with S have "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Var\<^sub>g y z) \<leadsto>\<^sub>g SC\<^sub>g s\<^sub>g c\<^sub>g \<and> SC\<^sub>c s\<^sub>c c\<^sub>c = combine_state (SC\<^sub>g s\<^sub>g c\<^sub>g)" by simp
   with S Y show ?case by blast
 next
   case (ev\<^sub>c_con s\<^sub>c \<Delta>\<^sub>c n)
-  then obtain s\<^sub>g \<Delta>\<^sub>g where "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Const\<^sub>g n) \<and> s\<^sub>c = map combine_frame s\<^sub>g \<and> 
-    \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g)" by blast
+  then obtain s\<^sub>g \<Delta>\<^sub>g where "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Const\<^sub>g n) \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g" 
+    by blast
   moreover hence "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Const\<^sub>g n) \<leadsto>\<^sub>g SC\<^sub>g s\<^sub>g (Num\<^sub>g n) \<and> 
     SC\<^sub>c s\<^sub>c (Const\<^sub>c n) = combine_state (SC\<^sub>g s\<^sub>g (Num\<^sub>g n))" by simp
   ultimately show ?case by blast
 next
   case (ev\<^sub>c_lam s\<^sub>c \<Delta>\<^sub>c t e\<^sub>c)
-  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = map combine_frame s\<^sub>g \<and> 
-    \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> Lam\<^sub>d t e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) e\<^sub>g" 
-      by auto
+  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
+    Lam\<^sub>d t e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>g" by auto
   moreover then obtain e\<^sub>g' n where "e\<^sub>g = Lam\<^sub>g t e\<^sub>g' n \<and> 
-    e\<^sub>c = combine_vars' (inv_map_past_lam (map_from_env \<Delta>\<^sub>g)) e\<^sub>g'" by auto
+    e\<^sub>c = combine_vars' (inv_map_past_lam (map_from_env \<Delta>\<^sub>g)) 0 e\<^sub>g'" by auto
   moreover with S have "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Lam\<^sub>g t e\<^sub>g' n) \<leadsto>\<^sub>g SC\<^sub>g s\<^sub>g (Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g' n) \<and> 
     SC\<^sub>c s\<^sub>c (Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c) = combine_state (SC\<^sub>g s\<^sub>g (Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g' n))" by simp
   ultimately show ?case by blast
 next
   case (ev\<^sub>c_app s\<^sub>c \<Delta>\<^sub>c e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c)
-  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = map combine_frame s\<^sub>g \<and> 
-    \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> App\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) e\<^sub>g" 
+  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
+    App\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>g" by auto
+  moreover then obtain e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g where "e\<^sub>g = App\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> 
+    e\<^sub>1\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>1\<^sub>g \<and> e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>2\<^sub>g" 
       by auto
-  moreover then obtain e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g where "e\<^sub>g = App\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> e\<^sub>1\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) e\<^sub>1\<^sub>g \<and> 
-    e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) e\<^sub>2\<^sub>g" by auto
   moreover with S have "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (App\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g) \<leadsto>\<^sub>g SE\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g \<and> 
     SE\<^sub>c (FApp1\<^sub>c \<Delta>\<^sub>c e\<^sub>2\<^sub>c # s\<^sub>c) \<Delta>\<^sub>c e\<^sub>1\<^sub>c = combine_state (SE\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g)" by simp
   ultimately show ?case by blast
 next
   case (ev\<^sub>c_let \<Delta>\<^sub>c s\<^sub>c e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c)
-  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = map combine_frame s\<^sub>g \<and> 
-    \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> Let\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) e\<^sub>g" 
-      by blast
+  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g \<and> 
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> Let\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>g" by blast
   moreover then obtain \<Delta>\<^sub>g' s\<^sub>g' where S': "s\<^sub>g = FReturn\<^sub>g \<Delta>\<^sub>g' # s\<^sub>g'" by blast
   moreover from S obtain e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g where E: "e\<^sub>g = Let\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> 
-    e\<^sub>1\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) e\<^sub>1\<^sub>g \<and> 
-      e\<^sub>2\<^sub>c = combine_vars' (inv_map_past_let (map_from_env \<Delta>\<^sub>g)) e\<^sub>2\<^sub>g" by auto
+    e\<^sub>1\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>1\<^sub>g \<and> 
+      e\<^sub>2\<^sub>c = combine_vars' (inv_map_past_let (map_from_env \<Delta>\<^sub>g) 0) (Suc 0) e\<^sub>2\<^sub>g" by auto
   moreover from ev\<^sub>c_let S S' have "\<Delta>\<^sub>g' = \<Delta>\<^sub>g" by auto
   moreover with S S' E have "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Let\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g \<and> 
     SE\<^sub>c (FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>2\<^sub>c # FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c) \<Delta>\<^sub>c e\<^sub>1\<^sub>c = combine_state (SE\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g)" 
@@ -645,34 +695,30 @@ next
   ultimately show ?case by blast
 next
   case (ret\<^sub>c_app1 \<Delta>\<^sub>c e\<^sub>c s\<^sub>c c\<^sub>c)
-  then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> FApp1\<^sub>c \<Delta>\<^sub>c e\<^sub>c # s\<^sub>c = map combine_frame s\<^sub>g' \<and> 
+  then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> FApp1\<^sub>c \<Delta>\<^sub>c e\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g' \<and> 
     c\<^sub>c = combine_closure c\<^sub>g" by blast
-  moreover then obtain f\<^sub>g s\<^sub>g where F: "FApp1\<^sub>c \<Delta>\<^sub>c e\<^sub>c = combine_frame f\<^sub>g \<and> s\<^sub>c = map combine_frame s\<^sub>g \<and> 
-    s\<^sub>g' = f\<^sub>g # s\<^sub>g" by blast
-  moreover then obtain \<Delta>\<^sub>g e\<^sub>g where "f\<^sub>g = FApp1\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> 
-    e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) e\<^sub>g" by blast
-  moreover with S F have "SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e\<^sub>g # s\<^sub>g) c\<^sub>g \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>g \<and> 
+  moreover then obtain n s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where F: "s\<^sub>g' = FApp1\<^sub>g \<Delta>\<^sub>g e\<^sub>g # s\<^sub>g \<and> combine_stack' s\<^sub>g = (s\<^sub>c, n) \<and> 
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) n e\<^sub>g" by blast
+  moreover with S have "SC\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e\<^sub>g # s\<^sub>g) c\<^sub>g \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>g \<and> 
     SE\<^sub>c (FApp2\<^sub>c c\<^sub>c # s\<^sub>c) \<Delta>\<^sub>c e\<^sub>c = combine_state (SE\<^sub>g (FApp2\<^sub>g c\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>g)" by simp
   ultimately show ?case by blast
 next
   case (ret\<^sub>c_app2 t \<Delta>\<^sub>c e\<^sub>c s\<^sub>c c\<^sub>c)
-  then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> FApp2\<^sub>c (Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c) # s\<^sub>c = map combine_frame s\<^sub>g' \<and> 
+  then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> FApp2\<^sub>c (Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c) # s\<^sub>c = combine_stack s\<^sub>g' \<and> 
     c\<^sub>c = combine_closure c\<^sub>g" by blast
-  moreover then obtain f\<^sub>g s\<^sub>g where F: "FApp2\<^sub>c (Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c) = combine_frame f\<^sub>g \<and> 
-    s\<^sub>c = map combine_frame s\<^sub>g \<and> s\<^sub>g' = f\<^sub>g # s\<^sub>g" by blast
-  moreover then obtain c\<^sub>g' where E: "f\<^sub>g = FApp2\<^sub>g c\<^sub>g' \<and> Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c = combine_closure c\<^sub>g'" by blast
-  moreover then obtain \<Delta>\<^sub>g e\<^sub>g n where "c\<^sub>g' = Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g n \<and> 
-    \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> 
-      e\<^sub>c = combine_vars' (inv_map_past_lam (map_from_env \<Delta>\<^sub>g)) e\<^sub>g" by blast
-  moreover with S F E have "SC\<^sub>g (FApp2\<^sub>g (Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g n) # s\<^sub>g) c\<^sub>g \<leadsto>\<^sub>g 
+  moreover then obtain n s\<^sub>g c\<^sub>g where F: "s\<^sub>g' = FApp2\<^sub>g c\<^sub>g # s\<^sub>g \<and> combine_stack' s\<^sub>g = (s\<^sub>c, n) \<and> 
+    Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c = combine_closure c\<^sub>g" by blast
+  moreover then obtain \<Delta>\<^sub>g e\<^sub>g n where "c\<^sub>g = Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g n \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
+    e\<^sub>c = combine_vars' (inv_map_past_lam (map_from_env \<Delta>\<^sub>g)) (Suc 0) e\<^sub>g" by blast
+  moreover with S F have "SC\<^sub>g (FApp2\<^sub>g (Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g n) # s\<^sub>g) c\<^sub>g \<leadsto>\<^sub>g 
     SE\<^sub>g (FReturn\<^sub>g ([c\<^sub>g] # \<Delta>\<^sub>g) # s\<^sub>g) ([c\<^sub>g] # \<Delta>\<^sub>g) e\<^sub>g \<and> 
     SE\<^sub>c (FReturn\<^sub>c (c\<^sub>c # \<Delta>\<^sub>c) # s\<^sub>c) (c\<^sub>c # \<Delta>\<^sub>c) e\<^sub>c = 
       combine_state (SE\<^sub>g (FReturn\<^sub>g ([c\<^sub>g] # \<Delta>\<^sub>g) # s\<^sub>g) ([c\<^sub>g] # \<Delta>\<^sub>g) e\<^sub>g)" by simp
-  ultimately show ?case by blast
+  ultimately show ?case by blastx
 next
   case (ret\<^sub>c_let \<Delta>\<^sub>c e\<^sub>c s\<^sub>c c\<^sub>c)
   then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> 
-    FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>c # FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = map combine_frame s\<^sub>g' \<and> c\<^sub>c = combine_closure c\<^sub>g" by blast
+    FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>c # FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = map combine_frame s\<^sub>g' \<and> c\<^sub>c = combine_closure c\<^sub>g" by blastx
   moreover then obtain f\<^sub>g \<Delta>\<^sub>g' s\<^sub>g where F: "FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>c = combine_frame f\<^sub>g \<and> 
     s\<^sub>c = map combine_frame s\<^sub>g \<and> \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g') \<and> 
       s\<^sub>g' = f\<^sub>g # FReturn\<^sub>g \<Delta>\<^sub>g' # s\<^sub>g" by blast
@@ -692,11 +738,11 @@ next
     SE\<^sub>c (FReturn\<^sub>c (c\<^sub>c # \<Delta>\<^sub>c) # s\<^sub>c) (c\<^sub>c # \<Delta>\<^sub>c) e\<^sub>c = 
       combine_state (SE\<^sub>g (FReturn\<^sub>g (snoc_fst c\<^sub>g \<Delta>\<^sub>g') # s\<^sub>g) (snoc_fst c\<^sub>g \<Delta>\<^sub>g) e\<^sub>g)" 
     by simp
-  ultimately show ?case by blast
+  ultimately show ?case by blastx
 next
   case (ret\<^sub>c_ret \<Delta>\<^sub>c s\<^sub>c c\<^sub>c)
   then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = map combine_frame s\<^sub>g' \<and> 
-    c\<^sub>c = combine_closure c\<^sub>g" by blast
+    c\<^sub>c = combine_closure c\<^sub>g" by blastx
   moreover then obtain f\<^sub>g s\<^sub>g where F: "FReturn\<^sub>c \<Delta>\<^sub>c = combine_frame f\<^sub>g \<and> 
     s\<^sub>c = map combine_frame s\<^sub>g \<and> s\<^sub>g' = f\<^sub>g # s\<^sub>g" by blast
   moreover then obtain \<Delta>\<^sub>g where "f\<^sub>g = FReturn\<^sub>g \<Delta>\<^sub>g \<and> \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g)" 
@@ -727,17 +773,19 @@ inverse theorems to get the result we need.\<close>
 
 lemma iter_correctness_forward\<^sub>g [simp]: "iter (\<leadsto>\<^sub>c) (SE\<^sub>c [FReturn\<^sub>c []] [] e\<^sub>c) \<Sigma>\<^sub>c' \<Longrightarrow> [] \<turnstile>\<^sub>d e\<^sub>c : t \<Longrightarrow> 
   let_floated\<^sub>d e\<^sub>c \<Longrightarrow> 
-    \<exists>\<Sigma>\<^sub>g'. iter (\<leadsto>\<^sub>g) (SE\<^sub>g [FReturn\<^sub>g []] [] (split_vars e\<^sub>c)) \<Sigma>\<^sub>g' \<and> \<Sigma>\<^sub>c' = combine_state \<Sigma>\<^sub>g'"
+    \<exists>\<Sigma>\<^sub>g'. iter (\<leadsto>\<^sub>g) (SE\<^sub>g [FReturn\<^sub>g [[]]] [[]] (split_vars e\<^sub>c)) \<Sigma>\<^sub>g' \<and> \<Sigma>\<^sub>c' = combine_state \<Sigma>\<^sub>g'"
 proof -
   assume "iter (\<leadsto>\<^sub>c) (SE\<^sub>c [FReturn\<^sub>c []] [] e\<^sub>c) \<Sigma>\<^sub>c'" and T: "[] \<turnstile>\<^sub>d e\<^sub>c : t" and L: "let_floated\<^sub>d e\<^sub>c"
-  hence X: "iter (\<leadsto>\<^sub>c) (combine_state (SE\<^sub>g [FReturn\<^sub>g []] [] (split_vars e\<^sub>c))) \<Sigma>\<^sub>c'" 
+  hence X: "iter (\<leadsto>\<^sub>c) (combine_state (SE\<^sub>g [FReturn\<^sub>g [[]]] [[]] (split_vars e\<^sub>c))) \<Sigma>\<^sub>c'" 
     by (simp add: split_vars_def)
-  from T have "[] \<turnstile>\<^sub>g split_vars e\<^sub>c : t" by simp
-  moreover have "[FReturn\<^sub>g []] :\<^sub>g t \<rightarrow> t" using tc\<^sub>g_nil tcg_scons_ret tcg_snil by blast
+  from T have "[[]] \<turnstile>\<^sub>g split_vars e\<^sub>c : t" by simp
+  moreover have "[FReturn\<^sub>g [[]]] :\<^sub>g t \<rightarrow> t" 
+    using tc\<^sub>g_nil tc\<^sub>g_cons_nil tcg_scons_ret tcg_snil by blast
   moreover from L have "let_floated\<^sub>g (split_vars e\<^sub>c)" by simp
-  ultimately have "SE\<^sub>g [FReturn\<^sub>g []] [] (split_vars e\<^sub>c) :\<^sub>g t" 
-    by (metis tcg_state_ev tc\<^sub>g_nil return_headed\<^sub>g.simps(1) latest_environment\<^sub>g.simps(5))
-  with X show ?thesis by simp
+  moreover have "[[]] :\<^sub>g\<^sub>c\<^sub>l\<^sub>s [[]]" by simp
+  ultimately have "SE\<^sub>g [FReturn\<^sub>g [[]]] [[]] (split_vars e\<^sub>c) :\<^sub>g t" 
+    by (metis tcg_state_ev return_headed\<^sub>g.simps(1) latest_environment\<^sub>g.simps(5))
+  with X show ?thesis by auto
 qed
 
 end
