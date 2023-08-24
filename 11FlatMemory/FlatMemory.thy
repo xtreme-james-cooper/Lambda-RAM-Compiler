@@ -4,26 +4,27 @@ begin
 
 text \<open>The chained memory stage is quite low-level, but it still possesses some structured data: 
 pairs in the stack and the environment heap, and tagged closure-values in the value heap. We now 
-reduce all of these to contiguous series of numbers. The pairs are just listed, first component 
-first; the closures are flattened to sequences of data. A \<open>Const\<^sub>v n\<close> value becomes \<open>[n, 0]\<close>; a 
-\<open>Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>\<close> becomes \<open>[p\<^sub>\<Delta>, p\<^sub>\<C>]\<close>. (The padding 0 on the numerical values is just to keep all values 
-the same size, greatly easing some of the proofs.) We also tag the code and environment pointers 
-because we need to recognize them later, when we move to assembly code and alter all the codeblock 
-addresses; besides that, in losing the value constructors and the implicit tag that goes with that, 
-we have now discarded our last scrap of source-level type-safety. The \<open>ev\<^sub>f_apply\<close> and \<open>ev\<^sub>f_jump\<close> 
-operations assume they've been given a function-closure, and check that they have environment and 
-code pointers, but the memory itself no longer records as such that there is a function stored 
-there.\<close>
+reduce all of these to contiguous series of numbers. The stack pairs are just listed, first 
+component first; the environment pairs are listed, first the environment frame in reverse order and 
+then the cons-pointer. The closures are flattened to sequences of data: a \<open>Const\<^sub>v n\<close> value becomes 
+\<open>[n, 0]\<close>; a \<open>Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> n\<close> becomes \<open>[p\<^sub>\<Delta>, p\<^sub>\<C>]\<close>. (The padding 0 on the numerical values is just to 
+keep all values the same size, greatly easing some of the proofs.) We also tag the code and 
+environment pointers because we need to recognize them later, when we move to assembly code and 
+alter all the codeblock addresses; besides that, in losing the value constructors and the implicit 
+tag that goes with that, we have now discarded our last scrap of source-level type-safety. The 
+\<open>ev\<^sub>f_apply\<close> and \<open>ev\<^sub>f_jump\<close> operations assume they've been given a function-closure, and check that 
+they have environment and code pointers, but the memory itself no longer records as such that there 
+is a function stored there.\<close>
 
 datatype state\<^sub>f = 
   S\<^sub>f "(pointer_tag \<times> nat) heap" "ptr heap" "ptr list" "nat list"
 
-fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<rightharpoonup> ptr" where
-  "flat_lookup h 0 x = None"
-| "flat_lookup h (Suc 0) x = None"
-| "flat_lookup h (Suc (Suc p)) 0 = (if even p then Some (hlookup h p) else None)"
-| "flat_lookup h (Suc (Suc p)) (Suc x) = (
-    if even p then flat_lookup h (hlookup h (Suc p)) x else None)"
+fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<Rightarrow> nat \<rightharpoonup> ptr" where
+  "flat_lookup h 0 x y = None"
+| "flat_lookup h (Suc 0) x y = None"
+| "flat_lookup h (Suc (Suc p)) 0 y = (if even p then Some (hlookup h p) else None)"
+| "flat_lookup h (Suc (Suc p)) (Suc x) y = (
+    if even p then flat_lookup h (hlookup h (Suc p)) x y else None)"
 
 inductive eval\<^sub>f :: "code\<^sub>b list \<Rightarrow> state\<^sub>f \<Rightarrow> state\<^sub>f \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>f" 50) where
   ev\<^sub>f_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x y z) \<Longrightarrow> flat_lookup \<Delta> p\<^sub>\<Delta> x = Some v \<Longrightarrow> 

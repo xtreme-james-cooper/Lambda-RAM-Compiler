@@ -140,7 +140,7 @@ proof -
   with SH have "print_hclosure (hlookup h\<^sub>h v\<^sub>h) = print_nexpr (erase v\<^sub>t)" by simp
   with VCE VH have PH: "print_ceclosure (hlookup h\<^sub>c\<^sub>e v\<^sub>h) = print_nexpr (erase v\<^sub>t)" 
     by (metis print_ce)
-  with VT have TT: "top_level t = closure_ty (hlookup h\<^sub>c\<^sub>e v\<^sub>h)" by auto
+  with VT have TT: "top_level t = closure_ty (hlookup h\<^sub>c\<^sub>e v\<^sub>h)" by autox
   with VH PH have "print_ceclosure (get_closure t (flatten_values h\<^sub>c\<^sub>e) (2 * v\<^sub>h)) = 
     print_nexpr (erase v\<^sub>t)" by simp
   with VU VSU have PU: "print_uval t (snd \<circ> h\<^sub>u) (vs\<^sub>u 0) = print_nexpr (erase v\<^sub>t)" by (metis print_u)
