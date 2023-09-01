@@ -171,7 +171,7 @@ fun orderly_stack :: "(closure\<^sub>b list list \<times> nat) list \<Rightarrow
   "orderly_stack [] n = True"
 | "orderly_stack ((\<Delta>, 0) # s) n = False"
 | "orderly_stack ((\<Delta>, Suc p) # s) n = 
-    (p < n \<and> list_all (list_all (orderly_closure n)) \<Delta> \<and> orderly_stack s n)"
+    (p < n \<and> \<Delta> \<noteq> [] \<and> list_all (list_all (orderly_closure n)) \<Delta> \<and> orderly_stack s n)"
 
 primrec orderly_state :: "code\<^sub>b list \<Rightarrow> state\<^sub>b \<Rightarrow> bool" where
   "orderly_state \<C> (S\<^sub>b \<V> s) = (orderly_code \<C> 0 \<and> properly_terminated\<^sub>b \<C> \<and> 
@@ -188,18 +188,18 @@ lemma orderly_flatten' [simp]: "p \<le> n \<Longrightarrow> properly_terminated\
 lemma orderly_flatten [simp]: "properly_terminated\<^sub>e \<C> \<Longrightarrow> orderly_code (flatten_code \<C>) 0"
   by (simp add: flatten_code_def)
 
-lemma orderly_empty_frame [simp]: "x > 0 \<Longrightarrow> orderly_stack [([], x)] x"
+lemma orderly_empty_frame [simp]: "x > 0 \<Longrightarrow> orderly_stack [([[]], x)] x"
   by (cases x) simp_all
 
 lemma orderly_length_flatten [simp]: "\<C> \<noteq> [] \<Longrightarrow> 
-    orderly_stack [([], length (flatten_code \<C>))] (length (flatten_code \<C>))"
+    orderly_stack [([[]], length (flatten_code \<C>))] (length (flatten_code \<C>))"
   by (induction \<C>) simp_all
 
 lemma orderly_code_size [simp]: "\<C> \<noteq> [] \<Longrightarrow> 
-    orderly_stack [([], code_list_size \<C>)] (code_list_size \<C>)"
+    orderly_stack [([[]], code_list_size \<C>)] (code_list_size \<C>)"
 proof -
   assume "\<C> \<noteq> []"
-  moreover hence "orderly_stack [([], length (flatten_code \<C>))] (length (flatten_code \<C>))" 
+  moreover hence "orderly_stack [([[]], length (flatten_code \<C>))] (length (flatten_code \<C>))" 
     by (metis orderly_length_flatten)
   ultimately show ?thesis by simp
 qed

@@ -35,7 +35,7 @@ lemma lookup_map [simp]: "lookup (map f as) x = map_option f (lookup as x)"
   by (induction as x rule: lookup.induct) simp_all
 
 lemma lookup_snoc_fst [simp]: "lookup (snoc_fst a as) x = (case x of
-    0 \<Rightarrow> (case lookup as 0 of None \<Rightarrow> Some [a] | Some aa \<Rightarrow> Some (aa @ [a]))
+    0 \<Rightarrow> (case lookup as 0 of None \<Rightarrow> None | Some aa \<Rightarrow> Some (aa @ [a]))
   | Suc x' \<Rightarrow> lookup as x)"
 proof (induction as x rule: lookup.induct)
   case (1 x)
@@ -283,15 +283,15 @@ proof (induction as)
   thus ?case by (cases b, cases as) simp_all
 qed simp_all
 
-lemma concat_snoc_fst_rev [simp]: "insert_at 0 a (concat (map rev as)) = 
-  concat (map rev (snoc_fst a as))"
+lemma concat_snoc_fst_rev [simp]: "as \<noteq> [] \<Longrightarrow> 
+  insert_at 0 a (concat (map rev as)) = concat (map rev (snoc_fst a as))"
 proof (induction as)
   case (Cons b as)
   thus ?case by (induction b rule: rev_induct, cases as) simp_all
 qed simp_all
 
-lemma concat_snoc_fst_insert_at [simp]: "concat (snoc_fst a as) = 
-    insert_at (case as of [] \<Rightarrow> 0 | b # _ \<Rightarrow> length b) a (concat as)"
+lemma concat_snoc_fst_insert_at [simp]: "as \<noteq> [] \<Longrightarrow> 
+    concat (snoc_fst a as) = insert_at (length (hd as)) a (concat as)"
   by (induction as) simp_all
 
 lemma hd_insert_at_zero [simp]: "hd (insert_at 0 a as) = a"

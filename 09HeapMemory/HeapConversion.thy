@@ -82,7 +82,8 @@ lemma hlookup_lam_bounded [simp]: "hlookup h v = Lam\<^sub>h \<Delta> p n \<Long
 
 primrec heap_structured :: "state\<^sub>h \<Rightarrow> bool" where
   "heap_structured (S\<^sub>h h \<V> s) = (heap_all (bounded_closure h) h \<and>
-    list_all (hcontains h) \<V> \<and> list_all (list_all (list_all (hcontains h))) (map fst s))"
+    list_all (hcontains h) \<V> \<and> list_all ((\<noteq>) []) (map fst s) \<and> 
+    list_all (list_all (list_all (hcontains h))) (map fst s))"
 
 lemma eval_heap_structured [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>h \<leadsto>\<^sub>h \<Sigma>\<^sub>h' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> heap_structured \<Sigma>\<^sub>h'"
 proof (induction \<Sigma>\<^sub>h \<Sigma>\<^sub>h' rule: eval\<^sub>h.induct)

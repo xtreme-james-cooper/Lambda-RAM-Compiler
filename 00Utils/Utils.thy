@@ -54,14 +54,16 @@ lemma list_all_map_with_idx [simp]: "(\<And>k a. p (f k a) = p a) \<Longrightarr
   by (induction as arbitrary: x) simp_all
 
 primrec snoc_fst :: "'a \<Rightarrow> 'a list list \<Rightarrow> 'a list list" where
-  "snoc_fst b [] = [[b]]"
+  "snoc_fst b [] = []"
 | "snoc_fst b (bs # bss) = (bs @ [b]) # bss"
 
-lemma snoc_fst_nil [simp]: "snoc_fst a as \<noteq> []"
+lemma snoc_fst_nil [simp]: "(snoc_fst a as = []) = (as = [])"
   by (cases as) simp_all
 
-lemma snoc_fst_inj [simp]: "as \<noteq> [] \<Longrightarrow> list_all ((\<noteq>) []) as \<Longrightarrow> 
-  (snoc_fst a as = snoc_fst b bs) = (a = b \<and> as = bs)"
+lemma snoc_fst_nil2 [simp]: "([] = snoc_fst a as) = (as = [])"
+  by (cases as) simp_all
+
+lemma snoc_fst_inj [simp]: "as \<noteq> [] \<Longrightarrow> (snoc_fst a as = snoc_fst b bs) = (a = b \<and> as = bs)"
 proof (induction as arbitrary: bs)
   case (Cons a as)
   thus ?case by (induction bs) auto
@@ -73,8 +75,8 @@ lemma map_snoc_fst [simp]: "map (map f) (snoc_fst a as) = snoc_fst (f a) (map (m
 lemma length_hd_snoc_fst [simp]: "as \<noteq> [] \<Longrightarrow> length (hd (snoc_fst a as)) = Suc (length (hd as))"
   by (induction as) simp_all
 
-lemma list_all_snoc_fst [simp]: "list_all (list_all p) (snoc_fst a as) = 
-    (p a \<and> list_all (list_all p) as)"
+lemma list_all_snoc_fst [simp]: "as \<noteq> [] \<Longrightarrow> 
+    list_all (list_all p) (snoc_fst a as) = (p a \<and> list_all (list_all p) as)"
   by (induction as) auto
 
 fun nat_to_string' :: "nat \<Rightarrow> char" where
