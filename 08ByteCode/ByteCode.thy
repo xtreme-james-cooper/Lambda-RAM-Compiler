@@ -13,7 +13,8 @@ representation ourselves.)\<close>
 datatype code\<^sub>b = 
   Lookup\<^sub>b nat nat
   | PushCon\<^sub>b nat
-  | PushLam\<^sub>b nat nat
+  | PushLam\<^sub>b nat
+  | Alloc\<^sub>b nat
   | Apply\<^sub>b
   | PushEnv\<^sub>b
   | Return\<^sub>b
@@ -21,7 +22,7 @@ datatype code\<^sub>b =
 
 datatype closure\<^sub>b = 
   Const\<^sub>b nat
-  | Lam\<^sub>b "closure\<^sub>b list list" nat nat
+  | Lam\<^sub>b "closure\<^sub>b list list" nat
 
 datatype state\<^sub>b = 
   S\<^sub>b "closure\<^sub>b list" "(closure\<^sub>b list list \<times> nat) list"
@@ -44,16 +45,18 @@ inductive eval\<^sub>b :: "code\<^sub>b list \<Rightarrow> state\<^sub>b \<Right
     lookup vs y = Some v \<Longrightarrow> \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (v # \<V>) ((\<Delta>, p) # s)" 
 | ev\<^sub>b_pushcon [simp]: "lookup \<C> p = Some (PushCon\<^sub>b n) \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (Const\<^sub>b n # \<V>) ((\<Delta>, p) # s)"
-| ev\<^sub>b_pushlam [simp]: "lookup \<C> p = Some (PushLam\<^sub>b p' n) \<Longrightarrow> 
-    \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (Lam\<^sub>b \<Delta> p' n # \<V>) ((\<Delta>, p) # s)"
+| ev\<^sub>b_pushlam [simp]: "lookup \<C> p = Some (PushLam\<^sub>b p') \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b (Lam\<^sub>b \<Delta> p' # \<V>) ((\<Delta>, p) # s)"
+| ev\<^sub>b_alloc [simp]: "lookup \<C> p = Some (Alloc\<^sub>b n) \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((\<Delta>, p) # s)"
 | ev\<^sub>b_apply [simp]: "lookup \<C> p = Some Apply\<^sub>b \<Longrightarrow> 
-    \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' n # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> (([v] # \<Delta>', p') # (\<Delta>, p) # s)"
+    \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> (([v] # \<Delta>', p') # (\<Delta>, p) # s)"
 | ev\<^sub>b_pushenv [simp]: "lookup \<C> p = Some PushEnv\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b (v # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((snoc_fst v \<Delta>, p) # s)"
 | ev\<^sub>b_return [simp]: "lookup \<C> p = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> s"
 | ev\<^sub>b_jump [simp]: "lookup \<C> p = Some Jump\<^sub>b \<Longrightarrow> 
-    \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' n # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> (([v] # \<Delta>', p') # s)"
+    \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> (([v] # \<Delta>', p') # s)"
 
 theorem determinismb: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>b \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>b \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<C> \<Sigma> \<Sigma>' rule: eval\<^sub>b.induct)
@@ -65,6 +68,9 @@ next
 next
   case ev\<^sub>b_pushlam
   from ev\<^sub>b_pushlam(2, 1) show ?case by (induction rule: eval\<^sub>b.cases) simp_all 
+next
+  case ev\<^sub>b_alloc
+  from ev\<^sub>b_alloc(2, 1) show ?case by (induction rule: eval\<^sub>b.cases) simp_all 
 next
   case ev\<^sub>b_apply
   from ev\<^sub>b_apply(2, 1) show ?case by (induction rule: eval\<^sub>b.cases) simp_all 
@@ -79,11 +85,73 @@ next
   from ev\<^sub>b_jump(2, 1) show ?case by (induction rule: eval\<^sub>b.cases) simp_all 
 qed
 
-text \<open>We also define a properly-terminated predicate, indicating that the code is still structured 
-in blocks.\<close>
+text \<open>We also define a block-structured predicate, indicating that the code is still structured 
+correctly.\<close>
+
+fun properly_begun\<^sub>b :: "code\<^sub>b list \<Rightarrow> bool" where
+  "properly_begun\<^sub>b [] = False"
+| "properly_begun\<^sub>b (Alloc\<^sub>b n # []) = True"
+| "properly_begun\<^sub>b (Alloc\<^sub>b n # op # \<C>) = ((op = Return\<^sub>b \<or> op = Jump\<^sub>b) \<and> properly_begun\<^sub>b \<C>)"
+| "properly_begun\<^sub>b (op # \<C>) = properly_begun\<^sub>b \<C>"
 
 primrec properly_terminated\<^sub>b :: "code\<^sub>b list \<Rightarrow> bool" where
   "properly_terminated\<^sub>b [] = False"
 | "properly_terminated\<^sub>b (op # \<C>) = (op = Return\<^sub>b \<or> op = Jump\<^sub>b)"
+
+abbreviation block_structured\<^sub>b :: "code\<^sub>b list \<Rightarrow> bool" where
+  "block_structured\<^sub>b \<C> \<equiv> (properly_begun\<^sub>b \<C> \<and> properly_terminated\<^sub>b \<C>)"
+
+lemma begun_to_two_allocs [dest]: "properly_begun\<^sub>b \<C> \<Longrightarrow> lookup \<C> (Suc p) = Some (Alloc\<^sub>b n) \<Longrightarrow>
+    lookup \<C> p = Some (Alloc\<^sub>b m) \<Longrightarrow> False"
+proof (induction \<C> arbitrary: p rule: properly_begun\<^sub>b.induct)
+  case (3 q op \<C>)
+  thus ?case
+  proof (cases p)
+    case (Suc p')
+    with 3 show ?thesis by (cases p') auto
+  qed simp_all
+next
+  case ("4_1" v va \<C>)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_2" v \<C>)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_3" v \<C>)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_4" \<C>)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_5" \<C>)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_6" \<C>)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_7" \<C>)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_8" vb vc v va)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_9" vb v va)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_10" vb v va)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_11" v va)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_12" v va)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_13" v va)
+  thus ?case by (cases p) simp_all
+next
+  case ("4_14" v va)
+  thus ?case by (cases p) simp_all
+qed simp_all
 
 end
