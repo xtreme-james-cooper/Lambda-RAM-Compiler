@@ -75,8 +75,8 @@ lemma map_snoc_fst [simp]: "map (map f) (snoc_fst a as) = snoc_fst (f a) (map (m
 lemma length_hd_snoc_fst [simp]: "as \<noteq> [] \<Longrightarrow> length (hd (snoc_fst a as)) = Suc (length (hd as))"
   by (induction as) simp_all
 
-lemma list_all_snoc_fst [simp]: "as \<noteq> [] \<Longrightarrow> 
-    list_all (list_all p) (snoc_fst a as) = (p a \<and> list_all (list_all p) as)"
+lemma list_all_snoc_fst [simp]: "list_all (list_all p) (snoc_fst a as) = 
+    ((as = [] \<or> p a) \<and> list_all (list_all p) as)"
   by (induction as) auto
 
 fun nat_to_string' :: "nat \<Rightarrow> char" where

@@ -31,7 +31,7 @@ update the old heap with a new, enlarged memory list.\<close>
 
 datatype closure\<^sub>v = 
   Const\<^sub>v nat
-  | Lam\<^sub>v ptr nat nat
+  | Lam\<^sub>v ptr nat
 
 datatype state\<^sub>v = 
   S\<^sub>v "closure\<^sub>v heap" "(ptr list \<times> ptr) heap" "ptr list" "(ptr \<times> nat) list"
@@ -41,9 +41,9 @@ inductive eval\<^sub>v :: "code\<^sub>b list \<Rightarrow> state\<^sub>v \<Right
     \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta> (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"
 | ev\<^sub>v_pushcon [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushCon\<^sub>b n) \<Longrightarrow> halloc h (Const\<^sub>v n) = (h', v) \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h' \<Delta> (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"
-| ev\<^sub>v_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>' n) \<Longrightarrow> halloc h (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>' n) = (h', v) \<Longrightarrow> 
+| ev\<^sub>v_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>') \<Longrightarrow> halloc h (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>') = (h', v) \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h' \<Delta> (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"
-| ev\<^sub>v_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' n \<Longrightarrow>
+| ev\<^sub>v_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' \<Longrightarrow>
     halloc \<Delta> ([v\<^sub>1], p\<^sub>\<Delta>') = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>v h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta>' \<V> ((Suc p\<^sub>\<Delta>'', p\<^sub>\<C>') # (p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"
 | ev\<^sub>v_pushenv [simp]: "lookup \<C> p\<^sub>\<C> = Some PushEnv\<^sub>b \<Longrightarrow> hlookup \<Delta> p\<^sub>\<Delta> = (vs, p\<^sub>\<Delta>') \<Longrightarrow>
@@ -51,7 +51,7 @@ inductive eval\<^sub>v :: "code\<^sub>b list \<Rightarrow> state\<^sub>v \<Right
       S\<^sub>v h (hupdate \<Delta> p\<^sub>\<Delta> (vs @ [v], p\<^sub>\<Delta>')) \<V> ((Suc p\<^sub>\<Delta>, p\<^sub>\<C>) # s)"
 | ev\<^sub>v_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta> \<V> s"
-| ev\<^sub>v_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' n \<Longrightarrow>
+| ev\<^sub>v_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' \<Longrightarrow>
     halloc \<Delta> ([v\<^sub>1], p\<^sub>\<Delta>') = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow>
       \<C> \<tturnstile> S\<^sub>v h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta>' \<V> ((Suc p\<^sub>\<Delta>'', p\<^sub>\<C>') # s)"
 

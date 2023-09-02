@@ -14,8 +14,8 @@ reference values that haven't even been allocated yet.\<close>
 fun unheap_closure :: "closure\<^sub>h heap \<Rightarrow> ptr \<Rightarrow> closure\<^sub>b" where
   "unheap_closure h x = (case hlookup h x of 
       Const\<^sub>h n \<Rightarrow> Const\<^sub>b n
-    | Lam\<^sub>h \<Delta> p n \<Rightarrow> Lam\<^sub>b (if list_all (list_all ((>) x)) \<Delta> then map (map (unheap_closure h)) \<Delta> 
-        else undefined) p n)"
+    | Lam\<^sub>h \<Delta> p \<Rightarrow> Lam\<^sub>b (if list_all (list_all ((>) x)) \<Delta> then map (map (unheap_closure h)) \<Delta> 
+        else undefined) p)"
 
 abbreviation unheap_stack :: "closure\<^sub>h heap \<Rightarrow> (ptr list list \<times> nat) list \<Rightarrow> 
     (closure\<^sub>b list list \<times> nat) list" where
@@ -26,7 +26,7 @@ primrec unheap :: "state\<^sub>h \<Rightarrow> state\<^sub>b" where
 
 primrec bounded_closure :: "closure\<^sub>h heap \<Rightarrow> ptr \<Rightarrow> closure\<^sub>h \<Rightarrow> bool" where
   "bounded_closure h x (Const\<^sub>h n) = True"
-| "bounded_closure h x (Lam\<^sub>h \<Delta> p n) = 
+| "bounded_closure h x (Lam\<^sub>h \<Delta> p) = 
     (list_all (list_all (hcontains h)) \<Delta> \<and> list_all (list_all ((>) x)) \<Delta>)"
 
 lemma halloc_bounded [simp]: "halloc h a = (h', x) \<Longrightarrow> bounded_closure h y c \<Longrightarrow> 
@@ -76,7 +76,7 @@ lemma halloc_unheap_stack [simp]: "halloc h c = (h', v) \<Longrightarrow>
     unheap_stack h' s = unheap_stack h s"
   by (induction s) (auto simp del: unheap_closure.simps)
 
-lemma hlookup_lam_bounded [simp]: "hlookup h v = Lam\<^sub>h \<Delta> p n \<Longrightarrow> heap_all (bounded_closure h) h \<Longrightarrow> 
+lemma hlookup_lam_bounded [simp]: "hlookup h v = Lam\<^sub>h \<Delta> p \<Longrightarrow> heap_all (bounded_closure h) h \<Longrightarrow> 
     hcontains h v \<Longrightarrow> list_all (list_all ((>) v)) \<Delta>"
   by (metis hlookup_all bounded_closure.simps(2))
 
@@ -87,14 +87,14 @@ primrec heap_structured :: "state\<^sub>h \<Rightarrow> bool" where
 
 lemma eval_heap_structured [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>h \<leadsto>\<^sub>h \<Sigma>\<^sub>h' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> heap_structured \<Sigma>\<^sub>h'"
 proof (induction \<Sigma>\<^sub>h \<Sigma>\<^sub>h' rule: eval\<^sub>h.induct)
-  case (ev\<^sub>h_apply \<C> p h v\<^sub>2 \<Delta> p' n v\<^sub>1 \<V> s)
-  hence "hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta> p' n \<and> heap_all (bounded_closure h) h \<and> hcontains h v\<^sub>2" by simp
-  hence "bounded_closure h v\<^sub>2 (Lam\<^sub>h \<Delta> p' n)" by (metis hlookup_all)
+  case (ev\<^sub>h_apply \<C> p h v\<^sub>2 \<Delta>' p' v\<^sub>1 \<V> \<Delta> s)
+  hence "hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' \<and> heap_all (bounded_closure h) h \<and> hcontains h v\<^sub>2" by simp
+  hence "bounded_closure h v\<^sub>2 (Lam\<^sub>h \<Delta>' p')" by (metis hlookup_all)
   with ev\<^sub>h_apply show ?case by simp
 next
-  case (ev\<^sub>h_jump \<C> p h v\<^sub>2 \<Delta>' p' n v\<^sub>1 \<V> \<Delta> s)
-  hence "hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' n \<and> heap_all (bounded_closure h) h \<and> hcontains h v\<^sub>2" by simp
-  hence "bounded_closure h v\<^sub>2 (Lam\<^sub>h \<Delta>' p' n)" by (metis hlookup_all)
+  case (ev\<^sub>h_jump \<C> p h v\<^sub>2 \<Delta>' p' v\<^sub>1 \<V> \<Delta> s)
+  hence "hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' \<and> heap_all (bounded_closure h) h \<and> hcontains h v\<^sub>2" by simp
+  hence "bounded_closure h v\<^sub>2 (Lam\<^sub>h \<Delta>' p')" by (metis hlookup_all)
   with ev\<^sub>h_jump show ?case by simp
 qed fastforce+
 
@@ -120,9 +120,9 @@ proof (induction \<Sigma>\<^sub>h)
   thus ?case by (induction s\<^sub>h) (auto simp del: unheap_closure.simps)
 qed 
 
-lemma unheap_to_lam [simp]: "unheap_closure h v = Lam\<^sub>b \<Delta>\<^sub>b p n \<Longrightarrow> hcontains h v \<Longrightarrow> 
+lemma unheap_to_lam [simp]: "unheap_closure h v = Lam\<^sub>b \<Delta>\<^sub>b p \<Longrightarrow> hcontains h v \<Longrightarrow> 
   heap_all (bounded_closure h) h \<Longrightarrow> 
-    \<exists>\<Delta>\<^sub>h. hlookup h v = Lam\<^sub>h \<Delta>\<^sub>h p n \<and> \<Delta>\<^sub>b = map (map (unheap_closure h)) \<Delta>\<^sub>h"
+    \<exists>\<Delta>\<^sub>h. hlookup h v = Lam\<^sub>h \<Delta>\<^sub>h p \<and> \<Delta>\<^sub>b = map (map (unheap_closure h)) \<Delta>\<^sub>h"
   by (simp split: closure\<^sub>h.splits if_splits)
 
 theorem correct\<^sub>h [simp]: "\<C> \<tturnstile> unheap \<Sigma>\<^sub>h \<leadsto>\<^sub>b \<Sigma>\<^sub>b' \<Longrightarrow> heap_structured \<Sigma>\<^sub>h \<Longrightarrow> 
@@ -146,22 +146,29 @@ next
     by simp
   ultimately show ?case by fastforce
 next
-  case (ev\<^sub>b_pushlam \<C> p p' n \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
+  case (ev\<^sub>b_pushlam \<C> p p' \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
   moreover then obtain h \<V>\<^sub>h \<Delta>\<^sub>h s\<^sub>h where S: "\<Sigma>\<^sub>h = S\<^sub>h h \<V>\<^sub>h ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<and> 
     \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h \<and> \<Delta>\<^sub>b = map (map (unheap_closure h)) \<Delta>\<^sub>h \<and> s\<^sub>b = unheap_stack h s\<^sub>h" 
       by fastforce
-  moreover obtain h' v where "halloc h (Lam\<^sub>h \<Delta>\<^sub>h p' n) = (h', v)" by fastforce
+  moreover obtain h' v where "halloc h (Lam\<^sub>h \<Delta>\<^sub>h p') = (h', v)" by fastforce
   moreover with ev\<^sub>b_pushlam S have "\<C> \<tturnstile> S\<^sub>h h \<V>\<^sub>h ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<leadsto>\<^sub>h S\<^sub>h h' (v # \<V>\<^sub>h) ((\<Delta>\<^sub>h, p) # s\<^sub>h)" 
     by simp
   ultimately show ?case by fastforce
 next
-  case (ev\<^sub>b_apply \<C> p v\<^sub>b \<Delta>\<^sub>b' p' n \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
+  case (ev\<^sub>b_alloc \<C> p n \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
+  moreover then obtain h \<V>\<^sub>h \<Delta>\<^sub>h s\<^sub>h where "\<Sigma>\<^sub>h = S\<^sub>h h \<V>\<^sub>h ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<and> 
+    \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h \<and> \<Delta>\<^sub>b = map (map (unheap_closure h)) \<Delta>\<^sub>h \<and> s\<^sub>b = unheap_stack h s\<^sub>h" 
+      by fastforce
+  moreover with ev\<^sub>b_alloc have "\<C> \<tturnstile> S\<^sub>h h \<V>\<^sub>h ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<leadsto>\<^sub>h S\<^sub>h h \<V>\<^sub>h ((\<Delta>\<^sub>h, p) # s\<^sub>h)" by simp
+  ultimately show ?case by fastforce
+next
+  case (ev\<^sub>b_apply \<C> p v\<^sub>b \<Delta>\<^sub>b' p' \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
   then obtain h \<V>\<^sub>h' \<Delta>\<^sub>h s\<^sub>h where S: "\<Sigma>\<^sub>h = S\<^sub>h h \<V>\<^sub>h' ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<and> 
-    v\<^sub>b # Lam\<^sub>b \<Delta>\<^sub>b' p' n # \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h' \<and> \<Delta>\<^sub>b = map (map (unheap_closure h)) \<Delta>\<^sub>h \<and> 
+    v\<^sub>b # Lam\<^sub>b \<Delta>\<^sub>b' p' # \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h' \<and> \<Delta>\<^sub>b = map (map (unheap_closure h)) \<Delta>\<^sub>h \<and> 
       s\<^sub>b = unheap_stack h s\<^sub>h" by fastforce
   moreover then obtain v\<^sub>h\<^sub>1 v\<^sub>h\<^sub>2 \<V>\<^sub>h where "\<V>\<^sub>h' = v\<^sub>h\<^sub>1 # v\<^sub>h\<^sub>2 # \<V>\<^sub>h \<and> v\<^sub>b = unheap_closure h v\<^sub>h\<^sub>1 \<and> 
-    Lam\<^sub>b \<Delta>\<^sub>b' p' n = unheap_closure h v\<^sub>h\<^sub>2 \<and> \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h" by fastforce
-  moreover with ev\<^sub>b_apply S obtain \<Delta>h' where H: "hlookup h v\<^sub>h\<^sub>2 = Lam\<^sub>h \<Delta>h' p' n \<and> 
+    Lam\<^sub>b \<Delta>\<^sub>b' p' = unheap_closure h v\<^sub>h\<^sub>2 \<and> \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h" by fastforce
+  moreover with ev\<^sub>b_apply S obtain \<Delta>h' where H: "hlookup h v\<^sub>h\<^sub>2 = Lam\<^sub>h \<Delta>h' p' \<and> 
     \<Delta>\<^sub>b' = map (map (unheap_closure h)) \<Delta>h'" by fastforce
   moreover with ev\<^sub>b_apply have "\<C> \<tturnstile> S\<^sub>h h (v\<^sub>h\<^sub>1 # v\<^sub>h\<^sub>2 # \<V>\<^sub>h) ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<leadsto>\<^sub>h 
     S\<^sub>h h \<V>\<^sub>h (([v\<^sub>h\<^sub>1] # \<Delta>h', p') # (\<Delta>\<^sub>h, p) # s\<^sub>h)" by simp
@@ -183,13 +190,13 @@ next
   moreover with ev\<^sub>b_return have "\<C> \<tturnstile> S\<^sub>h h \<V>\<^sub>h ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<leadsto>\<^sub>h S\<^sub>h h \<V>\<^sub>h s\<^sub>h" by simp
   ultimately show ?case by fastforce
 next
-  case (ev\<^sub>b_jump \<C> p v\<^sub>b \<Delta>\<^sub>b' p' n \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
+  case (ev\<^sub>b_jump \<C> p v\<^sub>b \<Delta>\<^sub>b' p' \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
   then obtain h \<V>\<^sub>h' \<Delta>\<^sub>h s\<^sub>h where S: "\<Sigma>\<^sub>h = S\<^sub>h h \<V>\<^sub>h' ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<and> 
-    v\<^sub>b # Lam\<^sub>b \<Delta>\<^sub>b' p' n # \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h' \<and> \<Delta>\<^sub>b = map (map (unheap_closure h)) \<Delta>\<^sub>h \<and> 
+    v\<^sub>b # Lam\<^sub>b \<Delta>\<^sub>b' p' # \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h' \<and> \<Delta>\<^sub>b = map (map (unheap_closure h)) \<Delta>\<^sub>h \<and> 
       s\<^sub>b = unheap_stack h s\<^sub>h" by fastforce
   moreover from S obtain v\<^sub>h\<^sub>1 v\<^sub>h\<^sub>2 \<V>\<^sub>h where "\<V>\<^sub>h' = v\<^sub>h\<^sub>1 # v\<^sub>h\<^sub>2 # \<V>\<^sub>h \<and> v\<^sub>b = unheap_closure h v\<^sub>h\<^sub>1 \<and> 
-    Lam\<^sub>b \<Delta>\<^sub>b' p' n = unheap_closure h v\<^sub>h\<^sub>2 \<and> \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h" by fastforce
-  moreover with ev\<^sub>b_jump S obtain \<Delta>h' where "hlookup h v\<^sub>h\<^sub>2 = Lam\<^sub>h \<Delta>h' p' n \<and> 
+    Lam\<^sub>b \<Delta>\<^sub>b' p' = unheap_closure h v\<^sub>h\<^sub>2 \<and> \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h" by fastforce
+  moreover with ev\<^sub>b_jump S obtain \<Delta>h' where "hlookup h v\<^sub>h\<^sub>2 = Lam\<^sub>h \<Delta>h' p' \<and> 
     \<Delta>\<^sub>b' = map (map (unheap_closure h)) \<Delta>h'" by fastforce
   moreover with ev\<^sub>b_jump S have "\<C> \<tturnstile> S\<^sub>h h (v\<^sub>h\<^sub>1 # v\<^sub>h\<^sub>2 # \<V>\<^sub>h) ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<leadsto>\<^sub>h 
     S\<^sub>h h \<V>\<^sub>h (([v\<^sub>h\<^sub>1] # \<Delta>h', p') # s\<^sub>h)" by simp

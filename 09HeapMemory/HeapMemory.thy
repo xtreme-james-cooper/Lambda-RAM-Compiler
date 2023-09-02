@@ -12,7 +12,7 @@ now.\<close>
 
 datatype closure\<^sub>h = 
   Const\<^sub>h nat
-  | Lam\<^sub>h "ptr list list" nat nat
+  | Lam\<^sub>h "ptr list list" nat
 
 datatype state\<^sub>h = 
   S\<^sub>h "closure\<^sub>h heap" "ptr list" "(ptr list list \<times> nat) list"
@@ -27,15 +27,17 @@ inductive eval\<^sub>h :: "code\<^sub>b list \<Rightarrow> state\<^sub>h \<Right
       \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h (v # \<V>) ((\<Delta>, p) # s)"
 | ev\<^sub>h_pushcon [simp]: "lookup \<C> p = Some (PushCon\<^sub>b n) \<Longrightarrow> halloc h (Const\<^sub>h n) = (h', v) \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h' (v # \<V>) ((\<Delta>, p) # s)"
-| ev\<^sub>h_pushlam [simp]: "lookup \<C> p = Some (PushLam\<^sub>b p' n) \<Longrightarrow> halloc h (Lam\<^sub>h \<Delta> p' n) = (h', v) \<Longrightarrow>
+| ev\<^sub>h_pushlam [simp]: "lookup \<C> p = Some (PushLam\<^sub>b p') \<Longrightarrow> halloc h (Lam\<^sub>h \<Delta> p') = (h', v) \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h' (v # \<V>) ((\<Delta>, p) # s)"
-| ev\<^sub>h_apply [simp]: "lookup \<C> p = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' n \<Longrightarrow>
+| ev\<^sub>h_alloc [simp]: "lookup \<C> p = Some (Alloc\<^sub>b n) \<Longrightarrow> 
+    \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> ((\<Delta>, p) # s)"
+| ev\<^sub>h_apply [simp]: "lookup \<C> p = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>h h (v\<^sub>1 # v\<^sub>2 # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> (([v\<^sub>1] # \<Delta>', p') # (\<Delta>, p) # s)"
 | ev\<^sub>h_pushenv [simp]: "lookup \<C> p = Some PushEnv\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>h h (v # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> ((snoc_fst v \<Delta>, p) # s)"
 | ev\<^sub>h_return [simp]: "lookup \<C> p = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>h h \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> s"
-| ev\<^sub>h_jump [simp]: "lookup \<C> p = Some Jump\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' n \<Longrightarrow>
+| ev\<^sub>h_jump [simp]: "lookup \<C> p = Some Jump\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>h \<Delta>' p' \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>h h (v\<^sub>1 # v\<^sub>2 # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>h S\<^sub>h h \<V> (([v\<^sub>1] # \<Delta>', p') # s)"
 
 theorem determinismh: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>h \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>h \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
@@ -48,6 +50,9 @@ next
 next
   case ev\<^sub>h_pushlam
   from ev\<^sub>h_pushlam(3, 1, 2) show ?case by (induction rule: eval\<^sub>h.cases) simp_all 
+next
+  case ev\<^sub>h_alloc
+  from ev\<^sub>h_alloc(2, 1) show ?case by (induction rule: eval\<^sub>h.cases) simp_all 
 next
   case ev\<^sub>h_apply
   from ev\<^sub>h_apply(3, 1, 2) show ?case by (induction rule: eval\<^sub>h.cases) simp_all 
