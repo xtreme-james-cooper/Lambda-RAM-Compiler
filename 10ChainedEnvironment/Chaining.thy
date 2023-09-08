@@ -5,29 +5,32 @@ begin
 section \<open>Chaining environments\<close>
 
 text \<open>Restoring environments from linked-list form is a matter of following the pointers down until 
-we reach the end. To ensure termination, we only follow pointers to lower in the heap - but since we 
-allocate in linear order, this means earlier in the heap, and of course, just as with the value 
-stack, each environment can only build on preexisting ones; so we will never encounter a pointer to 
-higher up.\<close>
+we reach the end. To ensure termination, we use the environment-size map attached to each 
+environment in the callstack and the value heap. (We could also use the fact that each pointer to a 
+previously-allocated environment must point lower in the heap, and terminate that way; but the fact 
+that the heap is arranged this way must be proved separately, whereas the finiteness of the size map
+is statically apparent.)\<close>
 
-fun unchain_env :: "('a \<times> ptr) heap \<Rightarrow> ptr \<Rightarrow> 'a list" where
-  "unchain_env \<Delta> 0 = []"
-| "unchain_env \<Delta> (Suc p) = (case hlookup \<Delta> p of 
-      (v, p') \<Rightarrow> v # (if p' \<le> p then unchain_env \<Delta> p' else undefined))"
+fun unchain_env :: "('a list \<times> ptr) heap \<Rightarrow> ptr \<Rightarrow> nat list \<Rightarrow> 'a list list" where
+  "unchain_env \<Delta> p [] = []"
+| "unchain_env \<Delta> 0 (n # ns) = []"
+| "unchain_env \<Delta> (Suc p) (n # ns) = (case hlookup \<Delta> p of 
+      (vs, p') \<Rightarrow> take n vs # unchain_env \<Delta> p' ns)"
 
 text \<open>We map the transformation through the whole evaluation state.\<close>
 
 primrec unchain_closure :: "(ptr list \<times> ptr) heap \<Rightarrow> closure\<^sub>v \<Rightarrow> closure\<^sub>h" where
   "unchain_closure \<Delta> (Const\<^sub>v n) = Const\<^sub>h n"
-| "unchain_closure \<Delta> (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> n) = Lam\<^sub>h (unchain_env \<Delta> p\<^sub>\<Delta>) p\<^sub>\<C> n"
+| "unchain_closure \<Delta> (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> ns) = Lam\<^sub>h (unchain_env \<Delta> p\<^sub>\<Delta> ns) p\<^sub>\<C>"
 
 abbreviation unchain_heap :: "closure\<^sub>v heap \<Rightarrow> (ptr list \<times> ptr) heap \<Rightarrow> closure\<^sub>h heap" where
   "unchain_heap h \<Delta> \<equiv> hmap (unchain_closure \<Delta>) h"
 
-primrec unchain_frame :: "(ptr list \<times> ptr) heap \<Rightarrow> (ptr \<times> nat) \<Rightarrow> (ptr list list \<times> nat)" where
-  "unchain_frame \<Delta> (p\<^sub>\<Delta>, p\<^sub>\<C>) = (unchain_env \<Delta> p\<^sub>\<Delta>, p\<^sub>\<C>)"
+fun unchain_frame :: "(ptr list \<times> ptr) heap \<Rightarrow> (ptr \<times> nat list \<times> nat) \<Rightarrow> (ptr list list \<times> nat)" 
+    where
+  "unchain_frame \<Delta> (p\<^sub>\<Delta>, ns, p\<^sub>\<C>) = (unchain_env \<Delta> p\<^sub>\<Delta> ns, p\<^sub>\<C>)"
 
-abbreviation unchain_stack :: "(ptr list \<times> ptr) heap \<Rightarrow> (ptr \<times> nat) list \<Rightarrow> 
+abbreviation unchain_stack :: "(ptr list \<times> ptr) heap \<Rightarrow> (ptr \<times> nat list \<times> nat) list \<Rightarrow> 
     (ptr list list \<times> nat) list" where
   "unchain_stack \<Delta> s \<equiv> map (unchain_frame \<Delta>) s"
 
@@ -43,16 +46,16 @@ proof -
   thus ?thesis by simp
 qed
 
-lemma halloc_unchain_heap_lam [simp]: "halloc h (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> n) = (h', v) \<Longrightarrow> 
-  halloc (unchain_heap h \<Delta>) (Lam\<^sub>h (unchain_env \<Delta> p\<^sub>\<Delta>) p\<^sub>\<C> n) = (unchain_heap h' \<Delta>, v)"
+lemma halloc_unchain_heap_lam [simp]: "halloc h (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> ns) = (h', v) \<Longrightarrow> 
+  halloc (unchain_heap h \<Delta>) (Lam\<^sub>h (unchain_env \<Delta> p\<^sub>\<Delta> ns) p\<^sub>\<C>) = (unchain_heap h' \<Delta>, v)"
 proof -
-  assume "halloc h (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> n) = (h', v)"
-  hence "halloc (hmap (unchain_closure \<Delta>) h) (unchain_closure \<Delta> (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> n)) = 
+  assume "halloc h (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> ns) = (h', v)"
+  hence "halloc (hmap (unchain_closure \<Delta>) h) (unchain_closure \<Delta> (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> ns)) = 
     (hmap (unchain_closure \<Delta>) h', v)" by (metis halloc_map)
   thus ?thesis by simp
 qed
 
-text \<open>We define a set of predicates to verify our "no upward pointers" condition.\<close>
+text \<open>We define a set of predicates to verify that our two heaps point to each other correctly.\<close>
 
 abbreviation chain_structured :: "closure\<^sub>v heap \<Rightarrow> (ptr list \<times> ptr) heap \<Rightarrow> bool" where
   "chain_structured h \<Delta> \<equiv> heap_all (\<lambda>p (vs, p'). p' \<le> p \<and> list_all (hcontains h) vs) \<Delta>"
@@ -61,10 +64,10 @@ primrec chained_heap_pointer :: "(ptr list \<times> ptr) heap \<Rightarrow> ptr 
   "chained_heap_pointer \<Delta> 0 = True"
 | "chained_heap_pointer \<Delta> (Suc p) = hcontains \<Delta> p"
 
-primrec chained_frame :: "(ptr list \<times> ptr) heap \<Rightarrow> (ptr \<times> nat) \<Rightarrow> bool" where
-  "chained_frame \<Delta> (p\<^sub>\<Delta>, p\<^sub>\<C>) = chained_heap_pointer \<Delta> p\<^sub>\<Delta>"
+fun chained_frame :: "(ptr list \<times> ptr) heap \<Rightarrow> (ptr \<times> nat list \<times> nat) \<Rightarrow> bool" where
+  "chained_frame \<Delta> (p\<^sub>\<Delta>, ns, p\<^sub>\<C>) = chained_heap_pointer \<Delta> p\<^sub>\<Delta>"
 
-abbreviation chained_stack :: "(ptr list \<times> ptr) heap \<Rightarrow> (ptr \<times> nat) list \<Rightarrow> bool" where
+abbreviation chained_stack :: "(ptr list \<times> ptr) heap \<Rightarrow> (ptr \<times> nat list \<times> nat) list \<Rightarrow> bool" where
   "chained_stack \<Delta> s \<equiv> list_all (chained_frame \<Delta>) s"
 
 abbreviation chained_vals :: "closure\<^sub>v heap \<Rightarrow> ptr list \<Rightarrow> bool" where
@@ -72,7 +75,7 @@ abbreviation chained_vals :: "closure\<^sub>v heap \<Rightarrow> ptr list \<Righ
 
 primrec chained_closure :: "(ptr list \<times> ptr) heap \<Rightarrow> closure\<^sub>v \<Rightarrow> bool" where
   "chained_closure \<Delta> (Const\<^sub>v n) = True"
-| "chained_closure \<Delta> (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> n) = chained_heap_pointer \<Delta> p\<^sub>\<Delta>"
+| "chained_closure \<Delta> (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> ns) = chained_heap_pointer \<Delta> p\<^sub>\<Delta>"
 
 abbreviation chained_closures :: "(ptr list \<times> ptr) heap \<Rightarrow> closure\<^sub>v heap \<Rightarrow> bool" where
   "chained_closures \<Delta> h \<equiv> heap_all (\<lambda>p. chained_closure \<Delta>) h"
@@ -88,49 +91,27 @@ lemma chained_heap_pointer_update [simp]: "chained_heap_pointer (hupdate \<Delta
 lemma chained_heap_pointer_unfold [elim]: "hcontains \<Delta> p \<Longrightarrow> p' \<le> p \<Longrightarrow> chained_heap_pointer \<Delta> p'"
   by (induction p') auto
 
+(*
 lemma lookup_unchain_env [simp]: "chain_structured h \<Delta> \<Longrightarrow> chained_heap_pointer \<Delta> p \<Longrightarrow>
-  Option.bind (lookup (unchain_env \<Delta> p) x) (\<lambda>vs. lookup vs y) = chain_lookup \<Delta> p x y"
-proof (induction \<Delta> p x y rule: chain_lookup.induct)
+  Option.bind (lookup (unchain_env \<Delta> p ns) x) (\<lambda>vs. lookup vs y) = chain_lookup \<Delta> p x y"
+proof (induction \<Delta> p ns rule: unchain_env.induct)
   case (3 \<Delta> p x)
   obtain v p' where V: "hlookup \<Delta> p = (v, p')" by (cases "hlookup \<Delta> p")
   from 3 have "hcontains \<Delta> p" by auto
   with 3 V have P: "p' \<le> p" using hlookup_all by fast
   with 3 V have "chained_heap_pointer \<Delta> p'" by auto
-  with 3(1, 2) V P show ?case by fastforce
+  with 3(1, 2) V P show ?case by fastforcex
 qed (simp_all split: prod.splits)
+*)
 
 lemma halloc_unchain_env [simp]: "chain_structured h \<Delta> \<Longrightarrow> chained_heap_pointer \<Delta> p \<Longrightarrow> 
-  halloc \<Delta> a = (\<Delta>', b) \<Longrightarrow> unchain_env \<Delta>' p = unchain_env \<Delta> p" 
-proof (induction \<Delta> p rule: unchain_env.induct)
-  case (2 \<Delta> p)
-  obtain v p' where V: "hlookup \<Delta> p = (v, p')" by (cases "hlookup \<Delta> p")
-  from 2 have H: "hcontains \<Delta> p" by auto
-  with 2 V have P: "p' \<le> p" using hlookup_all by fast
-  with 2 have "chained_heap_pointer \<Delta> p'" by auto
-  with 2 V P have U: "unchain_env \<Delta>' p' = unchain_env \<Delta> p'" by simp
-  from 2 V H have "hlookup \<Delta>' p = (v, p')" by simp
-  with V P U show ?case by simp
-qed simp_all
-
-lemma halloc_unchain_env2 [elim]: "hcontains \<Delta> p \<Longrightarrow> halloc \<Delta> v = (\<Delta>', q) \<Longrightarrow> 
-  unchain_env \<Delta>' p = unchain_env \<Delta> p"
-proof (induction \<Delta> p rule: unchain_env.induct)
-  case (2 \<Delta> p)
-  obtain vv p' where V: "hlookup \<Delta> p = (vv, p')" by (cases "hlookup \<Delta> p")
-  from 2(2) have "hcontains \<Delta> p" by fast
-  with 2(3) V have V': "hlookup \<Delta>' p = (vv, p')" by simp
-  from 2(2) V have "p' \<le> p \<Longrightarrow> hcontains \<Delta> p'" by auto
-  with 2 V have "p' \<le> p \<Longrightarrow> unchain_env \<Delta>' p' = unchain_env \<Delta> p'" by metis
-  with V V' show ?case by simp
-qed simp_all
-
-lemma halloc_unchain_env3 [elim]: "chained_heap_pointer \<Delta> a \<Longrightarrow> halloc \<Delta> v = (\<Delta>', p) \<Longrightarrow> 
-  unchain_env \<Delta>' a = unchain_env \<Delta> a"
-proof (induction a)
-  case (Suc p)
-  moreover obtain v' p' where "hlookup \<Delta> p = (v', p')" by (cases "hlookup \<Delta> p")
-  moreover from Suc have "p' \<le> p \<Longrightarrow> hcontains \<Delta> p'" by auto
-  ultimately show ?case by auto
+  halloc \<Delta> a = (\<Delta>', b) \<Longrightarrow> unchain_env \<Delta>' p ns = unchain_env \<Delta> p ns" 
+proof (induction \<Delta> p ns rule: unchain_env.induct)
+  case (3 \<Delta> p n ns)
+  obtain vs p' where H: "hlookup \<Delta> p = (vs, p')" by fastforce
+  with 3(2, 3) have "p' \<le> p \<and> list_all (hcontains h) vs" using hlookup_all by fastforce
+  with 3 have "chained_heap_pointer \<Delta> p'" by auto
+  with 3 H show ?case by simp
 qed simp_all
 
 lemma halloc_unchain_heap [elim]: "chain_structured h \<Delta> \<Longrightarrow> chained_closures \<Delta> h \<Longrightarrow> 
@@ -141,19 +122,20 @@ proof (rule hmap_eq)
     and A: "halloc \<Delta> v = (\<Delta>', p)" and X: "hcontains h x"
   show "unchain_closure \<Delta>' (hlookup h x) = unchain_closure \<Delta> (hlookup h x)" 
   proof (cases "hlookup h x")
-    case (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> n)
-    with C X have "chained_closure \<Delta> (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> n)" by (metis hlookup_all)
+    case (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> ns)
+    with C X have "chained_closure \<Delta> (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> ns)" by (metis hlookup_all)
     with S A Lam\<^sub>v show ?thesis by auto
   qed simp_all
 qed
 
 lemma unfold_unstack_list [simp]: "chain_structured h \<Delta> \<Longrightarrow> chained_heap_pointer \<Delta> p \<Longrightarrow> 
-  halloc \<Delta> (v, p) = (\<Delta>', p') \<Longrightarrow> unchain_env \<Delta>' (Suc p') = v # unchain_env \<Delta> p"
+  halloc \<Delta> (vs, p) = (\<Delta>', p') \<Longrightarrow> 
+    unchain_env \<Delta>' (Suc p') (n # ns) = take n vs # unchain_env \<Delta> p ns"
 proof -
   assume A: "chain_structured h \<Delta>"
   assume B: "chained_heap_pointer \<Delta> p"
-  assume C: "halloc \<Delta> (v, p) = (\<Delta>', p')"
-  moreover with A B have "unchain_env \<Delta>' p = unchain_env \<Delta> p" by simp
+  assume C: "halloc \<Delta> (vs, p) = (\<Delta>', p')"
+  moreover with A B have "unchain_env \<Delta>' p ns = unchain_env \<Delta> p ns" by simp
   moreover have "p \<le> p'" 
   proof (cases p)
     case (Suc pp)
@@ -172,18 +154,31 @@ text \<open>Completeness follows:\<close>
 theorem complete\<^sub>v [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>v \<leadsto>\<^sub>v \<Sigma>\<^sub>v' \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow> 
   \<C> \<tturnstile> unchain_state \<Sigma>\<^sub>v \<leadsto>\<^sub>h unchain_state \<Sigma>\<^sub>v'"
 proof (induction \<Sigma>\<^sub>v \<Sigma>\<^sub>v' rule: eval\<^sub>v.induct)
-  case (ev\<^sub>v_lookup \<C> p\<^sub>\<C> x y \<Delta> p\<^sub>\<Delta> v h \<V> s)
-  hence "Option.bind (lookup (unchain_env \<Delta> p\<^sub>\<Delta>) x) (\<lambda>vs. lookup vs y) = Some v" by auto
-  then obtain vs where "lookup (unchain_env \<Delta> p\<^sub>\<Delta>) x = Some vs \<and> lookup vs y = Some v" 
-    by (cases "lookup (unchain_env \<Delta> p\<^sub>\<Delta>) x") auto
+  case (ev\<^sub>v_lookup \<C> p\<^sub>\<C> x y \<Delta> p\<^sub>\<Delta> v h \<V> ns s)
+  from ev\<^sub>v_lookup have "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x y)" by simp
+  from ev\<^sub>v_lookup have "chain_lookup \<Delta> p\<^sub>\<Delta> x y = Some v" by simp
+  from ev\<^sub>v_lookup have "chain_structured h \<Delta> \<and> chained_closures \<Delta> h \<and> chained_vals h \<V> \<and> 
+    chained_heap_pointer \<Delta> p\<^sub>\<Delta> \<and> chained_stack \<Delta> s" by simp
+
+  from ev\<^sub>v_lookup have "lookup (unchain_env \<Delta> p\<^sub>\<Delta> ns) x = Some vs \<Longrightarrow> 
+    lookup vs y = Some v \<Longrightarrow>
+        \<C> \<tturnstile> S\<^sub>h (unchain_heap h \<Delta>) \<V> ((unchain_env \<Delta> p\<^sub>\<Delta> ns, Suc p\<^sub>\<C>) # unchain_stack \<Delta> s) \<leadsto>\<^sub>h 
+    S\<^sub>h (unchain_heap h \<Delta>) (v # \<V>) ((unchain_env \<Delta> p\<^sub>\<Delta> ns, p\<^sub>\<C>) # unchain_stack \<Delta> s)" by simp
+
+  have "\<C> \<tturnstile> S\<^sub>h (unchain_heap h \<Delta>) \<V> ((unchain_env \<Delta> p\<^sub>\<Delta> ns, Suc p\<^sub>\<C>) # unchain_stack \<Delta> s) \<leadsto>\<^sub>h
+    S\<^sub>h (unchain_heap h \<Delta>) (v # \<V>) ((unchain_env \<Delta> p\<^sub>\<Delta> ns, p\<^sub>\<C>) # unchain_stack \<Delta> s)" by simp
   with ev\<^sub>v_lookup show ?case by simp
 next
-  case (ev\<^sub>v_apply \<C> p\<^sub>\<C> h\<^sub>v v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' n \<Delta>\<^sub>v v\<^sub>1 \<Delta>\<^sub>v' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> s\<^sub>v)
+  case (ev\<^sub>v_alloc \<C> p\<^sub>\<C> n \<Delta> p\<^sub>\<Delta> vs p\<^sub>\<Delta>' h \<V> s)
+  then show ?case by simp
+next
+  case (ev\<^sub>v_apply \<C> p\<^sub>\<C> h\<^sub>v v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' ns \<Delta>\<^sub>v v\<^sub>1 \<Delta>\<^sub>v' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> s\<^sub>v)
   from ev\<^sub>v_apply have "chained_closures \<Delta>\<^sub>v h\<^sub>v \<and> hcontains h\<^sub>v v\<^sub>2" by simp
-  with ev\<^sub>v_apply have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' n)" by (metis hlookup_all)
+  with ev\<^sub>v_apply have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' ns)" by (metis hlookup_all)
   with ev\<^sub>v_apply have "chain_structured h\<^sub>v \<Delta>\<^sub>v \<and> chained_heap_pointer \<Delta>\<^sub>v p\<^sub>\<Delta>' \<and> 
     halloc \<Delta>\<^sub>v ([v\<^sub>1], p\<^sub>\<Delta>') = (\<Delta>\<^sub>v', p\<^sub>\<Delta>'')" by auto
-  hence X: "unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') = [v\<^sub>1] # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" by (metis unfold_unstack_list)
+  hence X: "unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') (Suc 0 # ns) = [v\<^sub>1] # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>' ns" 
+    by (metis unfold_unstack_list take_0 take_Suc_Cons)
   from ev\<^sub>v_apply have A: "unchain_heap h\<^sub>v \<Delta>\<^sub>v' = unchain_heap h\<^sub>v \<Delta>\<^sub>v" by auto
   from ev\<^sub>v_apply have B: "unchain_env \<Delta>\<^sub>v' p\<^sub>\<Delta> = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by auto
   from ev\<^sub>v_apply have "chained_stack \<Delta>\<^sub>v s\<^sub>v" by simp
@@ -195,7 +190,7 @@ next
     by (simp add: C)
   thus ?case by simp
 next
-  case (ev\<^sub>v_pushenv \<C> p\<^sub>\<C> \<Delta>\<^sub>v p\<^sub>\<Delta> vs p\<^sub>\<Delta>' h\<^sub>v v \<V> s\<^sub>v)
+  case (ev\<^sub>v_pushenv \<C> p\<^sub>\<C> n \<Delta>\<^sub>v p\<^sub>\<Delta> vs p\<^sub>\<Delta>' h\<^sub>v v \<V> s\<^sub>v)
   from ev\<^sub>v_pushenv have A: "hlookup \<Delta>\<^sub>v p\<^sub>\<Delta> = (vs, p\<^sub>\<Delta>')" by simp
   from ev\<^sub>v_pushenv have B: "chain_structured h\<^sub>v \<Delta>\<^sub>v" by simp
   from ev\<^sub>v_pushenv have "chained_closures \<Delta>\<^sub>v h\<^sub>v" by simp
@@ -216,9 +211,9 @@ next
     by (metis ev\<^sub>h_pushenv)
   with ev\<^sub>v_pushenv P show ?case by (simp add: Y)
 next
-  case (ev\<^sub>v_jump \<C> p\<^sub>\<C> h\<^sub>v v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' n \<Delta>\<^sub>v v\<^sub>1 \<Delta>\<^sub>v' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> s\<^sub>v)
+  case (ev\<^sub>v_jump \<C> p\<^sub>\<C> h\<^sub>v v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' \<Delta>\<^sub>v v\<^sub>1 \<Delta>\<^sub>v' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> s\<^sub>v)
   from ev\<^sub>v_jump have "chained_closures \<Delta>\<^sub>v h\<^sub>v \<and> hcontains h\<^sub>v v\<^sub>2" by simp
-  with ev\<^sub>v_jump have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' n)" by (metis hlookup_all)
+  with ev\<^sub>v_jump have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>')" by (metis hlookup_all)
   with ev\<^sub>v_jump have "chain_structured h\<^sub>v \<Delta>\<^sub>v \<and> chained_heap_pointer \<Delta>\<^sub>v p\<^sub>\<Delta>' \<and> 
     halloc \<Delta>\<^sub>v ([v\<^sub>1], p\<^sub>\<Delta>') = (\<Delta>\<^sub>v', p\<^sub>\<Delta>'')" by auto
   hence X: "unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') = [v\<^sub>1] # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" by (metis unfold_unstack_list)
@@ -238,8 +233,8 @@ lemma unchain_state_reverse [dest]: "S\<^sub>h h\<^sub>h \<V> s\<^sub>h = unchai
     \<exists>h\<^sub>v \<Delta>\<^sub>v s\<^sub>v. \<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> s\<^sub>v \<and> h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v"
   by (induction \<Sigma>\<^sub>v) simp_all
 
-lemma unchain_lam_reverse [dest]: "Lam\<^sub>h \<Delta>\<^sub>h p\<^sub>C n = unchain_closure \<Delta>\<^sub>v x \<Longrightarrow> 
-    \<exists>p\<^sub>\<Delta>. x = Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>C n \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>"
+lemma unchain_lam_reverse [dest]: "Lam\<^sub>h \<Delta>\<^sub>h p\<^sub>C = unchain_closure \<Delta>\<^sub>v x \<Longrightarrow> 
+    \<exists>p\<^sub>\<Delta>. x = Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>C \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>"
   by (induction x) simp_all
 
 theorem correct\<^sub>v [simp]: "\<C> \<tturnstile> unchain_state \<Sigma>\<^sub>v \<leadsto>\<^sub>h \<Sigma>\<^sub>h \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow>
@@ -278,15 +273,15 @@ next
     by simp
   with S SF P X show ?case by blast
 next
-  case (ev\<^sub>h_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' n h\<^sub>h \<Delta>\<^sub>h h\<^sub>h' v \<V> s\<^sub>h)
+  case (ev\<^sub>h_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' h\<^sub>h \<Delta>\<^sub>h h\<^sub>h' v \<V> s\<^sub>h)
   then obtain h\<^sub>v \<Delta>\<^sub>v s\<^sub>v' where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> s\<^sub>v' \<and> h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> 
     (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
     s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by auto
   then obtain p\<^sub>\<Delta> where P: "f\<^sub>v = (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by (cases f\<^sub>v) simp_all
   with ev\<^sub>h_pushlam S have "halloc (hmap (unchain_closure \<Delta>\<^sub>v) h\<^sub>v) 
-    (unchain_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>' n)) = (h\<^sub>h', v)" by simp
-  then obtain h\<^sub>v' where H: "halloc h\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>' n) = (h\<^sub>v', v) \<and> 
+    (unchain_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>')) = (h\<^sub>h', v)" by simp
+  then obtain h\<^sub>v' where H: "halloc h\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>') = (h\<^sub>v', v) \<and> 
     h\<^sub>h' = hmap (unchain_closure \<Delta>\<^sub>v) h\<^sub>v'" by (metis halloc_map_inv)
   hence "h\<^sub>h' = unchain_heap h\<^sub>v' \<Delta>\<^sub>v" by simp
   with SF P have X: "S\<^sub>h h\<^sub>h' (v # \<V>) ((\<Delta>\<^sub>h, p\<^sub>\<C>) # s\<^sub>h) = 
@@ -295,14 +290,17 @@ next
     S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v)" by simp
   with S SF P X show ?case by blast
 next
-  case (ev\<^sub>h_apply \<C> p\<^sub>\<C> h\<^sub>h v\<^sub>2 \<Delta>\<^sub>h' p\<^sub>\<C>' n v\<^sub>1 \<V> \<Delta>\<^sub>h s\<^sub>h)
+  case (ev\<^sub>h_alloc \<C> p n h \<V> \<Delta> s)
+  then show ?case by simp
+next
+  case (ev\<^sub>h_apply \<C> p\<^sub>\<C> h\<^sub>h v\<^sub>2 \<Delta>\<^sub>h' p\<^sub>\<C>' v\<^sub>1 \<V> \<Delta>\<^sub>h s\<^sub>h)
   then obtain h\<^sub>v \<Delta>\<^sub>v s\<^sub>v' where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1 # v\<^sub>2 # \<V>) s\<^sub>v' \<and> 
     h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
     s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by auto
   then obtain p\<^sub>\<Delta> where P: "f\<^sub>v = (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by (cases f\<^sub>v) simp_all
-  from ev\<^sub>h_apply S have "Lam\<^sub>h \<Delta>\<^sub>h' p\<^sub>\<C>' n = unchain_closure \<Delta>\<^sub>v (hlookup h\<^sub>v v\<^sub>2)" by simp
-  then obtain p\<^sub>\<Delta>' where P': "hlookup h\<^sub>v v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' n \<and> \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" by blast
+  from ev\<^sub>h_apply S have "Lam\<^sub>h \<Delta>\<^sub>h' p\<^sub>\<C>' = unchain_closure \<Delta>\<^sub>v (hlookup h\<^sub>v v\<^sub>2)" by simp
+  then obtain p\<^sub>\<Delta>' where P': "hlookup h\<^sub>v v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' \<and> \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" by blast
   obtain \<Delta>\<^sub>v' p\<^sub>\<Delta>'' where H: "halloc \<Delta>\<^sub>v ([v\<^sub>1], p\<^sub>\<Delta>') = (\<Delta>\<^sub>v', p\<^sub>\<Delta>'')" 
     by (cases "halloc \<Delta>\<^sub>v ([v\<^sub>1], p\<^sub>\<Delta>')") simp_all
   from ev\<^sub>h_apply S SF P have C: "chain_structured h\<^sub>v \<Delta>\<^sub>v \<and> chained_closures \<Delta>\<^sub>v h\<^sub>v \<and>
@@ -311,7 +309,7 @@ next
   with H have Y: "unchain_heap h\<^sub>v \<Delta>\<^sub>v' = unchain_heap h\<^sub>v \<Delta>\<^sub>v" by fast
   from H C have "unchain_env \<Delta>\<^sub>v' p\<^sub>\<Delta> = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by fastforce
   with P have W: "\<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v' p\<^sub>\<Delta>" by metis
-  from P' C have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' n)" by (metis hlookup_all)
+  from P' C have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>')" by (metis hlookup_all)
   hence "chained_heap_pointer \<Delta>\<^sub>v p\<^sub>\<Delta>'" by auto
   with H C have "unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') = [v\<^sub>1] # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" 
     by (metis unfold_unstack_list)
@@ -358,21 +356,21 @@ next
   from ev\<^sub>h_return have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> s\<^sub>v" by simp
   with S SF P X show ?case by blast
 next
-  case (ev\<^sub>h_jump \<C> p\<^sub>\<C> h\<^sub>h v\<^sub>2 \<Delta>\<^sub>h' p\<^sub>\<C>' n v\<^sub>1 \<V> \<Delta>\<^sub>h s\<^sub>h)
+  case (ev\<^sub>h_jump \<C> p\<^sub>\<C> h\<^sub>h v\<^sub>2 \<Delta>\<^sub>h' p\<^sub>\<C>' v\<^sub>1 \<V> \<Delta>\<^sub>h s\<^sub>h)
   then obtain h\<^sub>v \<Delta>\<^sub>v s\<^sub>v' where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1 # v\<^sub>2 # \<V>) s\<^sub>v' \<and> 
     h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
     s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by auto
   then obtain p\<^sub>\<Delta> where P: "f\<^sub>v = (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by (cases f\<^sub>v) simp_all
-  from ev\<^sub>h_jump S have "Lam\<^sub>h \<Delta>\<^sub>h' p\<^sub>\<C>' n = unchain_closure \<Delta>\<^sub>v (hlookup h\<^sub>v v\<^sub>2)" by simp
-  then obtain p\<^sub>\<Delta>' where P': "hlookup h\<^sub>v v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' n \<and> \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" by blast
+  from ev\<^sub>h_jump S have "Lam\<^sub>h \<Delta>\<^sub>h' p\<^sub>\<C>' = unchain_closure \<Delta>\<^sub>v (hlookup h\<^sub>v v\<^sub>2)" by simp
+  then obtain p\<^sub>\<Delta>' where P': "hlookup h\<^sub>v v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' \<and> \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" by blast
   obtain \<Delta>\<^sub>v' p\<^sub>\<Delta>'' where H: "halloc \<Delta>\<^sub>v ([v\<^sub>1], p\<^sub>\<Delta>') = (\<Delta>\<^sub>v', p\<^sub>\<Delta>'')" 
     by (cases "halloc \<Delta>\<^sub>v ([v\<^sub>1], p\<^sub>\<Delta>')") simp_all
   from ev\<^sub>h_jump S SF P have C: "chain_structured h\<^sub>v \<Delta>\<^sub>v \<and> chained_closures \<Delta>\<^sub>v h\<^sub>v \<and>
     hcontains h\<^sub>v v\<^sub>1 \<and> hcontains h\<^sub>v v\<^sub>2 \<and> chained_vals h\<^sub>v \<V> \<and> chained_heap_pointer \<Delta>\<^sub>v p\<^sub>\<Delta> \<and> 
       chained_stack \<Delta>\<^sub>v s\<^sub>v" by simp
   with H have Y: "unchain_heap h\<^sub>v \<Delta>\<^sub>v' = unchain_heap h\<^sub>v \<Delta>\<^sub>v" by fast
-  from P' C have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' n)" by (metis hlookup_all)
+  from P' C have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>')" by (metis hlookup_all)
   hence "chained_heap_pointer \<Delta>\<^sub>v p\<^sub>\<Delta>'" by simp
   with H C have "unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') = [v\<^sub>1] # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" 
     by (metis unfold_unstack_list)
@@ -470,7 +468,7 @@ proof -
   ultimately show ?thesis by auto
 qed
 
-lemma chain_structured_alloc_lam [simp]: "hcontains h v\<^sub>2 \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> n \<Longrightarrow> 
+lemma chain_structured_alloc_lam [simp]: "hcontains h v\<^sub>2 \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> \<Longrightarrow> 
   chained_closures \<Delta> h \<Longrightarrow> hcontains h v\<^sub>1 \<Longrightarrow> halloc \<Delta> ([v\<^sub>1], p\<^sub>\<Delta>) = (\<Delta>', p\<^sub>\<Delta>') \<Longrightarrow> 
     chain_structured h \<Delta> \<Longrightarrow> chain_structured h \<Delta>'"
   using hlookup_all by fastforce
@@ -498,6 +496,9 @@ lemma eval_preserves_chained [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>v \<lead
 proof (induction \<Sigma>\<^sub>v \<Sigma>\<^sub>v' rule: eval\<^sub>v.induct)
   case (ev\<^sub>v_lookup \<C> p\<^sub>\<C> x y \<Delta> p\<^sub>\<Delta> v h \<V> s)
   thus ?case by (cases p\<^sub>\<Delta>) auto
+next
+  case (ev\<^sub>v_alloc \<C> p\<^sub>\<C> n \<Delta> p\<^sub>\<Delta> vs p\<^sub>\<Delta>' h \<V> s)
+  then show ?case by simp
 next
   case (ev\<^sub>v_pushenv \<C> p\<^sub>\<C> \<Delta> p\<^sub>\<Delta> vs p\<^sub>\<Delta>' h v \<V> s)
   hence P: "p\<^sub>\<Delta>' \<le> p\<^sub>\<Delta> \<and> list_all (hcontains h) vs" using hlookup_all by fastforce

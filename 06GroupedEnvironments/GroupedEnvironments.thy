@@ -50,14 +50,15 @@ more difficult to calculate the frames-and-offsets from Debruijn indexes. So now
 start compiling our expressions into linear code, we change our abstract environments from single 
 lists to lists-of-lists, representing the eventual linked-list-of-frames they will be, and replace 
 our variable indexes with frame-offset pairs. (We also precalculate and store the size of the frame 
-associated with a lambda-expression and store it for use later as well.)\<close>
+associated with a lambda-expression and the offset of a let-binding and store those for use later as 
+well.)\<close>
 
 datatype expr\<^sub>g = 
   Var\<^sub>g nat nat
   | Const\<^sub>g nat
   | Lam\<^sub>g ty expr\<^sub>g nat
   | App\<^sub>g expr\<^sub>g expr\<^sub>g
-  | Let\<^sub>g expr\<^sub>g expr\<^sub>g
+  | Let\<^sub>g nat expr\<^sub>g expr\<^sub>g
 
 text \<open>Typing remains almost unchanged, but we need to adjust the typing context a little: rather 
 than just a list, it too is a list of lists to match the new way we look up variables. It is worth 
@@ -65,7 +66,7 @@ noting that we flip the frames from how they were previously laid out: each new 
 \<open>tc\<^sub>g_let\<close> is added to the end of the frame, not the beginning.\<close>
 
 fun let_count :: "expr\<^sub>g \<Rightarrow> nat" where
-  "let_count (Let\<^sub>g e\<^sub>1 e\<^sub>2) = Suc (let_count e\<^sub>2)"
+  "let_count (Let\<^sub>g n e\<^sub>1 e\<^sub>2) = Suc (let_count e\<^sub>2)"
 | "let_count e = 0"
 
 inductive typing\<^sub>g :: "ty list list \<Rightarrow> expr\<^sub>g \<Rightarrow> ty \<Rightarrow> bool" (infix "\<turnstile>\<^sub>g _ :" 50) where
@@ -73,13 +74,14 @@ inductive typing\<^sub>g :: "ty list list \<Rightarrow> expr\<^sub>g \<Rightarro
 | tc\<^sub>g_const [simp]: "\<Gamma> \<turnstile>\<^sub>g Const\<^sub>g n : Num"
 | tc\<^sub>g_lam [simp]: "insert_at 0 [t\<^sub>1] \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g Lam\<^sub>g t\<^sub>1 e (let_count e) : Arrow t\<^sub>1 t\<^sub>2"
 | tc\<^sub>g_app [simp]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : Arrow t\<^sub>1 t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>1 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g App\<^sub>g e\<^sub>1 e\<^sub>2 : t\<^sub>2"
-| tc\<^sub>g_let [simp]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1 \<Longrightarrow> snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>g Let\<^sub>g e\<^sub>1 e\<^sub>2 : t\<^sub>2"
+| tc\<^sub>g_let [simp]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1 \<Longrightarrow> snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2 \<Longrightarrow> \<Gamma> \<noteq> [] \<Longrightarrow> 
+    \<Gamma> \<turnstile>\<^sub>g Let\<^sub>g (length (hd \<Gamma>)) e\<^sub>1 e\<^sub>2 : t\<^sub>2"
 
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Var\<^sub>g x y : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Const\<^sub>g n : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Lam\<^sub>g t' e n : t"
 inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g App\<^sub>g e\<^sub>1 e\<^sub>2 : t"
-inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Let\<^sub>g e\<^sub>1 e\<^sub>2 : t"
+inductive_cases [elim]: "\<Gamma> \<turnstile>\<^sub>g Let\<^sub>g n e\<^sub>1 e\<^sub>2 : t"
 
 text \<open>We also redefine our let-floating predicates for our new datatype.\<close>
 
@@ -88,14 +90,14 @@ primrec non_redex\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
 | "non_redex\<^sub>g (Const\<^sub>g n) = True"
 | "non_redex\<^sub>g (Lam\<^sub>g t e n) = True"
 | "non_redex\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = False"
-| "non_redex\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = False"
+| "non_redex\<^sub>g (Let\<^sub>g n e\<^sub>1 e\<^sub>2) = False"
 
 primrec let_free\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
   "let_free\<^sub>g (Var\<^sub>g x y) = True"
 | "let_free\<^sub>g (Const\<^sub>g n) = True"
 | "let_free\<^sub>g (Lam\<^sub>g t e n) = True"
 | "let_free\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = (let_free\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>2)"
-| "let_free\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = False"
+| "let_free\<^sub>g (Let\<^sub>g n e\<^sub>1 e\<^sub>2) = False"
 
 primrec let_floated\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
   "let_floated\<^sub>g (Var\<^sub>g x y) = True"
@@ -103,7 +105,7 @@ primrec let_floated\<^sub>g :: "expr\<^sub>g \<Rightarrow> bool" where
 | "let_floated\<^sub>g (Lam\<^sub>g t e n) = let_floated\<^sub>g e"
 | "let_floated\<^sub>g (App\<^sub>g e\<^sub>1 e\<^sub>2) = 
     (let_free\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>2 \<and> non_redex\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>2)"
-| "let_floated\<^sub>g (Let\<^sub>g e\<^sub>1 e\<^sub>2) = (let_free\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>2)"
+| "let_floated\<^sub>g (Let\<^sub>g n e\<^sub>1 e\<^sub>2) = (let_free\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_floated\<^sub>g e\<^sub>2)"
 
 text \<open>Closures, frames, and states need to be changed similarly.\<close>
 
@@ -157,6 +159,9 @@ lemma "c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> True"
 lemma env_length_same [simp]: "cs # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s ts # \<Gamma> \<Longrightarrow> length cs = length ts"
   by (induction cs arbitrary: ts) auto
 
+lemma env_length_same_hd [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<Gamma> \<noteq> [] \<Longrightarrow> length (hd \<Gamma>) = length (hd \<Delta>)"
+  by (induction \<Delta> \<Gamma> rule: typing_closure\<^sub>g_typing_environment\<^sub>g.inducts(2)) auto
+
 lemma canonical_num\<^sub>g [dest]: "c :\<^sub>g\<^sub>c\<^sub>l Num \<Longrightarrow> \<exists>n. c = Num\<^sub>g n"
   by (induction c Num rule: typing_closure\<^sub>g_typing_environment\<^sub>g.inducts(1)) simp_all
 
@@ -199,7 +204,6 @@ inductive_cases [elim]: "[] :\<^sub>g t' \<rightarrow> t"
 inductive_cases [elim]: "FApp1\<^sub>g \<Delta> e # s :\<^sub>g t' \<rightarrow> t"
 inductive_cases [elim]: "FApp2\<^sub>g c # s :\<^sub>g t' \<rightarrow> t"
 inductive_cases [elim]: "FLet\<^sub>g \<Delta> e # s :\<^sub>g t' \<rightarrow> t"
-inductive_cases [elim]: "FPop\<^sub>g c # s :\<^sub>g t' \<rightarrow> t"
 inductive_cases [elim]: "FReturn\<^sub>g \<Delta> # s :\<^sub>g t' \<rightarrow> t"
 
 datatype state\<^sub>g = 
@@ -226,7 +230,7 @@ inductive eval\<^sub>g :: "state\<^sub>g \<Rightarrow> state\<^sub>g \<Rightarro
 | ev\<^sub>g_con [simp]: "SE\<^sub>g s \<Delta> (Const\<^sub>g n) \<leadsto>\<^sub>g SC\<^sub>g s (Num\<^sub>g n)"
 | ev\<^sub>g_lam [simp]: "SE\<^sub>g s \<Delta> (Lam\<^sub>g t e n) \<leadsto>\<^sub>g SC\<^sub>g s (Fun\<^sub>g t \<Delta> e n)"
 | ev\<^sub>g_app [simp]: "SE\<^sub>g s \<Delta> (App\<^sub>g e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FApp1\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1"
-| ev\<^sub>g_let [simp]: "SE\<^sub>g (FReturn\<^sub>g \<Delta> # s) \<Delta> (Let\<^sub>g e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s) \<Delta> e\<^sub>1"
+| ev\<^sub>g_let [simp]: "SE\<^sub>g (FReturn\<^sub>g \<Delta> # s) \<Delta> (Let\<^sub>g n e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s) \<Delta> e\<^sub>1"
 | ret\<^sub>g_app1 [simp]: "SC\<^sub>g (FApp1\<^sub>g \<Delta> e\<^sub>2 # s) c\<^sub>1 \<leadsto>\<^sub>g SE\<^sub>g (FApp2\<^sub>g c\<^sub>1 # s) \<Delta> e\<^sub>2"
 | ret\<^sub>g_app2 [simp]: "SC\<^sub>g (FApp2\<^sub>g (Fun\<^sub>g t \<Delta> e\<^sub>1 n) # s) c\<^sub>2 \<leadsto>\<^sub>g 
     SE\<^sub>g (FReturn\<^sub>g ([c\<^sub>2] # \<Delta>) # s) ([c\<^sub>2] # \<Delta>) e\<^sub>1"
@@ -259,7 +263,7 @@ next
 next
   case (tc\<^sub>g_let \<Gamma> e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
   then obtain s' where "s = FReturn\<^sub>g \<Delta> # s'" by auto
-  hence "SE\<^sub>g s \<Delta> (Let\<^sub>g e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1" by simp
+  hence "SE\<^sub>g s \<Delta> (Let\<^sub>g (length (hd \<Gamma>)) e\<^sub>1 e\<^sub>2) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta> e\<^sub>2 # s) \<Delta> e\<^sub>1" by simp
   thus ?case by fastforce
 qed
 
@@ -308,7 +312,7 @@ next
   hence "FApp1\<^sub>g \<Delta> e\<^sub>2 # s :\<^sub>g Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
 next
-  case (ev\<^sub>g_let \<Delta> s e\<^sub>1 e\<^sub>2)
+  case (ev\<^sub>g_let \<Delta> s n e\<^sub>1 e\<^sub>2)
   then obtain \<Gamma> t\<^sub>2 t\<^sub>1 where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>2" 
     and X: "(\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1) \<and> (\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>1" by fastforce
   hence "FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s :\<^sub>g t\<^sub>1 \<rightarrow> t" by fastforce

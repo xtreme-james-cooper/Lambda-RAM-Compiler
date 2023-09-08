@@ -10,16 +10,16 @@ is equivalent to exactly one chained state, and vice versa. To make correctness 
 
 primrec flatten_closure :: "closure\<^sub>v \<Rightarrow> (pointer_tag \<times> nat) list" where
   "flatten_closure (Const\<^sub>v n) = [(PConst, n), (PConst, 0)]"
-| "flatten_closure (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>) = [(PEnv, 2 * p\<^sub>\<Delta>), (PCode, p\<^sub>\<C>)]"
+| "flatten_closure (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> ns) = [(PEnv, 2 * p\<^sub>\<Delta>), (PCode, p\<^sub>\<C>)]"
 
 abbreviation flatten_values :: "closure\<^sub>v heap \<Rightarrow> (pointer_tag \<times> nat) heap" where
   "flatten_values h \<equiv> hsplay flatten_closure h"
 
-primrec flatten_env :: "(ptr \<times> ptr) \<Rightarrow> ptr list" where
-  "flatten_env (p\<^sub>h, p\<^sub>\<Delta>) = [2 * p\<^sub>h, 2 * p\<^sub>\<Delta>]"
+primrec flatten_env :: "(ptr \<Rightarrow> ptr) \<Rightarrow> (ptr list \<times> ptr) \<Rightarrow> ptr list" where
+  "flatten_env m (p\<^sub>h, p\<^sub>\<Delta>) = 2 * p\<^sub>\<Delta> # map m p\<^sub>h"
 
-abbreviation flatten_environment :: "(ptr \<times> ptr) heap \<Rightarrow> ptr heap" where
-  "flatten_environment h \<equiv> hsplay flatten_env h"
+abbreviation flatten_environment :: "(ptr list \<times> ptr) heap \<Rightarrow> ptr heap" where
+  "flatten_environment h \<equiv> hsplay (flatten_env m) h"
 
 abbreviation flatten_vals :: "ptr list \<Rightarrow> ptr list" where
   "flatten_vals \<V> \<equiv> map ((*) 2) \<V>"
@@ -251,7 +251,7 @@ next
   case (ev\<^sub>f_return \<C> p\<^sub>\<C> h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f p\<^sub>\<Delta>\<^sub>f s\<^sub>f)
   then obtain h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v p\<^sub>\<Delta>\<^sub>v s\<^sub>v where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<and> 
     h\<^sub>f = flatten_values h\<^sub>v \<and> \<Delta>\<^sub>f = flatten_environment \<Delta>\<^sub>v \<and> \<V>\<^sub>f = flatten_vals \<V>\<^sub>v \<and> 
-    s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>\<Delta>\<^sub>v" by fastforce
+    s\<^sub>f = flatten_stack s\<^sub>v \<and> p\<^sub>\<Delta>\<^sub>f = 2 * p\<^sub>\<Delta>\<^sub>v" by fastforcex
   hence X: "flatten (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v s\<^sub>v) = S\<^sub>f h\<^sub>f \<Delta>\<^sub>f \<V>\<^sub>f s\<^sub>f" by simp
   from ev\<^sub>f_return have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v ((p\<^sub>\<Delta>\<^sub>v, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V>\<^sub>v s\<^sub>v" by simp
   with S X show ?case by blast

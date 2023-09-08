@@ -174,7 +174,7 @@ next
     S\<^sub>h h \<V>\<^sub>h (([v\<^sub>h\<^sub>1] # \<Delta>h', p') # (\<Delta>\<^sub>h, p) # s\<^sub>h)" by simp
   ultimately show ?case by fastforce
 next
-  case (ev\<^sub>b_pushenv \<C> p v\<^sub>b \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
+  case (ev\<^sub>b_pushenv \<C> p n v\<^sub>b \<V>\<^sub>b \<Delta>\<^sub>b s\<^sub>b)
   then obtain h \<V>\<^sub>h' \<Delta>\<^sub>h s\<^sub>h where "\<Sigma>\<^sub>h = S\<^sub>h h \<V>\<^sub>h' ((\<Delta>\<^sub>h, Suc p) # s\<^sub>h) \<and> 
     v\<^sub>b # \<V>\<^sub>b = map (unheap_closure h) \<V>\<^sub>h' \<and> \<Delta>\<^sub>b = map (map (unheap_closure h)) \<Delta>\<^sub>h \<and> 
       s\<^sub>b = unheap_stack h s\<^sub>h" by fastforce

@@ -18,7 +18,7 @@ fun flatten_code' :: "nat \<Rightarrow> code\<^sub>e list \<Rightarrow> code\<^s
     let \<C>\<^sub>b' = flatten_code' p \<C>' @ [Alloc\<^sub>b n]
     in \<C>\<^sub>b' @ flatten_code' (p + length \<C>\<^sub>b') \<C> @ [PushLam\<^sub>b (p + length \<C>\<^sub>b')])"
 | "flatten_code' p (Apply\<^sub>e # \<C>) = flatten_code' p \<C> @ [Apply\<^sub>b]"
-| "flatten_code' p (PushEnv\<^sub>e # \<C>) = flatten_code' p \<C> @ [PushEnv\<^sub>b]"
+| "flatten_code' p (PushEnv\<^sub>e n # \<C>) = flatten_code' p \<C> @ [PushEnv\<^sub>b n]"
 | "flatten_code' p (Return\<^sub>e # \<C>) = flatten_code' p \<C> @ [Return\<^sub>b]"
 | "flatten_code' p (Jump\<^sub>e # \<C>) = flatten_code' p \<C> @ [Jump\<^sub>b]"
 
@@ -48,7 +48,7 @@ primrec code_size :: "code\<^sub>e \<Rightarrow> nat"
 | "code_size (PushCon\<^sub>e n) = 1"
 | "code_size (PushLam\<^sub>e \<C> n) = Suc (Suc (code_list_size \<C>))"
 | "code_size Apply\<^sub>e = 1"
-| "code_size PushEnv\<^sub>e = 1"
+| "code_size (PushEnv\<^sub>e n) = 1"
 | "code_size Return\<^sub>e = 1"
 | "code_size Jump\<^sub>e = 1"
 | "code_list_size [] = 0"
@@ -102,7 +102,7 @@ fun unflatten_code :: "code\<^sub>b list \<Rightarrow> nat \<Rightarrow> code\<^
         else undefined) 
     | Some (Alloc\<^sub>b n) \<Rightarrow> unflatten_code \<C> p
     | Some Apply\<^sub>b \<Rightarrow> Apply\<^sub>e # unflatten_code \<C> p
-    | Some PushEnv\<^sub>b \<Rightarrow> PushEnv\<^sub>e # unflatten_code \<C> p
+    | Some (PushEnv\<^sub>b n) \<Rightarrow> PushEnv\<^sub>e n # unflatten_code \<C> p
     | Some Return\<^sub>b \<Rightarrow> [Return\<^sub>e]
     | Some Jump\<^sub>b \<Rightarrow> [Jump\<^sub>e]
     | None \<Rightarrow> undefined)"
@@ -305,9 +305,9 @@ next
       by simp
   thus ?case by simp
 next
-  case (ev\<^sub>b_pushenv \<C> p v \<V> \<Delta> s)
+  case (ev\<^sub>b_pushenv \<C> p n v \<V> \<Delta> s)
   have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (unflatten_closure \<C> v # unflatten_values \<C> \<V>)
-    ((map (unflatten_values \<C> )\<Delta>, PushEnv\<^sub>e # unflatten_code \<C> p) # unflatten_stack \<C> s))
+    ((map (unflatten_values \<C> )\<Delta>, PushEnv\<^sub>e n # unflatten_code \<C> p) # unflatten_stack \<C> s))
     (S\<^sub>e (unflatten_values \<C> \<V>) ((snoc_fst (unflatten_closure \<C> v) (map (unflatten_values \<C>) \<Delta>), 
       unflatten_code \<C> p) # unflatten_stack \<C> s))" by (metis ev\<^sub>e_pushenv iter_one)
   with ev\<^sub>b_pushenv show ?case by simp
@@ -374,10 +374,10 @@ lemma unflatten_to_apply [dest]: "Apply\<^sub>e # \<C>\<^sub>e = unflatten_code 
         \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p')"
   by (cases p) (auto split: option.splits code\<^sub>b.splits)
 
-lemma unflatten_to_pushenv [dest]: "PushEnv\<^sub>e # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<Longrightarrow>
+lemma unflatten_to_pushenv [dest]: "PushEnv\<^sub>e n # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<Longrightarrow>
      orderly_code \<C>\<^sub>b 0 \<Longrightarrow> p < length \<C>\<^sub>b \<Longrightarrow> block_structured\<^sub>b \<C>\<^sub>b \<Longrightarrow> 
-      (lookup \<C>\<^sub>b p = Some PushEnv\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p) \<or> 
-      (\<exists>p' n. p = Suc p' \<and> lookup \<C>\<^sub>b (Suc p') = Some (Alloc\<^sub>b n) \<and> lookup \<C>\<^sub>b p' = Some PushEnv\<^sub>b \<and> 
+      (lookup \<C>\<^sub>b p = Some (PushEnv\<^sub>b n) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p) \<or> 
+      (\<exists>p' m. p = Suc p' \<and> lookup \<C>\<^sub>b (Suc p') = Some (Alloc\<^sub>b m) \<and> lookup \<C>\<^sub>b p' = Some (PushEnv\<^sub>b n) \<and> 
         \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p')"
   by (cases p) (auto split: option.splits code\<^sub>b.splits)
 
@@ -459,17 +459,17 @@ proof (induction s\<^sub>b "length \<C>\<^sub>b" rule: orderly_stack.induct)
   with 3 show ?case by simp
 qed simp_all
 
-lemma unflatten_stack_to_pushenv [dest]: "(\<Delta>\<^sub>e, PushEnv\<^sub>e # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b \<Longrightarrow> 
+lemma unflatten_stack_to_pushenv [dest]: "(\<Delta>\<^sub>e, PushEnv\<^sub>e n # \<C>\<^sub>e) # s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b \<Longrightarrow> 
   orderly_code \<C>\<^sub>b 0 \<Longrightarrow> orderly_stack s\<^sub>b (length \<C>\<^sub>b) \<Longrightarrow> block_structured\<^sub>b \<C>\<^sub>b \<Longrightarrow>  \<exists>\<Delta>\<^sub>b p s\<^sub>b'. 
     s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> 
-      ((lookup \<C>\<^sub>b p = Some PushEnv\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p) \<or>
-      (\<exists>p' n. p = Suc p' \<and> lookup \<C>\<^sub>b (Suc p') = Some (Alloc\<^sub>b n) \<and> lookup \<C>\<^sub>b p' = Some PushEnv\<^sub>b \<and> 
+      ((lookup \<C>\<^sub>b p = Some (PushEnv\<^sub>b n) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p) \<or>
+      (\<exists>p' m. p = Suc p' \<and> lookup \<C>\<^sub>b (Suc p') = Some (Alloc\<^sub>b m) \<and> lookup \<C>\<^sub>b p' = Some (PushEnv\<^sub>b n) \<and> 
         \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p')) \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'"
 proof (induction s\<^sub>b "length \<C>\<^sub>b" rule: orderly_stack.induct)
   case (3 \<Delta>\<^sub>b p s\<^sub>b')
-  hence "PushEnv\<^sub>e # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<and> orderly_code \<C>\<^sub>b 0 \<and> p < length \<C>\<^sub>b" by simp
-  with 3 have "(lookup \<C>\<^sub>b p = Some PushEnv\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p) \<or>
-      (\<exists>p' n. p = Suc p' \<and> lookup \<C>\<^sub>b (Suc p') = Some (Alloc\<^sub>b n) \<and> lookup \<C>\<^sub>b p' = Some PushEnv\<^sub>b \<and> 
+  hence "PushEnv\<^sub>e n # \<C>\<^sub>e = unflatten_code \<C>\<^sub>b (Suc p) \<and> orderly_code \<C>\<^sub>b 0 \<and> p < length \<C>\<^sub>b" by simp
+  with 3 have "(lookup \<C>\<^sub>b p = Some (PushEnv\<^sub>b n) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p) \<or>
+      (\<exists>p' m. p = Suc p' \<and> lookup \<C>\<^sub>b (Suc p') = Some (Alloc\<^sub>b m) \<and> lookup \<C>\<^sub>b p' = Some (PushEnv\<^sub>b n) \<and> 
         \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p')" by blast
   with 3 show ?case by simp
 qed simp_all
@@ -637,20 +637,20 @@ next
     with B S V False P show ?thesis by fastforce
   qed
 next
-  case (ev\<^sub>e_pushenv v\<^sub>e \<V>\<^sub>e \<Delta>\<^sub>e \<C>\<^sub>e s\<^sub>e)
+  case (ev\<^sub>e_pushenv v\<^sub>e \<V>\<^sub>e \<Delta>\<^sub>e n \<C>\<^sub>e s\<^sub>e)
   then obtain \<V>\<^sub>b s\<^sub>b where B: "\<Sigma>\<^sub>b = S\<^sub>b \<V>\<^sub>b s\<^sub>b \<and> v\<^sub>e # \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b \<and> 
-    ((\<Delta>\<^sub>e, PushEnv\<^sub>e # \<C>\<^sub>e) # s\<^sub>e) = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
+    ((\<Delta>\<^sub>e, PushEnv\<^sub>e n # \<C>\<^sub>e) # s\<^sub>e) = unflatten_stack \<C>\<^sub>b s\<^sub>b" by fastforce
   with ev\<^sub>e_pushenv have "orderly_code \<C>\<^sub>b 0 \<and> orderly_stack s\<^sub>b (length \<C>\<^sub>b) \<and> block_structured\<^sub>b \<C>\<^sub>b" 
     by simp
   with B obtain \<Delta>\<^sub>b p s\<^sub>b' where S: "s\<^sub>b = (\<Delta>\<^sub>b, Suc p) # s\<^sub>b' \<and> \<Delta>\<^sub>e = map (unflatten_values \<C>\<^sub>b) \<Delta>\<^sub>b \<and> 
-      ((lookup \<C>\<^sub>b p = Some PushEnv\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p) \<or>
-      (\<exists>p' n. p = Suc p' \<and> lookup \<C>\<^sub>b (Suc p') = Some (Alloc\<^sub>b n) \<and> lookup \<C>\<^sub>b p' = Some PushEnv\<^sub>b \<and> 
+      ((lookup \<C>\<^sub>b p = Some (PushEnv\<^sub>b n) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p) \<or>
+      (\<exists>p' m. p = Suc p' \<and> lookup \<C>\<^sub>b (Suc p') = Some (Alloc\<^sub>b m) \<and> lookup \<C>\<^sub>b p' = Some (PushEnv\<^sub>b n) \<and> 
         \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p')) \<and> s\<^sub>e = unflatten_stack \<C>\<^sub>b s\<^sub>b'" 
     by (metis unflatten_stack_to_pushenv)
   from B obtain v\<^sub>b \<V>\<^sub>b' where V: "\<V>\<^sub>b = v\<^sub>b # \<V>\<^sub>b' \<and> v\<^sub>e = unflatten_closure \<C>\<^sub>b v\<^sub>b \<and> 
     \<V>\<^sub>e = unflatten_values \<C>\<^sub>b \<V>\<^sub>b'" by fastforce
   show ?case
-  proof (cases "lookup \<C>\<^sub>b p = Some PushEnv\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p")
+  proof (cases "lookup \<C>\<^sub>b p = Some (PushEnv\<^sub>b n) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p")
     case True
     with S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p) # s\<^sub>b') \<leadsto>\<^sub>b S\<^sub>b \<V>\<^sub>b' ((snoc_fst v\<^sub>b \<Delta>\<^sub>b, p) # s\<^sub>b')" 
       by simp
@@ -660,7 +660,7 @@ next
   next
     case False
     with S obtain p'' m where P: "p = Suc p'' \<and> lookup \<C>\<^sub>b (Suc p'') = Some (Alloc\<^sub>b m) \<and> 
-      lookup \<C>\<^sub>b p'' = Some PushEnv\<^sub>b \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p''" by blast
+      lookup \<C>\<^sub>b p'' = Some (PushEnv\<^sub>b n) \<and> \<C>\<^sub>e = unflatten_code \<C>\<^sub>b p''" by blast
     with S have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc (Suc p'')) # s\<^sub>b') \<leadsto>\<^sub>b 
       S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p'') # s\<^sub>b')" by simp
     moreover from S P have "\<C>\<^sub>b \<tturnstile> S\<^sub>b (v\<^sub>b # \<V>\<^sub>b') ((\<Delta>\<^sub>b, Suc p'') # s\<^sub>b') \<leadsto>\<^sub>b 

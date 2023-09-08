@@ -16,7 +16,7 @@ datatype code\<^sub>b =
   | PushLam\<^sub>b nat
   | Alloc\<^sub>b nat
   | Apply\<^sub>b
-  | PushEnv\<^sub>b
+  | PushEnv\<^sub>b nat
   | Return\<^sub>b
   | Jump\<^sub>b
 
@@ -51,7 +51,7 @@ inductive eval\<^sub>b :: "code\<^sub>b list \<Rightarrow> state\<^sub>b \<Right
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((\<Delta>, p) # s)"
 | ev\<^sub>b_apply [simp]: "lookup \<C> p = Some Apply\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b (v # Lam\<^sub>b \<Delta>' p' # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> (([v] # \<Delta>', p') # (\<Delta>, p) # s)"
-| ev\<^sub>b_pushenv [simp]: "lookup \<C> p = Some PushEnv\<^sub>b \<Longrightarrow> 
+| ev\<^sub>b_pushenv [simp]: "lookup \<C> p = Some (PushEnv\<^sub>b n) \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b (v # \<V>) ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> ((snoc_fst v \<Delta>, p) # s)"
 | ev\<^sub>b_return [simp]: "lookup \<C> p = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>b \<V> ((\<Delta>, Suc p) # s) \<leadsto>\<^sub>b S\<^sub>b \<V> s"

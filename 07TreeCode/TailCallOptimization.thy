@@ -240,11 +240,11 @@ next
     thus ?thesis by (metis iter_one)
   qed
 next
-  case (ev\<^sub>e_pushenv v \<V> \<Delta> \<C> s)
+  case (ev\<^sub>e_pushenv v \<V> \<Delta> n \<C> s)
   thus ?case
   proof (cases "dead_code \<C>")
     case True
-    have "S\<^sub>e (tco_val v # map tco_val \<V>) ((map (map tco_val) \<Delta>, [PushEnv\<^sub>e, Return\<^sub>e]) # 
+    have "S\<^sub>e (tco_val v # map tco_val \<V>) ((map (map tco_val) \<Delta>, [PushEnv\<^sub>e n, Return\<^sub>e]) # 
       tco_stack s) \<leadsto>\<^sub>e 
         S\<^sub>e (map tco_val \<V>) ((snoc_fst (tco_val v) (map (map tco_val) \<Delta>), [Return\<^sub>e]) # tco_stack s)" 
       by simp
@@ -252,17 +252,17 @@ next
       tco_stack s) \<leadsto>\<^sub>e
         (S\<^sub>e (map tco_val \<V>) (tco_stack s))" by simp
     ultimately have "iter (\<leadsto>\<^sub>e) (S\<^sub>e (tco_val v # map tco_val \<V>) 
-      ((map (map tco_val) \<Delta>, [PushEnv\<^sub>e, Return\<^sub>e]) # tco_stack s))
+      ((map (map tco_val) \<Delta>, [PushEnv\<^sub>e n, Return\<^sub>e]) # tco_stack s))
         (S\<^sub>e (map tco_val \<V>) (tco_stack s))" by (metis (no_types, lifting) iter_step iter_refl)
     with True show ?thesis by simp
   next
     case False
-    have "S\<^sub>e (tco_val v # map tco_val \<V>) ((map (map tco_val) \<Delta>, PushEnv\<^sub>e # tco_code \<C>) # 
+    have "S\<^sub>e (tco_val v # map tco_val \<V>) ((map (map tco_val) \<Delta>, PushEnv\<^sub>e n # tco_code \<C>) # 
       tco_stack s) \<leadsto>\<^sub>e 
         S\<^sub>e (map tco_val \<V>) ((snoc_fst (tco_val v) (map (map tco_val) \<Delta>), tco_code \<C>) # tco_stack s)" 
       by simp
     hence "iter (\<leadsto>\<^sub>e) (S\<^sub>e (tco_val v # map tco_val \<V>) 
-      ((map (map tco_val) \<Delta>, PushEnv\<^sub>e # tco_code \<C>) # tco_stack s))
+      ((map (map tco_val) \<Delta>, PushEnv\<^sub>e n # tco_code \<C>) # tco_stack s))
         (S\<^sub>e (map tco_val \<V>) ((snoc_fst (tco_val v) (map (map tco_val) \<Delta>), tco_code \<C>) # 
           tco_stack s))" 
       by (metis iter_one)

@@ -252,7 +252,7 @@ lemma assemble_code_lookup [simp]: "lookup cd pc = Some op \<Longrightarrow>
 lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 1 \<le> assemble_op_len op \<Longrightarrow> 
   lookup (assemble_code cd) (Suc (assembly_map cd pc)) = 
     lookup (assemble_op (assembly_map cd) pc op) 1"
-  using assemble_code_lookup by fastforce
+  using assemble_code_lookup by fastforcex
 
 lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 
     lookup (assemble_code cd) (assembly_map cd pc) = lookup (assemble_op (assembly_map cd) pc op) 0"
@@ -1014,7 +1014,7 @@ proof (induction "length lib" cd arbitrary: lib rule: flatten_code'.induct)
       assembly_map ((lib @ ?\<C>\<^sub>b') @ flatten_code' (length (lib @ ?\<C>\<^sub>b')) \<C>) 
         (length (lib @ ?\<C>\<^sub>b') + code_list_size \<C>) =
       sum_list (map (Suc \<circ> assemble_op_len) ((lib @ ?\<C>\<^sub>b') @ flatten_code' (length (lib @ ?\<C>\<^sub>b')) \<C>))" 
-    by blast
+    by blastx
   with 4 X show ?case by (simp add: Let_def add.assoc)
 qed simp_all
 

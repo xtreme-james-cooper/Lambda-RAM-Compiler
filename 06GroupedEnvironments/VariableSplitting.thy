@@ -7,7 +7,7 @@ section \<open>Variable splitting\<close>
 text \<open>Now we divide our variables into frame-offset pairs. The process is quite simple for 
 expressions: we accumulate a map from Debruijn indices to frame-offset pairs, adding to it every 
 time we pass a binder, and then map variables when we reach them. (As mentioned before, we also 
-record the frame-size every time we reach a \<open>Lam\<^sub>d\<close>.)\<close>
+record the frame-size every time we reach a \<open>Lam\<^sub>d\<close>, and the offset every time we reach a \<open>Let\<^sub>d\<close>.)\<close>
 
 abbreviation map_past_let :: "(nat \<rightharpoonup> nat \<times> nat) \<Rightarrow> nat \<Rightarrow> nat \<rightharpoonup> nat \<times> nat" where
   "map_past_let \<Phi> n \<equiv> case_nat (Some (0, n)) \<Phi>"
@@ -23,7 +23,7 @@ primrec split_vars' :: "(nat \<rightharpoonup> nat \<times> nat) \<Rightarrow> n
     in Lam\<^sub>g t e\<^sub>g (let_count e\<^sub>g))"
 | "split_vars' \<Phi> n (App\<^sub>d e\<^sub>1 e\<^sub>2) = App\<^sub>g (split_vars' \<Phi> n e\<^sub>1) (split_vars' \<Phi> n e\<^sub>2)"
 | "split_vars' \<Phi> n (Let\<^sub>d e\<^sub>1 e\<^sub>2) = 
-    Let\<^sub>g (split_vars' \<Phi> n e\<^sub>1) (split_vars' (map_past_let \<Phi> n) (Suc n) e\<^sub>2)"
+    Let\<^sub>g n (split_vars' \<Phi> n e\<^sub>1) (split_vars' (map_past_let \<Phi> n) (Suc n) e\<^sub>2)"
 
 definition split_vars :: "expr\<^sub>d \<Rightarrow> expr\<^sub>g" where
   "split_vars e \<equiv> split_vars' Map.empty 0 e"
@@ -134,7 +134,7 @@ primrec combine_vars' :: "(nat \<times> nat \<rightharpoonup> nat) \<Rightarrow>
 | "combine_vars' \<Phi> n (Const\<^sub>g m) = Const\<^sub>d m"
 | "combine_vars' \<Phi> n (Lam\<^sub>g t e m) = Lam\<^sub>d t (combine_vars' (inv_map_past_lam \<Phi>) 1 e)"
 | "combine_vars' \<Phi> n (App\<^sub>g e\<^sub>1 e\<^sub>2) = App\<^sub>d (combine_vars' \<Phi> n e\<^sub>1) (combine_vars' \<Phi> n e\<^sub>2)"
-| "combine_vars' \<Phi> n (Let\<^sub>g e\<^sub>1 e\<^sub>2) = 
+| "combine_vars' \<Phi> n (Let\<^sub>g m e\<^sub>1 e\<^sub>2) = 
     Let\<^sub>d (combine_vars' \<Phi> n e\<^sub>1) (combine_vars' (inv_map_past_let \<Phi> n) (Suc n) e\<^sub>2)"
 
 definition combine_vars :: "expr\<^sub>g \<Rightarrow> expr\<^sub>d" where
@@ -277,14 +277,14 @@ next
   hence X: "\<And>x y. inv_map_past_let \<Phi> (length ts) x = Some y \<Longrightarrow> 
     map_past_let \<Phi>' (length ts) y = Some x" using inv_inv_map_past_let_inv by fastforce
   have "\<And>xy. (xy \<in> insert (0, length ts) (dom (\<lambda>x. map_option Suc (\<Phi> x)))) =
-    (xy \<in> {xy. \<exists>z. (case fst xy of 0 \<Rightarrow> (case lookup \<Gamma> 0 of None \<Rightarrow> Some [t\<^sub>1] 
+    (xy \<in> {xy. \<exists>z. (case fst xy of 0 \<Rightarrow> (case lookup \<Gamma> 0 of None \<Rightarrow> None
         | Some aa \<Rightarrow> Some (aa @ [t\<^sub>1])) | Suc x' \<Rightarrow> lookup \<Gamma> (fst xy)) = Some z \<and> 
       snd xy \<in> dom (lookup z)})" 
   proof -
     fix xy
     from tc\<^sub>g_let(7) have "(xy = (0, length ts) \<or> (\<exists>z. lookup \<Gamma> (fst xy) = Some z \<and> 
       snd xy \<in> dom (lookup z))) =
-    (\<exists>z. (case fst xy of 0 \<Rightarrow> (case lookup \<Gamma> 0 of None \<Rightarrow> Some [t\<^sub>1] | Some aa \<Rightarrow> Some (aa @ [t\<^sub>1]))
+    (\<exists>z. (case fst xy of 0 \<Rightarrow> (case lookup \<Gamma> 0 of None \<Rightarrow> None | Some aa \<Rightarrow> Some (aa @ [t\<^sub>1]))
           | Suc x' \<Rightarrow> lookup \<Gamma> (fst xy)) =
          Some z \<and>
          snd xy \<in> dom (lookup z))" 
@@ -292,10 +292,13 @@ next
     with tc\<^sub>g_let show "?thesis xy" by (simp add: dom_map_option)
   qed
   hence "insert (0, length ts) (dom (\<lambda>x. map_option Suc (\<Phi> x))) =
-    {xy. \<exists>z. (case fst xy of 0 \<Rightarrow> (case lookup \<Gamma> 0 of None \<Rightarrow> Some [t\<^sub>1] 
+    {xy. \<exists>z. (case fst xy of 0 \<Rightarrow> (case lookup \<Gamma> 0 of None \<Rightarrow> None 
         | Some aa \<Rightarrow> Some (aa @ [t\<^sub>1])) | Suc x' \<Rightarrow> lookup \<Gamma> (fst xy)) = Some z \<and> 
       snd xy \<in> dom (lookup z)}" by blast
-  with tc\<^sub>g_let X show ?case by fastforce
+  with tc\<^sub>g_let X have Y: "split_vars' (map_past_let \<Phi>' (length ts)) (length (ts @ [t\<^sub>1])) 
+    (combine_vars' (inv_map_past_let \<Phi> (length ts)) (length (ts @ [t\<^sub>1])) e\<^sub>2) = e\<^sub>2" by fastforce
+  from tc\<^sub>g_let have "length ts = length (hd \<Gamma>)" by (induction \<Gamma>) simp_all
+  with tc\<^sub>g_let Y show ?case by fastforce
 qed simp_all
 
 lemma split_combine_cancel [simp]: "[[]] \<turnstile>\<^sub>g e : t \<Longrightarrow> split_vars (combine_vars e) = e"
@@ -407,7 +410,11 @@ lemma map_from_env_mapfst [simp]: "lookup \<Gamma> 0 = Some ts \<Longrightarrow>
 
 lemma typecheck_combine [simp]: "\<Gamma> \<turnstile>\<^sub>g e : t \<Longrightarrow> lookup \<Gamma> 0 = Some ts \<Longrightarrow> 
     concat (map rev \<Gamma>) \<turnstile>\<^sub>d combine_vars' (map_from_env \<Gamma>) (length ts) e : t"
-  by (induction \<Gamma> e t arbitrary: ts rule: typing\<^sub>g.induct) fastforce+
+proof (induction \<Gamma> e t arbitrary: ts rule: typing\<^sub>g.induct)
+  case (tc\<^sub>g_let \<Gamma> e\<^sub>1 t\<^sub>1 e\<^sub>2 t\<^sub>2)
+  moreover hence "\<Gamma> \<noteq> []" by fastforce
+  ultimately show ?case by fastforce
+qed fastforce+
 
 lemma "c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> True"
   and map_from_env_type_vals' [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> map_from_env \<Gamma> x = map_from_env \<Delta> x"
@@ -456,9 +463,6 @@ proof (induction c t and \<Delta> \<Gamma> rule: typing_closure\<^sub>g_typing_e
   from tc\<^sub>g_lam have "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)" by blast
   with tc\<^sub>g_lam Y show ?case by simp
 qed simp_all
-
-lemma combine_env_mapfst [simp]: "combine_env (snoc_fst c \<Delta>) = combine_closure c # combine_env \<Delta>"
-  by (induction \<Delta>) simp_all
 
 lemma latest_combine_env [simp]: "latest_environment\<^sub>c (combine_stack s) =
     map_option combine_env (latest_environment\<^sub>g s)"
@@ -599,7 +603,7 @@ lemma combine_to_app [dest]: "App\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = 
   by (induction e\<^sub>g) simp_all
 
 lemma combine_to_let [dest]: "Let\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' \<Phi> n e\<^sub>g \<Longrightarrow> 
-  \<exists>e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g. e\<^sub>g = Let\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> e\<^sub>1\<^sub>c = combine_vars' \<Phi> n e\<^sub>1\<^sub>g \<and> 
+  \<exists>e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g. e\<^sub>g = Let\<^sub>g n e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> e\<^sub>1\<^sub>c = combine_vars' \<Phi> n e\<^sub>1\<^sub>g \<and> 
     e\<^sub>2\<^sub>c = combine_vars' (inv_map_past_let \<Phi> n) (Suc n) e\<^sub>2\<^sub>g"
   by (induction e\<^sub>g) simp_all
 
@@ -692,7 +696,7 @@ next
   moreover with S S' E have "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Let\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g \<and> 
     SE\<^sub>c (FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>2\<^sub>c # FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c) \<Delta>\<^sub>c e\<^sub>1\<^sub>c = combine_state (SE\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g)" 
       by simp
-  ultimately show ?case by blast
+  ultimately show ?case by blastx
 next
   case (ret\<^sub>c_app1 \<Delta>\<^sub>c e\<^sub>c s\<^sub>c c\<^sub>c)
   then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> FApp1\<^sub>c \<Delta>\<^sub>c e\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g' \<and> 
