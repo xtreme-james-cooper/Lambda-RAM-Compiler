@@ -53,15 +53,16 @@ inductive eval\<^sub>v :: "code\<^sub>b list \<Rightarrow> state\<^sub>v \<Right
 | ev\<^sub>v_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' ns' \<Longrightarrow>
     halloc \<Delta> ([v\<^sub>1], p\<^sub>\<Delta>') = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow> 
       \<C> \<tturnstile> S\<^sub>v h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v 
-        S\<^sub>v h \<Delta>' \<V> ((Suc p\<^sub>\<Delta>'', ns', p\<^sub>\<C>') # (p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s)"
+        S\<^sub>v h \<Delta>' \<V> ((Suc p\<^sub>\<Delta>'', Suc 0 # ns', p\<^sub>\<C>') # (p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s)"
 | ev\<^sub>v_pushenv [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushEnv\<^sub>b n) \<Longrightarrow> hlookup \<Delta> p\<^sub>\<Delta> = (vs, p\<^sub>\<Delta>') \<Longrightarrow>
-    \<C> \<tturnstile> S\<^sub>v h \<Delta> (v # \<V>) ((Suc p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v 
-      S\<^sub>v h (hupdate \<Delta> p\<^sub>\<Delta> (list_update vs n v, p\<^sub>\<Delta>')) \<V> ((Suc p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s)"
+    \<C> \<tturnstile> S\<^sub>v h \<Delta> (v # \<V>) ((Suc p\<^sub>\<Delta>, n # ns, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v 
+      S\<^sub>v h (hupdate \<Delta> p\<^sub>\<Delta> (list_update vs n v, p\<^sub>\<Delta>')) \<V> ((Suc p\<^sub>\<Delta>, Suc n # ns, p\<^sub>\<C>) # s)"
 | ev\<^sub>v_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>v h \<Delta> \<V> ((p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta> \<V> s"
 | ev\<^sub>v_jump [simp]: "lookup \<C> p\<^sub>\<C> = Some Jump\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' ns' \<Longrightarrow>
     halloc \<Delta> ([v\<^sub>1], p\<^sub>\<Delta>') = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow>
-      \<C> \<tturnstile> S\<^sub>v h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v S\<^sub>v h \<Delta>' \<V> ((Suc p\<^sub>\<Delta>'', ns', p\<^sub>\<C>') # s)"
+      \<C> \<tturnstile> S\<^sub>v h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s) \<leadsto>\<^sub>v 
+        S\<^sub>v h \<Delta>' \<V> ((Suc p\<^sub>\<Delta>'', Suc 0 # ns', p\<^sub>\<C>') # s)"
 
 theorem determinismh: "\<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>v \<Sigma>' \<Longrightarrow> \<C> \<tturnstile> \<Sigma> \<leadsto>\<^sub>v \<Sigma>'' \<Longrightarrow> \<Sigma>' = \<Sigma>''"
 proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>v.induct)

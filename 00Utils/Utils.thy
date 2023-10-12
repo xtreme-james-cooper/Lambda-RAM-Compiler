@@ -79,6 +79,9 @@ lemma list_all_snoc_fst [simp]: "list_all (list_all p) (snoc_fst a as) =
     ((as = [] \<or> p a) \<and> list_all (list_all p) as)"
   by (induction as) auto
 
+lemma snoc_fst_take [simp]: "n < length as \<Longrightarrow> take (Suc n) (as[n := a]) = take n as @ [a]"
+  by (induction as arbitrary: n) (simp_all split: nat.splits)
+
 fun nat_to_string' :: "nat \<Rightarrow> char" where
   "nat_to_string' 0 = CHR 48"
 | "nat_to_string' (Suc 0) = CHR 49"

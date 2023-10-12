@@ -100,6 +100,15 @@ proof (unfold dom_def)
   thus "{aa. lookup (a # as) aa \<noteq> None} = insert 0 (Suc ` {a. lookup as a \<noteq> None})" by auto
 qed
 
+lemma lookup_take [simp]: "x < n \<Longrightarrow> lookup (take n as) x = lookup as x"
+proof (induction as x arbitrary: n rule: lookup.induct)
+  case (2 a as)
+  thus ?case by (induction n) simp_all
+next
+  case (3 a as x)
+  thus ?case by (induction n) simp_all
+qed simp_all
+
 text \<open>Before we can talk about the other major function on environments, \<open>insert_at\<close>, we must define 
 some helper functions on nats, \<open>incr\<close> and \<open>decr\<close>. If \<open>y\<close> is an index into an environment and \<open>x\<close> is 
 the  index at which the environment is being expanded (respectively, contracted) at, then \<open>incr x y\<close> 

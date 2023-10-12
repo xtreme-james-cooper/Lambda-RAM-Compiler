@@ -221,45 +221,84 @@ proof (induction h)
   ultimately show ?case by simp
 qed
 
-lemma halloc_list_hsplay' [simp]: "n \<le> hpa \<Longrightarrow> hsplay' f ha hpa hb hpb n = (h, hp) \<Longrightarrow> 
-  hsplay' f (ha(hpa := a)) (Suc hpa) hb hpb n = (h', hp') \<Longrightarrow> 
-    h' = halloc_list' h hp (f a) \<and> hp' = hp + length (f a)"
-  by (induction f ha hpa hb hpb n rule: hsplay'.induct) simp_all
+text \<open>We will try to only ever flatmap with a constant-size function, because that makes mapping 
+indices much simpler; but occasionally a variable-sized flatmap is unavoidable. For this case, we 
+provide a splay-map function to compute indices.\<close>
 
-lemma hsplay'_index [simp]: "hsplay' f ha hpa hb hpb n = (h, hp) \<Longrightarrow> (\<And>x. length (f x) = k) \<Longrightarrow> 
-    hp = hpb + k * (hpa - n)"
-proof (induction f ha hpa hb hpb n rule: hsplay'.induct)
-  case (2 hpa n f ha hb hpb)
-  moreover have "n < hpa \<Longrightarrow> k + k * (hpa - Suc n) = k * (hpa - n)"
-    by (metis Suc_diff_Suc mult_Suc_right)
-  ultimately show ?case by simp
-qed simp_all
+primrec hsplay_map :: "('a \<Rightarrow> 'b list) \<Rightarrow> 'a heap \<Rightarrow> ptr \<Rightarrow> ptr" where
+  "hsplay_map f h 0 = 0"
+| "hsplay_map f h (Suc x) = hsplay_map f h x + length (f (hlookup h x))"
 
-lemma halloc_list_hsplay [simp]: "halloc h a = (h', p) \<Longrightarrow> (\<And>x. length (f x) = k) \<Longrightarrow> 
-  halloc_list (hsplay f h) (f a) = (hsplay f h', k * p)"
-proof (induction h)
-  case (H h hp)
-  hence "hp = p" by simp
-  moreover with H have "h' = H (h(p := a)) (Suc p)" by simp
-  moreover obtain hh' hp' where HH: "hsplay' f h p (\<lambda>x. undefined) 0 0 = (hh', hp')" by fastforce
-  moreover obtain hh'' hp'' where HH': "hsplay' f (h(p := a)) (Suc p) (\<lambda>x. undefined) 0 0 = 
-    (hh'', hp'')" by fastforce
-  moreover with HH have "hh'' = halloc_list' hh' hp' (f a) \<and> hp'' = hp' + length (f a)" 
-    using halloc_list_hsplay' by fast
-  moreover from H HH have "hp' = 0 + k * (p - 0)" by (metis hsplay'_index)
-  ultimately show ?case by fastforce
+lemma hsplay_map_const [simp]: "(\<And>x. length (f x) = k) \<Longrightarrow> hsplay_map f h x = k * x"
+  by (induction x) simp_all
+
+lemma hsplay_map_alloc [simp]: "x \<le> hp \<Longrightarrow> 
+    hsplay_map f (H h hp) x = hsplay_map f (H (h(hp := a)) (Suc hp)) x"
+  by (induction x) simp_all
+
+lemma hsplay_map_lemma [simp]: "x < m \<Longrightarrow> y < length (f (hlookup h x)) \<Longrightarrow> 
+  (\<forall>z. 0 < length (f (hlookup h z))) \<Longrightarrow> y + hsplay_map f h x < hsplay_map f h m" 
+proof (induction x arbitrary: m)
+  case 0
+  then show ?case 
+  proof (induction m)
+    case (Suc m)
+    thus ?case by (cases m) simp_all
+  qed simp_all
+next
+  case (Suc x)
+  thus ?case 
+  proof (induction m)
+    case (Suc m)
+    thus ?case by (cases "Suc x = m") (fastforce, simp)
+  qed blast+
 qed
 
-lemma hsplay_contains_lemma2 [simp]: "hsplay' f h hp m mp n = (h', hp') \<Longrightarrow> mp = k * n \<Longrightarrow> 
-    (\<And>a. length (f a) = k) \<Longrightarrow> n \<le> hp \<Longrightarrow> hp' = k * hp"
-  by (induction f h hp m mp n rule: hsplay'.induct) simp_all
+lemma hlookup_hsplay_map' [simp]: "p < hpa \<Longrightarrow> n < length (f (ha p)) \<Longrightarrow>
+  (\<And>x y. x < m \<Longrightarrow> y < length (f (ha x)) \<Longrightarrow> hb (y + hsplay_map f (H ha hpa) x) = f (ha x) ! y) \<Longrightarrow> 
+    (\<forall>z. 0 < length (f (ha z))) \<Longrightarrow> hsplay' f ha hpa hb hpb m = (ha', hpa') \<Longrightarrow> 
+      hpb = hsplay_map f (H ha hpa) m \<Longrightarrow> ha' (n + hsplay_map f (H ha hpa) p) = f (ha p) ! n"
+proof (induction f ha hpa hb hpb m rule: hsplay'.induct)
+  case (2 hp\<^sub>a m f h\<^sub>a h\<^sub>b hp\<^sub>b)
+  have "\<And>x y. x < Suc m \<Longrightarrow> y < length (f (h\<^sub>a x)) \<Longrightarrow>
+    halloc_list' h\<^sub>b hp\<^sub>b (f (h\<^sub>a m)) (y + hsplay_map f (H h\<^sub>a hp\<^sub>a) x) = f (h\<^sub>a x) ! y" 
+  proof -
+    fix x y
+    assume "x < Suc m" and "y < length (f (h\<^sub>a x))"
+    with 2 show "?thesis x y" by (cases "x = m") simp_all
+  qed
+  with 2 show ?case by simp
+qed simp_all                      
 
-lemma hsplay_contains_lemma [simp]: "hcontains h x \<Longrightarrow> hsplay f h = H h' hp' \<Longrightarrow> 
-  (\<And>a. length (f a) = k) \<Longrightarrow> 1 < k \<Longrightarrow> Suc (k * x) < hp'"
+lemma hlookup_hsplay_map [simp]: "hcontains h p \<Longrightarrow> n < length (f (hlookup h p)) \<Longrightarrow>
+  (\<forall>z. 0 < length (f (hlookup h z))) \<Longrightarrow> 
+    hlookup (hsplay f h) (n + hsplay_map f h p) = f (hlookup h p) ! n"
 proof (induction h)
   case (H h hp)
-  moreover hence "hp' = k * hp" by (simp split: prod.splits)
-  ultimately show ?case by simp
-qed 
+  hence "p < hp" and "n < length (f (h p))" and "\<forall>z. 0 < length (f (h z))" by simp_all
+  moreover obtain h' hp' where HP: "hsplay' f h hp (\<lambda>x. undefined) 0 0 = (h', hp')" by fastforce
+  moreover have "0 = hsplay_map f (H h hp) 0" by simp
+  ultimately have "h' (n + hsplay_map f (H h hp) p) = f (h p) ! n" 
+    using hlookup_hsplay_map' by blast
+  with HP show ?case by simp
+qed
+
+lemma hsplay'_index [simp]: "hsplay' f ha hpa hb hpb n = (h, hp) \<Longrightarrow> hpa \<ge> n \<Longrightarrow>
+    hpb = hsplay_map f (H ha hpa) n \<Longrightarrow> hp = hsplay_map f (H ha hpa) hpa"
+  by (induction f ha hpa hb hpb n rule: hsplay'.induct) simp_all
+
+lemma halloc_list_hsplay' [simp]: "hsplay' f ha hpa hb hpb n = (h, hp) \<Longrightarrow> hpa \<ge> n \<Longrightarrow>
+    hsplay' f (ha(hpa := a)) (Suc hpa) hb hpb n = (halloc_list' h hp (f a), hp + length (f a))"
+  by (induction f ha hpa hb hpb n rule: hsplay'.induct) simp_all
+
+lemma halloc_list_hsplay [simp]: "halloc h a = (h', p) \<Longrightarrow> 
+  halloc_list (hsplay f h) (f a) = (hsplay f h', hsplay_map f h' p)"
+proof (induction h)
+  case (H h hp)
+  moreover hence "h' = H (h(hp := a)) (Suc hp)" by auto
+  moreover obtain hh hp' where "hsplay' f h hp (\<lambda>x. undefined) 0 0 = (hh, hp')" by fastforce
+  moreover hence "hp' = hsplay_map f (H h hp) hp" by simp
+  ultimately show ?case by (simp del: hsplay'.simps)
+qed
 
 end

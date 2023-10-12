@@ -21,10 +21,8 @@ datatype state\<^sub>f =
 
 fun flat_lookup :: "ptr heap \<Rightarrow> ptr \<Rightarrow> nat \<Rightarrow> nat \<rightharpoonup> ptr" where
   "flat_lookup h 0 x y = None"
-| "flat_lookup h (Suc 0) x y = None"
-| "flat_lookup h (Suc (Suc p)) 0 y = (if even p then Some (hlookup h p) else None)"
-| "flat_lookup h (Suc (Suc p)) (Suc x) y = (
-    if even p then flat_lookup h (hlookup h (Suc p)) x y else None)"
+| "flat_lookup h (Suc p) 0 y = Some (hlookup h (Suc (p + y)))"
+| "flat_lookup h (Suc p) (Suc x) y = flat_lookup h (hlookup h p) x y"
 
 inductive eval\<^sub>f :: "code\<^sub>b list \<Rightarrow> state\<^sub>f \<Rightarrow> state\<^sub>f \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>f" 50) where
   ev\<^sub>f_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x y) \<Longrightarrow> flat_lookup \<Delta> p\<^sub>\<Delta> x y = Some v \<Longrightarrow> 
@@ -39,7 +37,7 @@ inductive eval\<^sub>f :: "code\<^sub>b list \<Rightarrow> state\<^sub>f \<Right
     \<C> \<tturnstile> S\<^sub>f h \<Delta> \<V> (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta> \<V> (p\<^sub>\<C> # (p\<^sub>\<Delta> + n) # s)"
 | ev\<^sub>f_apply [simp]: "lookup \<C> p\<^sub>\<C> = Some Apply\<^sub>b \<Longrightarrow> hlookup h v\<^sub>2 = (PEnv, p\<^sub>\<Delta>') \<Longrightarrow> 
     hlookup h (Suc v\<^sub>2) = (PCode, p\<^sub>\<C>') \<Longrightarrow> halloc_list \<Delta> [v\<^sub>1, p\<^sub>\<Delta>'] = (\<Delta>', p\<^sub>\<Delta>'') \<Longrightarrow> 
-      \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta>' \<V> (p\<^sub>\<C>' # Suc (Suc p\<^sub>\<Delta>'') # p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
+      \<C> \<tturnstile> S\<^sub>f h \<Delta> (v\<^sub>1 # v\<^sub>2 # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h \<Delta>' \<V> (p\<^sub>\<C>' # Suc p\<^sub>\<Delta>'' # p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
 | ev\<^sub>f_pushenv [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushEnv\<^sub>b n) \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>f h \<Delta> (v # \<V>) (Suc p\<^sub>\<C> # p\<^sub>\<Delta> # s) \<leadsto>\<^sub>f S\<^sub>f h (hupdate \<Delta> (p\<^sub>\<Delta> + n) v) \<V> (p\<^sub>\<C> # p\<^sub>\<Delta> # s)"
 | ev\<^sub>f_return [simp]: "lookup \<C> p\<^sub>\<C> = Some Return\<^sub>b \<Longrightarrow> 
