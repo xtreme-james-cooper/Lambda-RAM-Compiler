@@ -269,9 +269,17 @@ next
   ultimately show ?case by (simp del: map_eq_conv)
 next
   case (ev\<^sub>v_pushenv \<C> p\<^sub>\<C> n \<Delta>\<^sub>v p\<^sub>\<Delta> vs p\<^sub>\<Delta>' h\<^sub>v v \<V> ns s\<^sub>v)
+  hence "chain_structured h\<^sub>v \<Delta>\<^sub>v \<and> chained_closures \<Delta>\<^sub>v h\<^sub>v \<and> chained_vals h\<^sub>v (v # \<V>) \<and> 
+    chained_stack \<C> \<Delta>\<^sub>v ((Suc p\<^sub>\<Delta>, n # ns, Suc p\<^sub>\<C>) # s\<^sub>v)" by simp
 
-  have A: "not_on_env_path_stack \<Delta>\<^sub>v s\<^sub>v p\<^sub>\<Delta> n" by simp
+
+  have "list_all (\<lambda>f. not_on_env_path_frame \<Delta>\<^sub>v f p\<^sub>\<Delta> n) s\<^sub>v" by simp
+  hence A: "not_on_env_path_stack \<Delta>\<^sub>v s\<^sub>v p\<^sub>\<Delta> n" by simp
+
+
   have B: "not_on_env_path_closures \<Delta>\<^sub>v h\<^sub>v p\<^sub>\<Delta> n" by simp
+
+
   have C: "not_on_env_path \<Delta>\<^sub>v p\<^sub>\<Delta>' ns p\<^sub>\<Delta> n" by simp
 
   from ev\<^sub>v_pushenv have "not_on_env_path_stack \<Delta>\<^sub>v ((Suc p\<^sub>\<Delta>, n # ns, Suc p\<^sub>\<C>) # s\<^sub>v) p\<^sub>\<Delta> n = 
@@ -313,15 +321,20 @@ proof (induction "unchain_state \<Sigma>\<^sub>v" \<Sigma>\<^sub>h arbitrary: \<
     (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
     s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by auto
-  then obtain p\<^sub>\<Delta> where P: "f\<^sub>v = (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by (cases f\<^sub>v) simp_all
+  then obtain p\<^sub>\<Delta> ns where P: "f\<^sub>v = (p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta> ns" 
+    by (cases f\<^sub>v) simp_all
   with ev\<^sub>h_lookup S SF have C: "chain_structured h\<^sub>v \<Delta>\<^sub>v" by simp
   with ev\<^sub>h_lookup S SF P have X: "S\<^sub>h h\<^sub>h (v # \<V>) ((\<Delta>\<^sub>h, p\<^sub>\<C>) # s\<^sub>h) = 
-    unchain_state (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v))" by simp
-  from ev\<^sub>h_lookup S SF P have "chained_heap_pointer \<Delta>\<^sub>v p\<^sub>\<Delta>" by simp
-  with C have "Option.bind (lookup (unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>) x) (\<lambda>vs. lookup vs y) = 
+    unchain_state (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s\<^sub>v))" by simp
+  from ev\<^sub>h_lookup S SF P have H: "chained_heap_pointer \<Delta>\<^sub>v p\<^sub>\<Delta>" by simp
+
+
+
+  have "lookup ns x = Some n \<and> y < n" by simp
+  with C H have "Option.bind (lookup (unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta> ns) x) (\<lambda>vs. lookup vs y) = 
     chain_lookup \<Delta>\<^sub>v p\<^sub>\<Delta> x y" by simp
-  with ev\<^sub>h_lookup P C have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v)" 
-    by simp
+  with ev\<^sub>h_lookup P C have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> ((p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
+    S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s\<^sub>v)" by simp
   with S SF P X show ?case by blast
 next
   case (ev\<^sub>h_pushcon \<C> p\<^sub>\<C> n h\<^sub>h h\<^sub>h' v \<V> \<Delta>\<^sub>h s\<^sub>h)
