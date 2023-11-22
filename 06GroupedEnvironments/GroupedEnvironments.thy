@@ -156,7 +156,10 @@ lemma "c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> True"
   and tc_closure_snoc_fst [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> c :\<^sub>g\<^sub>c\<^sub>l t \<Longrightarrow> snoc_fst c \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s snoc_fst t \<Gamma>"
   by (induction c t and \<Delta> \<Gamma> rule: typing_closure\<^sub>g_typing_environment\<^sub>g.inducts) simp_all
 
-lemma env_length_same [simp]: "cs # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s ts # \<Gamma> \<Longrightarrow> length cs = length ts"
+lemma env_length_same [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> length \<Gamma> = length \<Delta>"
+  by (induction \<Delta> \<Gamma> rule: typing_closure\<^sub>g_typing_environment\<^sub>g.inducts(2)) simp_all
+
+lemma env_length_same_hd' [simp]: "cs # \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s ts # \<Gamma> \<Longrightarrow> length cs = length ts"
   by (induction cs arbitrary: ts) auto
 
 lemma env_length_same_hd [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<Gamma> \<noteq> [] \<Longrightarrow> length (hd \<Gamma>) = length (hd \<Delta>)"
@@ -198,13 +201,17 @@ inductive typing_stack\<^sub>g :: "frame\<^sub>g list \<Rightarrow> ty \<Rightar
 | tcg_scons_let [simp]: "latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow>
     snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2 \<Longrightarrow> let_floated\<^sub>g e \<Longrightarrow> s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> return_headed\<^sub>g s \<Longrightarrow> 
     FLet\<^sub>g \<Delta> e # s :\<^sub>g t\<^sub>1 \<rightarrow> t"
-| tcg_scons_ret [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>g \<Delta> # s :\<^sub>g t' \<rightarrow> t"
+| tcg_scons_ret [simp]: "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> \<Delta> \<noteq> [] \<Longrightarrow> s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> FReturn\<^sub>g \<Delta> # s :\<^sub>g t' \<rightarrow> t"
 
 inductive_cases [elim]: "[] :\<^sub>g t' \<rightarrow> t"
 inductive_cases [elim]: "FApp1\<^sub>g \<Delta> e # s :\<^sub>g t' \<rightarrow> t"
 inductive_cases [elim]: "FApp2\<^sub>g c # s :\<^sub>g t' \<rightarrow> t"
 inductive_cases [elim]: "FLet\<^sub>g \<Delta> e # s :\<^sub>g t' \<rightarrow> t"
 inductive_cases [elim]: "FReturn\<^sub>g \<Delta> # s :\<^sub>g t' \<rightarrow> t"
+
+lemma latest_environment\<^sub>_nonempty [simp]: "s :\<^sub>g t' \<rightarrow> t \<Longrightarrow> latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> 
+    \<Delta> \<noteq> []"
+  by (induction s t' t rule: typing_stack\<^sub>g.induct) simp_all
 
 datatype state\<^sub>g = 
   SE\<^sub>g "frame\<^sub>g list" "closure\<^sub>g list list" expr\<^sub>g
@@ -313,9 +320,10 @@ next
   with X show ?case by fastforce
 next
   case (ev\<^sub>g_let \<Delta> s n e\<^sub>1 e\<^sub>2)
-  then obtain \<Gamma> t\<^sub>2 t\<^sub>1 where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>2" 
+  then obtain \<Gamma> t\<^sub>2 t\<^sub>1 where "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> (snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>2 \<and> \<Gamma> \<noteq> []" 
     and X: "(\<Gamma> \<turnstile>\<^sub>g e\<^sub>1 : t\<^sub>1) \<and> (\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> let_floated\<^sub>g e\<^sub>1 \<and> let_free\<^sub>g e\<^sub>1" by fastforce
-  hence "FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s :\<^sub>g t\<^sub>1 \<rightarrow> t" by fastforce
+  moreover hence "\<Delta> \<noteq> []" by auto
+  ultimately have "FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s :\<^sub>g t\<^sub>1 \<rightarrow> t" by fastforce
   with X show ?case by fastforce
 next
   case (ret\<^sub>g_app1 \<Delta> e\<^sub>2 s c\<^sub>1)
@@ -334,7 +342,7 @@ next
 next
   case (ret\<^sub>g_let \<Delta> e\<^sub>2 s c\<^sub>1)
   then obtain \<Gamma> t\<^sub>1 t\<^sub>2 where X: "(snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e\<^sub>2 : t\<^sub>2) \<and> let_floated\<^sub>g e\<^sub>2" and "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>" 
-    and Z: "c\<^sub>1 :\<^sub>g\<^sub>c\<^sub>l t\<^sub>1" and Y: "s :\<^sub>g t\<^sub>2 \<rightarrow> t" by fastforce
+    and Z: "c\<^sub>1 :\<^sub>g\<^sub>c\<^sub>l t\<^sub>1" and Y: "(s :\<^sub>g t\<^sub>2 \<rightarrow> t) \<and> \<Delta> \<noteq> []" by fastforce
   hence W: "snoc_fst c\<^sub>1 \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s snoc_fst t\<^sub>1 \<Gamma>" by simp
   with Y have "FReturn\<^sub>g (snoc_fst c\<^sub>1 \<Delta>) # s :\<^sub>g t\<^sub>2 \<rightarrow> t" by simp
   with X W show ?case by fastforce

@@ -1,10 +1,11 @@
 theory Compiler
-  imports Printing "04Stack/StackConversion" "12UnstructuredState/Unstructuring"
+  imports Printing "04Stack/StackConversion"  "06GroupedEnvironments/VariableSplitting" 
+    "12UnstructuredState/Unstructuring"
 begin
 
 abbreviation code_compile :: "ty expr\<^sub>s \<Rightarrow> mach list" where
   "code_compile \<equiv> 
-    disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco_code \<circ> encode \<circ> float_lets \<circ> unname"
+    disassemble \<circ> assemble_code \<circ> flatten_code \<circ> tco_code \<circ> encode \<circ> split_vars \<circ> float_lets \<circ> unname"
 
 abbreviation compile :: "unit expr\<^sub>s \<rightharpoonup> mach list \<times> ty" where 
   "compile \<equiv> map_option (apfst code_compile) \<circ> typecheck"
@@ -30,12 +31,8 @@ lemma [simp]: "properly_terminated\<^sub>e (e1 @ [Return\<^sub>e]) \<Longrightar
     properly_terminated\<^sub>e (e1 @ e2 @ [Apply\<^sub>e, Return\<^sub>e])"
   by (induction e1 rule: properly_terminated\<^sub>e.induct) simp_all
 
-lemma [simp]: "properly_terminated\<^sub>e (cd @ [Return\<^sub>e]) \<Longrightarrow> 
-    properly_terminated\<^sub>e (cd @ [PopEnv\<^sub>e, Return\<^sub>e])"
-  by (induction cd rule: properly_terminated\<^sub>e.induct) simp_all
-
 lemma [simp]: "properly_terminated\<^sub>e (e1 @ [Return\<^sub>e]) \<Longrightarrow> properly_terminated\<^sub>e (e2 @ [Return\<^sub>e]) \<Longrightarrow>
-    properly_terminated\<^sub>e (e1 @ PushEnv\<^sub>e # e2 @ [PopEnv\<^sub>e, Return\<^sub>e])"
+    properly_terminated\<^sub>e (e1 @ PushEnv\<^sub>e n # e2 @ [Return\<^sub>e])"
   by (induction e1 rule: properly_terminated\<^sub>e.induct) simp_all
 
 lemma [simp]: "properly_terminated\<^sub>e (encode e)"
@@ -60,7 +57,7 @@ proof -
   with VD TD have ES: "iter (\<leadsto>\<^sub>k) (S\<^sub>k False [FReturn\<^sub>k] (float_lets (unname e\<^sub>t))) 
     (S\<^sub>k True [] (float_lets (unname v\<^sub>t)))" by simp
   from TD have TC: "SE\<^sub>c [FReturn\<^sub>c []] [] (float_lets (unname e\<^sub>t)) :\<^sub>c t" 
-    by (metis tcc_state_ev tc\<^sub>c_nil tcc_snil tcc_scons_ret latest_environment\<^sub>c.simps(6))
+    by (metisx tcc_state_ev tc\<^sub>c_nil tcc_snil tcc_scons_ret latest_environment\<^sub>c.simps)
   with ES VD EN obtain c where EC: "iter (\<leadsto>\<^sub>c) (SE\<^sub>c [FReturn\<^sub>c []] [] (float_lets (unname e\<^sub>t))) 
     (SC\<^sub>c [] c) \<and> declosure c = float_lets (unname v\<^sub>t)" by fastforce
   from TC EC have "iter (\<leadsto>\<^sub>e) (encode_state (SE\<^sub>c [FReturn\<^sub>c []] [] (float_lets (unname e\<^sub>t)))) 

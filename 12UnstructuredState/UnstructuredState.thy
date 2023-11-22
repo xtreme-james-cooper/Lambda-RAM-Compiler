@@ -18,20 +18,19 @@ its own register.\<close>
 datatype state\<^sub>r = 
   S\<^sub>r "nat \<Rightarrow> pointer_tag \<times> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat "nat \<Rightarrow> nat" nat nat
 
-fun unstr_lookup :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<rightharpoonup> nat" where
-  "unstr_lookup h 0 x = None"
-| "unstr_lookup h (Suc 0) x = None"
-| "unstr_lookup h (Suc (Suc p)) 0 = (if even p then Some (h p) else None)"
-| "unstr_lookup h (Suc (Suc p)) (Suc x) = (if even p then unstr_lookup h (h (Suc p)) x else None)"
+fun unstr_lookup :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> nat \<rightharpoonup> nat" where
+  "unstr_lookup h 0 x y = None"
+| "unstr_lookup h (Suc p) 0 y = Some (h (Suc (p + y)))"
+| "unstr_lookup h (Suc p) (Suc x) y = unstr_lookup h (h p) x y"
 
 inductive eval\<^sub>r :: "code\<^sub>b list \<Rightarrow> state\<^sub>r \<Rightarrow> state\<^sub>r \<Rightarrow> bool" (infix "\<tturnstile> _ \<leadsto>\<^sub>r" 50) where
-  ev\<^sub>r_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x z w) \<Longrightarrow> unstr_lookup \<Delta> (s b\<^sub>s) x = Some y \<Longrightarrow>
+  ev\<^sub>r_lookup [simp]: "lookup \<C> p\<^sub>\<C> = Some (Lookup\<^sub>b x z) \<Longrightarrow> unstr_lookup \<Delta> (s b\<^sub>s) x z = Some y \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s (Suc b\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> (\<V>(b\<^sub>\<V> := y)) (Suc b\<^sub>\<V>) s (Suc b\<^sub>s) p\<^sub>\<C>"
 | ev\<^sub>r_pushcon [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushCon\<^sub>b n) \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s (Suc b\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
       S\<^sub>r (h(b\<^sub>h := (PConst, n), Suc b\<^sub>h := (PConst, 0))) (2 + b\<^sub>h) \<Delta> b\<^sub>\<Delta> (\<V>(b\<^sub>\<V> := b\<^sub>h)) (Suc b\<^sub>\<V>) s 
         (Suc b\<^sub>s) p\<^sub>\<C>"
-| ev\<^sub>r_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>' n) \<Longrightarrow> 
+| ev\<^sub>r_pushlam [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushLam\<^sub>b p\<^sub>\<C>') \<Longrightarrow> 
     \<C> \<tturnstile> S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> b\<^sub>\<V> s (Suc b\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
       S\<^sub>r (h(b\<^sub>h := (PEnv, s b\<^sub>s), Suc b\<^sub>h := (PCode, p\<^sub>\<C>'))) (2 + b\<^sub>h) \<Delta> b\<^sub>\<Delta> (\<V>(b\<^sub>\<V> := b\<^sub>h)) (Suc b\<^sub>\<V>) s 
         (Suc b\<^sub>s) p\<^sub>\<C>"
@@ -40,7 +39,7 @@ inductive eval\<^sub>r :: "code\<^sub>b list \<Rightarrow> state\<^sub>r \<Right
     \<C> \<tturnstile> S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> (Suc (Suc b\<^sub>\<V>)) s (Suc b\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
       S\<^sub>r h b\<^sub>h (\<Delta>(b\<^sub>\<Delta> := \<V> (Suc b\<^sub>\<V>), Suc b\<^sub>\<Delta> := p\<^sub>\<Delta>)) (2 + b\<^sub>\<Delta>) \<V> b\<^sub>\<V>
         (s(Suc b\<^sub>s := p\<^sub>\<C>, Suc (Suc b\<^sub>s) := Suc (Suc b\<^sub>\<Delta>))) (2 + Suc b\<^sub>s) p\<^sub>\<C>'"
-| ev\<^sub>r_pushenv [simp]: "lookup \<C> p\<^sub>\<C> = Some PushEnv\<^sub>b \<Longrightarrow>
+| ev\<^sub>r_pushenv [simp]: "lookup \<C> p\<^sub>\<C> = Some (PushEnv\<^sub>b n) \<Longrightarrow>
     \<C> \<tturnstile> S\<^sub>r h b\<^sub>h \<Delta> b\<^sub>\<Delta> \<V> (Suc b\<^sub>\<V>) s (Suc b\<^sub>s) (Suc p\<^sub>\<C>) \<leadsto>\<^sub>r 
       S\<^sub>r h b\<^sub>h (\<Delta>(b\<^sub>\<Delta> := \<V> b\<^sub>\<V>, Suc b\<^sub>\<Delta> := s b\<^sub>s)) (Suc (Suc b\<^sub>\<Delta>)) \<V> b\<^sub>\<V> 
         (s(b\<^sub>s := Suc (Suc b\<^sub>\<Delta>))) (Suc b\<^sub>s) p\<^sub>\<C>"

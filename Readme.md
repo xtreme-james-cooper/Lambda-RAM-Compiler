@@ -25,3 +25,4 @@ Refactorings:
 - Alter environment layout to make lookups more efficient
 - Make consts use ints instead of nats?
 - Change up encode
+- evalr apply extra suc?

@@ -282,13 +282,18 @@ next
       snd xy \<in> dom (lookup z)})" 
   proof -
     fix xy
-    from tc\<^sub>g_let(7) have "(xy = (0, length ts) \<or> (\<exists>z. lookup \<Gamma> (fst xy) = Some z \<and> 
-      snd xy \<in> dom (lookup z))) =
-    (\<exists>z. (case fst xy of 0 \<Rightarrow> (case lookup \<Gamma> 0 of None \<Rightarrow> None | Some aa \<Rightarrow> Some (aa @ [t\<^sub>1]))
+    have "(xy = (0, length ts) \<or> (\<exists>z. lookup \<Gamma> (fst xy) = Some z \<and> 
+        snd xy \<in> dom (lookup z))) =
+      (\<exists>z. (case fst xy of 0 \<Rightarrow> (case lookup \<Gamma> 0 of None \<Rightarrow> None | Some aa \<Rightarrow> Some (aa @ [t\<^sub>1]))
           | Suc x' \<Rightarrow> lookup \<Gamma> (fst xy)) =
          Some z \<and>
          snd xy \<in> dom (lookup z))" 
-      using lookup_down_lemma by (cases xy) (auto split: nat.splits option.splits, fastforce)
+    proof (cases xy)
+      case (Pair x y)
+      have "\<And>b. lookup (ts @ [t\<^sub>1]) y = Some b \<Longrightarrow> y \<noteq> length ts \<Longrightarrow> lookup ts y = Some b" 
+        using lookup_down_lemma by metis
+      with Pair tc\<^sub>g_let(3, 8) show ?thesis by (simp split: nat.splits option.splits) fastforce
+    qed
     with tc\<^sub>g_let show "?thesis xy" by (simp add: dom_map_option)
   qed
   hence "insert (0, length ts) (dom (\<lambda>x. map_option Suc (\<Phi> x))) =
@@ -372,8 +377,12 @@ fun combine_stack' :: "frame\<^sub>g list \<Rightarrow> frame\<^sub>c list \<tim
 abbreviation combine_stack :: "frame\<^sub>g list \<Rightarrow> frame\<^sub>c list" where
   "combine_stack s \<equiv> fst (combine_stack' s)"
 
+lemma return_headed_combine_stack' [simp]: "combine_stack' s = (ss, n) \<Longrightarrow> 
+    return_headed\<^sub>c ss = return_headed\<^sub>g s"
+  by (induction s arbitrary: ss n rule: combine_stack'.induct) (auto split: prod.splits)
+
 lemma return_headed_combine_stack [simp]: "return_headed\<^sub>c (combine_stack s) = return_headed\<^sub>g s"
-  by (induction s rule: combine_stack'.induct) (simp_all split: prod.splits)
+  by (cases "combine_stack' s") simp_all
 
 primrec combine_state :: "state\<^sub>g \<Rightarrow> state\<^sub>c" where
   "combine_state (SE\<^sub>g s \<Delta> e) = (
@@ -464,74 +473,101 @@ proof (induction c t and \<Delta> \<Gamma> rule: typing_closure\<^sub>g_typing_e
   with tc\<^sub>g_lam Y show ?case by simp
 qed simp_all
 
+lemma latest_combine_env' [simp]: "combine_stack' s = (s', n) \<Longrightarrow> latest_environment\<^sub>c s' =
+    map_option combine_env (latest_environment\<^sub>g s)"
+  by (induction s arbitrary: s' n rule: combine_stack'.induct) 
+     (auto simp add: comp_def split: prod.splits)
+                                                        
 lemma latest_combine_env [simp]: "latest_environment\<^sub>c (combine_stack s) =
     map_option combine_env (latest_environment\<^sub>g s)"
-  by (induction s rule: combine_stack'.induct) (auto simp add: comp_def split: prod.splits)
+  by (cases "combine_stack' s") simp_all
 
-lemma typecheck_stack [simp]: "s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> combine_stack s :\<^sub>c t\<^sub>2 \<rightarrow> t"
-proof (induction s t\<^sub>2 t rule: typing_stack\<^sub>g.induct)
+lemma combine_stack_length [simp]: "combine_stack' s = (ss, n) \<Longrightarrow> \<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma> \<Longrightarrow> 
+    latest_environment\<^sub>g s = Some \<Delta> \<Longrightarrow> lookup \<Gamma> 0 = Some ts \<Longrightarrow> n = length ts"
+proof (induction s arbitrary: ss n rule: combine_stack'.induct)
+  case (5 \<Delta> s)
+  moreover then obtain s' m where "combine_stack' s = (s', m) \<and> 
+    ss = FReturn\<^sub>c (combine_env \<Delta>) # s' \<and> n = length (hd \<Delta>)" by (auto split: prod.splits)
+  moreover from 5 have "\<Gamma> \<noteq> [] \<and> ts = hd \<Gamma>" by (cases \<Gamma>) simp_all
+  ultimately show ?case by simp
+qed (simp_all split: prod.splits)
+
+lemma typecheck_stack' [simp]: "s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> combine_stack' s = (s', n) \<Longrightarrow> s' :\<^sub>c t\<^sub>2 \<rightarrow> t"
+proof (induction s t\<^sub>2 t arbitrary: s' n rule: typing_stack\<^sub>g.induct)
   case (tcg_scons_app1 \<Delta> \<Gamma> e t\<^sub>1 s t\<^sub>2 t)
-  hence X: "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)" by simp
-  obtain s' n where C: "combine_stack' s = (s', n)" by fastforce
-  from tcg_scons_app1 have "map_from_env \<Delta> = map_from_env \<Gamma>" by simp
-  with tcg_scons_app1(2) C have Y: "concat (map rev \<Gamma>) \<turnstile>\<^sub>d combine_vars' (map_from_env \<Delta>) n e : t\<^sub>1" 
-    by simp
-
-  have "\<Gamma> \<turnstile>\<^sub>g e : t \<Longrightarrow> lookup \<Gamma> 0 = Some ts \<Longrightarrow> 
-    concat (map rev \<Gamma>) \<turnstile>\<^sub>d combine_vars' (map_from_env \<Gamma>) (length ts) e : t" by simp
-
-  from tcg_scons_app1 have "latest_environment\<^sub>c (combine_stack s) = Some (combine_env \<Delta>)" by simp
-  with C have Z: "latest_environment\<^sub>c s' = Some (combine_env \<Delta>)" by simp
-
-
-  have "s' :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
-  with tcg_scons_app1(3, 4) X Y Z have "
-    FApp1\<^sub>c (combine_env \<Delta>) (combine_vars' (map_from_env \<Delta>) n e) # s' :\<^sub>c Arrow t\<^sub>1 t\<^sub>2 \<rightarrow> t" by simp
-  with tcg_scons_app1(3, 4, 7) X C Y show ?case by simp
+  then obtain ss where S: "combine_stack' s = (ss, n) \<and> 
+    s' = FApp1\<^sub>c (combine_env \<Delta>) (combine_vars' (map_from_env \<Delta>) n e) # ss" 
+      by (auto split: prod.splits)
+  define \<Gamma>' where "\<Gamma>' = concat (map rev \<Gamma>)"
+  with tcg_scons_app1 have A: "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>'" by simp
+  from tcg_scons_app1 have "\<Delta> \<noteq> []" by simp
+  with tcg_scons_app1 have "\<Gamma> \<noteq> []" using typing_environment\<^sub>g.cases by blast
+  then obtain ts where L: "lookup \<Gamma> 0 = Some ts" by fastforce
+  with tcg_scons_app1(2) have "concat (map rev \<Gamma>) \<turnstile>\<^sub>d 
+    combine_vars' (map_from_env \<Gamma>) (length ts) e : t\<^sub>1" by simp
+  with tcg_scons_app1 S L have "concat (map rev \<Gamma>) \<turnstile>\<^sub>d combine_vars' (map_from_env \<Gamma>) n e : t\<^sub>1"
+    by (metis combine_stack_length)
+  with tcg_scons_app1 have B: "\<Gamma>' \<turnstile>\<^sub>d combine_vars' (map_from_env \<Delta>) n e : t\<^sub>1" by (simp add: \<Gamma>'_def)
+  have "latest_environment\<^sub>c (fst (combine_stack' s)) = 
+    map_option combine_env (latest_environment\<^sub>g s)" by simp
+  with tcg_scons_app1 S A B show ?case by simp
 next
   case (tcg_scons_app2 c t\<^sub>1 t\<^sub>2 s t)
-  hence "combine_closure c :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2" by simp
-  moreover from tcg_scons_app2 have "combine_stack s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
-  moreover from tcg_scons_app2 have "latest_environment\<^sub>c (combine_stack s) \<noteq> None" by simp
+  then obtain ss where S: "combine_stack' s = (ss, n) \<and> s' = FApp2\<^sub>c (combine_closure c) # ss" 
+    by (auto split: prod.splits)
+  moreover from tcg_scons_app2 have "combine_closure c :\<^sub>c\<^sub>l Arrow t\<^sub>1 t\<^sub>2" by simp
+  moreover from tcg_scons_app2 S have "latest_environment\<^sub>c ss \<noteq> None" by auto
+  moreover from tcg_scons_app2 S have "ss :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
   ultimately show ?case by simp
 next
   case (tcg_scons_let s \<Delta> \<Gamma> t\<^sub>1 e t\<^sub>2 t)
-  hence "concat (snoc_fst t\<^sub>1 \<Gamma>) \<turnstile>\<^sub>d combine_vars' (map_from_env (snoc_fst t\<^sub>1 \<Gamma>)) n e : t\<^sub>2" 
-    by (metis typecheck_combine)
-  hence X: "insert_at 0 t\<^sub>1 (concat \<Gamma>) \<turnstile>\<^sub>d combine_vars' (inv_map_past_let (map_from_env \<Gamma>) n) n e : t\<^sub>2"
-    by simp
+  then obtain ss where S: "combine_stack' s = (ss, n) \<and> 
+    s' = FLet\<^sub>c (combine_env \<Delta>) (combine_vars' (inv_map_past_let (map_from_env \<Delta>) n) (Suc n) e) # 
+      ss" by (auto split: prod.splits)
+
+
+  from tcg_scons_let have "latest_environment\<^sub>g s = Some \<Delta>" by simp
+  from tcg_scons_let have "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>" by simp
+  from tcg_scons_let have "snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2" by simp
+  from tcg_scons_let have "let_floated\<^sub>g e" by simp
+  from tcg_scons_let have "s :\<^sub>g t\<^sub>2 \<rightarrow> t" by simp
+  from tcg_scons_let have "return_headed\<^sub>g s" by simp
+  from tcg_scons_let S have "ss :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
+
+  define \<Gamma>' where "\<Gamma>' = concat (map rev \<Gamma>)"
+  with tcg_scons_let S have A: "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>'" by simp
+
+
+  have G: "\<Gamma> \<noteq> []" by simp
+  then obtain ts' where T: "lookup \<Gamma> 0 = Some ts'" by fastforce
+  with S have LL: "length ts' = n" by simp
+
+
+  define ts where "ts = ts' @ [t\<^sub>1]"
+  with G T have L: "lookup (snoc_fst t\<^sub>1 \<Gamma>) 0 = Some ts" by simp
+  with tcg_scons_let have C: "concat (map rev (snoc_fst t\<^sub>1 \<Gamma>)) \<turnstile>\<^sub>d 
+    combine_vars' (map_from_env (snoc_fst t\<^sub>1 \<Gamma>)) (length ts) e : t\<^sub>2" by simp
   from tcg_scons_let have "map_from_env \<Delta> = map_from_env \<Gamma>" by simp
-  with X have "insert_at 0 t\<^sub>1 (concat \<Gamma>) \<turnstile>\<^sub>d 
-    combine_vars' (inv_map_past_let (map_from_env \<Delta>) n) n e : t\<^sub>2" by metis
-  moreover from tcg_scons_let have "latest_environment\<^sub>c (combine_stack s) = Some (combine_env \<Delta>)" 
-    by simp
-  moreover from tcg_scons_let have "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)" by simp
-  moreover from tcg_scons_let have "combine_stack s :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
-  moreover from tcg_scons_let have "
-    let_floated\<^sub>d (combine_vars' (inv_map_past_let (map_from_env \<Delta>) n) n e)" by simp
-  moreover from tcg_scons_let have "return_headed\<^sub>c (combine_stack s)" by simp
-  ultimately show ?case by simp
+  with G T L LL C have "insert_at 0 t\<^sub>1 \<Gamma>' \<turnstile>\<^sub>d 
+    combine_vars' (inv_map_past_let (map_from_env \<Delta>) n) (Suc n) e : t\<^sub>2"
+      by (simp add: ts_def \<Gamma>'_def split: option.splits) metis
+  with tcg_scons_let S A show ?case by auto
 next
   case (tcg_scons_ret \<Delta> \<Gamma> s t' t)
-  hence "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)" by simp
-  moreover from tcg_scons_ret have "combine_stack s :\<^sub>c t' \<rightarrow> t" by simp
-  ultimately show ?case by simp
+  thus ?case by simp
 qed simp_all
+
+lemma typecheck_stack [simp]: "s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> combine_stack s :\<^sub>c t\<^sub>2 \<rightarrow> t"
+  by (cases "combine_stack' s") simp_all
 
 lemma typecheck_state [simp]: "\<Sigma> :\<^sub>g t \<Longrightarrow> combine_state \<Sigma> :\<^sub>c t"
 proof (induction \<Sigma> t rule: typecheck_state\<^sub>g.induct)
   case (tcg_state_ev s t' t \<Delta> \<Gamma> e)
-  hence "concat \<Gamma> \<turnstile>\<^sub>d combine_vars' (map_from_env \<Gamma>) 0 e : t'" 
-    by (metis typecheck_combine)
-  with tcg_state_ev have "concat \<Gamma> \<turnstile>\<^sub>d combine_vars' (map_from_env \<Delta>) 0 e : t'" by simp
-  moreover from tcg_state_ev have "combine_stack s :\<^sub>c t' \<rightarrow> t" by simp
-  moreover from tcg_state_ev have "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s concat (map rev \<Gamma>)" by simp
-  moreover from tcg_state_ev have "latest_environment\<^sub>c (combine_stack s) = Some (combine_env \<Delta>)" 
-    by simp
-  moreover from tcg_state_ev have "let_floated\<^sub>d (combine_vars' (map_from_env \<Delta>) 0 e)" by simp
-  moreover from tcg_state_ev have "let_free\<^sub>d (combine_vars' (map_from_env \<Delta>) 0 e) \<or> 
-    return_headed\<^sub>c (combine_stack s)" by simp
-  ultimately show ?case by simp
+
+
+  have "(case combine_stack' s of
+     (s', n) \<Rightarrow> SE\<^sub>c s' (combine_env \<Delta>) (combine_vars' (map_from_env \<Delta>) n e)) :\<^sub>c t" by simp
+  then show ?case by simp
 next
   case (tcg_state_ret s t' t c)
   hence "combine_stack s :\<^sub>c t' \<rightarrow> t" by simp
@@ -561,24 +597,16 @@ proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>g.induct)
   case (ret\<^sub>g_let \<Delta> e\<^sub>2 s c\<^sub>1)
   obtain s' n where S: "combine_stack' s = (s', n)" by fastforce
 
-  have "SC\<^sub>c 
-      (FLet\<^sub>c (combine_env \<Delta>) 
-       (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) (Suc (length (hd \<Delta>)))
-         e\<^sub>2) # 
-      FReturn\<^sub>c (combine_env \<Delta>) # s') 
-      (combine_closure c\<^sub>1) \<leadsto>\<^sub>c 
-    SE\<^sub>c (FReturn\<^sub>c ((combine_closure c\<^sub>1) # (combine_env \<Delta>)) # s') ((combine_closure c\<^sub>1) # (combine_env \<Delta>)) 
-    (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) (Suc (length (hd \<Delta>)))
-         e\<^sub>2)" by simp
 
-  hence "SC\<^sub>c
-     (FLet\<^sub>c (combine_env \<Delta>)
-       (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) (Suc (length (hd \<Delta>)))
-         e\<^sub>2) #
-      FReturn\<^sub>c (combine_env \<Delta>) # s')
-     (combine_closure c\<^sub>1) \<leadsto>\<^sub>c
-    SE\<^sub>c (FReturn\<^sub>c (combine_closure c\<^sub>1 # combine_env \<Delta>) # s') (combine_closure c\<^sub>1 # combine_env \<Delta>)
-     (combine_vars' (map_from_env (snoc_fst c\<^sub>1 \<Delta>)) (length (hd (snoc_fst c\<^sub>1 \<Delta>))) e\<^sub>2)" by simp
+  have "SC\<^sub>c (FLet\<^sub>c (combine_env \<Delta>) (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) 
+    (Suc (length (hd \<Delta>))) e\<^sub>2) # FReturn\<^sub>c (combine_env \<Delta>) # s') (combine_closure c\<^sub>1) \<leadsto>\<^sub>c 
+      SE\<^sub>c (FReturn\<^sub>c (combine_closure c\<^sub>1 # combine_env \<Delta>) # s') (xc\<^sub>1 # combine_env \<Delta>) 
+        (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) (Suc (length (hd \<Delta>))) e\<^sub>2)" by simp
+
+  have "SC\<^sub>c (FLet\<^sub>c (combine_env \<Delta>) (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) 
+    (Suc (length (hd \<Delta>))) e\<^sub>2) # FReturn\<^sub>c (combine_env \<Delta>) # s') (combine_closure c\<^sub>1) \<leadsto>\<^sub>c
+      SE\<^sub>c (FReturn\<^sub>c (combine_env (snoc_fst c\<^sub>1 \<Delta>)) # s') (combine_env (snoc_fst c\<^sub>1 \<Delta>))
+        (combine_vars' (map_from_env (snoc_fst c\<^sub>1 \<Delta>)) (length (hd (snoc_fst c\<^sub>1 \<Delta>))) e\<^sub>2)" by simp
   with S show ?case by simp
 qed (simp_all split: prod.splits)
 

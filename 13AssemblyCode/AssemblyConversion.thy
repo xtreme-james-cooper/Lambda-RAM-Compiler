@@ -6,9 +6,10 @@ begin
 primrec assemble_op_len :: "code\<^sub>b \<Rightarrow> nat" where
   "assemble_op_len (Lookup\<^sub>b x y) = 7 + 2 * x"
 | "assemble_op_len (PushCon\<^sub>b k) = 5"
-| "assemble_op_len (PushLam\<^sub>b pc n) = 9"
+| "assemble_op_len (PushLam\<^sub>b pc) = 9"
 | "assemble_op_len Apply\<^sub>b = 20"
-| "assemble_op_len PushEnv\<^sub>b = 11"
+| "assemble_op_len (Alloc\<^sub>b n) = 0"
+| "assemble_op_len (PushEnv\<^sub>b n) = 11"
 | "assemble_op_len Return\<^sub>b = 5"
 | "assemble_op_len Jump\<^sub>b = 19"
 
@@ -32,7 +33,7 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
     AMov (Mem Hp) (Con k),
     AAdd Vals (Con 1),
     AMov (Mem Vals) (Reg Hp)]"
-| "assemble_op mp ix (PushLam\<^sub>b pc n) = [
+| "assemble_op mp ix (PushLam\<^sub>b pc) = [
     AAdd Hp (Con 1), 
     AMov (Mem Hp) (Con (mp pc)), 
     AMov (Reg Acc) (Con 0),
@@ -65,7 +66,8 @@ primrec assemble_op :: "(nat \<Rightarrow> nat) \<Rightarrow> nat \<Rightarrow> 
     AMov (Mem Vals) (Con 0),
     AMov (Reg Acc) (Mem Vals),
     ASub Vals (Con 1)]"
-| "assemble_op mp ix PushEnv\<^sub>b = [
+| "assemble_op mp ix (Alloc\<^sub>b n) = [undefined]"
+| "assemble_op mp ix (PushEnv\<^sub>b n) = [
     AMov (Reg Acc) (Con 0),
     AAdd Stk (Con 1),
     AMov (Mem Stk) (Reg Env),
@@ -252,7 +254,7 @@ lemma assemble_code_lookup [simp]: "lookup cd pc = Some op \<Longrightarrow>
 lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 1 \<le> assemble_op_len op \<Longrightarrow> 
   lookup (assemble_code cd) (Suc (assembly_map cd pc)) = 
     lookup (assemble_op (assembly_map cd) pc op) 1"
-  using assemble_code_lookup by fastforcex
+  using assemble_code_lookup by fastforce
 
 lemma [simp]: "lookup cd pc = Some op \<Longrightarrow> 
     lookup (assemble_code cd) (assembly_map cd pc) = lookup (assemble_op (assembly_map cd) pc op) 0"
@@ -300,7 +302,10 @@ lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 
 lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (PushCon\<^sub>b k)"
   by (induction \<C>) auto
 
-lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (PushLam\<^sub>b p\<^sub>\<C> n)"
+lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (PushLam\<^sub>b p\<^sub>\<C>)"
+  by (induction \<C>) auto
+
+lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some (Alloc\<^sub>b n)"
   by (induction \<C>) auto
 
 lemma [simp]: "properly_terminated\<^sub>b \<C> \<Longrightarrow> lookup \<C> 0 \<noteq> Some Apply\<^sub>b"
@@ -494,16 +499,12 @@ proof (unfold assembleable_heap_def assembleable_vals_def)
   ultimately show "p\<^sub>\<C> \<le> lcd" by auto
 qed
 
-lemma [elim]: "unstr_lookup \<Delta> p x = Some y \<Longrightarrow> p \<le> p\<^sub>\<Delta> \<Longrightarrow> even p \<Longrightarrow> assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> 
-  y < p\<^sub>h"
-proof (induction \<Delta> p x rule: unstr_lookup.induct)
-  case (4 \<Delta> p x)
-  moreover hence "even (\<Delta> (Suc p)) \<and> \<Delta> (Suc p) < p\<^sub>\<Delta>" by (simp add: assembleable_env_def)
-  ultimately show ?case by simp
-qed (auto simp add: assembleable_env_def)
+lemma [elim]: "unstr_lookup \<Delta> p x y = Some z \<Longrightarrow> p \<le> p\<^sub>\<Delta> \<Longrightarrow> even p \<Longrightarrow> assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> 
+  z < p\<^sub>h"
+  by (induction \<Delta> p x y rule: unstr_lookup.induct) (auto simp add: assembleable_env_def)
 
-lemma [elim]: "unstr_lookup \<Delta> p x = Some y \<Longrightarrow> p \<le> p\<^sub>\<Delta> \<Longrightarrow> even p \<Longrightarrow> assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> 
-  even y"
+lemma [elim]: "unstr_lookup \<Delta> p x y = Some z \<Longrightarrow> p \<le> p\<^sub>\<Delta> \<Longrightarrow> even p \<Longrightarrow> assembleable_env \<Delta> p\<^sub>\<Delta> p\<^sub>h \<Longrightarrow> 
+  even z"
 proof (induction \<Delta> p x rule: unstr_lookup.induct) 
   case (4 \<Delta> p x)
   moreover hence "even (\<Delta> (Suc p)) \<and> \<Delta> (Suc p) < p\<^sub>\<Delta>" by (simp add: assembleable_env_def)
