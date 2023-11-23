@@ -524,25 +524,12 @@ next
   then obtain ss where S: "combine_stack' s = (ss, n) \<and> 
     s' = FLet\<^sub>c (combine_env \<Delta>) (combine_vars' (inv_map_past_let (map_from_env \<Delta>) n) (Suc n) e) # 
       ss" by (auto split: prod.splits)
-
-
-  from tcg_scons_let have "latest_environment\<^sub>g s = Some \<Delta>" by simp
-  from tcg_scons_let have "\<Delta> :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>" by simp
-  from tcg_scons_let have "snoc_fst t\<^sub>1 \<Gamma> \<turnstile>\<^sub>g e : t\<^sub>2" by simp
-  from tcg_scons_let have "let_floated\<^sub>g e" by simp
-  from tcg_scons_let have "s :\<^sub>g t\<^sub>2 \<rightarrow> t" by simp
-  from tcg_scons_let have "return_headed\<^sub>g s" by simp
-  from tcg_scons_let S have "ss :\<^sub>c t\<^sub>2 \<rightarrow> t" by simp
-
   define \<Gamma>' where "\<Gamma>' = concat (map rev \<Gamma>)"
   with tcg_scons_let S have A: "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>'" by simp
-
-
-  have G: "\<Gamma> \<noteq> []" by simp
+  from tcg_scons_let have "\<Delta> \<noteq> []" by simp
+  with tcg_scons_let have G: "\<Gamma> \<noteq> []" using typing_environment\<^sub>g.cases by blast
   then obtain ts' where T: "lookup \<Gamma> 0 = Some ts'" by fastforce
-  with S have LL: "length ts' = n" by simp
-
-
+  with tcg_scons_let S have LL: "n = length ts'" by auto
   define ts where "ts = ts' @ [t\<^sub>1]"
   with G T have L: "lookup (snoc_fst t\<^sub>1 \<Gamma>) 0 = Some ts" by simp
   with tcg_scons_let have C: "concat (map rev (snoc_fst t\<^sub>1 \<Gamma>)) \<turnstile>\<^sub>d 
@@ -554,7 +541,11 @@ next
   with tcg_scons_let S A show ?case by auto
 next
   case (tcg_scons_ret \<Delta> \<Gamma> s t' t)
-  thus ?case by simp
+  then obtain ss m where S: "combine_stack' s = (ss, m) \<and> s' = FReturn\<^sub>c (combine_env \<Delta>) # ss \<and> 
+    n = length (hd \<Delta>)" by (auto split: prod.splits)
+  define \<Gamma>' where "\<Gamma>' = concat (map rev \<Gamma>)"
+  with tcg_scons_ret have "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>'" by simp
+  with tcg_scons_ret S show ?case by simp
 qed simp_all
 
 lemma typecheck_stack [simp]: "s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longrightarrow> combine_stack s :\<^sub>c t\<^sub>2 \<rightarrow> t"
@@ -563,11 +554,22 @@ lemma typecheck_stack [simp]: "s :\<^sub>g t\<^sub>2 \<rightarrow> t \<Longright
 lemma typecheck_state [simp]: "\<Sigma> :\<^sub>g t \<Longrightarrow> combine_state \<Sigma> :\<^sub>c t"
 proof (induction \<Sigma> t rule: typecheck_state\<^sub>g.induct)
   case (tcg_state_ev s t' t \<Delta> \<Gamma> e)
-
-
-  have "(case combine_stack' s of
-     (s', n) \<Rightarrow> SE\<^sub>c s' (combine_env \<Delta>) (combine_vars' (map_from_env \<Delta>) n e)) :\<^sub>c t" by simp
-  then show ?case by simp
+  obtain s' n where S: "combine_stack' s = (s', n)" by fastforce
+  define \<Gamma>' where "\<Gamma>' = concat (map rev \<Gamma>)"
+  with tcg_state_ev have A: "combine_env \<Delta> :\<^sub>c\<^sub>l\<^sub>s \<Gamma>'" by simp
+  from tcg_state_ev S have B: "s' :\<^sub>c t' \<rightarrow> t" by simp
+  from tcg_state_ev S have C: "latest_environment\<^sub>c s' = Some (combine_env \<Delta>)" by simp
+  from tcg_state_ev have "\<Delta> \<noteq> []" by simp
+  with tcg_state_ev have "\<Gamma> \<noteq> []" using typing_environment\<^sub>g.cases by blast
+  then obtain ts where L: "lookup \<Gamma> 0 = Some ts" by fastforce
+  with tcg_state_ev have T: "concat (map rev \<Gamma>) \<turnstile>\<^sub>d 
+    combine_vars' (map_from_env \<Gamma>) (length ts) e : t'" by (metis typecheck_combine)
+  with tcg_state_ev S L have "n = length ts" by auto
+  with tcg_state_ev T have D: "\<Gamma>' \<turnstile>\<^sub>d combine_vars' (map_from_env \<Delta>) n e : t'" by (simp add: \<Gamma>'_def)
+  from tcg_state_ev have E: "let_floated\<^sub>d (combine_vars' (map_from_env \<Delta>) n e)" by simp
+  from tcg_state_ev S have "let_free\<^sub>d (combine_vars' (map_from_env \<Delta>) n e) \<or> return_headed\<^sub>c s'" 
+    by simp
+  with S A B C D E show ?case by simp
 next
   case (tcg_state_ret s t' t c)
   hence "combine_stack s :\<^sub>c t' \<rightarrow> t" by simp
@@ -592,22 +594,18 @@ next
   from 3 show ?case by (cases "map_from_env \<Delta> (x, y)") (simp_all, metis X lookup_append_snd)
 qed simp_all
 
-theorem completeness\<^sub>g [simp]: "\<Sigma> \<leadsto>\<^sub>g \<Sigma>' \<Longrightarrow> combine_state \<Sigma> \<leadsto>\<^sub>c combine_state \<Sigma>'"
+lemma combine_env_snoc [simp]: "\<Delta> \<noteq> [] \<Longrightarrow> 
+    combine_env (snoc_fst c \<Delta>) = combine_closure c # combine_env \<Delta>"
+  by (induction \<Delta>) simp_all
+
+theorem completeness\<^sub>g [simp]: "\<Sigma> \<leadsto>\<^sub>g \<Sigma>' \<Longrightarrow> \<Sigma> :\<^sub>g t \<Longrightarrow> combine_state \<Sigma> \<leadsto>\<^sub>c combine_state \<Sigma>'"
 proof (induction \<Sigma> \<Sigma>' rule: eval\<^sub>g.induct)
   case (ret\<^sub>g_let \<Delta> e\<^sub>2 s c\<^sub>1)
-  obtain s' n where S: "combine_stack' s = (s', n)" by fastforce
-
-
-  have "SC\<^sub>c (FLet\<^sub>c (combine_env \<Delta>) (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) 
-    (Suc (length (hd \<Delta>))) e\<^sub>2) # FReturn\<^sub>c (combine_env \<Delta>) # s') (combine_closure c\<^sub>1) \<leadsto>\<^sub>c 
-      SE\<^sub>c (FReturn\<^sub>c (combine_closure c\<^sub>1 # combine_env \<Delta>) # s') (xc\<^sub>1 # combine_env \<Delta>) 
-        (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) (Suc (length (hd \<Delta>))) e\<^sub>2)" by simp
-
-  have "SC\<^sub>c (FLet\<^sub>c (combine_env \<Delta>) (combine_vars' (inv_map_past_let (map_from_env \<Delta>) (length (hd \<Delta>))) 
-    (Suc (length (hd \<Delta>))) e\<^sub>2) # FReturn\<^sub>c (combine_env \<Delta>) # s') (combine_closure c\<^sub>1) \<leadsto>\<^sub>c
-      SE\<^sub>c (FReturn\<^sub>c (combine_env (snoc_fst c\<^sub>1 \<Delta>)) # s') (combine_env (snoc_fst c\<^sub>1 \<Delta>))
-        (combine_vars' (map_from_env (snoc_fst c\<^sub>1 \<Delta>)) (length (hd (snoc_fst c\<^sub>1 \<Delta>))) e\<^sub>2)" by simp
-  with S show ?case by simp
+  then obtain t\<^sub>1 where "FLet\<^sub>g \<Delta> e\<^sub>2 # FReturn\<^sub>g \<Delta> # s :\<^sub>g t\<^sub>1 \<rightarrow> t" by blast
+  hence "\<Delta> \<noteq> []" by simp
+  moreover then obtain ts where "lookup \<Delta> 0 = Some ts \<and> hd \<Delta> = ts" by (cases \<Delta>) simp_all
+  moreover obtain s' n where "combine_stack' s = (s', n)" by fastforce
+  ultimately show ?case by simp
 qed (simp_all split: prod.splits)
 
 lemma combine_to_var [dest]: "\<Gamma> \<turnstile>\<^sub>g e\<^sub>g : t \<Longrightarrow> Var\<^sub>d x = combine_vars' (map_from_env \<Delta>) n e\<^sub>g \<Longrightarrow> 
@@ -631,7 +629,7 @@ lemma combine_to_app [dest]: "App\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = 
   by (induction e\<^sub>g) simp_all
 
 lemma combine_to_let [dest]: "Let\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' \<Phi> n e\<^sub>g \<Longrightarrow> 
-  \<exists>e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g. e\<^sub>g = Let\<^sub>g n e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> e\<^sub>1\<^sub>c = combine_vars' \<Phi> n e\<^sub>1\<^sub>g \<and> 
+  \<exists>m e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g. e\<^sub>g = Let\<^sub>g m e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> e\<^sub>1\<^sub>c = combine_vars' \<Phi> n e\<^sub>1\<^sub>g \<and> 
     e\<^sub>2\<^sub>c = combine_vars' (inv_map_past_let \<Phi> n) (Suc n) e\<^sub>2\<^sub>g"
   by (induction e\<^sub>g) simp_all
 
@@ -654,30 +652,41 @@ lemma combine_to_flet [dest]: "FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>c # s\<^sub
     e\<^sub>c = combine_vars' (inv_map_past_let (map_from_env \<Delta>\<^sub>g) n) (Suc n) e\<^sub>g"
   by (induction s\<^sub>g rule: combine_stack'.induct) (simp_all split: prod.splits)
 
+lemma combine_to_freturn' [dest]: "combine_stack' s\<^sub>g = (FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c, n) \<Longrightarrow> 
+    \<exists>m s\<^sub>g' \<Delta>\<^sub>g. s\<^sub>g = FReturn\<^sub>g \<Delta>\<^sub>g # s\<^sub>g' \<and> combine_stack' s\<^sub>g' = (s\<^sub>c, m) \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g"
+  by (induction s\<^sub>g rule: combine_stack'.induct) (simp_all split: prod.splits)
+
 lemma combine_to_freturn [dest]: "FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g \<Longrightarrow> 
     \<exists>n s\<^sub>g' \<Delta>\<^sub>g. s\<^sub>g = FReturn\<^sub>g \<Delta>\<^sub>g # s\<^sub>g' \<and> combine_stack' s\<^sub>g' = (s\<^sub>c, n) \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g"
   by (induction s\<^sub>g rule: combine_stack'.induct) (simp_all split: prod.splits)
 
 lemma combine_to_eval_state [dest]: "SE\<^sub>c s\<^sub>c \<Delta>\<^sub>c e\<^sub>c = combine_state \<Sigma>\<^sub>g \<Longrightarrow> 
-  \<exists>s\<^sub>g \<Delta>\<^sub>g e\<^sub>g. \<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
-    e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>g"
-  by (induction \<Sigma>\<^sub>g) simp_all
+  \<exists>s\<^sub>g \<Delta>\<^sub>g e\<^sub>g n. \<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> combine_stack' s\<^sub>g = (s\<^sub>c, n) \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
+    e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) n e\<^sub>g"
+  by (induction \<Sigma>\<^sub>g) (simp_all split: prod.splits)
 
 lemma combine_to_return_state [dest]: "SC\<^sub>c s\<^sub>c c\<^sub>c = combine_state \<Sigma>\<^sub>g \<Longrightarrow> 
     \<exists>s\<^sub>g c\<^sub>g. \<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g c\<^sub>g \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> c\<^sub>c = combine_closure c\<^sub>g"
-  by (induction \<Sigma>\<^sub>g) simp_all
+  by (induction \<Sigma>\<^sub>g) (simp_all split: prod.splits)
 
 lemma lookup_map_inv [simp]: "map_from_env \<Delta> (y, z) = Some x \<Longrightarrow>
   lookup (combine_env \<Delta>) x = Some c \<Longrightarrow> 
     \<exists>cs c\<^sub>g. lookup \<Delta> y = Some cs \<and> lookup cs z = Some c\<^sub>g \<and> c = combine_closure c\<^sub>g" 
-  by (induction \<Delta> "(y, z)" arbitrary: x y z rule: map_from_env.induct) (auto split: if_splits)
+proof (induction \<Delta> "(y, z)" arbitrary: x y z rule: map_from_env.induct)
+  case (3 cs \<Delta> y z)
+  then obtain w where W: "map_from_env \<Delta> (y, z) = Some w \<and> x = length cs + w" by fastforce
+  with 3 have "lookup (rev (map combine_closure cs) @ combine_env \<Delta>) 
+    (length (map combine_closure cs) + w) = Some c" by simp
+  hence "lookup (combine_env \<Delta>) w = Some c" by (metis lookup_append_snd_rev)
+  with 3 W show ?case by simp
+qed (auto split: if_splits)
 
 theorem correctness\<^sub>g [simp]: "combine_state \<Sigma>\<^sub>g \<leadsto>\<^sub>c \<Sigma>\<^sub>c' \<Longrightarrow> \<Sigma>\<^sub>g :\<^sub>g t \<Longrightarrow>
   \<exists>\<Sigma>\<^sub>g'. \<Sigma>\<^sub>g \<leadsto>\<^sub>g \<Sigma>\<^sub>g' \<and> \<Sigma>\<^sub>c' = combine_state \<Sigma>\<^sub>g'"
 proof (induction "combine_state \<Sigma>\<^sub>g" \<Sigma>\<^sub>c' rule: eval\<^sub>c.induct)
   case (ev\<^sub>c_var \<Delta>\<^sub>c x c\<^sub>c s\<^sub>c)
-  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> 
-    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> Var\<^sub>d x = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>g" by auto
+  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g n where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> combine_stack' s\<^sub>g = (s\<^sub>c, n) \<and> 
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> Var\<^sub>d x = combine_vars' (map_from_env \<Delta>\<^sub>g) n e\<^sub>g" by auto
   with ev\<^sub>c_var obtain t' \<Gamma> where "(s\<^sub>g :\<^sub>g t' \<rightarrow> t) \<and> (\<Delta>\<^sub>g :\<^sub>g\<^sub>c\<^sub>l\<^sub>s \<Gamma>) \<and> 
     latest_environment\<^sub>g s\<^sub>g = Some \<Delta>\<^sub>g \<and> \<Gamma> \<turnstile>\<^sub>g e\<^sub>g : t'" by auto
   with S obtain y z where Y: "e\<^sub>g = Var\<^sub>g y z \<and> map_from_env \<Delta>\<^sub>g (y, z) = Some x" by auto
@@ -688,43 +697,44 @@ proof (induction "combine_state \<Sigma>\<^sub>g" \<Sigma>\<^sub>c' rule: eval\<
   with S Y show ?case by blast
 next
   case (ev\<^sub>c_con s\<^sub>c \<Delta>\<^sub>c n)
-  then obtain s\<^sub>g \<Delta>\<^sub>g where "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Const\<^sub>g n) \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g" 
-    by blast
+  then obtain s\<^sub>g \<Delta>\<^sub>g m where "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Const\<^sub>g n) \<and> combine_stack' s\<^sub>g = (s\<^sub>c, m) \<and> 
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g" by blast
   moreover hence "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Const\<^sub>g n) \<leadsto>\<^sub>g SC\<^sub>g s\<^sub>g (Num\<^sub>g n) \<and> 
     SC\<^sub>c s\<^sub>c (Const\<^sub>c n) = combine_state (SC\<^sub>g s\<^sub>g (Num\<^sub>g n))" by simp
   ultimately show ?case by blast
 next
   case (ev\<^sub>c_lam s\<^sub>c \<Delta>\<^sub>c t e\<^sub>c)
-  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
-    Lam\<^sub>d t e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>g" by auto
+  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g m where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> combine_stack' s\<^sub>g = (s\<^sub>c, m) \<and> 
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> Lam\<^sub>d t e\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) m e\<^sub>g" by auto
   moreover then obtain e\<^sub>g' n where "e\<^sub>g = Lam\<^sub>g t e\<^sub>g' n \<and> 
-    e\<^sub>c = combine_vars' (inv_map_past_lam (map_from_env \<Delta>\<^sub>g)) 0 e\<^sub>g'" by auto
+    e\<^sub>c = combine_vars' (inv_map_past_lam (map_from_env \<Delta>\<^sub>g)) (Suc 0) e\<^sub>g'" by auto
   moreover with S have "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Lam\<^sub>g t e\<^sub>g' n) \<leadsto>\<^sub>g SC\<^sub>g s\<^sub>g (Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g' n) \<and> 
     SC\<^sub>c s\<^sub>c (Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c) = combine_state (SC\<^sub>g s\<^sub>g (Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g' n))" by simp
   ultimately show ?case by blast
 next
   case (ev\<^sub>c_app s\<^sub>c \<Delta>\<^sub>c e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c)
-  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> s\<^sub>c = combine_stack s\<^sub>g \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
-    App\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>g" by auto
+  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g n where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> combine_stack' s\<^sub>g = (s\<^sub>c, n) \<and> 
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> App\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) n e\<^sub>g" by auto
   moreover then obtain e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g where "e\<^sub>g = App\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> 
-    e\<^sub>1\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>1\<^sub>g \<and> e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>2\<^sub>g" 
+    e\<^sub>1\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) n e\<^sub>1\<^sub>g \<and> e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) n e\<^sub>2\<^sub>g" 
       by auto
   moreover with S have "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (App\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g) \<leadsto>\<^sub>g SE\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g \<and> 
     SE\<^sub>c (FApp1\<^sub>c \<Delta>\<^sub>c e\<^sub>2\<^sub>c # s\<^sub>c) \<Delta>\<^sub>c e\<^sub>1\<^sub>c = combine_state (SE\<^sub>g (FApp1\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g)" by simp
   ultimately show ?case by blast
 next
   case (ev\<^sub>c_let \<Delta>\<^sub>c s\<^sub>c e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c)
-  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g \<and> 
-    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> Let\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>g" by blast
-  moreover then obtain \<Delta>\<^sub>g' s\<^sub>g' where S': "s\<^sub>g = FReturn\<^sub>g \<Delta>\<^sub>g' # s\<^sub>g'" by blast
-  moreover from S obtain e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g where E: "e\<^sub>g = Let\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> 
-    e\<^sub>1\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) 0 e\<^sub>1\<^sub>g \<and> 
-      e\<^sub>2\<^sub>c = combine_vars' (inv_map_past_let (map_from_env \<Delta>\<^sub>g) 0) (Suc 0) e\<^sub>2\<^sub>g" by auto
+  then obtain s\<^sub>g \<Delta>\<^sub>g e\<^sub>g n where S: "\<Sigma>\<^sub>g = SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> combine_stack' s\<^sub>g = (FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c, n) \<and> 
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> Let\<^sub>d e\<^sub>1\<^sub>c e\<^sub>2\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) n e\<^sub>g" by blast
+  moreover then obtain m \<Delta>\<^sub>g' s\<^sub>g' where S': "s\<^sub>g = FReturn\<^sub>g \<Delta>\<^sub>g' # s\<^sub>g' \<and> combine_stack' s\<^sub>g' = (s\<^sub>c, m) \<and>
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g'" by blast
+  moreover from S obtain k e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g where E: "e\<^sub>g = Let\<^sub>g k e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g \<and> 
+    e\<^sub>1\<^sub>c = combine_vars' (map_from_env \<Delta>\<^sub>g) n e\<^sub>1\<^sub>g \<and> 
+      e\<^sub>2\<^sub>c = combine_vars' (inv_map_past_let (map_from_env \<Delta>\<^sub>g) n) (Suc n) e\<^sub>2\<^sub>g" by auto
   moreover from ev\<^sub>c_let S S' have "\<Delta>\<^sub>g' = \<Delta>\<^sub>g" by auto
-  moreover with S S' E have "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Let\<^sub>g e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g \<and> 
+  moreover with S S' E have "SE\<^sub>g s\<^sub>g \<Delta>\<^sub>g (Let\<^sub>g k e\<^sub>1\<^sub>g e\<^sub>2\<^sub>g) \<leadsto>\<^sub>g SE\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g \<and> 
     SE\<^sub>c (FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>2\<^sub>c # FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c) \<Delta>\<^sub>c e\<^sub>1\<^sub>c = combine_state (SE\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>2\<^sub>g # s\<^sub>g) \<Delta>\<^sub>g e\<^sub>1\<^sub>g)" 
       by simp
-  ultimately show ?case by blastx
+  ultimately show ?case by blast
 next
   case (ret\<^sub>c_app1 \<Delta>\<^sub>c e\<^sub>c s\<^sub>c c\<^sub>c)
   then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> FApp1\<^sub>c \<Delta>\<^sub>c e\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g' \<and> 
@@ -736,51 +746,43 @@ next
   ultimately show ?case by blast
 next
   case (ret\<^sub>c_app2 t \<Delta>\<^sub>c e\<^sub>c s\<^sub>c c\<^sub>c)
-  then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> FApp2\<^sub>c (Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c) # s\<^sub>c = combine_stack s\<^sub>g' \<and> 
-    c\<^sub>c = combine_closure c\<^sub>g" by blast
-  moreover then obtain n s\<^sub>g c\<^sub>g where F: "s\<^sub>g' = FApp2\<^sub>g c\<^sub>g # s\<^sub>g \<and> combine_stack' s\<^sub>g = (s\<^sub>c, n) \<and> 
+  then obtain s\<^sub>g' c\<^sub>g' where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g' \<and> FApp2\<^sub>c (Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c) # s\<^sub>c = combine_stack s\<^sub>g' \<and> 
+    c\<^sub>c = combine_closure c\<^sub>g'" by blast
+  moreover then obtain m s\<^sub>g c\<^sub>g where F: "s\<^sub>g' = FApp2\<^sub>g c\<^sub>g # s\<^sub>g \<and> combine_stack' s\<^sub>g = (s\<^sub>c, m) \<and> 
     Lam\<^sub>c t \<Delta>\<^sub>c e\<^sub>c = combine_closure c\<^sub>g" by blast
   moreover then obtain \<Delta>\<^sub>g e\<^sub>g n where "c\<^sub>g = Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g n \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
     e\<^sub>c = combine_vars' (inv_map_past_lam (map_from_env \<Delta>\<^sub>g)) (Suc 0) e\<^sub>g" by blast
-  moreover with S F have "SC\<^sub>g (FApp2\<^sub>g (Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g n) # s\<^sub>g) c\<^sub>g \<leadsto>\<^sub>g 
-    SE\<^sub>g (FReturn\<^sub>g ([c\<^sub>g] # \<Delta>\<^sub>g) # s\<^sub>g) ([c\<^sub>g] # \<Delta>\<^sub>g) e\<^sub>g \<and> 
+  moreover with S F have "SC\<^sub>g (FApp2\<^sub>g (Fun\<^sub>g t \<Delta>\<^sub>g e\<^sub>g n) # s\<^sub>g) c\<^sub>g' \<leadsto>\<^sub>g 
+    SE\<^sub>g (FReturn\<^sub>g ([c\<^sub>g'] # \<Delta>\<^sub>g) # s\<^sub>g) ([c\<^sub>g'] # \<Delta>\<^sub>g) e\<^sub>g \<and> 
     SE\<^sub>c (FReturn\<^sub>c (c\<^sub>c # \<Delta>\<^sub>c) # s\<^sub>c) (c\<^sub>c # \<Delta>\<^sub>c) e\<^sub>c = 
-      combine_state (SE\<^sub>g (FReturn\<^sub>g ([c\<^sub>g] # \<Delta>\<^sub>g) # s\<^sub>g) ([c\<^sub>g] # \<Delta>\<^sub>g) e\<^sub>g)" by simp
-  ultimately show ?case by blastx
+      combine_state (SE\<^sub>g (FReturn\<^sub>g ([c\<^sub>g'] # \<Delta>\<^sub>g) # s\<^sub>g) ([c\<^sub>g'] # \<Delta>\<^sub>g) e\<^sub>g)" by simp
+  ultimately show ?case by blast
 next
   case (ret\<^sub>c_let \<Delta>\<^sub>c e\<^sub>c s\<^sub>c c\<^sub>c)
-  then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> 
-    FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>c # FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = map combine_frame s\<^sub>g' \<and> c\<^sub>c = combine_closure c\<^sub>g" by blastx
-  moreover then obtain f\<^sub>g \<Delta>\<^sub>g' s\<^sub>g where F: "FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>c = combine_frame f\<^sub>g \<and> 
-    s\<^sub>c = map combine_frame s\<^sub>g \<and> \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g') \<and> 
-      s\<^sub>g' = f\<^sub>g # FReturn\<^sub>g \<Delta>\<^sub>g' # s\<^sub>g" by blast
-  moreover then obtain \<Delta>\<^sub>g e\<^sub>g where E: "f\<^sub>g = FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>g \<and> 
-    \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g) \<and> 
-      e\<^sub>c = combine_vars' (inv_map_past_let (map_from_env \<Delta>\<^sub>g)) e\<^sub>g" by blast
-  moreover from ret\<^sub>c_let S F E have "latest_environment\<^sub>g (FReturn\<^sub>g \<Delta>\<^sub>g' # s\<^sub>g) = Some \<Delta>\<^sub>g" by blast
-  moreover hence G: "\<Delta>\<^sub>g' = \<Delta>\<^sub>g" by simp
-  moreover have "insert_at 0 (combine_closure c\<^sub>g) (concat (map (map combine_closure) \<Delta>\<^sub>g)) = 
-    combine_closure c\<^sub>g # concat (map (map combine_closure) \<Delta>\<^sub>g)" 
-  proof (induction \<Delta>\<^sub>g)
-    case (Cons cs \<Delta>)
-    thus ?case by (cases cs) simp_all
-  qed simp_all
-  moreover with S F E G have "SC\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>g # FReturn\<^sub>g \<Delta>\<^sub>g' # s\<^sub>g) c\<^sub>g \<leadsto>\<^sub>g 
-    SE\<^sub>g (FReturn\<^sub>g (snoc_fst c\<^sub>g \<Delta>\<^sub>g') # s\<^sub>g) (snoc_fst c\<^sub>g \<Delta>\<^sub>g) e\<^sub>g \<and> 
+  then obtain s\<^sub>g c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g c\<^sub>g \<and> FLet\<^sub>c \<Delta>\<^sub>c e\<^sub>c # FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g \<and> 
+    c\<^sub>c = combine_closure c\<^sub>g" by auto
+  then obtain n s\<^sub>g' \<Delta>\<^sub>g e\<^sub>g where N: "s\<^sub>g = FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>g # s\<^sub>g' \<and> 
+    combine_stack' s\<^sub>g' = (FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c, n) \<and> \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g \<and> 
+    e\<^sub>c = combine_vars' (inv_map_past_let (map_from_env \<Delta>\<^sub>g) n) (Suc n) e\<^sub>g" by auto
+  then obtain m s\<^sub>g'' \<Delta>\<^sub>g' where M: "s\<^sub>g' = FReturn\<^sub>g \<Delta>\<^sub>g' # s\<^sub>g'' \<and> combine_stack' s\<^sub>g'' = (s\<^sub>c, m) \<and> 
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g'" by auto
+  from N M have L: "n = length (hd \<Delta>\<^sub>g')" by simp
+  from ret\<^sub>c_let S N M obtain t\<^sub>1 where "(FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>g # FReturn\<^sub>g \<Delta>\<^sub>g' # s\<^sub>g'' :\<^sub>g t\<^sub>1 \<rightarrow> t)" by blast
+  hence G: "\<Delta>\<^sub>g' = \<Delta>\<^sub>g \<and> \<Delta>\<^sub>g \<noteq> []" by fastforce
+  with L obtain ts where "lookup \<Delta>\<^sub>g 0 = Some ts \<and> n = length ts" by (cases \<Delta>\<^sub>g) simp_all
+  with S N M G have "SC\<^sub>g (FLet\<^sub>g \<Delta>\<^sub>g e\<^sub>g # FReturn\<^sub>g \<Delta>\<^sub>g # s\<^sub>g'') c\<^sub>g \<leadsto>\<^sub>g 
+    SE\<^sub>g (FReturn\<^sub>g (snoc_fst c\<^sub>g \<Delta>\<^sub>g) # s\<^sub>g'') (snoc_fst c\<^sub>g \<Delta>\<^sub>g) e\<^sub>g \<and> 
     SE\<^sub>c (FReturn\<^sub>c (c\<^sub>c # \<Delta>\<^sub>c) # s\<^sub>c) (c\<^sub>c # \<Delta>\<^sub>c) e\<^sub>c = 
-      combine_state (SE\<^sub>g (FReturn\<^sub>g (snoc_fst c\<^sub>g \<Delta>\<^sub>g') # s\<^sub>g) (snoc_fst c\<^sub>g \<Delta>\<^sub>g) e\<^sub>g)" 
-    by simp
-  ultimately show ?case by blastx
+    combine_state (SE\<^sub>g (FReturn\<^sub>g (snoc_fst c\<^sub>g \<Delta>\<^sub>g) # s\<^sub>g'') (snoc_fst c\<^sub>g \<Delta>\<^sub>g) e\<^sub>g)" by simp
+  with S N M G show ?case by blast
 next
   case (ret\<^sub>c_ret \<Delta>\<^sub>c s\<^sub>c c\<^sub>c)
-  then obtain s\<^sub>g' c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = map combine_frame s\<^sub>g' \<and> 
-    c\<^sub>c = combine_closure c\<^sub>g" by blastx
-  moreover then obtain f\<^sub>g s\<^sub>g where F: "FReturn\<^sub>c \<Delta>\<^sub>c = combine_frame f\<^sub>g \<and> 
-    s\<^sub>c = map combine_frame s\<^sub>g \<and> s\<^sub>g' = f\<^sub>g # s\<^sub>g" by blast
-  moreover then obtain \<Delta>\<^sub>g where "f\<^sub>g = FReturn\<^sub>g \<Delta>\<^sub>g \<and> \<Delta>\<^sub>c = concat (map (map combine_closure) \<Delta>\<^sub>g)" 
-    by blast
-  moreover with S F have "SC\<^sub>g (FReturn\<^sub>g \<Delta>\<^sub>g # s\<^sub>g) c\<^sub>g \<leadsto>\<^sub>g SC\<^sub>g s\<^sub>g c\<^sub>g \<and> 
-    SC\<^sub>c s\<^sub>c c\<^sub>c = combine_state (SC\<^sub>g s\<^sub>g c\<^sub>g)" by simp
+  then obtain s\<^sub>g c\<^sub>g where S: "\<Sigma>\<^sub>g = SC\<^sub>g s\<^sub>g c\<^sub>g \<and> FReturn\<^sub>c \<Delta>\<^sub>c # s\<^sub>c = combine_stack s\<^sub>g \<and> 
+    c\<^sub>c = combine_closure c\<^sub>g" by auto
+  moreover then obtain n s\<^sub>g' \<Delta>\<^sub>g where "s\<^sub>g = FReturn\<^sub>g \<Delta>\<^sub>g # s\<^sub>g' \<and> combine_stack' s\<^sub>g' = (s\<^sub>c, n) \<and> 
+    \<Delta>\<^sub>c = combine_env \<Delta>\<^sub>g" by auto
+  moreover with S have "SC\<^sub>g (FReturn\<^sub>g \<Delta>\<^sub>g # s\<^sub>g') c\<^sub>g \<leadsto>\<^sub>g SC\<^sub>g s\<^sub>g' c\<^sub>g \<and> 
+    SC\<^sub>c s\<^sub>c c\<^sub>c = combine_state (SC\<^sub>g s\<^sub>g' c\<^sub>g)" by simp
   ultimately show ?case by blast
 qed
 
