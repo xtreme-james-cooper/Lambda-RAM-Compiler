@@ -273,25 +273,21 @@ next
     chained_stack \<C> \<Delta>\<^sub>v ((Suc p\<^sub>\<Delta>, n # ns, Suc p\<^sub>\<C>) # s\<^sub>v)" by simp
 
 
+  have "heap_all (\<lambda>p v. not_on_env_path_closure \<Delta>\<^sub>v v p\<^sub>\<Delta> n) h\<^sub>v" by simp
+  hence A: "not_on_env_path_closures \<Delta>\<^sub>v h\<^sub>v p\<^sub>\<Delta> n" by simp
+
+
+  have B: "not_on_env_path \<Delta>\<^sub>v p\<^sub>\<Delta>' ns p\<^sub>\<Delta> n" by simp
+
+
   have "list_all (\<lambda>f. not_on_env_path_frame \<Delta>\<^sub>v f p\<^sub>\<Delta> n) s\<^sub>v" by simp
-  hence A: "not_on_env_path_stack \<Delta>\<^sub>v s\<^sub>v p\<^sub>\<Delta> n" by simp
-
-
-  have B: "not_on_env_path_closures \<Delta>\<^sub>v h\<^sub>v p\<^sub>\<Delta> n" by simp
-
-
-  have C: "not_on_env_path \<Delta>\<^sub>v p\<^sub>\<Delta>' ns p\<^sub>\<Delta> n" by simp
-
-  from ev\<^sub>v_pushenv have "not_on_env_path_stack \<Delta>\<^sub>v ((Suc p\<^sub>\<Delta>, n # ns, Suc p\<^sub>\<C>) # s\<^sub>v) p\<^sub>\<Delta> n = 
-    not_on_env_path_stack \<Delta>\<^sub>v s\<^sub>v p\<^sub>\<Delta> n" by simp
-
-  from ev\<^sub>v_pushenv A have X: "unchain_stack (hupdate \<Delta>\<^sub>v p\<^sub>\<Delta> (vs[n := v], p\<^sub>\<Delta>')) s\<^sub>v = 
+  with ev\<^sub>v_pushenv have C: "unchain_stack (hupdate \<Delta>\<^sub>v p\<^sub>\<Delta> (vs[n := v], p\<^sub>\<Delta>')) s\<^sub>v = 
     unchain_stack \<Delta>\<^sub>v s\<^sub>v" by (simp del: map_eq_conv) fastforce
   from ev\<^sub>v_pushenv have "\<C> \<tturnstile> S\<^sub>h (unchain_heap h\<^sub>v \<Delta>\<^sub>v) (v # \<V>) 
     ((take n vs # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>' ns, Suc p\<^sub>\<C>) # unchain_stack \<Delta>\<^sub>v s\<^sub>v) \<leadsto>\<^sub>h 
       S\<^sub>h (unchain_heap h\<^sub>v \<Delta>\<^sub>v) \<V> ((snoc_fst v (take n vs # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>' ns), p\<^sub>\<C>) # 
         unchain_stack \<Delta>\<^sub>v s\<^sub>v)" by (metis eval\<^sub>h.ev\<^sub>h_pushenv)
-  with ev\<^sub>v_pushenv B C X show ?case by (simp del: map_eq_conv)
+  with ev\<^sub>v_pushenv A B C show ?case by (simp del: map_eq_conv)
 next
   case (ev\<^sub>v_jump \<C> p\<^sub>\<C> h\<^sub>v v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' ns' \<Delta>\<^sub>v v\<^sub>1 \<Delta>\<^sub>v' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> ns s\<^sub>v)
   moreover hence "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' ns')" using hlookup_all by fastforce
@@ -342,16 +338,17 @@ next
     (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
     s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by auto
-  then obtain p\<^sub>\<Delta> where P: "f\<^sub>v = (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by (cases f\<^sub>v) simp_all
+  then obtain p\<^sub>\<Delta> ns where P: "f\<^sub>v = (p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta> ns" 
+    by (cases f\<^sub>v) simp_all
   from ev\<^sub>h_pushcon S have "halloc (hmap (unchain_closure \<Delta>\<^sub>v) h\<^sub>v) (unchain_closure \<Delta>\<^sub>v (Const\<^sub>v n)) = 
     (h\<^sub>h', v)" by simp
   then obtain h\<^sub>v' where H: "halloc h\<^sub>v (Const\<^sub>v n) = (h\<^sub>v', v) \<and> h\<^sub>h' = hmap (unchain_closure \<Delta>\<^sub>v) h\<^sub>v'" 
     by (metis halloc_map_inv)
   hence "h\<^sub>h' = unchain_heap h\<^sub>v' \<Delta>\<^sub>v" by simp
   with SF P have X: "S\<^sub>h h\<^sub>h' (v # \<V>) ((\<Delta>\<^sub>h, p\<^sub>\<C>) # s\<^sub>h) = 
-    unchain_state (S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v))" by simp
-  from ev\<^sub>h_pushcon H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v)" 
-    by simp
+    unchain_state (S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s\<^sub>v))" by simp
+  from ev\<^sub>h_pushcon H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> ((p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
+    S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s\<^sub>v)" by simp
   with S SF P X show ?case by blast
 next
   case (ev\<^sub>h_pushlam \<C> p\<^sub>\<C> p\<^sub>\<C>' h\<^sub>h \<Delta>\<^sub>h h\<^sub>h' v \<V> s\<^sub>h)
@@ -359,16 +356,17 @@ next
     (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
     s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by auto
-  then obtain p\<^sub>\<Delta> where P: "f\<^sub>v = (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by (cases f\<^sub>v) simp_all
+  then obtain p\<^sub>\<Delta> ns where P: "f\<^sub>v = (p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta> ns" 
+    by (cases f\<^sub>v) simp_all
   with ev\<^sub>h_pushlam S have "halloc (hmap (unchain_closure \<Delta>\<^sub>v) h\<^sub>v) 
-    (unchain_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>')) = (h\<^sub>h', v)" by simp
-  then obtain h\<^sub>v' where H: "halloc h\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>') = (h\<^sub>v', v) \<and> 
+    (unchain_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>' ns)) = (h\<^sub>h', v)" by simp
+  then obtain h\<^sub>v' where H: "halloc h\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C>' ns) = (h\<^sub>v', v) \<and> 
     h\<^sub>h' = hmap (unchain_closure \<Delta>\<^sub>v) h\<^sub>v'" by (metis halloc_map_inv)
   hence "h\<^sub>h' = unchain_heap h\<^sub>v' \<Delta>\<^sub>v" by simp
   with SF P have X: "S\<^sub>h h\<^sub>h' (v # \<V>) ((\<Delta>\<^sub>h, p\<^sub>\<C>) # s\<^sub>h) = 
-    unchain_state (S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v))" by simp
-  from ev\<^sub>h_pushlam H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
-    S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v)" by simp
+    unchain_state (S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s\<^sub>v))" by simp
+  from ev\<^sub>h_pushlam H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> ((p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
+    S\<^sub>v h\<^sub>v' \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s\<^sub>v)" by simp
   with S SF P X show ?case by blast
 next
   case (ev\<^sub>h_alloc \<C> p n h \<V> \<Delta> s)
@@ -379,62 +377,44 @@ next
     h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
     s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by auto
-  then obtain p\<^sub>\<Delta> where P: "f\<^sub>v = (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by (cases f\<^sub>v) simp_all
+  then obtain p\<^sub>\<Delta> ns where P: "f\<^sub>v = (p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta> ns" 
+    by (cases f\<^sub>v) simp_all
   from ev\<^sub>h_apply S have "Lam\<^sub>h \<Delta>\<^sub>h' p\<^sub>\<C>' = unchain_closure \<Delta>\<^sub>v (hlookup h\<^sub>v v\<^sub>2)" by simp
-  then obtain p\<^sub>\<Delta>' where P': "hlookup h\<^sub>v v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' \<and> \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" by blast
+  then obtain p\<^sub>\<Delta>' ns' where P': "hlookup h\<^sub>v v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' ns' \<and> \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>' ns'" 
+    by blast
   obtain \<Delta>\<^sub>v' p\<^sub>\<Delta>'' where H: "halloc \<Delta>\<^sub>v ([v\<^sub>1], p\<^sub>\<Delta>') = (\<Delta>\<^sub>v', p\<^sub>\<Delta>'')" 
     by (cases "halloc \<Delta>\<^sub>v ([v\<^sub>1], p\<^sub>\<Delta>')") simp_all
   from ev\<^sub>h_apply S SF P have C: "chain_structured h\<^sub>v \<Delta>\<^sub>v \<and> chained_closures \<Delta>\<^sub>v h\<^sub>v \<and>
-    hcontains h\<^sub>v v\<^sub>1 \<and> hcontains h\<^sub>v v\<^sub>2 \<and> chained_vals h\<^sub>v \<V> \<and> chained_frame \<Delta>\<^sub>v (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> 
-      chained_stack \<Delta>\<^sub>v s\<^sub>v" by simp
+    hcontains h\<^sub>v v\<^sub>1 \<and> hcontains h\<^sub>v v\<^sub>2 \<and> chained_vals h\<^sub>v \<V> \<and> chained_frame \<C> \<Delta>\<^sub>v (p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) \<and> 
+      chained_stack \<C> \<Delta>\<^sub>v s\<^sub>v" by simp
   with H have Y: "unchain_heap h\<^sub>v \<Delta>\<^sub>v' = unchain_heap h\<^sub>v \<Delta>\<^sub>v" by fast
   from H C have "unchain_env \<Delta>\<^sub>v' p\<^sub>\<Delta> = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by fastforce
-  with P have W: "\<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v' p\<^sub>\<Delta>" by metis
-  from P' C have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>')" by (metis hlookup_all)
+  with P have W: "\<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v' p\<^sub>\<Delta> ns" by metis
+  from P' C have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' ns')" by (metis hlookup_all)
   hence "chained_heap_pointer \<Delta>\<^sub>v p\<^sub>\<Delta>'" by auto
-  with H C have "unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') = [v\<^sub>1] # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" 
-    by (metis unfold_unstack_list)
-  with H P' have Z: "[v\<^sub>1] # \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'')" by simp
+  with H C have "unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') ns = [v\<^sub>1] # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>' ns'" 
+    by (metisx unfold_unstack_list)
+  with H P' have Z: "[v\<^sub>1] # \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') ns" by simp
   from H C have "unchain_stack \<Delta>\<^sub>v' s\<^sub>v = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by fast
   with SF have "s\<^sub>h = unchain_stack \<Delta>\<^sub>v' s\<^sub>v" by simp
   with S Y Z W have X: "S\<^sub>h h\<^sub>h \<V> (([v\<^sub>1] # \<Delta>\<^sub>h', p\<^sub>\<C>') # (\<Delta>\<^sub>h, p\<^sub>\<C>) # s\<^sub>h) = 
-    unchain_state (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V> ((Suc p\<^sub>\<Delta>'', p\<^sub>\<C>') # (p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v))" by simp
-  from ev\<^sub>h_apply P' H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
-      S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V> ((Suc p\<^sub>\<Delta>'', p\<^sub>\<C>') # (p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v)" by simp
+    unchain_state (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V> ((Suc p\<^sub>\<Delta>'', ns', p\<^sub>\<C>') # (p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s\<^sub>v))" by simp
+  from ev\<^sub>h_apply P' H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
+      S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V> ((Suc p\<^sub>\<Delta>'', ns', p\<^sub>\<C>') # (p\<^sub>\<Delta>, ns, p\<^sub>\<C>) # s\<^sub>v)" by simp
   with S SF P X show ?case by blast
 next
   case (ev\<^sub>h_pushenv \<C> p\<^sub>\<C> h\<^sub>h v \<V> \<Delta>\<^sub>h s\<^sub>h)
-  then obtain h\<^sub>v \<Delta>\<^sub>v s\<^sub>v' where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v # \<V>) s\<^sub>v' \<and> h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> 
-    (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
-  then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
-    s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by auto
-  then obtain p\<^sub>\<Delta> where P: "f\<^sub>v = (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by (cases f\<^sub>v) simp_all
-
-  obtain vs p\<^sub>\<Delta>' where H: "hlookup \<Delta>\<^sub>v p\<^sub>\<Delta> = (vs, p\<^sub>\<Delta>')" by fastforce
-
-  from ev\<^sub>h_pushenv H have X: "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v # \<V>) ((Suc p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
-      S\<^sub>v h\<^sub>v (hupdate \<Delta>\<^sub>v p\<^sub>\<Delta> (vs @ [v], p\<^sub>\<Delta>')) \<V> ((Suc p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v)" by simp
-
-  have Y: "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v # \<V>) ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
-    S\<^sub>v h\<^sub>v (hupdate \<Delta>\<^sub>v p\<^sub>\<Delta> (vs @ [v], p\<^sub>\<Delta>')) \<V> ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v)" by simp
-
-
-  have "S\<^sub>h h\<^sub>h \<V> ((snoc_fst v \<Delta>\<^sub>h, p\<^sub>\<C>) # s\<^sub>h) =
-    S\<^sub>h (unchain_heap h\<^sub>v (hupdate \<Delta>\<^sub>v p\<^sub>\<Delta> (vs @ [v], p\<^sub>\<Delta>'))) \<V>
-     (unchain_stack (hupdate \<Delta>\<^sub>v p\<^sub>\<Delta> (vs @ [v], p\<^sub>\<Delta>')) ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v))" by simp
-  have "S\<^sub>h h\<^sub>h \<V> ((snoc_fst v \<Delta>\<^sub>h, p\<^sub>\<C>) # s\<^sub>h) = 
-    unchain_state (S\<^sub>v h\<^sub>v (hupdate \<Delta>\<^sub>v p\<^sub>\<Delta> (vs @ [v], p\<^sub>\<Delta>')) \<V> ((p\<^sub>\<Delta>, p\<^sub>\<C>) # s\<^sub>v))" 
-      by (simp only: unchain_state.simps)
-  with S SF P Y show ?case by blast
+  then show ?case by blast
 next
   case (ev\<^sub>h_return \<C> p\<^sub>\<C> h\<^sub>h \<V> \<Delta>\<^sub>h s\<^sub>h)
   then obtain h\<^sub>v \<Delta>\<^sub>v s\<^sub>v' where S: "\<Sigma>\<^sub>v = S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> s\<^sub>v' \<and> h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> 
     (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
     s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by auto
-  then obtain p\<^sub>\<Delta> where P: "f\<^sub>v = (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by (cases f\<^sub>v) simp_all
+  then obtain p\<^sub>\<Delta> ns where P: "f\<^sub>v = (p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta> ns" 
+    by (cases f\<^sub>v) simp_all
   from S SF have X: "S\<^sub>h h\<^sub>h \<V> s\<^sub>h = unchain_state (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> s\<^sub>v)" by simp
-  from ev\<^sub>h_return have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> s\<^sub>v" by simp
+  from ev\<^sub>h_return have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> ((p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v S\<^sub>v h\<^sub>v \<Delta>\<^sub>v \<V> s\<^sub>v" by simp
   with S SF P X show ?case by blast
 next
   case (ev\<^sub>h_jump \<C> p\<^sub>\<C> h\<^sub>h v\<^sub>2 \<Delta>\<^sub>h' p\<^sub>\<C>' v\<^sub>1 \<V> \<Delta>\<^sub>h s\<^sub>h)
@@ -442,26 +422,28 @@ next
     h\<^sub>h = unchain_heap h\<^sub>v \<Delta>\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) # s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v'" by fastforce
   then obtain f\<^sub>v s\<^sub>v where SF: "s\<^sub>v' = f\<^sub>v # s\<^sub>v \<and> (\<Delta>\<^sub>h, Suc p\<^sub>\<C>) = unchain_frame \<Delta>\<^sub>v f\<^sub>v \<and> 
     s\<^sub>h = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by auto
-  then obtain p\<^sub>\<Delta> where P: "f\<^sub>v = (p\<^sub>\<Delta>, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>" by (cases f\<^sub>v) simp_all
+  then obtain p\<^sub>\<Delta> ns where P: "f\<^sub>v = (p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) \<and> \<Delta>\<^sub>h = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta> ns" 
+    by (cases f\<^sub>v) simp_all
   from ev\<^sub>h_jump S have "Lam\<^sub>h \<Delta>\<^sub>h' p\<^sub>\<C>' = unchain_closure \<Delta>\<^sub>v (hlookup h\<^sub>v v\<^sub>2)" by simp
-  then obtain p\<^sub>\<Delta>' where P': "hlookup h\<^sub>v v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' \<and> \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" by blast
+  then obtain p\<^sub>\<Delta>' ns' where P': "hlookup h\<^sub>v v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' ns' \<and> \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>' ns'" 
+    by blast
   obtain \<Delta>\<^sub>v' p\<^sub>\<Delta>'' where H: "halloc \<Delta>\<^sub>v ([v\<^sub>1], p\<^sub>\<Delta>') = (\<Delta>\<^sub>v', p\<^sub>\<Delta>'')" 
     by (cases "halloc \<Delta>\<^sub>v ([v\<^sub>1], p\<^sub>\<Delta>')") simp_all
   from ev\<^sub>h_jump S SF P have C: "chain_structured h\<^sub>v \<Delta>\<^sub>v \<and> chained_closures \<Delta>\<^sub>v h\<^sub>v \<and>
     hcontains h\<^sub>v v\<^sub>1 \<and> hcontains h\<^sub>v v\<^sub>2 \<and> chained_vals h\<^sub>v \<V> \<and> chained_heap_pointer \<Delta>\<^sub>v p\<^sub>\<Delta> \<and> 
-      chained_stack \<Delta>\<^sub>v s\<^sub>v" by simp
+      chained_stack \<C> \<Delta>\<^sub>v s\<^sub>v" by simp
   with H have Y: "unchain_heap h\<^sub>v \<Delta>\<^sub>v' = unchain_heap h\<^sub>v \<Delta>\<^sub>v" by fast
-  from P' C have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>')" by (metis hlookup_all)
+  from P' C have "chained_closure \<Delta>\<^sub>v (Lam\<^sub>v p\<^sub>\<Delta>' p\<^sub>\<C>' ns')" by (metis hlookup_all)
   hence "chained_heap_pointer \<Delta>\<^sub>v p\<^sub>\<Delta>'" by simp
-  with H C have "unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') = [v\<^sub>1] # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>'" 
-    by (metis unfold_unstack_list)
-  with H P' have Z: "[v\<^sub>1] # \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'')" by simp
+  with H C have "unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') ns = [v\<^sub>1] # unchain_env \<Delta>\<^sub>v p\<^sub>\<Delta>' ns" 
+    by (metisx unfold_unstack_list)
+  with H P' have Z: "[v\<^sub>1] # \<Delta>\<^sub>h' = unchain_env \<Delta>\<^sub>v' (Suc p\<^sub>\<Delta>'') ns" by simp
   from H C have "unchain_stack \<Delta>\<^sub>v' s\<^sub>v = unchain_stack \<Delta>\<^sub>v s\<^sub>v" by fast
   with SF have "s\<^sub>h = unchain_stack \<Delta>\<^sub>v' s\<^sub>v" by simp
   with S Y Z have X: "S\<^sub>h h\<^sub>h \<V> (([v\<^sub>1] # \<Delta>\<^sub>h', p\<^sub>\<C>') # s\<^sub>h) = 
-    unchain_state (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V> ((Suc p\<^sub>\<Delta>'', p\<^sub>\<C>') # s\<^sub>v))" by simp
-  from ev\<^sub>h_jump P' H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
-      S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V> ((Suc p\<^sub>\<Delta>'', p\<^sub>\<C>') # s\<^sub>v)" by simp
+    unchain_state (S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V> ((Suc p\<^sub>\<Delta>'', ns', p\<^sub>\<C>') # s\<^sub>v))" by simp
+  from ev\<^sub>h_jump P' H have "\<C> \<tturnstile> S\<^sub>v h\<^sub>v \<Delta>\<^sub>v (v\<^sub>1 # v\<^sub>2 # \<V>) ((p\<^sub>\<Delta>, ns, Suc p\<^sub>\<C>) # s\<^sub>v) \<leadsto>\<^sub>v 
+      S\<^sub>v h\<^sub>v \<Delta>\<^sub>v' \<V> ((Suc p\<^sub>\<Delta>'', ns', p\<^sub>\<C>') # s\<^sub>v)" by simp
   with S SF P X show ?case by blast
 qed
 
@@ -487,12 +469,12 @@ proof -
   ultimately show "chained_closures \<Delta>' h" by (metis heap_all_implication)
 qed
 
-lemma halloc_chained_frame [simp]: "halloc \<Delta> (v, p') = (\<Delta>', p) \<Longrightarrow> chained_frame \<Delta> f \<Longrightarrow> 
-    chained_frame \<Delta>' f"
+lemma halloc_chained_frame [simp]: "halloc \<Delta> (v, p') = (\<Delta>', p) \<Longrightarrow> chained_frame \<C> \<Delta> f \<Longrightarrow> 
+    chained_frame \<C> \<Delta>' f"
   by (induction f) simp_all
 
-lemma hallock_chained_stack [simp]: "halloc \<Delta> (v, p') = (\<Delta>', p) \<Longrightarrow> chained_stack \<Delta> s \<Longrightarrow> 
-    chained_stack \<Delta>' s"
+lemma hallock_chained_stack [simp]: "halloc \<Delta> (v, p') = (\<Delta>', p) \<Longrightarrow> chained_stack \<C> \<Delta> s \<Longrightarrow> 
+    chained_stack \<C> \<Delta>' s"
   by (induction s) simp_all
 
 lemma chained_hlookup_hcontains [elim]: "chain_structured h \<Delta> \<Longrightarrow> hcontains \<Delta> p \<Longrightarrow> 
@@ -549,7 +531,7 @@ proof -
   ultimately show ?thesis by auto
 qed
 
-lemma chain_structured_alloc_lam [simp]: "hcontains h v\<^sub>2 \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> \<Longrightarrow> 
+lemma chain_structured_alloc_lam [simp]: "hcontains h v\<^sub>2 \<Longrightarrow> hlookup h v\<^sub>2 = Lam\<^sub>v p\<^sub>\<Delta> p\<^sub>\<C> ns \<Longrightarrow> 
   chained_closures \<Delta> h \<Longrightarrow> hcontains h v\<^sub>1 \<Longrightarrow> halloc \<Delta> ([v\<^sub>1], p\<^sub>\<Delta>) = (\<Delta>', p\<^sub>\<Delta>') \<Longrightarrow> 
     chain_structured h \<Delta> \<Longrightarrow> chain_structured h \<Delta>'"
   using hlookup_all by fastforce
@@ -570,7 +552,7 @@ qed
 lemma chained_closure_update [simp]: "chained_closure (hupdate \<Delta> x v') v = chained_closure \<Delta> v"
   by (induction v) simp_all
 
-lemma chained_frame_update [simp]: "chained_frame (hupdate \<Delta> x v') f = chained_frame \<Delta> f"
+lemma chained_frame_update [simp]: "chained_frame \<C> (hupdate \<Delta> x v') f = chained_frame \<C> \<Delta> f"
   by (induction f) simp_all
 
 lemma eval_preserves_chained [simp]: "\<C> \<tturnstile> \<Sigma>\<^sub>v \<leadsto>\<^sub>v \<Sigma>\<^sub>v' \<Longrightarrow> chained_state \<C> \<Sigma>\<^sub>v \<Longrightarrow> chained_state \<C> \<Sigma>\<^sub>v'"
@@ -580,12 +562,12 @@ lemma preserve_chained [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>v) \<S
     chained_state \<C> \<Sigma>\<^sub>v'"
   by (induction \<Sigma>\<^sub>v \<Sigma>\<^sub>v' rule: iter.induct) simp_all
 
-lemma correct\<^sub>v_iter [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>h) (unchain_state \<Sigma>\<^sub>v) \<Sigma>\<^sub>h \<Longrightarrow> chained_state \<Sigma>\<^sub>v \<Longrightarrow> 
+lemma correct\<^sub>v_iter [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>h) (unchain_state \<Sigma>\<^sub>v) \<Sigma>\<^sub>h \<Longrightarrow> chained_state \<C> \<Sigma>\<^sub>v \<Longrightarrow> 
   \<exists>\<Sigma>\<^sub>v'. iter (\<tturnstile> \<C> \<leadsto>\<^sub>v) \<Sigma>\<^sub>v \<Sigma>\<^sub>v' \<and> \<Sigma>\<^sub>h = unchain_state \<Sigma>\<^sub>v'"
 proof (induction "unchain_state \<Sigma>\<^sub>v" \<Sigma>\<^sub>h arbitrary: \<Sigma>\<^sub>v rule: iter.induct)
   case (iter_step \<Sigma>\<^sub>h' \<Sigma>\<^sub>h'')
   moreover then obtain \<Sigma>\<^sub>v' where S: "(\<C> \<tturnstile> \<Sigma>\<^sub>v \<leadsto>\<^sub>v \<Sigma>\<^sub>v') \<and> \<Sigma>\<^sub>h' = unchain_state \<Sigma>\<^sub>v'" by fastforce
-  moreover with iter_step have "chained_state \<Sigma>\<^sub>v'" by (metis eval_preserves_chained)
+  moreover with iter_step have "chained_state \<C> \<Sigma>\<^sub>v'" by (metis eval_preserves_chained)
   ultimately obtain \<Sigma>\<^sub>v'' where "iter (\<tturnstile> \<C> \<leadsto>\<^sub>v) \<Sigma>\<^sub>v' \<Sigma>\<^sub>v'' \<and> \<Sigma>\<^sub>h'' = unchain_state \<Sigma>\<^sub>v''" by blast
   with S have "iter (\<tturnstile> \<C> \<leadsto>\<^sub>v) \<Sigma>\<^sub>v \<Sigma>\<^sub>v'' \<and> \<Sigma>\<^sub>h'' = unchain_state \<Sigma>\<^sub>v''" by fastforce
   then show ?case by fastforce
