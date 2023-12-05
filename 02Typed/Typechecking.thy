@@ -609,39 +609,55 @@ next
   from tc\<^sub>t_let have "subst_vars \<Gamma> \<subseteq> vs" by simp
   from tc\<^sub>t_let have "valid_ty_subst \<Gamma>" by simp
 
-  have V1: "?v \<notin> vs\<^sub>1" by simp
-  have V2: "?v \<notin> vs\<^sub>2" by simp
-  have V12: "vs\<^sub>1 \<inter> vs\<^sub>2 = {}" by simp
+
+  from tc\<^sub>t_let TC1 have "insert ?v vs \<inter> vs\<^sub>1 = {}" by simp
+  hence V1: "?v \<notin> vs\<^sub>1" by simp
+  from TC2 F2 have I: "insert ?v (vs \<union> vs\<^sub>1) \<inter> vs\<^sub>2 = {}" by simp
+  hence V2: "?v \<notin> vs\<^sub>2" by simp
+  from I have V12: "vs\<^sub>1 \<inter> vs\<^sub>2 = {}" by auto
+
 
 
   from TC2 F2 have "uvars \<tau>\<^sub>2 \<subseteq> vs\<^sub>2 \<union> subst_vars (\<Gamma>(x \<mapsto> Var ?v))" by (metis typecheck_type_vars)
 
 
-  let ?\<sigma> = "extend_subst ?v (to_unifiable t\<^sub>2) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2)"
+  let ?\<sigma> = "extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2)"
 
 
 
-  have A: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst ?\<sigma>) (Let\<^sub>s x e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2)) = 
-    map_expr\<^sub>s to_unifiable (Let\<^sub>s x e\<^sub>1 e\<^sub>2)" by simp
 
+  have X: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) (map_expr\<^sub>s (subst \<sigma>\<^sub>2) 
+    (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u\<^sub>1))) =
+      map_expr\<^sub>s (eliminate_vars (insert ?v vs)) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) e\<^sub>u\<^sub>1)" by simp
+
+
+  have "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) (map_expr\<^sub>s (subst \<sigma>\<^sub>2) 
+    (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u\<^sub>2))) =
+      map_expr\<^sub>s (eliminate_vars (insert ?v (vs \<union> vs\<^sub>1))) 
+        (map_expr\<^sub>s (subst \<sigma>\<^sub>2) (map_expr\<^sub>s (subst [?v \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1]) e\<^sub>u\<^sub>2))" by simp
+  with S1 S2 X have A: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst ?\<sigma>) (Let\<^sub>s x e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2)) = 
+    map_expr\<^sub>s to_unifiable (Let\<^sub>s x e\<^sub>1 e\<^sub>2)" by (simp add: expr\<^sub>s.map_comp comp_assoc)
+
+
+  from S1 have "eliminate_vars (insert ?v vs) (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) = to_unifiable t\<^sub>1" by simp
 
   from S2 have "eliminate_vars (insert ?v (vs \<union> vs\<^sub>1)) (subst \<sigma>\<^sub>2 (subst [?v \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1] \<tau>\<^sub>2)) = 
     to_unifiable t\<^sub>2" by simp
 
 
 
-  have "eliminate_vars vs (subst (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) (subst [?v \<mapsto> to_unifiable t\<^sub>2] \<tau>\<^sub>2)) = 
-    to_unifiable t\<^sub>2" 
-      by simp
-  with S2 have B: "eliminate_vars vs (subst ?\<sigma> \<tau>\<^sub>2) = to_unifiable t\<^sub>2" 
+
+  have "eliminate_vars vs (subst \<sigma>\<^sub>1 (subst \<sigma>\<^sub>2 (subst [?v \<mapsto> to_unifiable t\<^sub>1] \<tau>\<^sub>2))) =
+    to_unifiable t\<^sub>2" by simp
+  hence B: "eliminate_vars vs (subst ?\<sigma> \<tau>\<^sub>2) = to_unifiable t\<^sub>2" 
     by (simp add: expand_extend_subst)
   from S1 S2 have C: "dom ?\<sigma> = insert ?v (vs\<^sub>1 \<union> vs\<^sub>2)" by simp
   from S1 S2 V1 V2 V12 have D: "subst_vars ?\<sigma> = {}" by simp 
 
 
-  have "extend_subst ?v (to_unifiable t\<^sub>2) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>\<^sub>1 \<and>
-    extend_subst ?v (to_unifiable t\<^sub>2) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>\<^sub>2 \<and>
-    to_unifiable t\<^sub>2 = subst (extend_subst ?v (to_unifiable t\<^sub>2) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2)) (eliminate_vars vs \<tau>\<^sub>1)" 
+  have "extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>\<^sub>1 \<and>
+    extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>\<^sub>2 \<and>
+    to_unifiable t\<^sub>1 = subst (extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2)) (eliminate_vars vs \<tau>\<^sub>1)" 
       by simp
   with tc\<^sub>t_let have F: "?\<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr vs (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(Var ?v, \<tau>\<^sub>1)])" by simp 
   from S1 S2 have G: "valid_ty_subst ?\<sigma>" by simp

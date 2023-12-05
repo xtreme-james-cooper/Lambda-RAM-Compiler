@@ -228,7 +228,7 @@ proof (induction e)
   ultimately show ?case by auto
 qed auto
 
-lemma subst_conbine_subst_expr [simp]: "map_expr\<^sub>s (subst (combine_subst s t)) e = 
+lemma subst_combine_subst_expr [simp]: "map_expr\<^sub>s (subst (combine_subst s t)) e = 
     map_expr\<^sub>s (subst s) (map_expr\<^sub>s (subst t) e)"
   by (induction e) simp_all
 

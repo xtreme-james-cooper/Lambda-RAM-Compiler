@@ -208,10 +208,10 @@ next
   thus ?case by simp
 next
   case (ev\<^sub>v_pushenv \<C> p\<^sub>\<C> n \<Delta> p\<^sub>\<Delta> vs p\<^sub>\<Delta>' h v \<V> ns s)
-  thus ?case try0 by simp
+  thus ?case by simp
 next
   case (ev\<^sub>v_jump \<C> p\<^sub>\<C> h v\<^sub>2 p\<^sub>\<Delta>' p\<^sub>\<C>' ns' \<Delta> v\<^sub>1 \<Delta>' p\<^sub>\<Delta>'' \<V> p\<^sub>\<Delta> ns s)
-  thus ?case try0 by simp
+  thus ?case by simp
 qed auto
 
 lemma correct\<^sub>f_iter [simp]: "iter (\<tturnstile> \<C> \<leadsto>\<^sub>v) \<Sigma>\<^sub>v \<Sigma>\<^sub>v' \<Longrightarrow> chained_state \<C> \<Sigma>\<^sub>v \<Longrightarrow>
