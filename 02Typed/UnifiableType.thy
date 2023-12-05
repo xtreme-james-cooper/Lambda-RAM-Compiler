@@ -115,6 +115,10 @@ reconstruction to a larger expression. So we provide a set of variables to elimi
 definition eliminate_vars :: "var set \<Rightarrow> uterm \<Rightarrow> uterm" where
   "eliminate_vars vs \<equiv> subst (\<lambda>x. if x \<in> vs then Some Num\<^sub>\<tau> else None)"
 
+lemma uvars_eliminate_vars [simp]: "uvars (eliminate_vars vs \<tau>) = uvars \<tau> - vs"
+  and "uvarss (map (eliminate_vars vs) \<tau>s) = uvarss \<tau>s - vs"
+  by (induction \<tau> and \<tau>s rule: uvars_uvarss.induct) (auto simp add: eliminate_vars_def)
+
 lemma eliminate_no_vars [simp]: "eliminate_vars {} \<tau> = \<tau>"
   by (simp add: eliminate_vars_def)
 
@@ -148,6 +152,10 @@ lemma eliminate_vars_to_arrow [dest]: "eliminate_vars vs \<tau> = Arrow\<^sub>\<
     \<tau> = Arrow\<^sub>\<tau> \<tau>\<^sub>1' \<tau>\<^sub>2' \<and> eliminate_vars vs \<tau>\<^sub>1' = \<tau>\<^sub>1 \<and> eliminate_vars vs \<tau>\<^sub>2' = \<tau>\<^sub>2"
   by (induction \<tau>) (auto simp add: eliminate_vars_def split: if_splits)
 
+lemma eliminate_unused_vars [simp]: "vs \<inter> uvars \<tau> = {} \<Longrightarrow> eliminate_vars vs \<tau> = \<tau>"
+  and "vs \<inter> uvarss \<tau>s = {} \<Longrightarrow> map (eliminate_vars vs) \<tau>s = \<tau>s"
+  by (induction \<tau> and \<tau>s rule: uvars_uvarss.induct) auto
+
 lemma eliminate_vars_closed [simp]: "uvars \<tau> = {} \<Longrightarrow> eliminate_vars vs \<tau> = \<tau>"
   and "uvarss \<tau>s = {} \<Longrightarrow> map (eliminate_vars vs) \<tau>s = \<tau>s"
   by (induction \<tau> and \<tau>s rule: uvars_uvarss.induct) simp_all
@@ -165,6 +173,19 @@ proof (induction \<tau>)
   qed (simp_all add: eliminate_vars_def)
 qed simp_all
 
+lemma eliminate_subst_one [simp]: "v \<notin> vs \<Longrightarrow> 
+  eliminate_vars (insert v vs) (subst [v \<mapsto> \<tau>'] \<tau>) = 
+    subst [v \<mapsto> eliminate_vars (insert v vs) \<tau>'] (eliminate_vars vs \<tau>)"
+  by (induction \<tau>) simp_all
+
+lemma eliminate_subst_one': "v \<notin> vs \<Longrightarrow> 
+  eliminate_vars vs (subst [v \<mapsto> \<tau>'] \<tau>) = subst [v \<mapsto> eliminate_vars vs \<tau>'] (eliminate_vars vs \<tau>)"
+  by (induction \<tau>) simp_all
+
+lemma eliminate_vars_absorb [simp]: "eliminate_vars vs (eliminate_vars vs' \<tau>) = 
+    eliminate_vars (vs \<union> vs') \<tau>"
+  by (induction \<tau>) simp_all
+
 lemma eliminate_extra_union [simp]: "uvars \<tau> \<inter> vs' \<subseteq> vs \<Longrightarrow> 
     eliminate_vars (vs \<union> vs') \<tau> = eliminate_vars vs \<tau>"
   and "uvarss \<tau>s \<inter> vs' \<subseteq> vs \<Longrightarrow> 
@@ -179,6 +200,10 @@ text \<open>Again, we extend in the obvious way to constraints.\<close>
 abbreviation eliminate_vars_constr :: "var set \<Rightarrow> constraint \<Rightarrow> constraint" where
   "eliminate_vars_constr vs \<equiv> map (\<lambda>(\<tau>\<^sub>1, \<tau>\<^sub>2). (eliminate_vars vs \<tau>\<^sub>1, eliminate_vars vs \<tau>\<^sub>2))"
 
+lemma constr_vars_elimininate_vars [simp]: "constr_vars (eliminate_vars_constr vs \<kappa>) = 
+    constr_vars \<kappa> - vs"
+  by (induction \<kappa> rule: constr_vars.induct) auto
+
 lemma eliminate_unused_var_constr [simp]: "x \<notin> constr_vars \<kappa> \<Longrightarrow> 
     eliminate_vars_constr (insert x vs) \<kappa> = eliminate_vars_constr vs \<kappa>"
   by (induction \<kappa> rule: constr_vars.induct) simp_all
@@ -187,6 +212,11 @@ lemma constr_subst_eliminate_vars [simp]: "x \<notin> vs \<Longrightarrow>
   constr_subst x (to_unifiable \<tau>) (eliminate_vars_constr vs \<kappa>) = 
     eliminate_vars_constr vs (constr_subst x (to_unifiable \<tau>) \<kappa>)"
   by (induction x "to_unifiable \<tau>" \<kappa> rule: constr_subst.induct) simp_all
+
+lemma eliminate_constr_subst_one [simp]: "x \<notin> vs \<Longrightarrow> 
+  eliminate_vars_constr (insert x vs) (constr_subst x \<tau>' \<kappa>) = 
+    constr_subst x (eliminate_vars (insert x vs) \<tau>') (eliminate_vars_constr vs \<kappa>)"
+  by (induction \<kappa>) (simp_all split: prod.splits)
 
 lemma eliminate_extra_union_constr [simp]: "constr_vars \<kappa> \<inter> vs' \<subseteq> vs \<Longrightarrow> 
   eliminate_vars_constr (vs \<union> vs') \<kappa> = eliminate_vars_constr vs \<kappa>"

@@ -580,86 +580,106 @@ next
   have "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<subseteq> uvars \<tau>\<^sub>1 - dom \<sigma>\<^sub>1 \<union> subst_vars \<sigma>\<^sub>1" by simp
   with S1 U have U': "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<subseteq> subst_vars \<Gamma>" by blast
   with tc\<^sub>t_let have Y: "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<subseteq> insert ?v (vs \<union> vs\<^sub>1) - {?v}" by auto
-  from tc\<^sub>t_let TC1 have "finite (insert ?v (vs \<union> vs\<^sub>1))" by simp
+  from tc\<^sub>t_let TC1 have FVS: "finite (insert ?v (vs \<union> vs\<^sub>1))" by simp
   with TC2 X Y have TC2': "typecheck' (\<Gamma>(x \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1)) (insert ?v (vs \<union> vs\<^sub>1)) (erase e\<^sub>2) = 
     (map_expr\<^sub>s (subst [?v \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1]) e\<^sub>u\<^sub>2, subst [?v \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1] \<tau>\<^sub>2, vs\<^sub>2, 
       constr_subst ?v (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<kappa>\<^sub>2)" by simp
-
   from S1 have T1: "t\<^sub>1 = to_type (eliminate_vars (insert ?v vs) (subst \<sigma>\<^sub>1 \<tau>\<^sub>1))" by simp
-  from tc\<^sub>t_let U' have "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<subseteq> insert ?v vs" by auto
+  from tc\<^sub>t_let U' have U1: "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<subseteq> insert ?v vs" by auto
   with T1 have A: "(map_option to_type \<circ> \<Gamma>)(x \<mapsto> t\<^sub>1) = map_option to_type \<circ> (\<Gamma>(x \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1))" 
     by simp
   from X Y have B: "subst_vars (\<Gamma>(x \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1)) \<subseteq> insert ?v (vs \<union> vs\<^sub>1)" 
     by (auto simp add: subst_vars_def ran_def)
   from tc\<^sub>t_let TC1 have "valid_ty_term \<tau>\<^sub>1" by auto
   with S1 have "valid_ty_term (subst \<sigma>\<^sub>1 \<tau>\<^sub>1)" by simp
-  with tc\<^sub>t_let have C: "valid_ty_subst (\<Gamma>(x \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1))" by simp
-  from tc\<^sub>t_let TC1 have F2: "finite (insert ?v (vs \<union> vs\<^sub>1))" by simp
-  with tc\<^sub>t_let TC2' A B C obtain \<sigma>\<^sub>2 where S2: "map_expr\<^sub>s (eliminate_vars (insert ?v (vs \<union> vs\<^sub>1))) 
+  with tc\<^sub>t_let have "valid_ty_subst (\<Gamma>(x \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1))" by simp
+  with tc\<^sub>t_let TC2' A B FVS obtain \<sigma>\<^sub>2 where S2: "map_expr\<^sub>s (eliminate_vars (insert ?v (vs \<union> vs\<^sub>1))) 
     (map_expr\<^sub>s (subst \<sigma>\<^sub>2) (map_expr\<^sub>s (subst [?v \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1]) e\<^sub>u\<^sub>2)) = map_expr\<^sub>s to_unifiable e\<^sub>2 \<and>
     eliminate_vars (insert ?v (vs \<union> vs\<^sub>1)) (subst \<sigma>\<^sub>2 (subst [?v \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1] \<tau>\<^sub>2)) = to_unifiable t\<^sub>2 \<and>
     dom \<sigma>\<^sub>2 = vs\<^sub>2 \<and> subst_vars \<sigma>\<^sub>2 = {} \<and> 
     \<sigma>\<^sub>2 unifies\<^sub>\<kappa> eliminate_vars_constr (insert ?v (vs \<union> vs\<^sub>1)) (constr_subst ?v (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<kappa>\<^sub>2) \<and> 
     valid_ty_subst \<sigma>\<^sub>2 \<and> idempotent \<sigma>\<^sub>2" by presburger
-
-
-  from tc\<^sub>t_let have "map_option to_type \<circ> \<Gamma> \<turnstile>\<^sub>t e\<^sub>1 : t\<^sub>1" by simp
-  from tc\<^sub>t_let have "(map_option to_type \<circ> \<Gamma>)(x \<mapsto> t\<^sub>1) \<turnstile>\<^sub>t e\<^sub>2 : t\<^sub>2" by simp
-  from tc\<^sub>t_let have "finite vs" by simp
-  from tc\<^sub>t_let have "subst_vars \<Gamma> \<subseteq> vs" by simp
-  from tc\<^sub>t_let have "valid_ty_subst \<Gamma>" by simp
-
-
-  from tc\<^sub>t_let TC1 have "insert ?v vs \<inter> vs\<^sub>1 = {}" by simp
+  from tc\<^sub>t_let TC1 have I1: "insert ?v vs \<inter> vs\<^sub>1 = {}" by simp
   hence V1: "?v \<notin> vs\<^sub>1" by simp
-  from TC2 F2 have I: "insert ?v (vs \<union> vs\<^sub>1) \<inter> vs\<^sub>2 = {}" by simp
+  from TC2 FVS have I2: "insert ?v (vs \<union> vs\<^sub>1) \<inter> vs\<^sub>2 = {}" by simp
   hence V2: "?v \<notin> vs\<^sub>2" by simp
-  from I have V12: "vs\<^sub>1 \<inter> vs\<^sub>2 = {}" by auto
-
-
-
-  from TC2 F2 have "uvars \<tau>\<^sub>2 \<subseteq> vs\<^sub>2 \<union> subst_vars (\<Gamma>(x \<mapsto> Var ?v))" by (metis typecheck_type_vars)
-
-
+  from I2 have V12: "vs\<^sub>1 \<inter> vs\<^sub>2 = {}" by auto
   let ?\<sigma> = "extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2)"
-
-
-
-
-  have X: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) (map_expr\<^sub>s (subst \<sigma>\<^sub>2) 
+  from tc\<^sub>t_let TC1 have TV1: "tyvars\<^sub>s e\<^sub>u\<^sub>1 \<subseteq> vs\<^sub>1" by simp
+  with V1 have A: "dom [?v \<mapsto> to_unifiable t\<^sub>1] \<inter> tyvars\<^sub>s e\<^sub>u\<^sub>1 = {}" by auto
+  have "tyvars\<^sub>s (map_expr\<^sub>s (subst \<sigma>\<^sub>1) e\<^sub>u\<^sub>1) \<subseteq> tyvars\<^sub>s e\<^sub>u\<^sub>1 - dom \<sigma>\<^sub>1 \<union> subst_vars \<sigma>\<^sub>1" by simp
+  with S1 TV1 have B: "tyvars\<^sub>s (map_expr\<^sub>s (subst \<sigma>\<^sub>1) e\<^sub>u\<^sub>1) = {}" by auto
+  from TV1 S2 V12 have "dom \<sigma>\<^sub>2 \<inter> tyvars\<^sub>s e\<^sub>u\<^sub>1 = {}" by auto
+  with A B have X: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) (map_expr\<^sub>s (subst \<sigma>\<^sub>2) 
     (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u\<^sub>1))) =
       map_expr\<^sub>s (eliminate_vars (insert ?v vs)) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) e\<^sub>u\<^sub>1)" by simp
-
-
-  have "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) (map_expr\<^sub>s (subst \<sigma>\<^sub>2) 
+  from tc\<^sub>t_let TC2 FVS have TV2: "tyvars\<^sub>s e\<^sub>u\<^sub>2 \<subseteq> vs\<^sub>2" by simp
+  with V2 have B: "\<And>ee. dom [?v \<mapsto> ee] \<inter> tyvars\<^sub>s e\<^sub>u\<^sub>2 = {}" by auto
+  have "tyvars\<^sub>s (map_expr\<^sub>s (subst \<sigma>\<^sub>2) e\<^sub>u\<^sub>2) \<subseteq> tyvars\<^sub>s e\<^sub>u\<^sub>2 - dom \<sigma>\<^sub>2 \<union> subst_vars \<sigma>\<^sub>2" by simp
+  with S2 TV2 have "tyvars\<^sub>s (map_expr\<^sub>s (subst \<sigma>\<^sub>2) e\<^sub>u\<^sub>2) = {}" by auto
+  with B have "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst \<sigma>\<^sub>1) (map_expr\<^sub>s (subst \<sigma>\<^sub>2) 
     (map_expr\<^sub>s (subst [?v \<mapsto> to_unifiable t\<^sub>1]) e\<^sub>u\<^sub>2))) =
-      map_expr\<^sub>s (eliminate_vars (insert ?v (vs \<union> vs\<^sub>1))) 
+      map_expr\<^sub>s (eliminate_vars (insert ?v (vs \<union> vs\<^sub>1)))
         (map_expr\<^sub>s (subst \<sigma>\<^sub>2) (map_expr\<^sub>s (subst [?v \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1]) e\<^sub>u\<^sub>2))" by simp
   with S1 S2 X have A: "map_expr\<^sub>s (eliminate_vars vs) (map_expr\<^sub>s (subst ?\<sigma>) (Let\<^sub>s x e\<^sub>u\<^sub>1 e\<^sub>u\<^sub>2)) = 
     map_expr\<^sub>s to_unifiable (Let\<^sub>s x e\<^sub>1 e\<^sub>2)" by (simp add: expr\<^sub>s.map_comp comp_assoc)
-
-
-  from S1 have "eliminate_vars (insert ?v vs) (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) = to_unifiable t\<^sub>1" by simp
-
-  from S2 have "eliminate_vars (insert ?v (vs \<union> vs\<^sub>1)) (subst \<sigma>\<^sub>2 (subst [?v \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1] \<tau>\<^sub>2)) = 
-    to_unifiable t\<^sub>2" by simp
-
-
-
-
-  have "eliminate_vars vs (subst \<sigma>\<^sub>1 (subst \<sigma>\<^sub>2 (subst [?v \<mapsto> to_unifiable t\<^sub>1] \<tau>\<^sub>2))) =
-    to_unifiable t\<^sub>2" by simp
-  hence B: "eliminate_vars vs (subst ?\<sigma> \<tau>\<^sub>2) = to_unifiable t\<^sub>2" 
+  from TC2 FVS have "uvars \<tau>\<^sub>2 \<subseteq> vs\<^sub>2 \<union> subst_vars (\<Gamma>(x \<mapsto> Var ?v))" by (metis typecheck_type_vars)
+  hence "uvars \<tau>\<^sub>2 \<subseteq> insert ?v (vs\<^sub>2 \<union> subst_vars \<Gamma>)" by auto
+  with tc\<^sub>t_let have "uvars \<tau>\<^sub>2 \<subseteq> insert ?v (vs\<^sub>2 \<union> vs)" by auto
+  with I1 V12 have VU2: "vs\<^sub>1 \<inter> uvars \<tau>\<^sub>2 = {}" by auto
+  with S1 have ST2: "subst \<sigma>\<^sub>1 \<tau>\<^sub>2 = \<tau>\<^sub>2" by auto
+  from I2 S2 have "dom \<sigma>\<^sub>2 \<inter> vs = {}" by blast
+  with S2 have E2: "\<And>\<tau>. eliminate_vars vs (subst \<sigma>\<^sub>2 \<tau>) = subst \<sigma>\<^sub>2 (eliminate_vars vs \<tau>)" by simp
+  from I2 S2 have "dom \<sigma>\<^sub>2 \<inter> insert ?v (vs \<union> vs\<^sub>1) = {}" by blast
+  with S2 have E2': "\<And>\<tau>. eliminate_vars (insert ?v (vs \<union> vs\<^sub>1)) (subst \<sigma>\<^sub>2 \<tau>) = 
+    subst \<sigma>\<^sub>2 (eliminate_vars (insert ?v (vs \<union> vs\<^sub>1)) \<tau>)" by simp
+  have "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<subseteq> uvars \<tau>\<^sub>1 - dom \<sigma>\<^sub>1 \<union> subst_vars \<sigma>\<^sub>1" by simp
+  with S1 have "vs\<^sub>1 \<inter> uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) = {}" by auto
+  with VU2 have "subst [?v \<mapsto> eliminate_vars (insert ?v vs) (subst \<sigma>\<^sub>1 \<tau>\<^sub>1)] (eliminate_vars vs \<tau>\<^sub>2) =
+    subst [?v \<mapsto> eliminate_vars (insert ?v vs) (eliminate_vars vs\<^sub>1 (subst \<sigma>\<^sub>1 \<tau>\<^sub>1))] 
+      (eliminate_vars vs (eliminate_vars vs\<^sub>1 \<tau>\<^sub>2))" by simp
+  with tc\<^sub>t_let V1 have "eliminate_vars vs 
+    (subst [?v \<mapsto> eliminate_vars (insert ?v vs) (subst \<sigma>\<^sub>1 \<tau>\<^sub>1)] \<tau>\<^sub>2) =
+      eliminate_vars (insert ?v (vs \<union> vs\<^sub>1)) (subst [?v \<mapsto> subst \<sigma>\<^sub>1 \<tau>\<^sub>1] \<tau>\<^sub>2)" 
+    by (simp add: eliminate_subst_one')
+  with S1 S2 V1 V12 ST2 E2 E2' have B: "eliminate_vars vs (subst ?\<sigma> \<tau>\<^sub>2) = to_unifiable t\<^sub>2" 
     by (simp add: expand_extend_subst)
   from S1 S2 have C: "dom ?\<sigma> = insert ?v (vs\<^sub>1 \<union> vs\<^sub>2)" by simp
   from S1 S2 V1 V2 V12 have D: "subst_vars ?\<sigma> = {}" by simp 
-
-
-  have "extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>\<^sub>1 \<and>
-    extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) unifies\<^sub>\<kappa> eliminate_vars_constr vs \<kappa>\<^sub>2 \<and>
-    to_unifiable t\<^sub>1 = subst (extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2)) (eliminate_vars vs \<tau>\<^sub>1)" 
+  from tc\<^sub>t_let(6) U I2 have "uvars \<tau>\<^sub>1 \<inter> vs\<^sub>2 = {}" by blast
+  with S2 have U12: "dom \<sigma>\<^sub>2 \<inter> uvars (eliminate_vars vs \<tau>\<^sub>1) = {}" by auto
+  from tc\<^sub>t_let U' have "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<subseteq> vs" by simp
+  with tc\<^sub>t_let have V11: "?v \<notin> uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1)" by auto
+  from tc\<^sub>t_let(6) U V1 have VV1: "?v \<notin> uvars (eliminate_vars vs \<tau>\<^sub>1)" by auto
+  from S1 I1 have "dom \<sigma>\<^sub>1 \<inter> vs = {}" by auto
+  with S1 U12 V11 VV1 have X: "to_unifiable t\<^sub>1 = 
+    subst (extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2)) (eliminate_vars vs \<tau>\<^sub>1)" 
+      by (simp add: expand_extend_subst')
+  from tc\<^sub>t_let have "?v \<notin> subst_vars \<Gamma>" by auto
+  with tc\<^sub>t_let TC1 have "?v \<notin> constr_vars (eliminate_vars_constr vs \<kappa>\<^sub>1)" by simp
+  with tc\<^sub>t_let S1 have "\<sigma>\<^sub>1 unifies\<^sub>\<kappa> 
+    constr_subst ?v (to_unifiable t\<^sub>1) (eliminate_vars_constr vs \<kappa>\<^sub>1)" by simp
+  moreover from S1 S2 V12 have "dom \<sigma>\<^sub>1 \<inter> dom \<sigma>\<^sub>2 = {} \<and> dom \<sigma>\<^sub>2 \<inter> subst_vars \<sigma>\<^sub>1 = {}" by simp
+  ultimately have "combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2 unifies\<^sub>\<kappa> 
+    constr_subst ?v (to_unifiable t\<^sub>1) (eliminate_vars_constr vs \<kappa>\<^sub>1)" 
+      by (metis combine_fst_still_unifies_constr)
+  hence Y: "extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) unifies\<^sub>\<kappa> 
+    eliminate_vars_constr vs \<kappa>\<^sub>1" by simp
+  from U1 have "uvars (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) \<inter> vs\<^sub>1 \<subseteq> insert ?v vs" by auto
+  hence E1: "eliminate_vars (insert ?v vs \<union> vs\<^sub>1) (subst \<sigma>\<^sub>1 \<tau>\<^sub>1) = 
+    eliminate_vars (insert ?v vs) (subst \<sigma>\<^sub>1 \<tau>\<^sub>1)" by (metis eliminate_extra_union)
+  from TC2 FVS have "constr_vars \<kappa>\<^sub>2 \<subseteq> vs\<^sub>2 \<union> subst_vars (\<Gamma>(x \<mapsto> Var ?v))" 
+    by (metis typecheck_constr_vars)
+  with tc\<^sub>t_let(6) I1 I2 have "constr_vars \<kappa>\<^sub>2 \<inter> vs\<^sub>1 = {}" by force
+  with tc\<^sub>t_let V1 S2 E1 have "\<sigma>\<^sub>2 unifies\<^sub>\<kappa> 
+    constr_subst ?v (eliminate_vars (insert ?v vs) (subst \<sigma>\<^sub>1 \<tau>\<^sub>1)) (eliminate_vars_constr vs \<kappa>\<^sub>2)" 
       by simp
-  with tc\<^sub>t_let have F: "?\<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr vs (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(Var ?v, \<tau>\<^sub>1)])" by simp 
+  with S1 have "combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2 unifies\<^sub>\<kappa> 
+    constr_subst ?v (to_unifiable t\<^sub>1) (eliminate_vars_constr vs \<kappa>\<^sub>2)"
+      by (metis combine_snd_still_unifies_constr)
+  hence "extend_subst ?v (to_unifiable t\<^sub>1) (combine_subst \<sigma>\<^sub>1 \<sigma>\<^sub>2) unifies\<^sub>\<kappa> 
+    eliminate_vars_constr vs \<kappa>\<^sub>2" by simp
+  with tc\<^sub>t_let X Y have F: "?\<sigma> unifies\<^sub>\<kappa> eliminate_vars_constr vs (\<kappa>\<^sub>1 @ \<kappa>\<^sub>2 @ [(Var ?v, \<tau>\<^sub>1)])" by simp 
   from S1 S2 have G: "valid_ty_subst ?\<sigma>" by simp
   from S1 S2 V1 V2 V12 have "idempotent ?\<sigma>" by simp
   with E A B C D F G show ?case by blast

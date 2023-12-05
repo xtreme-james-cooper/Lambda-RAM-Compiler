@@ -141,6 +141,14 @@ lemma ran_subst_upd' [simp]: "subst_vars (\<lambda>a. if a = x then Some \<tau> 
     (subst_vars (\<sigma>(x := None)) \<union> uvars \<tau>)"
   by (auto simp add: subst_vars_def ran_def)
 
+lemma subst_comp_empty [simp]: "subst_vars \<sigma> = {} \<Longrightarrow> map_option (subst \<sigma>') \<circ> \<sigma> = \<sigma>"
+proof (unfold subst_vars_def ran_def, rule)
+  fix x
+  assume "\<Union> (uvars ` {b. \<exists>a. \<sigma> a = Some b}) = {}"
+  hence "\<And>b. \<sigma> x = Some b \<Longrightarrow> uvars b = {}" by auto
+  thus "(map_option (subst \<sigma>') \<circ> \<sigma>) x = \<sigma> x" by (cases "\<sigma> x") simp_all
+qed
+
 lemma subst_ran_explicitly [simp]: "\<sigma> x = Some \<tau> \<Longrightarrow> y \<in> uvars \<tau> \<Longrightarrow> y \<in> subst_vars \<sigma>"
   by (auto simp add: subst_vars_def ran_def)
 
